@@ -55,3 +55,10 @@ test('Codex is a first-class skill plugin with no accidental Claude hook discove
   assert.deepEqual(manifest.hooks, {});
   assert.match(manifest.description, /owner-driven|proof-first/i);
 });
+
+test('polyglot hook remains LF so both Bash and cmd.exe can parse it', async () => {
+  const { read } = await import('./helpers.mjs');
+  const attributes = await read('.gitattributes');
+  assert.match(attributes, /^\*\.cmd text eol=lf$/m);
+  assert.doesNotMatch(attributes, /^\*\.cmd text eol=crlf$/m);
+});
