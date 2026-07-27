@@ -88,13 +88,47 @@ for Zimster's efficiency-first default.
 
 ## metaswarm
 
-Repository: `MassGenAI/metaswarm`
+Repository: `dsifry/metaswarm`
 
-metaswarm uses numerous specialized agents and adversarial cross-model review.
-That can increase independent scrutiny, but its topology resembles the
-orchestration growth Zimster is intended to avoid. Zimster may borrow blind or
-adversarial final evaluation in benchmarks, not a standing eighteen-agent
-workflow.
+metaswarm uses eighteen specialized agents, recursive orchestration, mandatory
+TDD, and adversarial cross-model review. That can increase independent
+scrutiny, but its topology resembles the orchestration growth Zimster is
+intended to avoid. Zimster may borrow blind or adversarial final evaluation in
+benchmarks, not a standing eighteen-agent workflow.
+
+## Smithers
+
+Package/project: `smithers-orchestrator` / Smithers
+
+Smithers is not primarily a development methodology; it is a durable workflow
+runtime. Its strongest ideas are crash recovery, SQLite-backed checkpoints,
+human approvals, rewind/retry, concurrent independent steps, and adapters for
+multiple coding harnesses. Those capabilities become valuable when a run must
+survive for hours or days. Zimster should remain usable as a lightweight
+plugin, but a future optional Smithers adapter could execute Zimster workflows
+durably without moving that machinery into the default prompt path.
+
+## Microsoft Conductor
+
+Repository: `microsoft/conductor`
+
+Conductor defines multi-agent workflows in version-controlled YAML and routes
+them deterministically, without spending LLM tokens deciding which node runs
+next. It is compelling for repeatable CI, review pipelines, and regulated or
+auditable processes. It is less natural for exploratory implementation where
+the next useful action depends on what the owner discovers. Zimster should
+borrow deterministic budgets, explicit terminal states, and validated routing,
+while keeping the root implementation loop adaptive.
+
+## Trellis
+
+Repository: `mindfold-ai/Trellis`
+
+Trellis combines scoped project standards, task-centered context, persistent
+workspace journals, and broad harness support. Its auto-injected relevant
+specs are especially useful. Its default plan → implement subagent → verify
+subagent loop is still more delegation-heavy than Zimster's owner-driven
+default, but its scoped-context model is a strong interoperability target.
 
 ## Task Master
 
