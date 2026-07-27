@@ -1,0 +1,30 @@
+name: Bug report
+description: Report a reproducible Zimster workflow, adapter, or packaging defect.
+title: "[bug] "
+labels: [bug]
+body:
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Harness, version, model, OS, shell, and Zimster version.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction
+      description: Minimal prompt, repository state, commands, and observed output.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: economics
+    attributes:
+      label: Run economics
+      description: Agent count, turns, time, tokens, review waves, or repeated commands if relevant.

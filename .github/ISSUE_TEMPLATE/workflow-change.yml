@@ -1,0 +1,26 @@
+name: Workflow change proposal
+description: Propose a behavioral change with evidence and an evaluation plan.
+title: "[workflow] "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: failure
+    attributes:
+      label: Observed failure mode
+      description: What current behavior is costly, incorrect, or unreliable?
+    validations:
+      required: true
+  - type: textarea
+    id: mechanism
+    attributes:
+      label: Proposed mechanism
+      description: Explain why this changes behavior rather than only wording.
+    validations:
+      required: true
+  - type: textarea
+    id: eval
+    attributes:
+      label: Evaluation design
+      description: Control arms, scenarios, quality gates, and efficiency metrics.
+    validations:
+      required: true
