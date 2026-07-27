@@ -56,6 +56,23 @@ test('Codex is a first-class skill plugin with no accidental Claude hook discove
   assert.match(manifest.description, /owner-driven|proof-first/i);
 });
 
+
+
+test('every Codex skill ships OpenAI interface metadata', async () => {
+  const { readdir } = await import('node:fs/promises');
+  const { read } = await import('./helpers.mjs');
+  const entries = await readdir('skills', { withFileTypes: true });
+  const skillNames = entries.filter((entry) => entry.isDirectory()).map((entry) => entry.name);
+
+  for (const skillName of skillNames) {
+    const relative = `skills/${skillName}/agents/openai.yaml`;
+    assert.equal(await exists(relative), true, `missing ${relative}`);
+    const metadata = await read(relative);
+    assert.match(metadata, /^interface:\n/m, `${relative} interface`);
+    assert.match(metadata, /default_prompt:.*\$[a-z0-9-]+/m, `${relative} default_prompt`);
+  }
+});
+
 test('polyglot hook remains LF so both Bash and cmd.exe can parse it', async () => {
   const { read } = await import('./helpers.mjs');
   const attributes = await read('.gitattributes');

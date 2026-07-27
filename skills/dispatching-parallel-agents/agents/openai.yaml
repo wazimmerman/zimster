@@ -1,0 +1,4 @@
+interface:
+  display_name: "Parallel Agents"
+  short_description: "Delegate only genuinely independent workstreams"
+  default_prompt: "Use $dispatching-parallel-agents to delegate only the independent parts of this work."

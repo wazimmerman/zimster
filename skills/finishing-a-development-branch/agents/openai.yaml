@@ -1,0 +1,4 @@
+interface:
+  display_name: "Finishing a Development Branch"
+  short_description: "Verify, summarize, and hand off a clean branch"
+  default_prompt: "Use $finishing-a-development-branch to verify and hand off this development branch."

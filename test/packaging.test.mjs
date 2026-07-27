@@ -23,6 +23,15 @@ test('packaging is deterministic and emits Codex and Claude archives', async () 
     for (let index = 0; index < firstOutputs.length; index += 1) {
       assert.deepEqual(await bytes(firstOutputs[index]), await bytes(secondOutputs[index]));
     }
+
+    const codexArchive = await bytes(firstOutputs[1]);
+    for (const skill of ['using-zimster', 'owner-driven-development', 'test-driven-development', 'risk-adaptive-review']) {
+      assert.equal(
+        codexArchive.includes(Buffer.from(`skills/${skill}/agents/openai.yaml`)),
+        true,
+        `Codex archive missing OpenAI metadata for ${skill}`
+      );
+    }
   } finally {
     await rm(first, { recursive: true, force: true });
     await rm(second, { recursive: true, force: true });

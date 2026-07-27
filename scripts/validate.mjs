@@ -54,6 +54,22 @@ for (const name of skillNames) {
   for (const forbidden of ['/tmp/', '/home/', 'C:\\Users\\', '~/.']) {
     if (content.includes(forbidden)) errors.push(`${relative}: core skill contains platform-specific path ${forbidden}`);
   }
+
+  const openaiRelative = `skills/${name}/agents/openai.yaml`;
+  let openaiMetadata = '';
+  try {
+    openaiMetadata = await read(openaiRelative);
+  } catch {
+    errors.push(`${openaiRelative}: missing`);
+  }
+  if (openaiMetadata && !/^interface:\n/m.test(openaiMetadata)) errors.push(`${openaiRelative}: missing interface block`);
+  const shortDescription = openaiMetadata.match(/short_description:\s*"([^"]+)"/)?.[1] ?? '';
+  if (openaiMetadata && (shortDescription.length < 25 || shortDescription.length > 64)) {
+    errors.push(`${openaiRelative}: short_description must be 25-64 characters`);
+  }
+  if (openaiMetadata && !new RegExp(`default_prompt:.*\\$${name}(?:\\s|[^a-z0-9-])`).test(openaiMetadata)) {
+    errors.push(`${openaiRelative}: default_prompt must mention the $${name} skill`);
+  }
 }
 
 const codex = await parseJson('.codex-plugin/plugin.json');

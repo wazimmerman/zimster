@@ -28,7 +28,8 @@ shell assumptions.
 ### 2. Harness adapters
 
 - **Codex:** `.codex-plugin/plugin.json` and `.agents/plugins/marketplace.json`.
-  Codex gets native skill discovery and no SessionStart hook.
+  Codex gets native skill discovery, per-skill `agents/openai.yaml` interface
+  metadata, and no SessionStart hook.
 - **Claude Code:** `.claude-plugin/` plus `hooks/` injects only the compact
   `using-zimster` bootstrap.
 - **Cursor:** `.cursor-plugin/` uses the same proven cross-platform hook wrapper.

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Using Zimster"
+  short_description: "Select the smallest useful Zimster workflow"
+  default_prompt: "Use $using-zimster to select the smallest workflow that fits this task."

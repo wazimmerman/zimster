@@ -1,0 +1,4 @@
+interface:
+  display_name: "Owner-Driven Development"
+  short_description: "Implement with one persistent owner and budgets"
+  default_prompt: "Use $owner-driven-development to execute this plan with persistent ownership and bounded delegation."

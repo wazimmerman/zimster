@@ -1,0 +1,4 @@
+interface:
+  display_name: "Git Worktrees"
+  short_description: "Isolate risky work before changing the repository"
+  default_prompt: "Use $using-git-worktrees to create or verify an isolated workspace for this change."

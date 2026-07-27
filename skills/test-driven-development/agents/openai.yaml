@@ -1,0 +1,4 @@
+interface:
+  display_name: "Test-Driven Development"
+  short_description: "Use verified RED-GREEN-REFACTOR development"
+  default_prompt: "Use $test-driven-development to implement this behavior with a verified RED-GREEN-REFACTOR cycle."
