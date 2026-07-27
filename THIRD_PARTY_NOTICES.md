@@ -30,8 +30,8 @@ SOFTWARE.
 
 ## Other researched projects
 
-OpenSpec, GitHub Spec Kit, Agent OS, BMAD, Ralph, GSD, Ruflo, metaswarm, and
-Task Master informed the comparative research in `docs/RESEARCH.md`. No code
-from those projects is included in this release. Task Master code is
-specifically excluded because its current Commons Clause restricts competing
-products.
+OpenSpec, GitHub Spec Kit, Agent OS, BMAD, Ralph, GSD, Ruflo, metaswarm,
+Smithers, Microsoft Conductor, Trellis, and Task Master informed the
+comparative research in `docs/RESEARCH.md`. No code from those projects is
+included in this release. Task Master code is specifically excluded because
+its current Commons Clause restricts competing products.
