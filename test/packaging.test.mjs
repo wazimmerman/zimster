@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile, access } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createPackages } from '../scripts/package.mjs';
@@ -26,5 +26,19 @@ test('packaging is deterministic and emits Codex and Claude archives', async () 
   } finally {
     await rm(first, { recursive: true, force: true });
     await rm(second, { recursive: true, force: true });
+  }
+});
+
+
+test('packaging preserves unrelated files in the output directory', async () => {
+  const output = await mkdtemp(path.join(os.tmpdir(), 'zimster-preserve-'));
+  const sentinel = path.join(output, 'keep-me.txt');
+  try {
+    await writeFile(sentinel, 'unrelated');
+    await createPackages(output);
+    await access(sentinel);
+    assert.equal((await readFile(sentinel, 'utf8')), 'unrelated');
+  } finally {
+    await rm(output, { recursive: true, force: true });
   }
 });

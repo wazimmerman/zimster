@@ -1,4 +1,4 @@
-import { readFile, rm } from 'node:fs/promises';
+import { readFile, rm, mkdir, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { collectFiles, createZip } from './lib/zip.mjs';
@@ -10,7 +10,10 @@ const exclusions = ['dist', '.git', 'node_modules', '.zimster/runtime'];
 
 export async function createPackages(outputDirectory = path.join(root, 'dist')) {
   const { version } = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
-  await rm(outputDirectory, { recursive: true, force: true });
+  await mkdir(outputDirectory, { recursive: true });
+  for (const entry of await readdir(outputDirectory)) {
+    if (/^zimster-.*\.zip$/.test(entry)) await rm(path.join(outputDirectory, entry), { force: true });
+  }
 
   const definitions = [
     ['claude', ['.claude-plugin', 'hooks', ...common]],
