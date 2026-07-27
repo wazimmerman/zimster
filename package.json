@@ -1,0 +1,68 @@
+{
+  "name": "zimster",
+  "version": "0.1.0",
+  "description": "A proof-first, owner-driven development workflow for capable coding agents.",
+  "type": "module",
+  "private": false,
+  "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "node --test --test-reporter=spec",
+    "validate": "node scripts/validate.mjs",
+    "doctor": "node scripts/doctor.mjs",
+    "package": "node scripts/package.mjs",
+    "check": "npm run test && npm run validate && npm run package"
+  },
+  "main": ".opencode/plugins/zimster.js",
+  "keywords": [
+    "skills",
+    "tdd",
+    "debugging",
+    "code-review",
+    "workflow",
+    "agentic-development",
+    "token-efficiency"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/wazimmerman/zimster.git"
+  },
+  "homepage": "https://github.com/wazimmerman/zimster",
+  "bugs": {
+    "url": "https://github.com/wazimmerman/zimster/issues"
+  },
+  "files": [
+    ".agents",
+    ".claude-plugin",
+    ".codex-plugin",
+    ".cursor-plugin",
+    ".kimi-plugin",
+    ".opencode",
+    ".pi",
+    "assets",
+    "docs",
+    "hooks",
+    "scripts",
+    "skills",
+    "LICENSE",
+    "README.md",
+    "THIRD_PARTY_NOTICES.md",
+    "agents",
+    "templates",
+    "PRIVACY.md",
+    "TERMS.md",
+    "SUPPORT.md",
+    "CHANGELOG.md",
+    "AGENTS.md"
+  ],
+  "pi": {
+    "extensions": [
+      "./.pi/extensions/zimster.ts"
+    ],
+    "skills": [
+      "./skills"
+    ]
+  }
+}
