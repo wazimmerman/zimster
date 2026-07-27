@@ -1,0 +1,45 @@
+{
+  "name": "zimster",
+  "version": "0.1.0",
+  "description": "A proof-first, owner-driven development workflow optimized for capable coding agents.",
+  "author": {
+    "name": "Zimster Contributors",
+    "url": "https://github.com/wazimmerman/zimster"
+  },
+  "homepage": "https://github.com/wazimmerman/zimster",
+  "repository": "https://github.com/wazimmerman/zimster",
+  "license": "MIT",
+  "keywords": [
+    "skills",
+    "tdd",
+    "debugging",
+    "code-review",
+    "workflow",
+    "agentic-development",
+    "token-efficiency"
+  ],
+  "skills": "./skills/",
+  "hooks": {},
+  "interface": {
+    "displayName": "Zimster",
+    "shortDescription": "Proof-first development without orchestration bloat",
+    "longDescription": "Plan coherent vertical slices, use RED-GREEN-REFACTOR, delegate only when it pays, review risky seams, and finish with fresh evidence.",
+    "developerName": "Zimster Contributors",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Help me design and implement this feature efficiently.",
+      "Fix this bug with a verified reproduction and regression test."
+    ],
+    "websiteURL": "https://github.com/wazimmerman/zimster",
+    "privacyPolicyURL": "https://github.com/wazimmerman/zimster/blob/main/PRIVACY.md",
+    "termsOfServiceURL": "https://github.com/wazimmerman/zimster/blob/main/TERMS.md",
+    "brandColor": "#F59E0B",
+    "composerIcon": "./assets/zimster.svg",
+    "screenshots": []
+  }
+}

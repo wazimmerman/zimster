@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" role="img" aria-label="Zimster">
+  <rect width="128" height="128" rx="24" fill="#111827"/>
+  <path d="M28 30h72L47 88h53v18H26V90l52-42H28z" fill="#f59e0b"/>
+  <circle cx="95" cy="31" r="10" fill="#f8fafc"/>
+</svg>

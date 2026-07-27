@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# Adapted from Superpowers v6.2.0 under the MIT License.
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+bootstrap=$(cat "${PLUGIN_ROOT}/skills/using-zimster/SKILL.md" 2>&1 || printf '%s' 'Error reading using-zimster skill')
+escape_json() {
+  local value="$1"
+  value="${value//\\/\\\\}"
+  value="${value//\"/\\\"}"
+  value="${value//$'\n'/\\n}"
+  value="${value//$'\r'/\\r}"
+  value="${value//$'\t'/\\t}"
+  printf '%s' "$value"
+}
+encoded=$(escape_json "$bootstrap")
+context="<ZIMSTER_BOOTSTRAP>\nzimster:using-zimster bootstrap\n\n${encoded}\n</ZIMSTER_BOOTSTRAP>"
+if [ -n "${CURSOR_PLUGIN_ROOT:-}" ]; then
+  printf '{\n  "additional_context": "%s"\n}\n' "$context" | cat
+elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
+  printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "SessionStart",\n    "additionalContext": "%s"\n  }\n}\n' "$context" | cat
+else
+  printf '{\n  "additionalContext": "%s"\n}\n' "$context" | cat
+fi

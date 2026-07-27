@@ -1,0 +1,37 @@
+{
+  "name": "zimster",
+  "version": "0.1.0",
+  "description": "Proof-first, owner-driven development workflows.",
+  "author": {
+    "name": "Zimster Contributors"
+  },
+  "homepage": "https://github.com/wazimmerman/zimster",
+  "repository": "https://github.com/wazimmerman/zimster",
+  "license": "MIT",
+  "keywords": [
+    "skills",
+    "tdd",
+    "debugging",
+    "code-review",
+    "workflow",
+    "agentic-development",
+    "token-efficiency"
+  ],
+  "skills": "./skills/",
+  "sessionStart": {
+    "skill": "using-zimster"
+  },
+  "skillInstructions": "Kimi Code mapping for Zimster: use AskUserQuestion only when a decision truly requires user input; use TodoList for tracked work; use Agent with coder for bounded implementation or review, explore for read-only research, and plan for architecture. Keep dependent work sequential, do not permit subagents to create subagents, and use no more than two parallel implementation agents. Use native Skill, Read, Write, Edit, Bash, Grep, Glob, FetchURL, WebSearch, and MCP tools.",
+  "interface": {
+    "displayName": "Zimster",
+    "shortDescription": "Proof-first development without orchestration bloat",
+    "longDescription": "Owner-driven implementation, selective delegation, TDD, risk-adaptive review, and evidence-based completion.",
+    "developerName": "Zimster Contributors",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/wazimmerman/zimster"
+  }
+}
