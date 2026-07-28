@@ -45,6 +45,19 @@ Dependency-free Node 22 tools turn important policy into inspectable state:
 - `change-snapshot.mjs` represents committed, staged, unstaged, and untracked
   changes without touching the index;
 - `evidence.mjs` records local proof receipts and validity fingerprints;
+- `run-budget.mjs` enforces execution limits and proof-backed overrides;
+- `phase-checkpoint.mjs` separates persistent logical ownership from bounded
+  physical contexts;
+- `verify.mjs` runs profile-selected gates with full Git-local logs and one
+  compact receipt;
+- `installed-package-smoke.mjs` exercises exact candidate archives in isolated
+  homes before review packaging;
+- `review-package.mjs` represents immutable canonical changes and mirror
+  hashes without duplicating generated content;
+- `capability-cache.mjs` decides whether one host contract needs refreshed
+  research;
+- `run-postmortem.mjs` aggregates run-scoped observed/inferred/unavailable
+  execution metrics;
 - `dispatch-record.mjs` records requested/effective model routing;
 - `sync-codex-plugin.mjs` generates the Codex plugin mirror;
 - `validate-codex.mjs` checks the pinned official contract snapshot;
@@ -86,6 +99,11 @@ Detailed logs, diffs, and transcripts remain separate artifacts.
 Projects may opt into a project-defined audit documentation path; normal
 operation never turns approval or run bookkeeping into a standalone commit.
 
+The logical implementation owner persists across physical contexts. A compact
+checkpoint at a coherent slice boundary carries only the next dependency cone,
+valid receipt references, and budget position; it never embeds the full
+objective, passing logs, historical diffs, or transcript.
+
 ## Git state and review representation
 
 A review cannot rely on `git diff` alone. The change snapshot includes:
@@ -113,8 +131,10 @@ An evidence receipt includes:
 - dependency cone, inputs, source, and notes;
 - whether it was a final gate.
 
-Focused evidence may be reused only on the same fingerprint. Final gates are
-always fresh. Duplicate evidence is surfaced instead of silently rerun.
+Focused evidence may be reused only on the same fingerprint. Documentation-only
+changes rerun only affected provenance/packaging proof until the final gate is
+due. Final gates are always fresh. Duplicate evidence is surfaced instead of
+silently rerun.
 
 ## Model-routing model
 

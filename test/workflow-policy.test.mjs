@@ -108,6 +108,18 @@ test('durable state has deterministic creation triggers', async () => {
   }
 });
 
+test('bootstrap policy enforces execution economy and phase-bounded ownership', async () => {
+  const bootstrap = await read('skills/using-zimster/SKILL.md');
+  assert.match(bootstrap, /logical owner[\s\S]*physical context|physical context[\s\S]*logical owner/i);
+  assert.match(bootstrap, /phase checkpoint/i);
+  assert.match(bootstrap, /execution budget/i);
+  assert.match(bootstrap, /goal:verify/);
+  assert.match(bootstrap, /valid receipt[\s\S]*before repeating|before repeating[\s\S]*valid receipt/i);
+  assert.match(bootstrap, /installed-package smoke[\s\S]*final integration review/i);
+  assert.match(bootstrap, /capability cache/i);
+  assert.match(bootstrap, /postmortem/i);
+});
+
 test('completion states include requirement blockers', async () => {
   const verification = await read('skills/verification-before-completion/SKILL.md');
   const owner = await read('skills/owner-driven-development/SKILL.md');

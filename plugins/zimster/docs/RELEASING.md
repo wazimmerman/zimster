@@ -18,17 +18,38 @@ This synchronizes package and lock metadata, all current manifests and
 marketplace entries, skills build metadata, changelog, and the generated Codex
 mirror.
 
+## Build, install, and review the exact candidate
+
+The default order is:
+
+```text
+build candidate packages
+→ installed-package smoke in isolated homes
+→ available live host discovery and smoke
+→ immutable compact review package
+→ final integration review
+→ one correction wave and resumed recheck
+→ final exact-tree verification
+```
+
+The final integration review cannot approve source-only correctness when
+installed-package smoke is available. `npm run release:verify` deterministically
+orchestrates version checks, packaging, checksums, archive safety, secret scan,
+official plugin validation, configured host smoke, and review-package creation.
+
 ## Validate the exact tree
 
 Run fresh, after all release edits:
 
 ```text
+npm run release:verify
 npm run check
 npm run version:check
 npm run version:check -- --tag v<next-version>
 npm run doctor -- --json
 npm run checksums
 git diff --check
+npm run postmortem
 ```
 
 Also run the current official Codex validator against `plugins/zimster`, then

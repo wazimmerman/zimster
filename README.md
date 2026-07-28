@@ -197,7 +197,7 @@ npm run sync:codex
 npm run validate:codex
 npm run codex:cachebuster -- /path/to/staging/plugins/zimster
 npm run version:check
-npm run version:bump -- 0.3.0 --note "Release summary"
+npm run version:bump -- 0.4.0 --note "Release summary"
 npm run package
 npm run checksums
 ```
@@ -234,12 +234,12 @@ Apache-2.0. See `THIRD_PARTY_NOTICES.md` and `docs/UPSTREAM.md`.
 
 ## Project status
 
-Version 0.3.0 hardens the complete public package: validated Codex marketplace
-and isolated installation flows, quiet capability fallbacks, Git-local
-run/evidence state, mutation-detecting review integrity, enforced Claude
-reviewer roles, safe skills-only synchronization, corrected secondary adapters,
-machine-readable provenance, deterministic packages, and honest live-versus-
-structural harness status.
+Version 0.4.0 adds execution-economy controls: deterministic goal/release
+verification, enforced budgets, phase-bounded physical contexts under one
+logical owner, tree-keyed evidence reuse, installed-candidate smoke before
+review, compact review packages, dated capability caching, and run-scoped
+postmortems. The validated cross-harness packaging and quiet fallback contracts
+from 0.3.0 remain intact.
 
 Live installation in every harness and comparative
 Zimster-versus-Superpowers economics remain evaluation work, not claimed

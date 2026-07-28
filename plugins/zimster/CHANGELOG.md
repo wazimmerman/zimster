@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.4.0 — 2026-07-28
+
+- Execution-economy optimization
+
 ## 0.3.0 — 2026-07-28
 
 - Correct the Codex marketplace/package layout, pin the official validation

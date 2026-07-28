@@ -1,6 +1,6 @@
 {
   "name": "zimster",
-  "version": "0.3.0",
+  "version": "0.4.0",
   "description": "A proof-first, owner-driven development workflow for capable coding agents.",
   "type": "module",
   "private": false,
@@ -31,6 +31,7 @@
     "checksums": "node scripts/checksums.mjs",
     "capability:status": "node scripts/capability-cache.mjs status",
     "postmortem": "node scripts/run-postmortem.mjs",
+    "evaluate:economy": "node scripts/evaluate-execution-economy.mjs",
     "goal:verify": "node scripts/verify.mjs run --profile goal",
     "release:verify": "node scripts/verify.mjs run --profile release",
     "check": "npm run test && npm run validate && npm run package"

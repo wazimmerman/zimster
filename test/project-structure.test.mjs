@@ -35,6 +35,8 @@ const requiredFiles = [
   'scripts/review-package.mjs',
   'scripts/capability-cache.mjs',
   'scripts/run-postmortem.mjs',
+  'scripts/evaluate-execution-economy.mjs',
+  'docs/evaluations/v0.3.0-hardening-postmortem.md',
   'scripts/sync-codex-plugin.mjs',
   'scripts/validate-codex.mjs',
   'scripts/change-snapshot.mjs',

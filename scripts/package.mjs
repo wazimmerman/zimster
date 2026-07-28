@@ -14,6 +14,7 @@ const operationalScripts = [
   'scripts/codex-cachebuster.mjs',
   'scripts/dispatch-record.mjs', 'scripts/doctor.mjs',
   'scripts/evidence.mjs', 'scripts/host-smoke.mjs',
+  'scripts/evaluate-execution-economy.mjs',
   'scripts/init-run.mjs', 'scripts/installed-package-smoke.mjs',
   'scripts/phase-checkpoint.mjs',
   'scripts/project-commands.mjs', 'scripts/run-budget.mjs',

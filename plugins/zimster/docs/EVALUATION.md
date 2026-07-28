@@ -1,7 +1,10 @@
 # Evaluation Strategy
 
 Zimster's efficiency and quality claims must be established experimentally.
-Version 0.3.0 does not claim to beat Superpowers.
+Version 0.4.0 does not claim to beat Superpowers.
+
+The historical 0.3.0 hardening measurements and the mechanisms they motivated
+are recorded in `docs/evaluations/v0.3.0-hardening-postmortem.md`.
 
 ## Comparison arms
 
@@ -68,6 +71,11 @@ Add explicit hold-outs for:
 - a reviewer with shell access mutates the checkout;
 - an evidence receipt is reused after a working-tree change;
 - a release tag disagrees with package/plugin versions.
+
+Run `node scripts/evaluate-execution-economy.mjs` for the deterministic local
+fixture. It demonstrates duplicate-command reuse, budget warning behavior,
+checkpoint resumption, and compact verification output without a costly live
+goal. It is a mechanism test, not comparative performance evidence.
 
 ## Initial release gates
 

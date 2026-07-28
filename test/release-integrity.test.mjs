@@ -41,12 +41,14 @@ test('release documentation covers diagnostics, skills-only installs, and final 
   const releasing = await read('docs/RELEASING.md');
   for (const command of [
     'npm run version:bump', 'npm run check', 'npm run version:check',
-    'npm run checksums', 'git diff --check'
+    'npm run checksums', 'npm run release:verify', 'npm run postmortem',
+    'git diff --check'
   ]) {
     assert.match(releasing, new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
   assert.match(releasing, /secret/i);
   assert.match(releasing, /Codex[\s\S]*isolated|isolated[\s\S]*Codex/i);
+  assert.match(releasing, /installed-package smoke[\s\S]*final integration review/i);
 });
 
 test('current release docs use the synchronized package version and honest evaluation status', async () => {

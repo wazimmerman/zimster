@@ -96,7 +96,8 @@ for (const relative of [
   'scripts/verify.mjs', 'scripts/archive-safety.mjs', 'scripts/secret-scan.mjs',
   'scripts/installed-package-smoke.mjs', 'scripts/host-smoke.mjs',
   'scripts/review-package.mjs', 'scripts/capability-cache.mjs',
-  'scripts/run-postmortem.mjs',
+  'scripts/run-postmortem.mjs', 'scripts/evaluate-execution-economy.mjs',
+  'docs/evaluations/v0.3.0-hardening-postmortem.md',
   'scripts/check-version.mjs', 'scripts/bump-version.mjs', 'scripts/checksums.mjs', 'config/model-routing.json',
   'config/host-smoke.json',
   'schemas/evidence.schema.json', 'schemas/dispatch.schema.json'

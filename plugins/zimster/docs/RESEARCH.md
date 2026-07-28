@@ -4,6 +4,14 @@ Research access date: 2026-07-27 (America/Denver; some source timestamps use
 2026-07-28 UTC). Project capabilities and licenses can change; verify the
 linked primary sources before borrowing code or publishing claims.
 
+The dated, source-linked records in `config/harness-capabilities.json` are the
+operational capability cache. Query only the host in scope with
+`npm run capability:status -- --harness <id>`. Refresh when its configured age
+expires, the local host version changes, an official validator contradicts the
+record, the task changes that host integration, or the user explicitly requests
+fresh research. Internal workflow optimization alone does not justify broad
+multi-host research.
+
 ## Supported harness contracts
 
 | Harness | Primary sources | Local host | Supported capabilities | Unsupported or unverified | Implementation decision |

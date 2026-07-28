@@ -125,6 +125,48 @@ the largest consumers. At about 80%, stop optional delegation and polish,
 consolidate findings, and prioritize required proof. Never lower a required
 quality gate silently.
 
+For Standard and High-risk runs, initialize the machine-readable execution budget
+with durable state. Record complete-suite executions, duplicate
+commands, optional agent identities, nesting depth, review rechecks, correction
+waves, physical context compactions, research refreshes, and exposed token
+thresholds. A crossed limit requires a recorded invalidation or strategy
+change plus the named proof; it never silently removes required evidence.
+
+## Logical ownership and phase checkpoints
+
+The logical owner is continuous even when the physical context is deliberately
+renewed. At each coherent vertical-slice boundary, create a phase checkpoint
+containing only the mission digest, hard invariants, architecture, slice
+commits, valid receipt references, findings, unavailable evidence, exact next
+slice/dependency cone, and budget position. Full objectives, passing logs,
+diffs, and transcripts remain outside the checkpoint. On continuation, resume
+from that checkpoint and reload only the next dependency cone.
+
+## Deterministic verification and evidence reuse
+
+Once available, use `npm run goal:verify` for goal gates and
+`npm run release:verify` for release gates instead of issuing their constituent
+commands separately. Keep full logs in Git-local artifacts and return the
+compact receipt summary to the active context. Before repeating a broad
+command, check for a valid receipt keyed to the current tree, dirty state,
+environment, exact argv, dependency cone, and inputs. Required fresh final
+gates are never reused.
+
+The release sequence is build candidate packages → installed-package smoke in
+isolated homes → available host discovery/smoke → immutable compact review
+package → final integration review → one correction/recheck → fresh exact-tree
+verification. Source-only review cannot substitute for an available installed
+candidate test.
+
+## Capability research and postmortem
+
+Consult the dated, source-linked capability cache for only the host in scope.
+Refresh it only for configured expiry, a changed local host version, an
+official-validator contradiction, a task that changes that integration, or an
+explicit user request for fresh research. Generate the deterministic
+postmortem at completion; keep observed, inferred, and unavailable metrics
+distinct, and never add incompatible token meters together.
+
 ## Harness adaptation
 
 Read only the matching reference:

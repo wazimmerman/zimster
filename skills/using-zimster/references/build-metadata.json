@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "semantic_version": "0.3.0",
+  "semantic_version": "0.4.0",
   "source_commit": null,
   "build_date": null,
-  "build_id": "zimster-0.3.0-source",
+  "build_id": "zimster-0.4.0-source",
   "package_target": "source"
 }

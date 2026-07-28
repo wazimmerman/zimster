@@ -26,6 +26,40 @@ The `--harness` value embeds the matching capability matrix in a
 machine-readable JSON block; omit it only when the harness is genuinely
 unverified.
 
+Standard and High-risk initialization also creates a run identity, lifecycle
+event stream, and machine-readable execution budget. Use
+`scripts/run-budget.mjs record` for measured events and
+`scripts/run-budget.mjs prove` to satisfy a proof-backed override.
+
+At a coherent slice boundary, create a bounded checkpoint with
+`scripts/phase-checkpoint.mjs create --input <compact-json>`. A continued
+physical context uses `phase-checkpoint.mjs resume`; logical ownership remains
+with the same root owner.
+
+## Deterministic verification
+
+```text
+npm run goal:verify
+npm run release:verify
+```
+
+The profile runner executes shell-free argv vectors, writes full logs and one
+receipt beneath the Git-local `zimster/verification` directory, stops on the
+first failure, and prints only a compact JSON summary. Consult existing
+tree-keyed evidence before repeating a broad command.
+
+## Capability cache and postmortem
+
+```text
+npm run capability:status -- --harness codex --host-version "<version>"
+npm run postmortem
+```
+
+Capability status is scoped to one host. Expiry, version change, validator
+contradiction, a task changing that integration, or an explicit fresh-research
+request are the only refresh triggers. The postmortem is run-scoped and keeps
+incompatible token meters separate.
+
 ## Canonical command inventory
 
 ```text
@@ -135,16 +169,16 @@ A fast role that actually used the parent model is marked with a warning.
 ## Release controls
 
 ```text
-npm run version:bump -- 0.3.0 --note "Release summary"
+npm run version:bump -- 0.4.0 --note "Release summary"
 npm run version:check
 npm run sync:codex:check
-npm run check
-npm run checksums
+npm run release:verify
+npm run postmortem
 ```
 
 `version:bump` updates package/lock versions, three current primary manifests, Claude
 marketplace entry, changelog heading, and the generated Codex mirror.
-`version:check -- --tag v0.3.0` additionally validates a release tag.
+`version:check -- --tag v0.4.0` additionally validates a release tag.
 
 ## Privacy
 

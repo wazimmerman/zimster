@@ -22,6 +22,16 @@ Codex-mirror state, structural package status, harness verification status, and
 each capability classification. It writes no warning output on a healthy
 package.
 
+Verification failures print a compact `failed_step` and action while preserving
+complete stdout/stderr under the Git-local verification log directory. Inspect
+that referenced log rather than rerunning the entire profile. Use
+`npm run postmortem` to distinguish observed, inferred, and unavailable run
+metrics; incompatible token meters are never combined.
+
+Capability-cache status exits 2 when research refresh is required and lists the
+specific trigger. That is an actionable research decision, not permission to
+refresh every harness contract.
+
 ## Quiet fallback
 
 These are expected quiet fallback cases when the capability matrix permits
