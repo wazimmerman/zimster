@@ -196,3 +196,47 @@ test('verification runner accounts for a declared complete suite before executio
     await rm(repo, { recursive: true, force: true });
   }
 });
+
+test('verification runner carries a proof-backed strategy when a required suite crosses budget', async () => {
+  const repo = await tempRepo();
+  try {
+    const budget = path.join(root, 'scripts/run-budget.mjs');
+    let result = run(process.execPath, [
+      budget, 'init', '--profile', 'standard'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    result = run(process.execPath, [
+      budget, 'record', '--metric', 'complete_suite_executions', '--amount', '3'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const planFile = path.join(repo, 'plan.json');
+    await writeFile(planFile, `${JSON.stringify({
+      schema_version: 1,
+      profile: 'budgeted-release',
+      complete_suite: true,
+      steps: [{
+        id: 'passes',
+        command: process.execPath,
+        args: ['-e', 'process.exit(0);']
+      }]
+    })}\n`);
+    result = run(process.execPath, [
+      path.join(root, 'scripts/verify.mjs'), 'run', '--plan', planFile,
+      '--strategy-change', 'required refreshed final tree',
+      '--required-proof', 'refreshed release receipt',
+      '--required-proof-type', 'verification',
+      '--required-proof-profile', 'budgeted-release'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const summary = JSON.parse(result.stdout);
+    assert.equal(summary.budget.status, 'BUDGET_OVERRIDE');
+    const state = JSON.parse(await readFile(
+      path.join(path.dirname(verificationRuntime(repo)), 'budget.json'),
+      'utf8'
+    ));
+    assert.equal(state.usage.complete_suite_executions, 4);
+    assert.equal(state.proof_obligations.at(-1).proof, 'refreshed release receipt');
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});

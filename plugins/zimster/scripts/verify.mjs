@@ -138,7 +138,25 @@ async function runPlan(plan) {
   if (plan.complete_suite === true) {
     try {
       const result = await recordExecutionBudgetEvent(runtime, {
-        metric: 'complete_suite_executions'
+        metric: 'complete_suite_executions',
+        invalidation: options.invalidation ? String(options.invalidation) : null,
+        strategyChange: options['strategy-change'] ? String(options['strategy-change']) : null,
+        requiredProof: options['required-proof'] ? String(options['required-proof']) : null,
+        requiredProofType: options['required-proof-type']
+          ? String(options['required-proof-type'])
+          : null,
+        requiredProofKind: options['required-proof-kind']
+          ? String(options['required-proof-kind'])
+          : null,
+        requiredProofScope: options['required-proof-scope']
+          ? String(options['required-proof-scope'])
+          : null,
+        requiredProofProfile: options['required-proof-profile']
+          ? String(options['required-proof-profile'])
+          : null,
+        requiredProofCommand: options['required-proof-command']
+          ? String(options['required-proof-command'])
+          : null
       });
       budget = { status: result.status, ...result.detail };
       if (!result.changed) {
