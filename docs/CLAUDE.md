@@ -65,10 +65,11 @@ CLAUDE_CONFIG_DIR=<same-isolated-directory> claude plugin marketplace remove zim
 ## Session bootstrap
 
 `hooks/hooks.json` registers one synchronous `SessionStart` command for
-`startup`, `resume`, `clear`, and `compact`. The plugin-relative wrapper emits
+`startup`, `resume`, `clear`, and `compact`. The plugin-relative Node hook emits
 one compact `using-zimster` context object, no stderr, and no progress message
-on success. Missing required bootstrap content exits nonzero with an actionable
-error. The hook does not write state or modify user configuration.
+on success without selecting Bash, PowerShell, or another platform shell.
+Missing required bootstrap content exits nonzero with an actionable error. The
+hook does not write state or modify user configuration.
 
 ## Reviewer enforcement
 

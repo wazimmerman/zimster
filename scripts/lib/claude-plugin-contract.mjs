@@ -103,9 +103,17 @@ export async function validateClaudePlugin(root) {
       const allowedHookFields = new Set(['type', 'command', 'args', 'async', 'asyncRewake', 'shell', 'timeout']);
       fields(command, allowedHookFields, 'hooks/hooks.json SessionStart command', errors);
       if (command.type !== 'command') errors.push('hooks/hooks.json: SessionStart hook must be a command');
-      if (!String(command.command || '').includes('${CLAUDE_PLUGIN_ROOT}')) {
-        errors.push('hooks/hooks.json: command must resolve through CLAUDE_PLUGIN_ROOT');
+      if (command.command !== 'node') {
+        errors.push('hooks/hooks.json: SessionStart must use the cross-platform Node executable');
       }
+      if (
+        !Array.isArray(command.args)
+        || command.args.length !== 1
+        || command.args[0] !== '${CLAUDE_PLUGIN_ROOT}/hooks/session-start.mjs'
+      ) {
+        errors.push('hooks/hooks.json: Node hook must resolve session-start.mjs through CLAUDE_PLUGIN_ROOT');
+      }
+      if (command.shell !== undefined) errors.push('hooks/hooks.json: SessionStart must not force a platform shell');
       if (command.async !== false) errors.push('hooks/hooks.json: bootstrap must run synchronously');
     }
   }
@@ -155,7 +163,7 @@ export async function validateClaudePlugin(root) {
     errors.push('agents/test-reviewer.md: expected sonnet, high effort, and maxTurns 24');
   }
 
-  for (const required of ['hooks/run-hook.cmd', 'hooks/session-start', 'skills/using-zimster/SKILL.md']) {
+  for (const required of ['hooks/session-start.mjs', 'skills/using-zimster/SKILL.md']) {
     try {
       if (!(await stat(path.join(root, required))).isFile()) errors.push(`${required}: not a file`);
     } catch {

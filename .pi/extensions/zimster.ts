@@ -6,15 +6,12 @@ import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 
 const marker = "zimster:using-zimster bootstrap for pi";
 const extensionDir = dirname(fileURLToPath(import.meta.url));
-const packageRoot = resolve(extensionDir, "../..");
-const skillsDir = resolve(packageRoot, "skills");
-const skillPath = resolve(skillsDir, "using-zimster", "SKILL.md");
+const skillPath = resolve(extensionDir, "../..", "skills", "using-zimster", "SKILL.md");
 let cached: string | undefined;
 
 export default function zimsterPiExtension(pi: ExtensionAPI) {
   getBootstrap();
   let inject = true;
-  pi.on("resources_discover", async () => ({ skillPaths: [skillsDir] }));
   pi.on("session_start", async () => { inject = true; });
   pi.on("session_compact", async () => { inject = true; });
   pi.on("agent_end", async () => { inject = false; });

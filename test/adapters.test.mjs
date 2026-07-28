@@ -4,10 +4,12 @@ import { pathToFileURL } from 'node:url';
 import path from 'node:path';
 import { exists, json, read, root } from './helpers.mjs';
 
-test('Claude hook uses the cross-platform wrapper', async () => {
+test('Claude hook uses a dependency-free Node exec without forcing Bash', async () => {
   const claude = await json('hooks/hooks.json');
-  const command = claude.hooks.SessionStart[0].hooks[0].command;
-  assert.match(command, /run-hook\.cmd/);
+  const hook = claude.hooks.SessionStart[0].hooks[0];
+  assert.equal(hook.command, 'node');
+  assert.deepEqual(hook.args, ['${CLAUDE_PLUGIN_ROOT}/hooks/session-start.mjs']);
+  assert.equal(hook.shell, undefined);
 });
 
 test('Cursor uses documented project skills and command surfaces only', async () => {
@@ -37,9 +39,9 @@ test('Kimi manifest contains only documented fields and one native bootstrap', a
 });
 
 test('session bootstrap injects using-zimster, not the full library', async () => {
-  const script = await read('hooks/session-start');
-  assert.match(script, /skills\/using-zimster\/SKILL\.md/);
-  assert.doesNotMatch(script, /cat .*skills\/.*\/SKILL\.md.*skills\//);
+  const script = await read('hooks/session-start.mjs');
+  assert.match(script, /'skills', 'using-zimster', 'SKILL\.md'/);
+  assert.doesNotMatch(script, /readdir|glob/i);
 });
 
 test('OpenCode adapter registers skills and injects the bootstrap once', async () => {
@@ -65,7 +67,7 @@ test('OpenCode adapter registers skills and injects the bootstrap once', async (
   assert.equal(injected.length, 1);
 });
 
-test('Pi package declares its adapter and the adapter injects once', async () => {
+test('Pi package declares one skill-loading surface and the adapter injects once', async () => {
   const pkg = await json('package.json');
   assert.deepEqual(pkg.pi.extensions, ['./.pi/extensions/zimster.ts']);
   assert.deepEqual(pkg.pi.skills, ['./skills']);
@@ -77,9 +79,7 @@ test('Pi package declares its adapter and the adapter injects once', async () =>
   );
   const handlers = new Map();
   module.default({ on: (name, handler) => handlers.set(name, handler) });
-  assert.deepEqual(await handlers.get('resources_discover')(), {
-    skillPaths: [path.join(root, 'skills')]
-  });
+  assert.equal(handlers.has('resources_discover'), false);
   await handlers.get('session_start')();
   const original = [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }];
   const once = await handlers.get('context')({ messages: original });

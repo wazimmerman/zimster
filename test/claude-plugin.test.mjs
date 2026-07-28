@@ -77,14 +77,15 @@ test('Claude SessionStart covers startup resume clear and compact with one compa
   assert.equal(entry.hooks.length, 1);
   assert.deepEqual(
     new Set(Object.keys(entry.hooks[0])),
-    new Set(['type', 'command', 'shell', 'async'])
+    new Set(['type', 'command', 'args', 'async'])
   );
   assert.equal(entry.hooks[0].type, 'command');
-  assert.equal(entry.hooks[0].shell, 'bash');
+  assert.equal(entry.hooks[0].command, 'node');
+  assert.deepEqual(entry.hooks[0].args, ['${CLAUDE_PLUGIN_ROOT}/hooks/session-start.mjs']);
   assert.equal(entry.hooks[0].async, false);
 
   for (const source of ['startup', 'resume', 'clear', 'compact']) {
-    const result = spawnSync('bash', ['hooks/run-hook.cmd', 'session-start'], {
+    const result = spawnSync(process.execPath, ['hooks/session-start.mjs'], {
       cwd: root,
       encoding: 'utf8',
       env: { ...process.env, CLAUDE_PLUGIN_ROOT: root },
@@ -106,9 +107,8 @@ test('Claude SessionStart reports a missing required bootstrap as an actionable 
   const temporary = await mkdtemp(path.join(os.tmpdir(), 'zimster-claude-hook-error-'));
   try {
     await mkdir(path.join(temporary, 'hooks'), { recursive: true });
-    await cp(path.join(root, 'hooks/run-hook.cmd'), path.join(temporary, 'hooks/run-hook.cmd'));
-    await cp(path.join(root, 'hooks/session-start'), path.join(temporary, 'hooks/session-start'));
-    const result = spawnSync('bash', [path.join(temporary, 'hooks/run-hook.cmd'), 'session-start'], {
+    await cp(path.join(root, 'hooks/session-start.mjs'), path.join(temporary, 'hooks/session-start.mjs'));
+    const result = spawnSync(process.execPath, [path.join(temporary, 'hooks/session-start.mjs')], {
       cwd: temporary,
       encoding: 'utf8',
       env: { ...process.env, CLAUDE_PLUGIN_ROOT: temporary },
@@ -119,6 +119,31 @@ test('Claude SessionStart reports a missing required bootstrap as an actionable 
     assert.match(result.stderr, /using-zimster.*missing|cannot read.*using-zimster/i);
   } finally {
     await rm(temporary, { recursive: true, force: true });
+  }
+});
+
+test('Claude SessionStart runs from a plugin path with spaces without Bash', async () => {
+  const parent = await mkdtemp(path.join(os.tmpdir(), 'zimster claude node hook '));
+  const temporary = path.join(parent, 'plugin with spaces');
+  try {
+    await mkdir(path.join(temporary, 'hooks'), { recursive: true });
+    await mkdir(path.join(temporary, 'skills', 'using-zimster'), { recursive: true });
+    await cp(path.join(root, 'hooks/session-start.mjs'), path.join(temporary, 'hooks/session-start.mjs'));
+    await cp(
+      path.join(root, 'skills/using-zimster/SKILL.md'),
+      path.join(temporary, 'skills/using-zimster/SKILL.md')
+    );
+    const result = spawnSync(process.execPath, [path.join(temporary, 'hooks/session-start.mjs')], {
+      cwd: temporary,
+      encoding: 'utf8',
+      env: { ...process.env, CLAUDE_PLUGIN_ROOT: temporary },
+      input: '{"hook_event_name":"SessionStart","source":"startup"}\n'
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(result.stderr, '');
+    assert.match(JSON.parse(result.stdout).hookSpecificOutput.additionalContext, /# Using Zimster/);
+  } finally {
+    await rm(parent, { recursive: true, force: true });
   }
 });
 

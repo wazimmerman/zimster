@@ -9,7 +9,7 @@ test('documents reused Superpowers code and preserves its MIT notice', async () 
   assert.match(notices, /MIT License/);
   const upstream = await read('docs/UPSTREAM.md');
   assert.match(upstream, /v6\.2\.0/);
-  assert.match(upstream, /hooks\/run-hook\.cmd/);
+  assert.match(upstream, /hooks\/session-start\.mjs/);
   assert.match(upstream, /adapted/i);
 });
 

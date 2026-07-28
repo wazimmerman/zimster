@@ -74,6 +74,27 @@ async function restoreFile(file, prior) {
   }
 }
 
+async function rejectSymlinkComponents(target, relativeParts) {
+  let current = target;
+  for (const part of relativeParts) {
+    current = path.join(current, part);
+    try {
+      const metadata = await lstat(current);
+      if (metadata.isSymbolicLink()) {
+        throw new Error(`unsafe symlink in skills destination: ${current}`);
+      }
+    } catch (error) {
+      if (error.code === 'ENOENT') return;
+      throw error;
+    }
+  }
+  const resolved = await realpath(current);
+  const relative = path.relative(target, resolved);
+  if (relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error(`skills destination resolves outside the target repository: ${current}`);
+  }
+}
+
 export async function syncSkills({
   requestedTarget,
   dryRun = false,
@@ -94,9 +115,13 @@ export async function syncSkills({
 
   const destination = path.join(target, '.agents', 'skills');
   const registryPath = path.join(destination, '.zimster-install.json');
+  await rejectSymlinkComponents(target, ['.agents', 'skills', '.zimster-install.json']);
   const currentSkills = await directoryNames(sourceSkills);
   const prior = await readRegistry(registryPath);
   const owned = [...new Set(prior.owned_skills)].sort();
+  for (const name of owned) {
+    await rejectSymlinkComponents(target, ['.agents', 'skills', name]);
+  }
   const collisions = [];
   for (const name of currentSkills) {
     if (owned.includes(name)) continue;

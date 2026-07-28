@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, rename, rm, rmdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { gitValue } from './git-state.mjs';
 
@@ -53,7 +53,14 @@ export async function migrateLegacyJsonlStore(repoRoot, runtimeDirectory, segmen
   const temporary = `${targetFile}.migration-${process.pid}`;
   await writeFile(temporary, merged.map((row) => JSON.stringify(row)).join('\n') + (merged.length ? '\n' : ''));
   await rename(temporary, targetFile);
-  await rm(legacyDirectory, { recursive: true, force: true });
+  await rm(legacyFile, { force: true });
+  if ((await readdir(legacyDirectory)).length === 0) await rmdir(legacyDirectory);
+  const legacyRoot = path.dirname(legacyDirectory);
+  try {
+    if ((await readdir(legacyRoot)).length === 0) await rmdir(legacyRoot);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
   return targetDirectory;
 }
 

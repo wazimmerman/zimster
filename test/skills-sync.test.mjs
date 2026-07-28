@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -132,6 +132,66 @@ test('skills synchronization refuses an unowned name collision without changing 
     await assert.rejects(readFile(path.join(destination, '.zimster-install.json'), 'utf8'), /ENOENT/);
   } finally {
     await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test('skills synchronization rejects symlinked destination components before mutation', async () => {
+  const { parent, repo } = await targetRepo();
+  const outside = await mkdtemp(path.join(os.tmpdir(), 'zimster-skills-outside-'));
+  try {
+    await rm(path.join(repo, '.agents'), { recursive: true, force: true });
+    await symlink(outside, path.join(repo, '.agents'), 'dir');
+    await writeFile(path.join(outside, 'sentinel.txt'), 'outside\n');
+
+    const result = run(process.execPath, [
+      path.join(root, 'scripts/sync-skills.mjs'), '--target', repo
+    ], root);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /symlink|outside|unsafe/i);
+    assert.equal(await readFile(path.join(outside, 'sentinel.txt'), 'utf8'), 'outside\n');
+    await assert.rejects(readFile(path.join(outside, 'skills/.zimster-install.json'), 'utf8'), /ENOENT/);
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+    await rm(outside, { recursive: true, force: true });
+  }
+});
+
+test('skills synchronization preserves embedded provenance outside a Git checkout', async () => {
+  const { parent, repo } = await targetRepo();
+  const portable = await mkdtemp(path.join(os.tmpdir(), 'zimster-portable-extract-'));
+  const sourceCommit = '1234567890abcdef1234567890abcdef12345678';
+  const buildDate = '2026-07-27T12:34:56.000Z';
+  try {
+    await cp(path.join(root, 'scripts'), path.join(portable, 'scripts'), { recursive: true });
+    await cp(path.join(root, 'skills'), path.join(portable, 'skills'), { recursive: true });
+    await cp(path.join(root, 'package.json'), path.join(portable, 'package.json'));
+    await writeFile(
+      path.join(portable, 'skills/using-zimster/references/build-metadata.json'),
+      `${JSON.stringify({
+        schema_version: 1,
+        semantic_version: (await json('package.json')).version,
+        source_commit: sourceCommit,
+        build_date: buildDate,
+        build_id: `zimster-${(await json('package.json')).version}-${sourceCommit.slice(0, 12)}-portable`,
+        package_target: 'portable'
+      }, null, 2)}\n`
+    );
+
+    const result = run(process.execPath, [
+      path.join(portable, 'scripts/sync-skills.mjs'), '--target', repo
+    ], portable);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const metadata = JSON.parse(await readFile(
+      path.join(repo, '.agents/skills/using-zimster/references/build-metadata.json'),
+      'utf8'
+    ));
+    assert.equal(metadata.source_commit, sourceCommit);
+    assert.equal(metadata.build_date, buildDate);
+    assert.equal(metadata.package_target, 'skills-only');
+    assert.match(metadata.build_id, new RegExp(sourceCommit.slice(0, 12)));
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+    await rm(portable, { recursive: true, force: true });
   }
 });
 

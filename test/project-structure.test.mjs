@@ -11,8 +11,7 @@ const requiredFiles = [
   '.opencode/plugins/zimster.js',
   '.pi/extensions/zimster.ts',
   'hooks/hooks.json',
-  'hooks/run-hook.cmd',
-  'hooks/session-start',
+  'hooks/session-start.mjs',
   'LICENSE',
   'THIRD_PARTY_NOTICES.md',
   'README.md',
@@ -80,9 +79,8 @@ test('every Codex skill ships OpenAI interface metadata', async () => {
   }
 });
 
-test('polyglot hook remains LF so both Bash and cmd.exe can parse it', async () => {
-  const { read } = await import('./helpers.mjs');
-  const attributes = await read('.gitattributes');
-  assert.match(attributes, /^\*\.cmd text eol=lf$/m);
-  assert.doesNotMatch(attributes, /^\*\.cmd text eol=crlf$/m);
+test('SessionStart uses the portable Node hook without a shell wrapper', async () => {
+  assert.equal(await exists('hooks/session-start.mjs'), true);
+  assert.equal(await exists('hooks/run-hook.cmd'), false);
+  assert.equal(await exists('hooks/session-start'), false);
 });

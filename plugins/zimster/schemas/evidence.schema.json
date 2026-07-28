@@ -167,6 +167,25 @@
       "items": {
         "type": "string"
       }
+    },
+    "input_fingerprints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "input",
+          "digest"
+        ],
+        "properties": {
+          "input": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
     }
   },
   "additionalProperties": true

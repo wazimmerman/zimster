@@ -67,8 +67,7 @@ test('packaging is deterministic and emits Codex and Claude archives', async () 
       'agents/integration-reviewer.md',
       'agents/test-reviewer.md',
       'hooks/hooks.json',
-      'hooks/run-hook.cmd',
-      'hooks/session-start'
+      'hooks/session-start.mjs'
     ]) {
       assert.equal(claudeArchive.includes(Buffer.from(required)), true, `Claude archive missing ${required}`);
     }
@@ -83,9 +82,8 @@ test('packaging is deterministic and emits Codex and Claude archives', async () 
         await mkdir(path.dirname(target), { recursive: true });
         await writeFile(target, data);
       }
-      await chmod(path.join(extracted, 'hooks/run-hook.cmd'), 0o755);
-      await chmod(path.join(extracted, 'hooks/session-start'), 0o755);
-      const smoke = spawnSync('bash', ['hooks/run-hook.cmd', 'session-start'], {
+      await chmod(path.join(extracted, 'hooks/session-start.mjs'), 0o755);
+      const smoke = spawnSync(process.execPath, ['hooks/session-start.mjs'], {
         cwd: extracted,
         encoding: 'utf8',
         env: { ...process.env, CLAUDE_PLUGIN_ROOT: extracted },

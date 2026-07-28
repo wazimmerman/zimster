@@ -73,6 +73,48 @@ test('evidence receipts become stale when the working tree changes and detect re
   }
 });
 
+test('evidence reuse requires the recorded host environment and external inputs to remain valid', async () => {
+  const repo = await tempRepo();
+  const fixtureDirectory = await mkdtemp(path.join(os.tmpdir(), 'zimster-evidence-input-'));
+  try {
+    const evidence = path.join(root, 'scripts/evidence.mjs');
+    const fixture = path.join(fixtureDirectory, 'external-fixture.txt');
+    await writeFile(fixture, 'fixture-v1\n');
+
+    let result = run(process.execPath, [
+      evidence, 'record', '--kind', 'integration', '--scope', 'affected',
+      '--command', 'host smoke', '--exit-code', '0',
+      '--host-version', 'host-1.0.0', '--inputs', fixture
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const receipt = JSON.parse(result.stdout.trim());
+    assert.equal(receipt.environment.host_version, 'host-1.0.0');
+    assert.equal(receipt.input_fingerprints.length, 1);
+
+    result = run(process.execPath, [
+      evidence, 'check', '--id', receipt.id, '--host-version', 'host-1.0.0'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+
+    result = run(process.execPath, [
+      evidence, 'find', '--kind', 'integration', '--scope', 'affected',
+      '--command', 'host smoke', '--host-version', 'host-2.0.0', '--inputs', fixture
+    ], repo);
+    assert.equal(result.status, 1, result.stderr || result.stdout);
+    assert.match(result.stdout, /NO_REUSABLE_EVIDENCE/);
+
+    await writeFile(fixture, 'fixture-v2\n');
+    result = run(process.execPath, [
+      evidence, 'check', '--id', receipt.id, '--host-version', 'host-1.0.0'
+    ], repo);
+    assert.equal(result.status, 2, result.stderr || result.stdout);
+    assert.match(result.stdout, /STALE.*input/i);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+    await rm(fixtureDirectory, { recursive: true, force: true });
+  }
+});
+
 test('evidence receipts record harness capabilities and support a no-state opt-out', async () => {
   const repo = await tempRepo();
   try {
@@ -284,6 +326,7 @@ test('legacy evidence and dispatch records migrate into Git-local stores without
     await mkdir(legacyEvidence, { recursive: true });
     await mkdir(legacyDispatches, { recursive: true });
     await writeFile(path.join(legacyEvidence, 'receipts.jsonl'), '{"id":"legacy-evidence"}\n');
+    await writeFile(path.join(legacyEvidence, 'keep-diagnostic.txt'), 'preserve me\n');
     await writeFile(path.join(legacyDispatches, 'dispatches.jsonl'), '{"id":"legacy-dispatch"}\n');
 
     let result = run(process.execPath, [path.join(root, 'scripts/evidence.mjs'), 'init'], repo);
@@ -299,6 +342,7 @@ test('legacy evidence and dispatch records migrate into Git-local stores without
     assert.match(await readFile(path.join(runtime, 'evidence/receipts.jsonl'), 'utf8'), /legacy-evidence/);
     assert.match(await readFile(path.join(runtime, 'dispatches/dispatches.jsonl'), 'utf8'), /legacy-dispatch/);
     await assert.rejects(readFile(path.join(legacyEvidence, 'receipts.jsonl'), 'utf8'), /ENOENT/);
+    assert.equal(await readFile(path.join(legacyEvidence, 'keep-diagnostic.txt'), 'utf8'), 'preserve me\n');
     await assert.rejects(readFile(path.join(legacyDispatches, 'dispatches.jsonl'), 'utf8'), /ENOENT/);
   } finally {
     await rm(repo, { recursive: true, force: true });

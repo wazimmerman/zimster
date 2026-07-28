@@ -13,8 +13,7 @@ The full notice is preserved in `THIRD_PARTY_NOTICES.md`.
 
 | Zimster file | Superpowers source | Treatment |
 |---|---|---|
-| `hooks/run-hook.cmd` | `hooks/run-hook.cmd` | cross-platform wrapper adapted |
-| `hooks/session-start` | `hooks/session-start` | injects only `using-zimster` |
+| `hooks/session-start.mjs` | `hooks/session-start` | dependency-free Node port that injects only `using-zimster` |
 | Claude hook manifest | matching upstream file | structure adapted to the current Claude contract |
 | OpenCode/Pi adapters | matching upstream adapters | discovery/cache/bootstrap adapted |
 | harness manifests | upstream manifests | layouts adapted, then each retained manifest corrected to its current primary contract; the unsupported Cursor manifest/hook were removed |

@@ -100,8 +100,11 @@ node <zimster>/scripts/evidence.mjs find \
   --kind test --scope focused --command "npm test"
 ```
 
-Receipts become stale when the complete working-tree fingerprint changes.
-`--reuse` is allowed only for non-final work; final gates are rerun.
+Receipts become stale when the complete working-tree fingerprint, normalized
+Node/npm/OS and declared host version, dependency declaration, or content
+fingerprints for declared input paths change. Supply the same `--host-version`
+when checking host-bound evidence. `--reuse` is allowed only for non-final
+work; final gates are rerun.
 
 Test-discovery values are `not_reached`, `zero_discovered`, `tests_executed`,
 and `unknown`. `unknown` and `not_reached` carry no counts; `zero_discovered`
