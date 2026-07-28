@@ -27,6 +27,12 @@ const requiredFiles = [
   'scripts/validate.mjs',
   'scripts/package.mjs',
   'scripts/doctor.mjs',
+  'scripts/verify.mjs',
+  'scripts/archive-safety.mjs',
+  'scripts/secret-scan.mjs',
+  'scripts/installed-package-smoke.mjs',
+  'scripts/host-smoke.mjs',
+  'scripts/review-package.mjs',
   'scripts/sync-codex-plugin.mjs',
   'scripts/validate-codex.mjs',
   'scripts/change-snapshot.mjs',
@@ -36,6 +42,7 @@ const requiredFiles = [
   'scripts/dispatch-record.mjs',
   'scripts/init-run.mjs',
   'scripts/lib/execution-budget.mjs',
+  'scripts/lib/zip-reader.mjs',
   'scripts/lib/runtime.mjs',
   'scripts/check-version.mjs',
   'scripts/checksums.mjs',
@@ -43,6 +50,7 @@ const requiredFiles = [
   'schemas/evidence.schema.json',
   'schemas/dispatch.schema.json',
   'config/model-routing.json',
+  'config/host-smoke.json',
   'plugins/zimster/.codex-plugin/plugin.json'
 ];
 

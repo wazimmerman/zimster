@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "hosts": [
+    {
+      "id": "claude",
+      "unavailable_reason": "Configure an isolated Claude Code smoke command when the CLI is available."
+    },
+    {
+      "id": "codex",
+      "unavailable_reason": "Configure an isolated Codex smoke command when live host proof is required."
+    },
+    {
+      "id": "cursor",
+      "unavailable_reason": "Configure an isolated Cursor smoke command when the CLI is available."
+    },
+    {
+      "id": "kimi",
+      "unavailable_reason": "Configure an isolated Kimi Code smoke command when the CLI is available."
+    },
+    {
+      "id": "opencode",
+      "unavailable_reason": "Configure an isolated OpenCode smoke command when live host proof is required."
+    },
+    {
+      "id": "pi",
+      "unavailable_reason": "Configure an isolated Pi smoke command when the CLI is available."
+    }
+  ]
+}

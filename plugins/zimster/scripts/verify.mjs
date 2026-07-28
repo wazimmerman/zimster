@@ -1,0 +1,249 @@
+import { createHash, randomUUID } from 'node:crypto';
+import { spawnSync } from 'node:child_process';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { parseOptions, writeLine } from './lib/cli.mjs';
+import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
+import { recordExecutionBudgetEvent } from './lib/execution-budget.mjs';
+import { ensureRuntimeDirectory } from './lib/runtime.mjs';
+
+const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const script = (name) => path.join(packageRoot, 'scripts', name);
+const nodeStep = (id, name, args = []) => ({
+  id,
+  command: process.execPath,
+  args: [script(name), ...args]
+});
+const commonBeforePackage = [
+  { id: 'tests', command: process.execPath, args: ['--test', '--test-reporter=spec'] },
+  nodeStep('validate', 'validate.mjs')
+];
+const commonAfterPackage = [
+  nodeStep('doctor', 'doctor.mjs', ['--json']),
+  nodeStep('codex-validation', 'validate-codex.mjs'),
+  nodeStep('archive-safety', 'archive-safety.mjs'),
+  nodeStep('secret-scan', 'secret-scan.mjs'),
+  nodeStep('installed-package-smoke', 'installed-package-smoke.mjs'),
+  nodeStep('host-smoke', 'host-smoke.mjs'),
+  nodeStep('review-package', 'review-package.mjs')
+];
+const BUILTIN_PROFILES = Object.freeze({
+  goal: {
+    schema_version: 1,
+    profile: 'goal',
+    complete_suite: true,
+    steps: [
+      ...commonBeforePackage,
+      nodeStep('package', 'package.mjs'),
+      ...commonAfterPackage
+    ]
+  },
+  release: {
+    schema_version: 1,
+    profile: 'release',
+    complete_suite: true,
+    steps: [
+      ...commonBeforePackage,
+      nodeStep('version-check', 'check-version.mjs'),
+      nodeStep('package', 'package.mjs'),
+      nodeStep('checksums', 'checksums.mjs'),
+      ...commonAfterPackage
+    ]
+  }
+});
+
+const { positional, options } = parseOptions(process.argv.slice(2));
+const action = positional[0];
+const root = findRepoRoot(process.cwd());
+
+function validatePlan(plan) {
+  if (!plan || plan.schema_version !== 1 || typeof plan.profile !== 'string') {
+    throw new Error('verification plan requires schema_version 1 and profile');
+  }
+  if (!Array.isArray(plan.steps) || !plan.steps.length) {
+    throw new Error('verification plan requires at least one step');
+  }
+  const ids = new Set();
+  for (const step of plan.steps) {
+    if (
+      !step
+      || typeof step.id !== 'string'
+      || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(step.id)
+      || typeof step.command !== 'string'
+      || !step.command
+      || !Array.isArray(step.args)
+      || !step.args.every((argument) => typeof argument === 'string')
+    ) {
+      throw new Error('verification steps require a safe id, command, and string args');
+    }
+    if (ids.has(step.id)) throw new Error(`duplicate verification step id: ${step.id}`);
+    ids.add(step.id);
+  }
+  return plan;
+}
+
+async function selectedPlan() {
+  if (options.plan) {
+    return validatePlan(JSON.parse(await readFile(path.resolve(process.cwd(), String(options.plan)), 'utf8')));
+  }
+  const profile = String(options.profile || 'goal').toLowerCase();
+  const plan = BUILTIN_PROFILES[profile];
+  if (!plan) throw new Error(`unknown verification profile: ${profile}`);
+  return validatePlan(plan);
+}
+
+function logText(step, result) {
+  return [
+    `step: ${step.id}`,
+    `command: ${JSON.stringify([step.command, ...step.args])}`,
+    `exit_code: ${result.status ?? 1}`,
+    '',
+    '--- stdout ---',
+    String(result.stdout || ''),
+    '--- stderr ---',
+    String(result.stderr || '')
+  ].join('\n');
+}
+
+function digest(text) {
+  return createHash('sha256').update(text).digest('hex');
+}
+
+function actionable(result, reason) {
+  const source = String(result.stderr || result.stdout || reason).trim();
+  const line = source.split('\n').filter(Boolean).at(-1) || reason;
+  return line.length > 300 ? `${line.slice(0, 297)}...` : line;
+}
+
+async function runPlan(plan) {
+  const id = randomUUID();
+  const runtime = await ensureRuntimeDirectory(root);
+  const verification = path.join(runtime, 'verification');
+  const logDirectory = path.join(verification, 'logs', id);
+  const receiptDirectory = path.join(verification, 'receipts');
+  const receiptPath = path.join(receiptDirectory, `${id}.json`);
+  await mkdir(logDirectory, { recursive: true });
+  await mkdir(receiptDirectory, { recursive: true });
+  const startedAt = new Date().toISOString();
+  const steps = [];
+  let failedStep = null;
+  let actionText = null;
+  let warnings = 0;
+  let budget = { status: 'not_required' };
+  if (plan.complete_suite === true) {
+    try {
+      const result = await recordExecutionBudgetEvent(runtime, {
+        metric: 'complete_suite_executions'
+      });
+      budget = { status: result.status, ...result.detail };
+      if (!result.changed) {
+        failedStep = 'execution-budget';
+        actionText = `${result.status}: complete-suite execution requires an invalidation or strategy change`;
+      }
+    } catch (error) {
+      if (error.code === 'ENOENT') budget = { status: 'unavailable' };
+      else throw error;
+    }
+  }
+
+  for (const step of plan.steps) {
+    if (failedStep) {
+      steps.push({ id: step.id, status: 'not_run' });
+      continue;
+    }
+    const started = performance.now();
+    const result = spawnSync(step.command, step.args, {
+      cwd: root,
+      encoding: 'utf8',
+      env: process.env,
+      shell: false,
+      maxBuffer: 128 * 1024 * 1024
+    });
+    const durationMs = Math.round((performance.now() - started) * 1000) / 1000;
+    const log = logText(step, result);
+    const logPath = path.join(logDirectory, `${step.id}.log`);
+    await writeFile(logPath, log);
+    const unexpectedStderr = (result.status ?? 1) === 0 && String(result.stderr || '').trim() !== '';
+    if (unexpectedStderr) warnings += 1;
+    const failed = (result.status ?? 1) !== 0 || unexpectedStderr;
+    const reason = unexpectedStderr
+      ? 'unexpected_stderr'
+      : failed
+        ? 'nonzero_exit'
+        : null;
+    steps.push({
+      id: step.id,
+      status: failed ? 'failed' : 'passed',
+      reason,
+      exit_code: result.status ?? 1,
+      duration_ms: durationMs,
+      log: logPath,
+      log_sha256: digest(log)
+    });
+    if (failed) {
+      failedStep = step.id;
+      actionText = actionable(result, reason);
+    }
+  }
+
+  const endedAt = new Date().toISOString();
+  const state = await captureGitState(root);
+  const status = failedStep ? 'failed' : 'passed';
+  const receipt = {
+    schema_version: 1,
+    id,
+    profile: plan.profile,
+    status,
+    started_at: startedAt,
+    ended_at: endedAt,
+    git_commit: state.head,
+    git_tree: state.tree,
+    dirty_tree_fingerprint: state.dirty_tree_fingerprint,
+    environment: {
+      platform: os.platform(),
+      release: os.release(),
+      arch: os.arch(),
+      node: process.version
+    },
+    budget,
+    warnings,
+    failed_step: failedStep,
+    action: actionText,
+    steps
+  };
+  await writeFile(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, { flag: 'wx' });
+  const summary = {
+    schema_version: 1,
+    id,
+    profile: plan.profile,
+    status,
+    warnings,
+    failed_step: failedStep,
+    action: actionText,
+    budget,
+    steps: steps.map(({ id: stepId, status: stepStatus, reason, duration_ms: duration }) => ({
+      id: stepId,
+      status: stepStatus,
+      ...(reason ? { reason } : {}),
+      ...(duration === undefined ? {} : { duration_ms: duration })
+    })),
+    log_directory: logDirectory,
+    receipt: receiptPath
+  };
+  writeLine(JSON.stringify(summary));
+  if (failedStep) process.exitCode = 1;
+}
+
+if (action === 'describe') {
+  const plan = await selectedPlan();
+  writeLine(JSON.stringify({
+    profile: plan.profile,
+    steps: plan.steps.map(({ id }) => ({ id }))
+  }));
+} else if (action === 'run') {
+  await runPlan(await selectedPlan());
+} else {
+  throw new Error('Usage: verify.mjs <describe|run> [--profile goal|release] [--plan file]');
+}

@@ -9,15 +9,21 @@ import { buildMetadata } from './lib/build-metadata.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const operationalScripts = [
-  'scripts/change-snapshot.mjs', 'scripts/codex-cachebuster.mjs',
+  'scripts/archive-safety.mjs', 'scripts/change-snapshot.mjs',
+  'scripts/codex-cachebuster.mjs',
   'scripts/dispatch-record.mjs', 'scripts/doctor.mjs',
-  'scripts/evidence.mjs', 'scripts/init-run.mjs', 'scripts/phase-checkpoint.mjs',
+  'scripts/evidence.mjs', 'scripts/host-smoke.mjs',
+  'scripts/init-run.mjs', 'scripts/installed-package-smoke.mjs',
+  'scripts/phase-checkpoint.mjs',
   'scripts/project-commands.mjs', 'scripts/run-budget.mjs',
-  'scripts/review-integrity.mjs', 'scripts/sync-skills.mjs',
+  'scripts/review-integrity.mjs', 'scripts/review-package.mjs',
+  'scripts/secret-scan.mjs',
+  'scripts/sync-skills.mjs', 'scripts/verify.mjs',
   'scripts/lib/build-metadata.mjs',
   'scripts/lib/capabilities.mjs',
   'scripts/lib/cli.mjs', 'scripts/lib/execution-budget.mjs',
-  'scripts/lib/git-state.mjs', 'scripts/lib/runtime.mjs'
+  'scripts/lib/git-state.mjs', 'scripts/lib/runtime.mjs',
+  'scripts/lib/zip-reader.mjs', 'scripts/lib/zip.mjs'
 ];
 const common = [
   'skills', 'agents', 'templates', 'assets', 'docs', 'config', 'schemas',
