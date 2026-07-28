@@ -19,7 +19,14 @@
     },
     {
       "id": "opencode",
-      "unavailable_reason": "Configure an isolated OpenCode smoke command when live host proof is required."
+      "candidate": "portable",
+      "command": "opencode",
+      "args": [
+        "debug",
+        "skill"
+      ],
+      "expected_output": "using-zimster",
+      "unavailable_reason": "OpenCode CLI is not installed."
     },
     {
       "id": "pi",

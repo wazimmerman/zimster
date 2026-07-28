@@ -50,15 +50,19 @@ test('run postmortem aggregates observed execution economy without mixing token 
         complete_suite_executions: 1,
         exact_duplicate_commands: 1,
         review_rechecks_per_seam: 1,
-        final_correction_waves: 1,
+        final_correction_waves: 2,
         optional_deliberate_agents: 1,
         nesting_depth: 1,
         context_compactions: 1,
         research_refreshes: 0
       },
       optional_agent_identities: ['reviewer-1'],
-      overrides: [],
-      proof_obligations: []
+      overrides: [{ metric: 'final_correction_waves' }],
+      proof_obligations: [{
+        proof: 'release proof',
+        status: 'required',
+        metric: 'final_correction_waves'
+      }]
     });
     await jsonl(path.join(runtime, 'dispatches/dispatches.jsonl'), [{
       id: 'dispatch-1',
@@ -146,7 +150,12 @@ test('run postmortem aggregates observed execution economy without mixing token 
       profile: 'goal',
       status: 'passed',
       started_at: '2026-07-28T00:30:00.000Z',
-      steps: [{ id: 'tests', status: 'passed' }]
+      steps: [{
+        id: 'tests',
+        status: 'passed',
+        command_identity: 'verification-tests',
+        command_argv: ['node', '--test']
+      }]
     });
     await json(path.join(runtime, 'verification/receipts/archived.json'), {
       id: 'archived-suite',
@@ -172,20 +181,21 @@ test('run postmortem aggregates observed execution economy without mixing token 
     assert.deepEqual(report.metrics.identities.subagents, ['reviewer-1']);
     assert.equal(report.metrics.starts_and_resumes.starts, 1);
     assert.equal(report.metrics.starts_and_resumes.resumes, 1);
+    assert.equal(report.metrics.commands.observation, 'partial');
     assert.equal(report.metrics.commands.exact_duplicate_executions, 1);
-    assert.equal(report.metrics.commands.executions, 2);
+    assert.equal(report.metrics.commands.executions, 3);
     assert.equal(report.metrics.tests_by_evidence_class.affected.passed, 6);
     assert.equal(report.metrics.complete_suite_executions.value, 1);
     assert.equal(report.metrics.verification_receipts.value, 1);
     assert.equal(report.metrics.reviews.value, 1);
-    assert.equal(report.metrics.corrections.value, 1);
+    assert.equal(report.metrics.corrections.value, 2);
     assert.equal(report.metrics.rechecks.value, 1);
     assert.deepEqual(
       report.metrics.tokens.meters.map(({ meter, tokens }) => [meter, tokens]),
       [['goal_meter', 1000], ['raw_input', 9000]]
     );
     assert.equal(Object.hasOwn(report.metrics.tokens, 'total'), false);
-    assert.equal(report.metrics.budget_compliance.status, 'within_budget');
+    assert.equal(report.metrics.budget_compliance.status, 'noncompliant');
     assert.deepEqual(report.unavailable_metrics, ['research_events']);
   } finally {
     await rm(runtime, { recursive: true, force: true });

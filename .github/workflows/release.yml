@@ -17,9 +17,7 @@ jobs:
           node-version: 22
           cache: npm
       - run: npm ci
-      - run: npm run version:check -- --tag "$GITHUB_REF_NAME"
-      - run: npm run check
-      - run: npm run checksums
+      - run: npm run release:verify -- --tag "$GITHUB_REF_NAME"
       - name: Create GitHub release
         env:
           GH_TOKEN: ${{ github.token }}

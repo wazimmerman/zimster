@@ -127,7 +127,9 @@ test('execution budget accepts an over-limit strategy change only with a require
     result = run(process.execPath, [
       budget, 'record', '--metric', 'complete_suite_executions', '--amount', '4',
       '--strategy-change', 'split final gate after reviewer invalidation',
-      '--required-proof', 'release:verify receipt'
+      '--required-proof', 'release:verify receipt',
+      '--required-proof-type', 'verification',
+      '--required-proof-profile', 'release'
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(JSON.parse(result.stdout).status, 'BUDGET_OVERRIDE');
@@ -139,14 +141,27 @@ test('execution budget accepts an over-limit strategy change only with a require
     assert.deepEqual(state.proof_obligations, [{
       proof: 'release:verify receipt',
       status: 'required',
-      metric: 'complete_suite_executions'
+      metric: 'complete_suite_executions',
+      receipt_type: 'verification',
+      profile: 'release'
     }]);
 
     const receiptDirectory = runtimePath(repo, 'verification/receipts');
     await mkdir(receiptDirectory, { recursive: true });
     await writeFile(path.join(receiptDirectory, 'proof-receipt.json'), `${JSON.stringify({
       id: 'proof-receipt',
-      status: 'passed'
+      status: 'passed',
+      profile: 'goal'
+    })}\n`);
+    result = run(process.execPath, [
+      budget, 'prove', '--proof', 'release:verify receipt', '--receipt', 'proof-receipt'
+    ], repo);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /profile|relationship|release/i);
+    await writeFile(path.join(receiptDirectory, 'proof-receipt.json'), `${JSON.stringify({
+      id: 'proof-receipt',
+      status: 'passed',
+      profile: 'release'
     })}\n`);
     result = run(process.execPath, [
       budget, 'prove', '--proof', 'release:verify receipt', '--receipt', 'proof-receipt'
@@ -156,6 +171,43 @@ test('execution budget accepts an over-limit strategy change only with a require
     const proven = JSON.parse(await readFile(runtimePath(repo, 'budget.json'), 'utf8'));
     assert.equal(proven.proof_obligations[0].status, 'satisfied');
     assert.equal(proven.proof_obligations[0].receipt_id, 'proof-receipt');
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('budget proof satisfaction rejects an explicitly invalidated evidence receipt', async () => {
+  const repo = await tempRepo();
+  try {
+    const budget = path.join(root, 'scripts/run-budget.mjs');
+    let result = run(process.execPath, [budget, 'init', '--profile', 'standard'], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    result = run(process.execPath, [
+      budget, 'record', '--metric', 'complete_suite_executions', '--amount', '4',
+      '--strategy-change', 'review correction',
+      '--required-proof', 'affected correction tests',
+      '--required-proof-type', 'evidence',
+      '--required-proof-kind', 'test',
+      '--required-proof-scope', 'affected'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const evidence = path.join(root, 'scripts/evidence.mjs');
+    result = run(process.execPath, [
+      evidence, 'record', '--kind', 'test', '--scope', 'affected',
+      '--command', 'node --test correction.test.mjs', '--exit-code', '0',
+      '--tests-passed', '1', '--tests-failed', '0'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const receipt = JSON.parse(result.stdout);
+    result = run(process.execPath, [
+      evidence, 'invalidate', '--id', receipt.id, '--reason', 'review found stale proof'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    result = run(process.execPath, [
+      budget, 'prove', '--proof', 'affected correction tests', '--receipt', receipt.id
+    ], repo);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /invalidated|passing receipt/i);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

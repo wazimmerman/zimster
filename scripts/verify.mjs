@@ -89,8 +89,11 @@ async function selectedPlan() {
     return validatePlan(JSON.parse(await readFile(path.resolve(process.cwd(), String(options.plan)), 'utf8')));
   }
   const profile = String(options.profile || 'goal').toLowerCase();
-  const plan = BUILTIN_PROFILES[profile];
+  const plan = structuredClone(BUILTIN_PROFILES[profile]);
   if (!plan) throw new Error(`unknown verification profile: ${profile}`);
+  if (profile === 'release' && options.tag) {
+    plan.steps.find(({ id }) => id === 'version-check').args.push('--tag', String(options.tag));
+  }
   return validatePlan(plan);
 }
 
@@ -175,6 +178,8 @@ async function runPlan(plan) {
         : null;
     steps.push({
       id: step.id,
+      command_argv: [step.command, ...step.args],
+      command_identity: digest(JSON.stringify([step.command, ...step.args])),
       status: failed ? 'failed' : 'passed',
       reason,
       exit_code: result.status ?? 1,

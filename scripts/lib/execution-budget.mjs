@@ -125,37 +125,52 @@ export async function satisfyExecutionBudgetProof(runtimeDirectory, {
     throw new Error('--receipt must be a safe receipt id');
   }
   return withBudgetLock(runtimeDirectory, async () => {
-    let passed = false;
-    try {
-      const receipt = JSON.parse(await readFile(
-        path.join(runtimeDirectory, 'verification', 'receipts', `${receiptId}.json`),
-        'utf8'
-      ));
-      passed = receipt.id === receiptId && receipt.status === 'passed';
-    } catch (error) {
-      if (error.code !== 'ENOENT') throw error;
-    }
-    if (!passed) {
-      try {
-        const rows = (await readFile(
-          path.join(runtimeDirectory, 'evidence', 'receipts.jsonl'),
-          'utf8'
-        )).split('\n').filter(Boolean).map((line) => JSON.parse(line));
-        passed = rows.some((row) =>
-          row.id === receiptId
-          && row.record_type !== 'invalidation'
-          && row.exit_code === 0
-        );
-      } catch (error) {
-        if (error.code !== 'ENOENT') throw error;
-      }
-    }
-    if (!passed) throw new Error(`passing evidence receipt not found: ${receiptId}`);
     const budget = await readExecutionBudget(runtimeDirectory);
     const obligation = budget.state.proof_obligations.find((row) =>
       row.proof === proof && row.status === 'required'
     );
     if (!obligation) throw new Error(`required proof obligation not found: ${proof}`);
+    if (!['verification', 'evidence'].includes(obligation.receipt_type)) {
+      throw new Error(`proof obligation has no enforceable receipt relationship: ${proof}`);
+    }
+    let passed = false;
+    if (obligation.receipt_type === 'verification') {
+      try {
+        const receipt = JSON.parse(await readFile(
+        path.join(runtimeDirectory, 'verification', 'receipts', `${receiptId}.json`),
+        'utf8'
+        ));
+        passed = receipt.id === receiptId
+          && receipt.status === 'passed'
+          && (!obligation.profile || receipt.profile === obligation.profile);
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+      }
+    }
+    if (obligation.receipt_type === 'evidence') {
+      try {
+        const rows = (await readFile(
+          path.join(runtimeDirectory, 'evidence', 'receipts.jsonl'),
+          'utf8'
+        )).split('\n').filter(Boolean).map((line) => JSON.parse(line));
+        const invalidated = new Set(rows
+          .filter((row) => row.record_type === 'invalidation')
+          .map((row) => row.receipt_id));
+        passed = rows.some((row) =>
+          row.id === receiptId
+          && row.record_type !== 'invalidation'
+          && row.exit_code === 0
+          && !invalidated.has(row.id)
+          && (!obligation.kind || row.kind === obligation.kind)
+          && (!obligation.scope || row.scope === obligation.scope)
+        );
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+      }
+    }
+    if (!passed) {
+      throw new Error(`passing receipt does not satisfy the required proof relationship: ${receiptId}`);
+    }
     obligation.status = 'satisfied';
     obligation.receipt_id = receiptId;
     obligation.satisfied_at = recordedAt;
@@ -175,6 +190,10 @@ export function applyExecutionBudgetEvent(state, {
   invalidation = null,
   strategyChange = null,
   requiredProof = null,
+  requiredProofType = null,
+  requiredProofKind = null,
+  requiredProofScope = null,
+  requiredProofProfile = null,
   recordedAt = new Date().toISOString()
 }) {
   if (!Object.hasOwn(state.limits, metric)) throw new Error(`unknown budget metric: ${metric}`);
@@ -217,6 +236,20 @@ export function applyExecutionBudgetEvent(state, {
       detail: { metric, scope, current, proposed, limit }
     };
   }
+  if (
+    proposed > limit
+    && (
+      !['verification', 'evidence'].includes(requiredProofType)
+      || (requiredProofType === 'verification' && !requiredProofProfile)
+      || (requiredProofType === 'evidence' && (!requiredProofKind || !requiredProofScope))
+    )
+  ) {
+    return {
+      changed: false,
+      status: 'BUDGET_PROOF_REQUIRED',
+      detail: { metric, scope, current, proposed, limit }
+    };
+  }
 
   state.usage[metric] = (state.usage[metric] || 0) + amount;
   if (scoped) {
@@ -246,7 +279,11 @@ export function applyExecutionBudgetEvent(state, {
     state.proof_obligations.push({
       proof: requiredProof,
       status: 'required',
-      metric
+      metric,
+      receipt_type: requiredProofType,
+      ...(requiredProofKind ? { kind: requiredProofKind } : {}),
+      ...(requiredProofScope ? { scope: requiredProofScope } : {}),
+      ...(requiredProofProfile ? { profile: requiredProofProfile } : {})
     });
   }
   return {

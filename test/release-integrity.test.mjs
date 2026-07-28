@@ -13,8 +13,8 @@ test('release metadata and current changelog are synchronized', async () => {
 
 test('release workflow rejects tags that disagree with plugin metadata', async () => {
   const workflow = await read('.github/workflows/release.yml');
-  assert.match(workflow, /version:check.*--tag.*GITHUB_REF_NAME/);
-  assert.match(workflow, /npm run check/);
+  assert.match(workflow, /npm run release:verify.*--tag.*GITHUB_REF_NAME/);
+  assert.doesNotMatch(workflow, /npm run (?:check|checksums)/);
 });
 
 test('version bump synchronizes manifests, lockfile, changelog, and Codex mirror', async () => {

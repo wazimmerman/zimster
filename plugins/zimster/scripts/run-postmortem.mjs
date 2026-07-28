@@ -146,18 +146,31 @@ if (ledger === null) {
   commands = unavailable('evidence ledger is absent');
 } else {
   const groups = new Map();
+  let executions = 0;
   for (const row of evidence) {
+    executions += 1;
     const identity = row.command_identity || row.command;
     if (!identity) continue;
     groups.set(identity, (groups.get(identity) || 0) + 1);
   }
-  commands = observed({
-    executions: evidence.length,
+  for (const receipt of verification || []) {
+    for (const step of receipt.steps || []) {
+      if (step.status === 'not_run') continue;
+      executions += 1;
+      const identity = step.command_identity;
+      if (identity) groups.set(identity, (groups.get(identity) || 0) + 1);
+    }
+  }
+  commands = {
+    observation: 'partial',
+    coverage: ['evidence_receipts', 'verification_steps'],
+    unavailable: ['commands executed outside recorded wrappers'],
+    executions,
     unique_commands: groups.size,
     exact_duplicate_executions: [...groups.values()]
       .reduce((total, count) => total + Math.max(0, count - 1), 0),
     exact_duplicate_groups: [...groups.values()].filter((count) => count > 1).length
-  });
+  };
 }
 
 let testsByClass;
@@ -206,11 +219,15 @@ if (!budget) {
     Number.isFinite(budget.limits?.[name]) && value > budget.limits[name]
   ).map(([name]) => name);
   const justified = new Set((budget.overrides || []).map(({ metric: name }) => name));
-  const unjustified = exceeded.filter((name) => !justified.has(name));
+  const pendingProofs = (budget.proof_obligations || []).filter(({ status }) => status === 'required');
+  const unjustified = [
+    ...exceeded.filter((name) => !justified.has(name)),
+    ...pendingProofs.map(({ metric: name }) => name)
+  ];
   budgetCompliance = observed({
     status: unjustified.length ? 'noncompliant' : exceeded.length ? 'compliant_with_overrides' : 'within_budget',
     exceeded,
-    unjustified,
+    unjustified: [...new Set(unjustified)],
     proof_obligations: budget.proof_obligations || []
   });
 }

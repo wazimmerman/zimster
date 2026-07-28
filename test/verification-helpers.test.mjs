@@ -137,9 +137,41 @@ test('default host smoke records every unconfigured harness as unavailable', () 
   assert.equal(result.status, 0, result.stderr || result.stdout);
   const summary = JSON.parse(result.stdout);
   assert.equal(summary.status, 'passed');
-  assert.deepEqual(summary.executed, []);
   assert.deepEqual(
-    summary.unavailable.map(({ id }) => id),
+    [...summary.executed, ...summary.unavailable.map(({ id }) => id)].sort(),
     ['claude', 'codex', 'cursor', 'kimi', 'opencode', 'pi']
   );
+  assert.equal(
+    summary.executed.includes('opencode') || summary.unavailable.some(({ id }) => id === 'opencode'),
+    true
+  );
+});
+
+test('host smoke runs a configured command from the extracted exact candidate', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'zimster-host-candidate-'));
+  try {
+    const dist = path.join(directory, 'dist');
+    await createPackages(dist);
+    const config = path.join(directory, 'host-smoke.json');
+    await writeFile(config, `${JSON.stringify({
+      schema_version: 1,
+      hosts: [{
+        id: 'candidate-host',
+        candidate: 'portable',
+        command: process.execPath,
+        args: ['-e', "import { accessSync } from 'node:fs'; accessSync('.opencode/plugins/zimster.js'); process.stdout.write('using-zimster');"],
+        expected_output: 'using-zimster'
+      }]
+    })}\n`);
+    const result = run(process.execPath, [
+      path.join(root, 'scripts/host-smoke.mjs'),
+      '--config', config, '--dist', dist
+    ], root);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const summary = JSON.parse(result.stdout);
+    assert.deepEqual(summary.executed, ['candidate-host']);
+    assert.deepEqual(summary.failures, []);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
