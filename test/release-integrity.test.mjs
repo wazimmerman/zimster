@@ -22,7 +22,7 @@ test('version bump synchronizes manifests, lockfile, changelog, and Codex mirror
   const versionFiles = await read('scripts/lib/version-files.mjs');
   assert.match(bump, /CHANGELOG\.md/);
   assert.match(bump, /syncCodexPlugin/);
-  for (const file of ['package.json', 'package-lock.json', '.codex-plugin/plugin.json', '.claude-plugin/plugin.json', '.cursor-plugin/plugin.json', '.kimi-plugin/plugin.json', '.claude-plugin/marketplace.json']) {
+  for (const file of ['package.json', 'package-lock.json', '.codex-plugin/plugin.json', '.claude-plugin/plugin.json', '.kimi-plugin/plugin.json', '.claude-plugin/marketplace.json']) {
     assert.match(versionFiles, new RegExp(file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
 });

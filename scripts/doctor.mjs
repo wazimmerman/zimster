@@ -44,13 +44,18 @@ if (sourceCheckout) {
 }
 
 const matrix = await capabilityMatrix(root);
+async function allPresent(...relatives) {
+  const states = await Promise.all(relatives.map(present));
+  return states.every((state) => state === 'ready') ? 'ready' : 'missing';
+}
+
 const structural = sourceCheckout ? {
   codex: await present('plugins/zimster/.codex-plugin/plugin.json'),
   claude: await present('.claude-plugin/plugin.json'),
   cursor: await present('.cursor/commands/using-zimster.md'),
   kimi: await present('.kimi-plugin/plugin.json'),
-  opencode: await present('.opencode/skills/using-zimster/SKILL.md'),
-  pi: await present('.pi/skills/using-zimster/SKILL.md')
+  opencode: await allPresent('.opencode/plugins/zimster.js', 'skills/using-zimster/SKILL.md'),
+  pi: await allPresent('.pi/extensions/zimster.ts', 'skills/using-zimster/SKILL.md')
 } : {
   codex: codexPackage ? 'ready' : 'not_packaged',
   claude: await present('.claude-plugin/plugin.json'),

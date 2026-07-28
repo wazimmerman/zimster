@@ -5,13 +5,12 @@ import { exists, json } from './helpers.mjs';
 const requiredFiles = [
   '.codex-plugin/plugin.json',
   '.claude-plugin/plugin.json',
-  '.cursor-plugin/plugin.json',
+  '.cursor/commands/using-zimster.md',
   '.kimi-plugin/plugin.json',
   '.agents/plugins/marketplace.json',
   '.opencode/plugins/zimster.js',
   '.pi/extensions/zimster.ts',
   'hooks/hooks.json',
-  'hooks/hooks-cursor.json',
   'hooks/run-hook.cmd',
   'hooks/session-start',
   'LICENSE',
@@ -53,7 +52,6 @@ test('all primary manifests agree on name and version', async () => {
   for (const manifestPath of [
     '.codex-plugin/plugin.json',
     '.claude-plugin/plugin.json',
-    '.cursor-plugin/plugin.json',
     '.kimi-plugin/plugin.json'
   ]) {
     const manifest = await json(manifestPath);

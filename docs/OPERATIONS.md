@@ -139,7 +139,7 @@ npm run check
 npm run checksums
 ```
 
-`version:bump` updates package/lock versions, four primary manifests, Claude
+`version:bump` updates package/lock versions, three current primary manifests, Claude
 marketplace entry, changelog heading, and the generated Codex mirror.
 `version:check -- --tag v0.3.0` additionally validates a release tag.
 

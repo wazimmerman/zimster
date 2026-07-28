@@ -34,6 +34,27 @@ test('repo marketplace points at a local plugins/zimster directory', async () =>
   assert.equal(await exists(`${marketplacePluginRoot}/config/model-routing.json`), true);
 });
 
+test('installed Codex README has no broken package-local documentation links', async () => {
+  const readme = await read(`${marketplacePluginRoot}/README.md`);
+  const links = [...readme.matchAll(/\]\(([^)]+)\)/g)]
+    .map((match) => match[1])
+    .filter((link) => !/^(?:[a-z]+:|#)/i.test(link));
+  for (const link of links) {
+    assert.equal(
+      await exists(path.posix.join(marketplacePluginRoot, link)),
+      true,
+      `installed Codex README references missing ${link}`
+    );
+  }
+  for (const guide of ['CURSOR', 'KIMI', 'OPENCODE', 'PI']) {
+    assert.equal(
+      await exists(`${marketplacePluginRoot}/docs/${guide}.md`),
+      true,
+      `installed Codex README names missing docs/${guide}.md`
+    );
+  }
+});
+
 test('Codex mirror is generated from canonical source without drift', async () => {
   const result = spawnSync(process.execPath, ['scripts/sync-codex-plugin.mjs', '--check'], {
     cwd: root,

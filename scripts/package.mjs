@@ -41,7 +41,7 @@ export async function createPackages(outputDirectory = path.join(root, 'dist')) 
   const definitions = [
     ['claude', ['.claude-plugin', 'hooks', ...common]],
     ['codex', ['.agents', 'plugins/zimster', 'README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md']],
-    ['portable', ['.agents', '.claude-plugin', '.codex-plugin', '.cursor-plugin', '.kimi-plugin', '.opencode', '.pi', 'plugins/zimster', 'hooks', 'scripts', 'vendor', 'package.json', 'package-lock.json', ...common]]
+    ['portable', ['.agents', '.claude-plugin', '.codex-plugin', '.cursor', '.kimi-plugin', '.opencode', '.pi', 'plugins/zimster', 'hooks', 'scripts', 'vendor', 'package.json', 'package-lock.json', ...common]]
   ];
 
   const outputs = [];

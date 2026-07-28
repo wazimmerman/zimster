@@ -9,9 +9,10 @@ const extensionDir = dirname(fileURLToPath(import.meta.url));
 const packageRoot = resolve(extensionDir, "../..");
 const skillsDir = resolve(packageRoot, "skills");
 const skillPath = resolve(skillsDir, "using-zimster", "SKILL.md");
-let cached: string | null | undefined;
+let cached: string | undefined;
 
 export default function zimsterPiExtension(pi: ExtensionAPI) {
+  getBootstrap();
   let inject = true;
   pi.on("resources_discover", async () => ({ skillPaths: [skillsDir] }));
   pi.on("session_start", async () => { inject = true; });
@@ -20,7 +21,6 @@ export default function zimsterPiExtension(pi: ExtensionAPI) {
   pi.on("context", async (event) => {
     if (!inject || event.messages.some(containsMarker)) return;
     const text = getBootstrap();
-    if (!text) return;
     const message = { role: "user" as const, content: [{ type: "text" as const, text }], timestamp: Date.now() };
     let index = 0;
     while ((event.messages[index] as { role?: unknown } | undefined)?.role === "compactionSummary") index += 1;
@@ -28,17 +28,21 @@ export default function zimsterPiExtension(pi: ExtensionAPI) {
   });
 }
 
-function getBootstrap(): string | null {
+function getBootstrap(): string {
   if (cached !== undefined) return cached;
+  cached = loadZimsterBootstrap();
+  return cached;
+}
+
+export function loadZimsterBootstrap(file = skillPath): string {
+  let raw: string;
   try {
-    const raw = readFileSync(skillPath, "utf8");
-    const body = (raw.match(/^---\n[\s\S]*?\n---\n([\s\S]*)$/)?.[1] ?? raw).trim();
-    cached = `<ZIMSTER_BOOTSTRAP>\n${marker}\n\n${body}\n\n## Pi mapping\nUse native skills and read/write/edit/bash tools. Use an installed subagent extension only for bounded delegation; otherwise execute inline. Subagents must not spawn subagents.\n</ZIMSTER_BOOTSTRAP>`;
-    return cached;
+    raw = readFileSync(file, "utf8");
   } catch {
-    cached = null;
-    return null;
+    throw new Error(`ZIMSTER_PACKAGE_INVALID: missing required using-zimster skill at ${file}`);
   }
+  const body = (raw.match(/^---\n[\s\S]*?\n---\n([\s\S]*)$/)?.[1] ?? raw).trim();
+  return `<ZIMSTER_BOOTSTRAP>\n${marker}\n\n${body}\n\n## Pi mapping\nUse native skills and read/write/edit/bash tools. Use an installed subagent extension only for bounded delegation; otherwise execute inline. Subagents must not spawn subagents.\n</ZIMSTER_BOOTSTRAP>`;
 }
 
 function containsMarker(message: unknown): boolean {

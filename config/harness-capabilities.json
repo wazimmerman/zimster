@@ -44,14 +44,14 @@
     "cursor": {
       "verification": "structurally_validated",
       "capabilities": {
-        "native_skill_loading": "supported_with_constraints",
+        "native_skill_loading": "native",
         "plugin_relative_helper_scripts": "unavailable",
-        "named_custom_agents": "unavailable",
-        "read_only_tool_enforcement": "prompt_constrained",
+        "named_custom_agents": "native",
+        "read_only_tool_enforcement": "supported_with_constraints",
         "isolated_reviewer_worktrees": "inline_fallback",
         "per_agent_model_selection": "unverified",
         "per_agent_reasoning_effort": "unavailable",
-        "turn_limits": "unavailable",
+        "turn_limits": "unverified",
         "agent_resume": "supported_with_constraints",
         "nested_agent_prohibition": "prompt_constrained",
         "token_turn_telemetry": "unverified"
@@ -74,7 +74,7 @@
       }
     },
     "opencode": {
-      "verification": "experimental",
+      "verification": "live_verified",
       "capabilities": {
         "native_skill_loading": "native",
         "plugin_relative_helper_scripts": "supported_with_constraints",

@@ -24,8 +24,17 @@ Core skills avoid hard-coded user paths and OS-specific shell assumptions.
   schemas, templates, assets, and notices. Claude hooks are not inside it.
 - **Claude Code:** `.claude-plugin/`, `skills/`, `agents/`, and `hooks/` expose
   native skills, bounded roles, and a compact `using-zimster` bootstrap.
-- **Cursor/Kimi/OpenCode/Pi:** thin adapters map tools and skill discovery
-  without redefining core policy.
+- **Cursor:** `.cursor/commands/using-zimster.md` points to Agent Skills copied
+  into `.agents/skills/`; no unsupported repository manifest or lifecycle hook
+  is invented.
+- **Kimi Code:** `.kimi-plugin/plugin.json` declares native skills and exactly
+  one `sessionStart.skill` using documented fields.
+- **OpenCode:** the dependency-free project plugin registers the packaged skill
+  path and inserts one marked bootstrap; missing package content fails
+  actionably.
+- **Pi:** the `package.json` `pi` declaration loads the TypeScript extension and
+  native skills; the extension has the same one-bootstrap and package-integrity
+  invariants.
 
 ### 3. Operational control plane
 
@@ -41,6 +50,8 @@ Dependency-free Node 22 tools turn important policy into inspectable state:
 - `validate-codex.mjs` checks the pinned official contract snapshot;
 - `validate-claude-plugin.mjs` checks the current documented Claude manifest,
   hook, and plugin-agent contract when the host CLI is unavailable;
+- `validate-adapters.mjs` rejects obsolete Cursor surfaces and validates the
+  Kimi, OpenCode, and Pi package contracts;
 - `check-version.mjs` and `bump-version.mjs` synchronize release metadata;
 - `package.mjs` creates deterministic archives only from a current mirror and
   synchronized version set.

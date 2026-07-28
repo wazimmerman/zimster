@@ -6,7 +6,6 @@
     "name": "Zimster Contributors"
   },
   "homepage": "https://github.com/wazimmerman/zimster",
-  "repository": "https://github.com/wazimmerman/zimster",
   "license": "MIT",
   "keywords": [
     "skills",
@@ -27,11 +26,6 @@
     "shortDescription": "Proof-first development without orchestration bloat",
     "longDescription": "Owner-driven implementation, selective delegation, TDD, risk-adaptive review, and evidence-based completion.",
     "developerName": "Zimster Contributors",
-    "capabilities": [
-      "Interactive",
-      "Read",
-      "Write"
-    ],
     "websiteURL": "https://github.com/wazimmerman/zimster"
   }
 }

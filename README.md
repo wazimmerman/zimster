@@ -38,12 +38,12 @@ slices. Delegation is optional, bounded, model-aware, and selected by risk.
 
 | Harness | Status | Integration |
 |---|---|---|
-| Codex | Priority | Repo marketplace at `.agents/plugins/marketplace.json`, self-contained plugin at `plugins/zimster/` |
-| Claude Code | Supported | Native skills, optional bounded agents, compact SessionStart bootstrap |
-| Cursor | Supported | Skills and Cursor SessionStart hook |
-| Kimi Code | Supported | Native skills and manifest tool mapping |
-| OpenCode | Supported | Adapter registers skills and injects bootstrap once |
-| Pi | Supported | Extension registers skills and injects bootstrap |
+| Codex | Package/install verified; skill discovery blocked by host | Repo marketplace at `.agents/plugins/marketplace.json`, self-contained plugin at `plugins/zimster/` |
+| Claude Code | Structurally validated | Native skills, bounded agents, compact SessionStart bootstrap |
+| Cursor | Structurally validated | Agent Skills plus a project command; no invented plugin hook |
+| Kimi Code | Structurally validated | Native plugin skills and one `sessionStart.skill` |
+| OpenCode | Live config/skill discovery verified on 1.18.7 | Adapter registers skills and injects bootstrap once |
+| Pi | Structurally validated | Package extension registers skills and injects bootstrap once |
 
 The core skills are operating-system-neutral. Cursor, Kimi, OpenCode, and Pi
 support is maintained as portable adapter support; Codex and Claude Code are the
@@ -137,6 +137,9 @@ node <zimster-root>/scripts/dispatch-record.mjs record ...
 See `docs/OPERATIONS.md` for the full policy and command reference.
 See `docs/CODEX.md` for complete package validation, isolated installation,
 cachebuster updates, reinstall, removal, and live skill-discovery status.
+Harness-specific installation, update, removal, diagnostics, and verification
+status are documented in `docs/CLAUDE.md`, `docs/CURSOR.md`, `docs/KIMI.md`,
+`docs/OPENCODE.md`, and `docs/PI.md`.
 
 ## Git lifecycle
 
@@ -208,11 +211,11 @@ plugins/zimster/         generated self-contained Codex plugin
 .agents/plugins/         Codex repo marketplace
 .codex-plugin/           canonical Codex manifest source
 .claude-plugin/          Claude manifest and development marketplace
-.cursor-plugin/          Cursor manifest
+.cursor/                 Cursor project command
 .kimi-plugin/            Kimi manifest/tool mapping
 .opencode/               OpenCode adapter
 .pi/                     Pi extension
-hooks/                   Claude/Cursor compact bootstrap
+hooks/                   Claude compact bootstrap
 scripts/                 operational, validation, version, packaging tools
 config/                  abstract model routing policy
 schemas/                 local evidence/dispatch receipt schemas

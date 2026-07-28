@@ -7,7 +7,9 @@ import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const skillsDir = path.resolve(__dirname, '../../skills');
+const packageRoot = path.resolve(__dirname, '../..');
+const skillsDir = path.join(packageRoot, 'skills');
+const skillPath = path.join(skillsDir, 'using-zimster', 'SKILL.md');
 const marker = 'zimster:using-zimster bootstrap';
 let bootstrapCache;
 
@@ -18,26 +20,35 @@ function stripFrontmatter(content) {
 
 function bootstrapContent() {
   if (bootstrapCache !== undefined) return bootstrapCache;
-  const skillPath = path.join(skillsDir, 'using-zimster', 'SKILL.md');
-  if (!fs.existsSync(skillPath)) return (bootstrapCache = null);
+  assertZimsterPackage(packageRoot);
   const body = stripFrontmatter(fs.readFileSync(skillPath, 'utf8'));
   bootstrapCache = `<ZIMSTER_BOOTSTRAP>\n${marker}\n\n${body}\n\n## OpenCode mapping\nUse skill for skills, todowrite for tracked work, task for bounded agents, read/apply_patch/bash/grep/glob/webfetch for repository work. Subagents must not spawn subagents.\n</ZIMSTER_BOOTSTRAP>`;
   return bootstrapCache;
 }
 
-export const ZimsterPlugin = async () => ({
-  config: async (config) => {
-    config.skills ||= {};
-    config.skills.paths ||= [];
-    if (!config.skills.paths.includes(skillsDir)) config.skills.paths.push(skillsDir);
-  },
-  'experimental.chat.messages.transform': async (_input, output) => {
-    const bootstrap = bootstrapContent();
-    if (!bootstrap || !Array.isArray(output.messages)) return;
-    const firstUser = output.messages.find((message) => message?.info?.role === 'user');
-    if (!firstUser || !Array.isArray(firstUser.parts)) return;
-    if (firstUser.parts.some((part) => part?.type === 'text' && part.text?.includes(marker))) return;
-    const reference = firstUser.parts[0] ?? { type: 'text' };
-    firstUser.parts.unshift({ ...reference, type: 'text', text: bootstrap });
+export function assertZimsterPackage(root = packageRoot) {
+  const expected = path.join(root, 'skills', 'using-zimster', 'SKILL.md');
+  if (!fs.existsSync(expected)) {
+    throw new Error(`ZIMSTER_PACKAGE_INVALID: missing required using-zimster skill at ${expected}`);
   }
-});
+}
+
+export const ZimsterPlugin = async () => {
+  assertZimsterPackage();
+  return {
+    config: async (config) => {
+      config.skills ||= {};
+      config.skills.paths ||= [];
+      if (!config.skills.paths.includes(skillsDir)) config.skills.paths.push(skillsDir);
+    },
+    'experimental.chat.messages.transform': async (_input, output) => {
+      const bootstrap = bootstrapContent();
+      if (!Array.isArray(output.messages)) return;
+      const firstUser = output.messages.find((message) => message?.info?.role === 'user');
+      if (!firstUser || !Array.isArray(firstUser.parts)) return;
+      if (firstUser.parts.some((part) => part?.type === 'text' && part.text?.includes(marker))) return;
+      const reference = firstUser.parts[0] ?? { type: 'text' };
+      firstUser.parts.unshift({ ...reference, type: 'text', text: bootstrap });
+    }
+  };
+};

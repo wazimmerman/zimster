@@ -5,10 +5,11 @@ import { loadCodexContract, validateCodexPlugin, validateRepoMarketplace } from 
 import { syncCodexPlugin } from './sync-codex-plugin.mjs';
 import { versionRecords } from './lib/version-files.mjs';
 import { validateClaudePlugin } from './lib/claude-plugin-contract.mjs';
+import { validateSecondaryAdapters } from './validate-adapters.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const errors = [];
-const requiredManifests = ['.codex-plugin/plugin.json', '.claude-plugin/plugin.json', '.cursor-plugin/plugin.json', '.kimi-plugin/plugin.json'];
+const requiredManifests = ['.codex-plugin/plugin.json', '.claude-plugin/plugin.json', '.kimi-plugin/plugin.json'];
 
 async function read(relative) {
   return readFile(path.join(root, relative), 'utf8');
@@ -77,6 +78,7 @@ for (const error of await validateCodexPlugin(path.join(root, 'plugins', 'zimste
 for (const error of await validateRepoMarketplace(root)) errors.push(`Codex marketplace: ${error}`);
 for (const difference of await syncCodexPlugin({ check: true })) errors.push(`Codex mirror: ${difference}`);
 for (const error of await validateClaudePlugin(root)) errors.push(`Claude plugin: ${error}`);
+for (const error of await validateSecondaryAdapters(root)) errors.push(`Secondary adapter: ${error}`);
 
 for (const [agent, allowBash] of [['scout', false], ['integration-reviewer', false], ['test-reviewer', true]]) {
   const content = await read(`agents/${agent}.md`);

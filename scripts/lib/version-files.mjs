@@ -6,7 +6,6 @@ export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '
 export const manifestFiles = [
   '.codex-plugin/plugin.json',
   '.claude-plugin/plugin.json',
-  '.cursor-plugin/plugin.json',
   '.kimi-plugin/plugin.json'
 ];
 
