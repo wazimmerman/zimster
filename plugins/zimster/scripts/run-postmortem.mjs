@@ -215,13 +215,33 @@ let budgetCompliance;
 if (!budget) {
   budgetCompliance = unavailable('execution budget is absent');
 } else {
-  const exceeded = Object.entries(budget.usage || {}).filter(([name, value]) =>
-    Number.isFinite(budget.limits?.[name]) && value > budget.limits[name]
-  ).map(([name]) => name);
-  const justified = new Set((budget.overrides || []).map(({ metric: name }) => name));
+  const exceededRows = Object.entries(budget.usage || {})
+    .filter(([name, value]) =>
+      name !== 'review_rechecks_per_seam'
+      && Number.isFinite(budget.limits?.[name])
+      && value > budget.limits[name]
+    )
+    .map(([metric]) => ({ metric, scope: null, label: metric }));
+  for (const [scope, value] of Object.entries(
+    budget.scoped_usage?.review_rechecks_per_seam || {}
+  )) {
+    if (value > budget.limits.review_rechecks_per_seam) {
+      exceededRows.push({
+        metric: 'review_rechecks_per_seam',
+        scope,
+        label: `review_rechecks_per_seam:${scope}`
+      });
+    }
+  }
+  const exceeded = exceededRows.map(({ label }) => label);
+  const overrides = budget.overrides || [];
   const pendingProofs = (budget.proof_obligations || []).filter(({ status }) => status === 'required');
   const unjustified = [
-    ...exceeded.filter((name) => !justified.has(name)),
+    ...exceededRows.filter(({ metric, scope }) =>
+      !overrides.some((override) =>
+        override.metric === metric && (override.scope || null) === scope
+      )
+    ).map(({ label }) => label),
     ...pendingProofs.map(({ metric: name }) => name)
   ];
   budgetCompliance = observed({

@@ -49,7 +49,7 @@ test('run postmortem aggregates observed execution economy without mixing token 
       usage: {
         complete_suite_executions: 1,
         exact_duplicate_commands: 1,
-        review_rechecks_per_seam: 1,
+        review_rechecks_per_seam: 2,
         final_correction_waves: 2,
         optional_deliberate_agents: 1,
         nesting_depth: 1,
@@ -57,6 +57,12 @@ test('run postmortem aggregates observed execution economy without mixing token 
         research_refreshes: 0
       },
       optional_agent_identities: ['reviewer-1'],
+      scoped_usage: {
+        review_rechecks_per_seam: {
+          execution_state: 1,
+          final_integration: 1
+        }
+      },
       overrides: [{ metric: 'final_correction_waves' }],
       proof_obligations: [{
         proof: 'release proof',
@@ -189,7 +195,11 @@ test('run postmortem aggregates observed execution economy without mixing token 
     assert.equal(report.metrics.verification_receipts.value, 1);
     assert.equal(report.metrics.reviews.value, 1);
     assert.equal(report.metrics.corrections.value, 2);
-    assert.equal(report.metrics.rechecks.value, 1);
+    assert.equal(report.metrics.rechecks.value, 2);
+    assert.equal(
+      report.metrics.budget_compliance.exceeded.includes('review_rechecks_per_seam'),
+      false
+    );
     assert.deepEqual(
       report.metrics.tokens.meters.map(({ meter, tokens }) => [meter, tokens]),
       [['goal_meter', 1000], ['raw_input', 9000]]
