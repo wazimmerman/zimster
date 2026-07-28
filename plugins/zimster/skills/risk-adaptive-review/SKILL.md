@@ -71,9 +71,15 @@ Do not create one reviewer per lens.
 
 Use the pure `integration-reviewer` for code/evidence inspection; it has no
 Bash. Use the `test-reviewer` only for one named focused experiment. A
-test-capable reviewer records before/after working-tree fingerprints and must
-report `TREE_INTEGRITY_VIOLATION` if the tree changes. Reviewers never edit the
-owner's checkout or recruit agents.
+test-capable reviewer must run plugin-relative `review-integrity.mjs capture`
+with immutable base/head SHAs and `--review-files` naming the mission,
+snapshot, evidence ledger, and other binding inputs before its command, then
+run `review-integrity.mjs verify` afterward. It reports
+`TREE_INTEGRITY_VIOLATION` if HEAD, index, tracked, untracked, or review-package
+files change. Review inputs may be explicit absolute paths outside the
+worktree, including attachments and Git-local receipts. A shell-capable,
+prompt-constrained Codex reviewer always uses this guard. Reviewers never edit
+the owner's checkout or recruit agents.
 
 ## Inputs
 
@@ -81,7 +87,7 @@ Provide paths to:
 
 - mission/binding requirements;
 - slice and selected lenses;
-- complete change snapshot or base/head package;
+- complete change snapshot with immutable base and head SHAs;
 - evidence receipts;
 - known unavailable proof;
 - requested completion state.

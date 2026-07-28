@@ -54,8 +54,9 @@ tests, and external/manual evidence. Re-read the mission line by line.
 ## 4. Final review
 
 For Standard/High-risk work, obtain one independent integration review over the
-complete committed range or no-commit change snapshot. If Critical/Important
-findings exist:
+complete committed range identified by immutable base and head SHAs, or a
+no-commit change snapshot. A shell-capable reviewer must use the before/after
+review-integrity guard. If Critical/Important findings exist:
 
 - owner performs one consolidated correction wave;
 - run covering evidence;

@@ -1,9 +1,10 @@
-import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseOptions } from './lib/cli.mjs';
 import { findRepoRoot, gitValue } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory, resolveAuditPath } from './lib/runtime.mjs';
+import { harnessCapabilities } from './lib/capabilities.mjs';
 
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { options } = parseOptions(process.argv.slice(2));
@@ -21,19 +22,45 @@ const triggers = String(options.triggers || options.trigger || 'manual initializ
 const commitPolicy = String(options['commit-policy'] || 'Record user/repository policy before implementation.');
 const branch = gitValue(['branch', '--show-current'], repo, 'DETACHED');
 const head = gitValue(['rev-parse', 'HEAD'], repo, 'UNBORN');
+const harness = options.harness ? String(options.harness).toLowerCase() : null;
+const capabilityReceipt = {
+  schema_version: 1,
+  harness,
+  capabilities: harness ? await harnessCapabilities(harness) : null
+};
+const capabilitySection = `## Harness capability receipt\n\n\`\`\`json\n${JSON.stringify(capabilityReceipt, null, 2)}\n\`\`\``;
+
+function withCapabilityReceipt(contents) {
+  const existing = /## Harness capability receipt\n\n```json\n[\s\S]*?\n```/;
+  if (existing.test(contents)) return contents.replace(existing, capabilitySection);
+  const architecture = '## Architecture and current slice';
+  if (contents.includes(architecture)) {
+    return contents.replace(architecture, `${capabilitySection}\n\n${architecture}`);
+  }
+  return `${contents.trimEnd()}\n\n${capabilitySection}\n`;
+}
 
 let template = await readFile(path.join(scriptRoot, 'templates', 'run.md'), 'utf8');
 template = template
   .replace('## Mission and constraints', '## Mission and constraints\n\n[Describe the required outcome and binding constraints.]')
   .replace('## Architecture and current slice', `## Profile and rationale\n\n- Profile: ${normalizedProfile}\n- Rationale: ${reason}\n- Durable-state triggers: ${triggers.join('; ')}\n\n## Architecture and current slice`)
   .replace('## Completed evidence', `## Git disposition\n\n- Branch: ${branch || 'DETACHED'}\n- Starting head: ${head}\n- Commit policy: ${commitPolicy}\n\n## Dispatch records\n\n[Reference Git-local zimster/dispatches IDs; include requested/effective model or unverified.]\n\n## Completed evidence`);
+template = withCapabilityReceipt(template);
 
 await mkdir(path.dirname(target), { recursive: true });
 const legacy = path.join(repo, '.zimster', 'run.md');
 if (!auditPath && options.force !== true) {
   try {
     await access(legacy);
-    await rename(legacy, target);
+    try {
+      await access(target);
+      throw new Error(`legacy and Git-local run records both exist; reconcile ${legacy} and ${target} explicitly`);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    const legacyContents = await readFile(legacy, 'utf8');
+    await writeFile(target, withCapabilityReceipt(legacyContents), { flag: 'wx' });
+    await rm(legacy);
     console.log(target);
     process.exit(0);
   } catch (error) {

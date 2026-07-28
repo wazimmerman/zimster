@@ -24,7 +24,8 @@ When multi-agent tools are available:
 - close agents after their bounded responsibility.
 
 Pure reviewers should not receive shell tools. A test-capable reviewer gets one
-named command plus before/after tree-integrity checks.
+named command plus mandatory plugin-relative `review-integrity.mjs` capture and
+verify checks over immutable base/head SHAs.
 
 When multi-agent tools are unavailable, execute inline and perform an explicit
 adversarial self-review. State that independent-review assurance was not

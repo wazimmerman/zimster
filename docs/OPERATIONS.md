@@ -12,6 +12,7 @@ working directory is the target repository.
 ```text
 node <zimster>/scripts/init-run.mjs \
   --profile high-risk \
+  --harness codex \
   --reason "public plugin compatibility" \
   --triggers "more than one vertical slice,independent review" \
   --commit-policy "commit at verified slice boundaries"
@@ -21,6 +22,9 @@ The command refuses to overwrite an existing run unless `--force` is explicit.
 Normal state is written beneath `git rev-parse --git-path zimster`. Use
 `--audit-path docs/<project-defined-path>.md` only for an explicit audit-mode
 contract. Zimster does not edit tracked `.gitignore` for normal state.
+The `--harness` value embeds the matching capability matrix in a
+machine-readable JSON block; omit it only when the harness is genuinely
+unverified.
 
 ## Canonical command inventory
 
@@ -36,13 +40,37 @@ not a claim that every listed command is required.
 
 ```text
 node <zimster>/scripts/change-snapshot.mjs \
-  --base <merge-base> \
+  --base <immutable-40-character-base-sha> \
+  --head <immutable-40-character-head-sha> \
   --output /path/from/git-rev-parse/zimster/change-snapshot.md
 ```
 
 The snapshot contains the committed branch range, staged and unstaged diffs,
 status, and every untracked file. Text files are embedded; large/binary files
 are represented by size and SHA-256. The index is unchanged.
+
+## Reviewer checkout integrity
+
+Before a shell-capable reviewer runs its one named command:
+
+```text
+node <zimster>/scripts/review-integrity.mjs capture \
+  --base <immutable-40-character-sha> \
+  --head <immutable-40-character-sha> \
+  --review-files <mission-path>,<snapshot-path>,<evidence-path>
+```
+
+Afterward, pass the returned Git-local receipt path:
+
+```text
+node <zimster>/scripts/review-integrity.mjs verify \
+  --receipt <receipt-path>
+```
+
+Any HEAD, index, tracked, untracked, or declared review-package mutation stops
+the review with `TREE_INTEGRITY_VIOLATION`. The guard reports exact affected
+files and never stages, repairs, resets, or discards them. Declared inputs may
+be absolute attachment or Git-local paths outside the worktree.
 
 ## Evidence receipts
 
@@ -76,8 +104,10 @@ Receipts become stale when the complete working-tree fingerprint changes.
 `--reuse` is allowed only for non-final work; final gates are rerun.
 
 Test-discovery values are `not_reached`, `zero_discovered`, `tests_executed`,
-and `unknown`. An agent should supply exact counts rather than infer them from a
-zero exit code.
+and `unknown`. `unknown` and `not_reached` carry no counts; `zero_discovered`
+requires zero counts; `tests_executed` requires positive, internally consistent
+counts. An agent should supply exact counts rather than infer them from a zero
+exit code.
 
 ## Dispatch records
 

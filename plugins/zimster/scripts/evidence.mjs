@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { parseOptions, required, integerOption } from './lib/cli.mjs';
 import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
-import { ensureRuntimeDirectory } from './lib/runtime.mjs';
+import { ensureRuntimeDirectory, migrateLegacyJsonlStore } from './lib/runtime.mjs';
 import { harnessCapabilities } from './lib/capabilities.mjs';
 
 const { positional, options, passthrough } = parseOptions(process.argv.slice(2));
@@ -16,6 +16,7 @@ let receiptsFile;
 
 async function init() {
   const runtime = await ensureRuntimeDirectory(root);
+  await migrateLegacyJsonlStore(root, runtime, 'evidence', 'receipts.jsonl');
   evidenceDir ||= path.join(runtime, 'evidence');
   receiptsFile ||= path.join(evidenceDir, 'receipts.jsonl');
   await mkdir(evidenceDir, { recursive: true });
@@ -56,7 +57,7 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
   const behavioralEvidence = explicitBehavior === undefined
     ? exitCode === 0 && discovery === 'tests_executed'
     : ['true', '1', 'yes'].includes(String(explicitBehavior).toLowerCase());
-  return {
+  const receipt = {
     schema_version: 1,
     id: randomUUID(),
     kind: required(options, 'kind'),
@@ -94,6 +95,41 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
     inputs: options.inputs ? String(options.inputs).split(',').map((value) => value.trim()).filter(Boolean) : [],
     notes: options.notes ? String(options.notes) : null
   };
+  validateReceipt(receipt);
+  return receipt;
+}
+
+function validateReceipt(receipt) {
+  const { discovery, discovered, passed, failed, skipped } = receipt.tests;
+  for (const [name, value] of Object.entries({ discovered, passed, failed, skipped })) {
+    if (value !== null && (!Number.isInteger(value) || value < 0)) {
+      throw new Error(`test metadata ${name} must be a non-negative integer or null`);
+    }
+  }
+  const counts = [passed, failed, skipped];
+  const hasCounts = counts.some((value) => value !== null);
+  const total = hasCounts ? (passed ?? 0) + (failed ?? 0) + (skipped ?? 0) : null;
+  if (discovered !== null && total !== null && discovered !== total) {
+    throw new Error(`contradictory test metadata: discovered ${discovered} does not equal count total ${total}`);
+  }
+  if (discovery === 'tests_executed' && (!Number.isInteger(discovered) || discovered <= 0)) {
+    throw new Error('contradictory test metadata: tests_executed requires discovered > 0');
+  }
+  if (discovery === 'zero_discovered' && (discovered !== 0 || total !== 0)) {
+    throw new Error('contradictory test metadata: zero_discovered requires every test count to be zero');
+  }
+  if (discovery === 'not_reached' && (discovered !== null || hasCounts)) {
+    throw new Error('contradictory test metadata: not_reached cannot include test counts');
+  }
+  if (discovery === 'unknown' && (discovered !== null || hasCounts)) {
+    throw new Error('contradictory test metadata: unknown discovery cannot include test counts');
+  }
+  if (receipt.behavioral_evidence && (
+    discovery !== 'tests_executed'
+    || (receipt.exit_code !== 0 && receipt.kind !== 'red')
+  )) {
+    throw new Error('behavioral evidence requires executed tests and a successful command (except explicit red evidence)');
+  }
 }
 
 async function store(receipt) {
@@ -115,15 +151,15 @@ async function findReusable(command, kind, scope) {
 async function main() {
   const receiptsDisabled = options['no-receipt'] === true
     || ['0', 'off', 'false', 'disabled'].includes(String(process.env.ZIMSTER_RECEIPTS || '').toLowerCase());
-  if (receiptsDisabled && commandName === 'record') {
+  if (receiptsDisabled) {
+    if (commandName === 'run') {
+      if (!passthrough.length) throw new Error('evidence run requires a command after --');
+      const result = spawnSync(passthrough.join(' '), { cwd: process.cwd(), shell: true, stdio: 'inherit' });
+      console.log('RECEIPTS_DISABLED');
+      process.exitCode = result.status ?? 1;
+      return;
+    }
     console.log('RECEIPTS_DISABLED');
-    return;
-  }
-  if (receiptsDisabled && commandName === 'run') {
-    if (!passthrough.length) throw new Error('evidence run requires a command after --');
-    const result = spawnSync(passthrough.join(' '), { cwd: process.cwd(), shell: true, stdio: 'inherit' });
-    console.log('RECEIPTS_DISABLED');
-    process.exitCode = result.status ?? 1;
     return;
   }
   if (commandName === 'init') {

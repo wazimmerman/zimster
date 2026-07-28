@@ -10,11 +10,21 @@ const root = findRepoRoot(process.cwd());
 const output = options.output
   ? path.resolve(root, String(options.output))
   : path.join(await ensureRuntimeDirectory(root), 'change-snapshot.md');
-const base = options.base ? String(options.base) : null;
+const base = options.base ? String(options.base).toLowerCase() : null;
+const reviewHead = options.head ? String(options.head).toLowerCase() : null;
+if ((base && !reviewHead) || (!base && reviewHead)) {
+  throw new Error('--base and --head must be supplied together for a committed review range');
+}
+for (const [name, value] of [['base', base], ['head', reviewHead]]) {
+  if (!value) continue;
+  if (!/^[0-9a-f]{40}$/.test(value)) throw new Error(`--${name} must be an immutable 40-character SHA`);
+  const result = runGit(['cat-file', '-e', `${value}^{commit}`], root, { allowFailure: true });
+  if (result.status !== 0) throw new Error(`--${name} is not a commit in this repository: ${value}`);
+}
 const head = gitValue(['rev-parse', 'HEAD'], root, 'UNBORN');
 const branch = gitValue(['branch', '--show-current'], root, 'DETACHED');
 const statusText = String(runGit(['status', '--short', '--untracked-files=all'], root).stdout);
-const committedDiff = base ? String(runGit(['diff', '--binary', '--no-ext-diff', '--no-color', `${base}..HEAD`], root).stdout) : '';
+const committedDiff = base ? String(runGit(['diff', '--binary', '--no-ext-diff', '--no-color', `${base}..${reviewHead}`], root).stdout) : '';
 const unstagedDiff = String(runGit(['diff', '--binary', '--no-ext-diff', '--no-color'], root).stdout);
 const stagedDiff = String(runGit(['diff', '--cached', '--binary', '--no-ext-diff', '--no-color'], root).stdout);
 const untracked = untrackedFiles(root).filter((relative) => path.resolve(root, relative) !== output);
@@ -48,6 +58,7 @@ const sections = [
   `- Branch: \`${branch || 'DETACHED'}\``,
   `- Head: \`${head}\``,
   base ? `- Review base: \`${base}\`` : '- Review base: not supplied; committed branch range omitted',
+  reviewHead ? `- Review head: \`${reviewHead}\`` : '- Review head: not supplied; committed branch range omitted',
   '',
   '## git status --short',
   '',

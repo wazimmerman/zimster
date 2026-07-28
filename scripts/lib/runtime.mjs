@@ -1,4 +1,4 @@
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { gitValue } from './git-state.mjs';
 
@@ -13,6 +13,48 @@ export async function ensureRuntimeDirectory(repoRoot) {
   const directory = absolute || path.resolve(repoRoot, fallback);
   await mkdir(directory, { recursive: true });
   return directory;
+}
+
+async function readJsonLines(file) {
+  try {
+    return (await readFile(file, 'utf8'))
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
+  } catch (error) {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  }
+}
+
+export async function migrateLegacyJsonlStore(repoRoot, runtimeDirectory, segment, fileName) {
+  const legacyDirectory = path.join(repoRoot, '.zimster', segment);
+  const targetDirectory = path.join(runtimeDirectory, segment);
+  const legacyFile = path.join(legacyDirectory, fileName);
+  let legacy;
+  try {
+    legacy = await readJsonLines(legacyFile);
+  } catch (error) {
+    throw new Error(`cannot migrate legacy ${segment} records: ${error.message}`);
+  }
+  if (legacy === null) return targetDirectory;
+
+  await mkdir(targetDirectory, { recursive: true });
+  const targetFile = path.join(targetDirectory, fileName);
+  const current = await readJsonLines(targetFile) || [];
+  const merged = [];
+  const seen = new Set();
+  for (const row of [...current, ...legacy]) {
+    const identity = row.id ? `id:${row.id}` : `row:${JSON.stringify(row)}`;
+    if (seen.has(identity)) continue;
+    seen.add(identity);
+    merged.push(row);
+  }
+  const temporary = `${targetFile}.migration-${process.pid}`;
+  await writeFile(temporary, merged.map((row) => JSON.stringify(row)).join('\n') + (merged.length ? '\n' : ''));
+  await rename(temporary, targetFile);
+  await rm(legacyDirectory, { recursive: true, force: true });
+  return targetDirectory;
 }
 
 export function resolveAuditPath(repoRoot, requestedPath) {

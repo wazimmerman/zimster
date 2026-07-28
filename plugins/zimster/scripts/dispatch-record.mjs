@@ -3,7 +3,7 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { parseOptions, required, integerOption } from './lib/cli.mjs';
 import { findRepoRoot } from './lib/git-state.mjs';
-import { ensureRuntimeDirectory } from './lib/runtime.mjs';
+import { ensureRuntimeDirectory, migrateLegacyJsonlStore } from './lib/runtime.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
@@ -14,6 +14,7 @@ const tiers = new Set(['fast', 'standard', 'expert']);
 
 async function init() {
   const runtime = await ensureRuntimeDirectory(root);
+  await migrateLegacyJsonlStore(root, runtime, 'dispatches', 'dispatches.jsonl');
   directory ||= path.join(runtime, 'dispatches');
   file ||= path.join(directory, 'dispatches.jsonl');
   await mkdir(directory, { recursive: true });

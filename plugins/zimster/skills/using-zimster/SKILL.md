@@ -92,6 +92,11 @@ Keep the record compact: mission, profile/rationale, branch disposition,
 architecture, slice status, evidence IDs, dispatch records, risks, unavailable
 proof, and next action. Do not paste full logs or transcripts.
 
+Pass `--harness <codex|claude|cursor|kimi|opencode|pi>` so the run record
+contains the selected harness and its machine-readable capability states. When
+the harness cannot be identified, omit the option and leave the receipt
+explicitly unverified.
+
 Use `--audit-path <project-relative-documentation-path>` only when the project
 has explicitly opted into committed audit evidence. Do not modify tracked
 `.gitignore` merely for operational state.

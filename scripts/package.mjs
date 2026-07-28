@@ -12,7 +12,8 @@ const operationalScripts = [
   'scripts/change-snapshot.mjs', 'scripts/codex-cachebuster.mjs',
   'scripts/dispatch-record.mjs', 'scripts/doctor.mjs',
   'scripts/evidence.mjs', 'scripts/init-run.mjs', 'scripts/project-commands.mjs',
-  'scripts/sync-skills.mjs', 'scripts/lib/build-metadata.mjs',
+  'scripts/review-integrity.mjs', 'scripts/sync-skills.mjs',
+  'scripts/lib/build-metadata.mjs',
   'scripts/lib/capabilities.mjs',
   'scripts/lib/cli.mjs', 'scripts/lib/git-state.mjs', 'scripts/lib/runtime.mjs'
 ];

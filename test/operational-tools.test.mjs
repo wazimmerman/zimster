@@ -105,6 +105,61 @@ test('evidence receipts record harness capabilities and support a no-state opt-o
   }
 });
 
+test('evidence rejects contradictory test metadata before appending a receipt', async () => {
+  const repo = await tempRepo();
+  try {
+    const evidence = path.join(root, 'scripts/evidence.mjs');
+    for (const args of [
+      ['--test-discovery', 'tests_executed', '--tests-passed', '1', '--tests-failed', '0', '--tests-discovered', '9'],
+      ['--test-discovery', 'zero_discovered', '--tests-passed', '1', '--tests-failed', '0'],
+      ['--test-discovery', 'unknown', '--tests-passed', '1', '--tests-failed', '0'],
+      ['--test-discovery', 'tests_executed', '--tests-passed', '0', '--tests-failed', '1', '--behavioral-evidence', 'true']
+    ]) {
+      const result = run(process.execPath, [
+        evidence, 'record', '--kind', 'test', '--scope', 'focused',
+        '--command', 'node --test', '--exit-code', args.includes('--behavioral-evidence') ? '1' : '0',
+        ...args
+      ], repo);
+      assert.notEqual(result.status, 0);
+      assert.match(result.stderr, /contradict|discovered|behavioral evidence|test metadata/i);
+    }
+    const receiptsPath = run(
+      'git',
+      ['rev-parse', '--path-format=absolute', '--git-path', 'zimster/evidence/receipts.jsonl'],
+      repo
+    ).stdout.trim();
+    assert.equal(await readFile(receiptsPath, 'utf8'), '');
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('receipt opt-out suppresses state initialization for every evidence action', async () => {
+  for (const actionArgs of [
+    ['init'],
+    ['list'],
+    ['check', '--id', 'missing'],
+    ['find', '--kind', 'test', '--command', 'node --test']
+  ]) {
+    const repo = await tempRepo();
+    try {
+      const result = run(process.execPath, [
+        path.join(root, 'scripts/evidence.mjs'), ...actionArgs, '--no-receipt'
+      ], repo);
+      assert.equal(result.status, 0, result.stderr || result.stdout);
+      assert.match(result.stdout, /RECEIPTS_DISABLED/);
+      const receiptsPath = run(
+        'git',
+        ['rev-parse', '--path-format=absolute', '--git-path', 'zimster/evidence/receipts.jsonl'],
+        repo
+      ).stdout.trim();
+      await assert.rejects(readFile(receiptsPath, 'utf8'), /ENOENT/);
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
+  }
+});
+
 test('doctor exposes the shared capability vocabulary without warning on JSON output', async () => {
   const result = run(process.execPath, [path.join(root, 'scripts/doctor.mjs'), '--json'], root);
   assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -145,20 +200,106 @@ test('dispatch recorder stores abstract tier plus requested and effective model 
   }
 });
 
-test('run-state initializer creates the durable record deterministically', async () => {
+test('run-state initializer creates the durable record with machine-readable capability state', async () => {
   const repo = await tempRepo();
   try {
     const init = path.join(root, 'scripts/init-run.mjs');
-    const result = run(process.execPath, [init, '--profile', 'standard', '--reason', 'two slices'], repo);
+    const result = run(process.execPath, [
+      init, '--profile', 'standard', '--reason', 'two slices', '--harness', 'codex'
+    ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const runtimePath = run('git', ['rev-parse', '--path-format=absolute', '--git-path', 'zimster/run.md'], repo).stdout.trim();
     const runMd = await readFile(runtimePath, 'utf8');
     assert.match(runMd, /Profile and rationale/);
     assert.match(runMd, /standard/i);
     assert.match(runMd, /Git disposition/);
+    const capabilityBlock = runMd.match(/```json\n([\s\S]*?)\n```/);
+    assert.ok(capabilityBlock, 'run record must carry a JSON capability receipt');
+    const capabilityReceipt = JSON.parse(capabilityBlock[1]);
+    assert.equal(capabilityReceipt.harness, 'codex');
+    assert.equal(capabilityReceipt.capabilities.native_skill_loading, 'unverified');
     await assert.rejects(readFile(path.join(repo, '.zimster/run.md'), 'utf8'), /ENOENT/);
     const runtimeStatus = run('git', ['status', '--short', '--untracked-files=all'], repo).stdout;
     assert.doesNotMatch(runtimeStatus, /\.zimster/, 'durable state must be locally ignored');
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('run-state migration never overwrites an existing Git-local run record', async () => {
+  const repo = await tempRepo();
+  try {
+    const runtimePath = run(
+      'git',
+      ['rev-parse', '--path-format=absolute', '--git-path', 'zimster/run.md'],
+      repo
+    ).stdout.trim();
+    await mkdir(path.dirname(runtimePath), { recursive: true });
+    await writeFile(runtimePath, '# Current Git-local state\n');
+    const legacy = path.join(repo, '.zimster/run.md');
+    await mkdir(path.dirname(legacy), { recursive: true });
+    await writeFile(legacy, '# Legacy state\n');
+
+    const result = run(process.execPath, [
+      path.join(root, 'scripts/init-run.mjs'), '--profile', 'standard'
+    ], repo);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /both exist|reconcile|already exists/i);
+    assert.equal(await readFile(runtimePath, 'utf8'), '# Current Git-local state\n');
+    assert.equal(await readFile(legacy, 'utf8'), '# Legacy state\n');
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('run-state migration adds a requested machine-readable harness receipt to legacy state', async () => {
+  const repo = await tempRepo();
+  try {
+    const legacy = path.join(repo, '.zimster/run.md');
+    await mkdir(path.dirname(legacy), { recursive: true });
+    await writeFile(legacy, '# Legacy run\n\n## Architecture and current slice\n\nOld state.\n');
+
+    const result = run(process.execPath, [
+      path.join(root, 'scripts/init-run.mjs'), '--profile', 'standard', '--harness', 'codex'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const migrated = await readFile(result.stdout.trim(), 'utf8');
+    assert.match(migrated, /# Legacy run/);
+    const capabilityBlock = migrated.match(/```json\n([\s\S]*?)\n```/);
+    assert.ok(capabilityBlock);
+    const capabilityReceipt = JSON.parse(capabilityBlock[1]);
+    assert.equal(capabilityReceipt.harness, 'codex');
+    assert.equal(capabilityReceipt.capabilities.native_skill_loading, 'unverified');
+    await assert.rejects(readFile(legacy, 'utf8'), /ENOENT/);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('legacy evidence and dispatch records migrate into Git-local stores without loss', async () => {
+  const repo = await tempRepo();
+  try {
+    const legacyEvidence = path.join(repo, '.zimster/evidence');
+    const legacyDispatches = path.join(repo, '.zimster/dispatches');
+    await mkdir(legacyEvidence, { recursive: true });
+    await mkdir(legacyDispatches, { recursive: true });
+    await writeFile(path.join(legacyEvidence, 'receipts.jsonl'), '{"id":"legacy-evidence"}\n');
+    await writeFile(path.join(legacyDispatches, 'dispatches.jsonl'), '{"id":"legacy-dispatch"}\n');
+
+    let result = run(process.execPath, [path.join(root, 'scripts/evidence.mjs'), 'init'], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    result = run(process.execPath, [path.join(root, 'scripts/dispatch-record.mjs'), 'init'], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+
+    const runtime = run(
+      'git',
+      ['rev-parse', '--path-format=absolute', '--git-path', 'zimster'],
+      repo
+    ).stdout.trim();
+    assert.match(await readFile(path.join(runtime, 'evidence/receipts.jsonl'), 'utf8'), /legacy-evidence/);
+    assert.match(await readFile(path.join(runtime, 'dispatches/dispatches.jsonl'), 'utf8'), /legacy-dispatch/);
+    await assert.rejects(readFile(path.join(legacyEvidence, 'receipts.jsonl'), 'utf8'), /ENOENT/);
+    await assert.rejects(readFile(path.join(legacyDispatches, 'dispatches.jsonl'), 'utf8'), /ENOENT/);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

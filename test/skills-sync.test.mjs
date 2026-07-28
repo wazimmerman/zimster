@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { directories, exists, json, read, root } from './helpers.mjs';
+import { syncSkills } from '../scripts/sync-skills.mjs';
 
 function run(command, args, cwd) {
   return spawnSync(command, args, { cwd, encoding: 'utf8' });
@@ -109,5 +110,67 @@ test('skills synchronization dry-run and invalid targets make no changes', async
   } finally {
     await rm(parent, { recursive: true, force: true });
     await rm(invalid, { recursive: true, force: true });
+  }
+});
+
+test('skills synchronization refuses an unowned name collision without changing it', async () => {
+  const { parent, repo } = await targetRepo();
+  try {
+    const destination = path.join(repo, '.agents/skills');
+    await mkdir(path.join(destination, 'using-zimster'), { recursive: true });
+    await writeFile(path.join(destination, 'using-zimster/SKILL.md'), '# User-owned collision\n');
+
+    const result = run(process.execPath, [
+      path.join(root, 'scripts/sync-skills.mjs'), '--target', repo
+    ], root);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /unowned|collision|already exists/i);
+    assert.equal(
+      await readFile(path.join(destination, 'using-zimster/SKILL.md'), 'utf8'),
+      '# User-owned collision\n'
+    );
+    await assert.rejects(readFile(path.join(destination, '.zimster-install.json'), 'utf8'), /ENOENT/);
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test('skills synchronization rolls back skill directories and metadata when exclusion update fails', async () => {
+  const { parent, repo } = await targetRepo();
+  try {
+    const destination = path.join(repo, '.agents/skills');
+    await mkdir(path.join(destination, 'retired-zimster'), { recursive: true });
+    await writeFile(path.join(destination, 'retired-zimster/SKILL.md'), '# stale\n');
+    const priorRegistry = `${JSON.stringify({
+      schema_version: 1,
+      owned_skills: ['retired-zimster']
+    })}\n`;
+    await writeFile(path.join(destination, '.zimster-install.json'), priorRegistry);
+    const excludePath = run(
+      'git',
+      ['rev-parse', '--path-format=absolute', '--git-path', 'info/exclude'],
+      repo
+    ).stdout.trim();
+    const priorExclude = '# keep this exclusion\n';
+    await writeFile(excludePath, priorExclude);
+    await assert.rejects(
+      syncSkills({
+        requestedTarget: repo,
+        onPhase(phase) {
+          if (phase === 'metadata-written') throw new Error('injected transaction failure');
+        }
+      }),
+      /injected transaction failure/
+    );
+
+    assert.equal(
+      await readFile(path.join(destination, 'retired-zimster/SKILL.md'), 'utf8'),
+      '# stale\n'
+    );
+    assert.equal(await readFile(path.join(destination, '.zimster-install.json'), 'utf8'), priorRegistry);
+    assert.equal(await readFile(excludePath, 'utf8'), priorExclude);
+    await assert.rejects(readFile(path.join(destination, 'using-zimster/SKILL.md'), 'utf8'), /ENOENT/);
+  } finally {
+    await rm(parent, { recursive: true, force: true });
   }
 });

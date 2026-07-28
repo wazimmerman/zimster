@@ -17,6 +17,10 @@ test('test-capable reviewer has explicit tree-integrity controls', async () => {
   assert.match(content, /Bash/);
   assert.match(content, /before.*after.*tree|tree.*integrity|working-tree fingerprint/is);
   assert.match(content, /must not modify|read-only/i);
+  assert.match(content, /review-integrity\.mjs.*capture/is);
+  assert.match(content, /review-integrity\.mjs.*verify/is);
+  assert.match(content, /immutable.*base.*head|base.*head.*immutable/is);
+  assert.match(content, /--review-files/);
 });
 
 test('model routing is explicit and auditable', async () => {
