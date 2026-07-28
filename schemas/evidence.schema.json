@@ -21,7 +21,10 @@
   ],
   "properties": {
     "schema_version": {
-      "const": 1
+      "enum": [
+        1,
+        2
+      ]
     },
     "id": {
       "type": "string",
@@ -47,10 +50,30 @@
       "type": "string",
       "minLength": 1
     },
+    "command_argv": {
+      "type": [
+        "array",
+        "null"
+      ],
+      "items": {
+        "type": "string"
+      },
+      "minItems": 1
+    },
+    "command_identity": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
     "cwd": {
       "type": "string"
     },
     "git_head": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "git_commit": {
       "type": [
         "string",
         "null"
@@ -63,6 +86,10 @@
       ]
     },
     "working_tree_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "dirty_tree_fingerprint": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
     },
@@ -108,6 +135,10 @@
     },
     "environment": {
       "type": "object"
+    },
+    "environment_fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
     },
     "tests": {
       "type": "object",
@@ -162,6 +193,25 @@
         "type": "string"
       }
     },
+    "dependency_fingerprints": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "input",
+          "digest"
+        ],
+        "properties": {
+          "input": {
+            "type": "string"
+          },
+          "digest": {
+            "type": "string"
+          }
+        },
+        "additionalProperties": false
+      }
+    },
     "inputs": {
       "type": "array",
       "items": {
@@ -188,5 +238,26 @@
       }
     }
   },
-  "additionalProperties": true
+  "additionalProperties": true,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "schema_version": {
+            "const": 2
+          }
+        }
+      },
+      "then": {
+        "required": [
+          "command_argv",
+          "command_identity",
+          "git_commit",
+          "dirty_tree_fingerprint",
+          "environment_fingerprint",
+          "dependency_fingerprints"
+        ]
+      }
+    }
+  ]
 }

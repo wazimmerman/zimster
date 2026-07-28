@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // Adapted from Superpowers v6.2.0 under the MIT License.
+import { writeSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -12,7 +13,10 @@ let bootstrap;
 try {
   bootstrap = await readFile(skillFile, 'utf8');
 } catch {
-  console.error(`zimster SessionStart: cannot read required using-zimster skill at ${skillFile}`);
+  writeSync(
+    process.stderr.fd,
+    `zimster SessionStart: cannot read required using-zimster skill at ${skillFile}\n`
+  );
   process.exitCode = 2;
 }
 
@@ -24,7 +28,7 @@ if (bootstrap !== undefined) {
     bootstrap.trim(),
     '</ZIMSTER_BOOTSTRAP>'
   ].join('\n');
-  process.stdout.write(`${JSON.stringify({
+  writeSync(process.stdout.fd, `${JSON.stringify({
     hookSpecificOutput: {
       hookEventName: 'SessionStart',
       additionalContext: context

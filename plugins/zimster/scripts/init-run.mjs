@@ -1,10 +1,11 @@
 import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseOptions } from './lib/cli.mjs';
+import { integerOption, parseOptions, writeLine } from './lib/cli.mjs';
 import { findRepoRoot, gitValue } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory, resolveAuditPath } from './lib/runtime.mjs';
 import { harnessCapabilities } from './lib/capabilities.mjs';
+import { initializeExecutionBudget } from './lib/execution-budget.mjs';
 
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { options } = parseOptions(process.argv.slice(2));
@@ -61,7 +62,7 @@ if (!auditPath && options.force !== true) {
     const legacyContents = await readFile(legacy, 'utf8');
     await writeFile(target, withCapabilityReceipt(legacyContents), { flag: 'wx' });
     await rm(legacy);
-    console.log(target);
+    writeLine(target);
     process.exit(0);
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
@@ -73,4 +74,10 @@ try {
   if (error.code === 'EEXIST') throw new Error(`${target} already exists; pass --force to replace it`);
   throw error;
 }
-console.log(target);
+if (!auditPath && normalizedProfile !== 'Micro') {
+  await initializeExecutionBudget(runtimeDirectory, normalizedProfile, {
+    tokenThreshold: integerOption(options, 'token-threshold', null),
+    overwrite: options.force === true
+  });
+}
+writeLine(target);

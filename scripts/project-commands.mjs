@@ -1,5 +1,6 @@
 import { readFile, readdir, stat } from 'node:fs/promises';
 import path from 'node:path';
+import { writeLine } from './lib/cli.mjs';
 
 const root = path.resolve(process.argv[2] || process.cwd());
 const instructions = [];
@@ -66,7 +67,7 @@ for (const file of ['Cargo.toml', 'pyproject.toml', 'go.mod', 'pom.xml', 'build.
 }
 
 commands.sort((a, b) => a.priority - b.priority || a.source.localeCompare(b.source) || a.name.localeCompare(b.name));
-console.log(JSON.stringify({
+writeLine(JSON.stringify({
   root,
   instructions,
   selection_rule: 'Use repository instructions first, then package/language scripts, task runners, and CI. Invent flags only when canonical commands are insufficient.',

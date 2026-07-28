@@ -1,7 +1,7 @@
 import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
-import { parseOptions, required, integerOption } from './lib/cli.mjs';
+import { parseOptions, required, integerOption, writeError, writeLine } from './lib/cli.mjs';
 import { findRepoRoot } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory, migrateLegacyJsonlStore } from './lib/runtime.mjs';
 
@@ -42,7 +42,7 @@ function addInheritanceWarning(row) {
 async function main() {
   if (action === 'init') {
     await init();
-    console.log(directory);
+    writeLine(directory);
     return;
   }
   if (action === 'list') {
@@ -61,7 +61,7 @@ async function main() {
     row.completed_at = new Date().toISOString();
     addInheritanceWarning(row);
     await replaceRows(records);
-    console.log(JSON.stringify(row));
+    writeLine(JSON.stringify(row));
     return;
   }
   if (action !== 'record') throw new Error('Usage: dispatch-record.mjs <init|record|update|list>');
@@ -88,10 +88,10 @@ async function main() {
   });
   await init();
   await appendFile(file, `${JSON.stringify(row)}\n`);
-  console.log(JSON.stringify(row));
+  writeLine(JSON.stringify(row));
 }
 
 main().catch((error) => {
-  console.error(error.message);
+  writeError(error.message);
   process.exitCode = 1;
 });

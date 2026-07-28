@@ -8,6 +8,7 @@ import {
   realpath,
   writeFile
 } from 'node:fs/promises';
+import { writeSync } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
@@ -16,12 +17,17 @@ import { parseOptions, required, integerOption } from './lib/cli.mjs';
 import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory, migrateLegacyJsonlStore } from './lib/runtime.mjs';
 import { harnessCapabilities } from './lib/capabilities.mjs';
+import { recordExecutionBudgetEvent } from './lib/execution-budget.mjs';
 
 const { positional, options, passthrough } = parseOptions(process.argv.slice(2));
 const commandName = positional[0];
 const root = findRepoRoot(process.cwd());
 let evidenceDir;
 let receiptsFile;
+
+function writeLine(value, stream = process.stdout) {
+  writeSync(stream.fd, `${value}\n`);
+}
 
 function listOption(name) {
   return options[name]
@@ -87,6 +93,33 @@ async function fingerprintInputs(inputs, cwd = process.cwd()) {
   }));
 }
 
+async function accountForDuplicateExecution() {
+  let result;
+  try {
+    result = await recordExecutionBudgetEvent(await ensureRuntimeDirectory(root), {
+      metric: 'exact_duplicate_commands',
+      invalidation: options['invalidation-reason']
+        ? String(options['invalidation-reason'])
+        : null,
+      strategyChange: options['strategy-change']
+        ? String(options['strategy-change'])
+        : null,
+      requiredProof: options['required-proof']
+        ? String(options['required-proof'])
+        : null
+    });
+  } catch (error) {
+    if (error.code === 'ENOENT') return;
+    throw error;
+  }
+  if (!result.changed) {
+    writeLine(JSON.stringify({ status: result.status, ...result.detail }));
+    const error = new Error(result.status);
+    error.code = 'BUDGET_CONSTRAINED';
+    throw error;
+  }
+}
+
 async function init() {
   const runtime = await ensureRuntimeDirectory(root);
   await migrateLegacyJsonlStore(root, runtime, 'evidence', 'receipts.jsonl');
@@ -98,9 +131,31 @@ async function init() {
 }
 
 async function receipts() {
+  return (await ledger()).filter((row) => row.record_type !== 'invalidation');
+}
+
+async function ledger() {
   await init();
   const content = await readFile(receiptsFile, 'utf8');
   return content.split('\n').filter(Boolean).map((line) => JSON.parse(line));
+}
+
+function fingerprintJson(value) {
+  return createHash('sha256').update(JSON.stringify(value)).digest('hex');
+}
+
+function commandArgvOption() {
+  if (options['command-argv'] === undefined) return null;
+  let value;
+  try {
+    value = JSON.parse(String(options['command-argv']));
+  } catch {
+    throw new Error('--command-argv must be a JSON array of strings');
+  }
+  if (!Array.isArray(value) || !value.length || !value.every((item) => typeof item === 'string')) {
+    throw new Error('--command-argv must be a non-empty JSON array of strings');
+  }
+  return value;
 }
 
 function testDiscovery(options, passed, failed) {
@@ -124,6 +179,8 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
   const failed = integerOption(options, 'tests-failed', null);
   const skipped = integerOption(options, 'tests-skipped', null);
   const command = required(options, 'command');
+  const cwd = path.relative(root, process.cwd()) || '.';
+  const commandArgv = commandArgvOption();
   const discovery = testDiscovery(options, passed, failed);
   const harness = options.harness ? String(options.harness) : null;
   const explicitBehavior = options['behavioral-evidence'];
@@ -131,16 +188,26 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
   const behavioralEvidence = explicitBehavior === undefined
     ? exitCode === 0 && discovery === 'tests_executed'
     : ['true', '1', 'yes'].includes(String(explicitBehavior).toLowerCase());
+  const recordedEnvironment = environment(options['host-version'] ? String(options['host-version']) : null);
+  const dependencies = listOption('dependencies');
   const receipt = {
-    schema_version: 1,
+    schema_version: 2,
     id: randomUUID(),
     kind: required(options, 'kind'),
     scope: String(options.scope || 'focused'),
     command,
-    cwd: path.relative(root, process.cwd()) || '.',
+    command_argv: commandArgv,
+    command_identity: fingerprintJson({
+      cwd,
+      argv: commandArgv,
+      command: commandArgv ? null : command
+    }),
+    cwd,
     git_head: state.head,
+    git_commit: state.head,
     git_tree: state.tree,
     working_tree_hash: state.working_tree_hash,
+    dirty_tree_fingerprint: state.dirty_tree_fingerprint,
     started_at: startedAt,
     ended_at: endedAt,
     exit_code: exitCode,
@@ -149,8 +216,11 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
     harness,
     capabilities: harness ? await harnessCapabilities(harness) : null,
     behavioral_evidence: behavioralEvidence,
-    invalidation_reason: null,
-    environment: environment(options['host-version'] ? String(options['host-version']) : null),
+    invalidation_reason: options['invalidation-reason']
+      ? String(options['invalidation-reason'])
+      : null,
+    environment: recordedEnvironment,
+    environment_fingerprint: fingerprintJson(recordedEnvironment),
     tests: {
       discovery,
       discovered: integerOption(options, 'tests-discovered', [passed, failed, skipped].some((value) => value !== null) ? (passed ?? 0) + (failed ?? 0) + (skipped ?? 0) : null),
@@ -158,7 +228,8 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
       failed,
       skipped
     },
-    dependency_cone: listOption('dependencies'),
+    dependency_cone: dependencies,
+    dependency_fingerprints: await fingerprintInputs(dependencies),
     inputs,
     input_fingerprints: await fingerprintInputs(inputs),
     notes: options.notes ? String(options.notes) : null
@@ -203,14 +274,26 @@ function validateReceipt(receipt) {
 async function store(receipt) {
   await init();
   await appendFile(receiptsFile, `${JSON.stringify(receipt)}\n`);
-  console.log(JSON.stringify(receipt));
+  writeSync(process.stdout.fd, `${JSON.stringify(receipt)}\n`);
 }
 
 async function findReusable(command, kind, scope) {
+  if (options.final === true) return null;
+  const requestedCwd = path.relative(root, process.cwd()) || '.';
+  const requestedArgv = commandArgvOption();
   const allReceipts = await receipts();
+  const invalidated = new Set(
+    (await ledger())
+      .filter((row) => row.record_type === 'invalidation')
+      .map((row) => row.receipt_id)
+  );
   const candidates = allReceipts.filter((receipt) =>
     receipt.command === command && receipt.kind === kind && receipt.scope === scope &&
-    receipt.exit_code === 0
+    receipt.cwd === requestedCwd &&
+    (requestedArgv === null
+      ? receipt.command_argv === null || receipt.command_argv === undefined
+      : sameList(receipt.command_argv, requestedArgv)) &&
+    receipt.exit_code === 0 && !receipt.invalidation_reason && !invalidated.has(receipt.id)
   );
   for (const receipt of candidates.reverse()) {
     if (!(await invalidationReason(receipt, {
@@ -227,6 +310,9 @@ function sameList(left, right) {
 
 async function invalidationReason(receipt, requested = {}) {
   const currentEnvironment = environment(options['host-version'] ? String(options['host-version']) : null);
+  if (receipt.environment_fingerprint && receipt.environment_fingerprint !== fingerprintJson(currentEnvironment)) {
+    return 'environment fingerprint changed';
+  }
   for (const key of ['platform', 'release', 'arch', 'node', 'npm', 'host_version']) {
     if ((receipt.environment?.[key] ?? null) !== currentEnvironment[key]) {
       return `environment.${key} changed`;
@@ -252,7 +338,26 @@ async function invalidationReason(receipt, requested = {}) {
     }
   }
   const state = await captureGitState(root);
-  if (state.working_tree_hash !== receipt.working_tree_hash) return 'working tree changed';
+  const recordedDependencies = receipt.dependency_fingerprints;
+  if ((receipt.dependency_cone || []).length) {
+    if (!Array.isArray(recordedDependencies) || recordedDependencies.length !== receipt.dependency_cone.length) {
+      return 'dependency fingerprints are unavailable';
+    }
+    const currentDependencies = await fingerprintInputs(receipt.dependency_cone, root);
+    for (let index = 0; index < recordedDependencies.length; index += 1) {
+      if (
+        recordedDependencies[index]?.input !== currentDependencies[index].input
+        || recordedDependencies[index]?.digest !== currentDependencies[index].digest
+      ) return `dependency ${currentDependencies[index].input} changed`;
+    }
+  } else if (state.tree !== receipt.git_tree) {
+    return 'immutable Git tree changed';
+  }
+  if (receipt.dirty_tree_fingerprint) {
+    if (state.dirty_tree_fingerprint !== receipt.dirty_tree_fingerprint) return 'dirty tree changed';
+  } else if (state.working_tree_hash !== receipt.working_tree_hash) {
+    return 'working tree changed';
+  }
   return null;
 }
 
@@ -262,17 +367,21 @@ async function main() {
   if (receiptsDisabled) {
     if (commandName === 'run') {
       if (!passthrough.length) throw new Error('evidence run requires a command after --');
-      const result = spawnSync(passthrough.join(' '), { cwd: process.cwd(), shell: true, stdio: 'inherit' });
-      console.log('RECEIPTS_DISABLED');
+      const result = spawnSync(passthrough[0], passthrough.slice(1), {
+        cwd: process.cwd(),
+        shell: false,
+        stdio: 'inherit'
+      });
+      writeLine('RECEIPTS_DISABLED');
       process.exitCode = result.status ?? 1;
       return;
     }
-    console.log('RECEIPTS_DISABLED');
+    writeLine('RECEIPTS_DISABLED');
     return;
   }
   if (commandName === 'init') {
     await init();
-    console.log(evidenceDir);
+    writeLine(evidenceDir);
     return;
   }
   if (commandName === 'record') {
@@ -287,13 +396,39 @@ async function main() {
     const id = required(options, 'id');
     const receipt = (await receipts()).find((item) => item.id === id);
     if (!receipt) throw new Error(`evidence receipt not found: ${id}`);
-    const reason = await invalidationReason(receipt);
-    if (!reason) {
-      console.log(`VALID ${id}`);
+    const explicitInvalidation = (await ledger()).find(
+      (item) => item.record_type === 'invalidation' && item.receipt_id === id
+    );
+    if (explicitInvalidation) {
+      writeLine(`STALE ${id} ${explicitInvalidation.reason}`);
+      process.exitCode = 2;
       return;
     }
-    console.log(`STALE ${id} ${reason}`);
+    const reason = await invalidationReason(receipt);
+    if (!reason) {
+      writeLine(`VALID ${id}`);
+      return;
+    }
+    writeLine(`STALE ${id} ${reason}`);
     process.exitCode = 2;
+    return;
+  }
+  if (commandName === 'invalidate') {
+    await init();
+    const id = required(options, 'id');
+    const reason = required(options, 'reason');
+    const receipt = (await receipts()).find((item) => item.id === id);
+    if (!receipt) throw new Error(`evidence receipt not found: ${id}`);
+    const invalidation = {
+      schema_version: 1,
+      record_type: 'invalidation',
+      id: randomUUID(),
+      receipt_id: id,
+      reason,
+      invalidated_at: new Date().toISOString()
+    };
+    await appendFile(receiptsFile, `${JSON.stringify(invalidation)}\n`);
+    writeSync(process.stdout.fd, `${JSON.stringify(invalidation)}\n`);
     return;
   }
   if (commandName === 'find') {
@@ -303,15 +438,15 @@ async function main() {
     const scope = String(options.scope || 'focused');
     const receipt = await findReusable(command, kind, scope);
     if (!receipt) {
-      console.log('NO_REUSABLE_EVIDENCE');
+      writeLine('NO_REUSABLE_EVIDENCE');
       process.exitCode = 1;
       return;
     }
-    console.log(`REUSABLE_DUPLICATE ${JSON.stringify(receipt)}`);
+    writeLine(`REUSABLE_DUPLICATE ${JSON.stringify(receipt)}`);
     return;
   }
   if (commandName === 'list') {
-    for (const receipt of await receipts()) console.log(JSON.stringify(receipt));
+    for (const receipt of await receipts()) writeLine(JSON.stringify(receipt));
     return;
   }
   if (commandName === 'run') {
@@ -319,28 +454,42 @@ async function main() {
     if (!passthrough.length) throw new Error('evidence run requires a command after --');
     const command = passthrough.join(' ');
     options.command = command;
+    options['command-argv'] = JSON.stringify(passthrough);
     options.kind = options.kind || 'command';
     options.scope = options.scope || 'focused';
     const duplicate = await findReusable(command, String(options.kind), String(options.scope));
     if (duplicate && options.force !== true) {
-      console.error(`Valid duplicate evidence exists: ${duplicate.id}. Pass --force to rerun; final gates must always rerun.`);
+      writeLine(
+        `Valid duplicate evidence exists: ${duplicate.id}. Pass --force to rerun; final gates must always rerun.`,
+        process.stderr
+      );
       if (options.reuse === true && options.final !== true) {
-        console.log(`REUSED ${JSON.stringify(duplicate)}`);
+        writeLine(`REUSED ${JSON.stringify(duplicate)}`);
         return;
       }
+      writeLine(`REUSABLE_DUPLICATE ${duplicate.id}`);
+      process.exitCode = 2;
+      return;
+    }
+    if (duplicate && options.force === true && options.final !== true) {
+      await accountForDuplicateExecution();
     }
     const startedAt = new Date().toISOString();
-    const result = spawnSync(command, { cwd: process.cwd(), shell: true, stdio: 'inherit' });
+    const result = spawnSync(passthrough[0], passthrough.slice(1), {
+      cwd: process.cwd(),
+      shell: false,
+      stdio: 'inherit'
+    });
     const endedAt = new Date().toISOString();
     const exitCode = result.status ?? 1;
     await store(await buildReceipt({ startedAt, endedAt, exitCode }));
     process.exitCode = exitCode;
     return;
   }
-  throw new Error('Usage: evidence.mjs <init|record|check|find|list|run> [options]');
+  throw new Error('Usage: evidence.mjs <init|record|check|find|invalidate|list|run> [options]');
 }
 
 main().catch((error) => {
-  console.error(error.message);
-  process.exitCode = 1;
+  writeLine(error.message, process.stderr);
+  process.exitCode = error.code === 'BUDGET_CONSTRAINED' ? 2 : 1;
 });

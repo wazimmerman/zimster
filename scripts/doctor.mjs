@@ -3,7 +3,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { capabilityMatrix } from './lib/capabilities.mjs';
-import { parseOptions } from './lib/cli.mjs';
+import { parseOptions, writeLine } from './lib/cli.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { options } = parseOptions(process.argv.slice(2));
@@ -79,17 +79,22 @@ const report = {
 };
 
 if (options.json === true) {
-  console.log(JSON.stringify(report));
+  writeLine(JSON.stringify(report));
 } else {
-  console.log(`Zimster ${version} (${packageTarget})`);
-  console.log(`Host: ${report.host.platform} ${report.host.release} (${report.host.arch})`);
-  console.log(`Node: ${report.host.node}`);
-  console.log('');
+  const lines = [
+    `Zimster ${version} (${packageTarget})`,
+    `Host: ${report.host.platform} ${report.host.release} (${report.host.arch})`,
+    `Node: ${report.host.node}`,
+    ''
+  ];
   for (const [name, record] of Object.entries(harnesses)) {
-    console.log(`${name.padEnd(10)} ${record.verification.padEnd(24)} package=${record.structural_status}`);
+    lines.push(`${name.padEnd(10)} ${record.verification.padEnd(24)} package=${record.structural_status}`);
   }
-  console.log('');
-  console.log(`Version metadata: ${report.version_metadata.status}`);
-  console.log(`Codex mirror: ${report.codex_mirror.status}`);
-  console.log('Structural and capability diagnostics are not live harness installation claims.');
+  lines.push(
+    '',
+    `Version metadata: ${report.version_metadata.status}`,
+    `Codex mirror: ${report.codex_mirror.status}`,
+    'Structural and capability diagnostics are not live harness installation claims.'
+  );
+  writeLine(lines.join('\n'));
 }

@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { parseOptions } from './lib/cli.mjs';
+import { parseOptions, writeError, writeLine } from './lib/cli.mjs';
 import { assertSemver, root, versionRecords } from './lib/version-files.mjs';
 
 const { options } = parseOptions(process.argv.slice(2));
@@ -20,9 +20,11 @@ if (options.tag !== undefined) {
 }
 
 if (mismatches.length) {
-  console.error(`Version metadata does not match package.json ${canonical}:`);
-  for (const [name, version] of mismatches) console.error(`- ${name}: ${version ?? 'missing'}`);
+  writeError([
+    `Version metadata does not match package.json ${canonical}:`,
+    ...mismatches.map(([name, version]) => `- ${name}: ${version ?? 'missing'}`)
+  ].join('\n'));
   process.exitCode = 1;
 } else {
-  console.log(`Version metadata is synchronized at ${canonical}${options.tag ? ` and matches ${options.tag}` : ''}.`);
+  writeLine(`Version metadata is synchronized at ${canonical}${options.tag ? ` and matches ${options.tag}` : ''}.`);
 }

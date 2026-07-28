@@ -1,3 +1,13 @@
+import { writeSync } from 'node:fs';
+
+export function writeLine(value = '', stream = process.stdout) {
+  writeSync(stream.fd, `${value}\n`);
+}
+
+export function writeError(value = '') {
+  writeLine(value, process.stderr);
+}
+
 export function parseOptions(args) {
   const options = {};
   const positional = [];

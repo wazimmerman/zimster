@@ -56,6 +56,12 @@ export async function captureGitState(cwd = process.cwd()) {
   hash.update(staged);
   for (const [relative, digest] of untracked) hash.update(`untracked\0${relative}\0${digest}\0`);
 
+  const dirtyHash = createHash('sha256');
+  dirtyHash.update(status);
+  dirtyHash.update(unstaged);
+  dirtyHash.update(staged);
+  for (const [relative, digest] of untracked) dirtyHash.update(`untracked\0${relative}\0${digest}\0`);
+
   return {
     root,
     head,
@@ -63,6 +69,7 @@ export async function captureGitState(cwd = process.cwd()) {
     branch,
     status: status.toString('utf8'),
     working_tree_hash: hash.digest('hex'),
+    dirty_tree_fingerprint: dirtyHash.digest('hex'),
     untracked: untracked.map(([file, digest]) => ({ file, digest }))
   };
 }

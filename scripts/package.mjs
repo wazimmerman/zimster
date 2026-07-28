@@ -11,11 +11,13 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const operationalScripts = [
   'scripts/change-snapshot.mjs', 'scripts/codex-cachebuster.mjs',
   'scripts/dispatch-record.mjs', 'scripts/doctor.mjs',
-  'scripts/evidence.mjs', 'scripts/init-run.mjs', 'scripts/project-commands.mjs',
+  'scripts/evidence.mjs', 'scripts/init-run.mjs', 'scripts/phase-checkpoint.mjs',
+  'scripts/project-commands.mjs', 'scripts/run-budget.mjs',
   'scripts/review-integrity.mjs', 'scripts/sync-skills.mjs',
   'scripts/lib/build-metadata.mjs',
   'scripts/lib/capabilities.mjs',
-  'scripts/lib/cli.mjs', 'scripts/lib/git-state.mjs', 'scripts/lib/runtime.mjs'
+  'scripts/lib/cli.mjs', 'scripts/lib/execution-budget.mjs',
+  'scripts/lib/git-state.mjs', 'scripts/lib/runtime.mjs'
 ];
 const common = [
   'skills', 'agents', 'templates', 'assets', 'docs', 'config', 'schemas',

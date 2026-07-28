@@ -12,7 +12,7 @@ import {
 } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parseOptions, required } from './lib/cli.mjs';
+import { parseOptions, required, writeError, writeLine } from './lib/cli.mjs';
 import { buildMetadata } from './lib/build-metadata.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 import { runGit } from './lib/git-state.mjs';
@@ -217,12 +217,12 @@ async function main() {
     requestedTarget: required(options, 'target'),
     dryRun: options['dry-run'] === true
   });
-  console.log(JSON.stringify(result));
+  writeLine(JSON.stringify(result));
 }
 
 if (fileURLToPath(import.meta.url) === path.resolve(process.argv[1] || '')) {
   main().catch((error) => {
-    console.error(error.message);
+    writeError(error.message);
     process.exitCode = 1;
   });
 }
