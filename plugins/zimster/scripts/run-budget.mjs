@@ -45,7 +45,8 @@ if (action === 'init') {
     requiredProofType: options['required-proof-type'] ? String(options['required-proof-type']) : null,
     requiredProofKind: options['required-proof-kind'] ? String(options['required-proof-kind']) : null,
     requiredProofScope: options['required-proof-scope'] ? String(options['required-proof-scope']) : null,
-    requiredProofProfile: options['required-proof-profile'] ? String(options['required-proof-profile']) : null
+    requiredProofProfile: options['required-proof-profile'] ? String(options['required-proof-profile']) : null,
+    requiredProofCommand: options['required-proof-command'] ? String(options['required-proof-command']) : null
   });
   emit(result.status, result.detail);
   if (['BUDGET_CONSTRAINED', 'BUDGET_PROOF_REQUIRED'].includes(result.status)) {

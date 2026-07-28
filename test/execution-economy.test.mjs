@@ -151,26 +151,52 @@ test('execution budget accepts an over-limit strategy change only with a require
     await writeFile(path.join(receiptDirectory, 'proof-receipt.json'), `${JSON.stringify({
       id: 'proof-receipt',
       status: 'passed',
-      profile: 'goal'
+      profile: 'goal',
+      git_commit: run('git', ['rev-parse', 'HEAD'], repo).stdout.trim(),
+      git_tree: run('git', ['rev-parse', 'HEAD^{tree}'], repo).stdout.trim(),
+      dirty_tree_fingerprint: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+      environment: {
+        platform: os.platform(),
+        release: os.release(),
+        arch: os.arch(),
+        node: process.version
+      }
     })}\n`);
     result = run(process.execPath, [
       budget, 'prove', '--proof', 'release:verify receipt', '--receipt', 'proof-receipt'
     ], repo);
     assert.notEqual(result.status, 0, result.stderr || result.stdout);
     assert.match(result.stderr, /profile|relationship|release/i);
-    await writeFile(path.join(receiptDirectory, 'proof-receipt.json'), `${JSON.stringify({
-      id: 'proof-receipt',
-      status: 'passed',
-      profile: 'release'
+    const planFile = runtimePath(repo, 'proof-plan.json');
+    await writeFile(planFile, `${JSON.stringify({
+      schema_version: 1,
+      profile: 'release',
+      steps: [{
+        id: 'proof',
+        command: process.execPath,
+        args: ['-e', 'process.exit(0);']
+      }]
     })}\n`);
     result = run(process.execPath, [
-      budget, 'prove', '--proof', 'release:verify receipt', '--receipt', 'proof-receipt'
+      path.join(root, 'scripts/verify.mjs'), 'run', '--plan', planFile
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const releaseReceipt = JSON.parse(result.stdout);
+    await writeFile(path.join(repo, 'tracked.txt'), 'dirty after proof\n');
+    result = run(process.execPath, [
+      budget, 'prove', '--proof', 'release:verify receipt', '--receipt', releaseReceipt.id
+    ], repo);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /dirty|tree|fresh|current/i);
+    await writeFile(path.join(repo, 'tracked.txt'), 'base\n');
+    result = run(process.execPath, [
+      budget, 'prove', '--proof', 'release:verify receipt', '--receipt', releaseReceipt.id
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(JSON.parse(result.stdout).status, 'BUDGET_PROOF_SATISFIED');
     const proven = JSON.parse(await readFile(runtimePath(repo, 'budget.json'), 'utf8'));
     assert.equal(proven.proof_obligations[0].status, 'satisfied');
-    assert.equal(proven.proof_obligations[0].receipt_id, 'proof-receipt');
+    assert.equal(proven.proof_obligations[0].receipt_id, releaseReceipt.id);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }
@@ -188,7 +214,8 @@ test('budget proof satisfaction rejects an explicitly invalidated evidence recei
       '--required-proof', 'affected correction tests',
       '--required-proof-type', 'evidence',
       '--required-proof-kind', 'test',
-      '--required-proof-scope', 'affected'
+      '--required-proof-scope', 'affected',
+      '--required-proof-command', 'node --test correction.test.mjs'
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const evidence = path.join(root, 'scripts/evidence.mjs');

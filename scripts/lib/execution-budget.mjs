@@ -1,5 +1,15 @@
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { captureGitState } from './git-state.mjs';
+
+const evidenceScript = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+  'evidence.mjs'
+);
 
 export const DEFAULT_EXECUTION_LIMITS = Object.freeze({
   complete_suite_executions: 3,
@@ -140,9 +150,20 @@ export async function satisfyExecutionBudgetProof(runtimeDirectory, {
         path.join(runtimeDirectory, 'verification', 'receipts', `${receiptId}.json`),
         'utf8'
         ));
+        const state = await captureGitState(process.cwd());
+        const environment = {
+          platform: os.platform(),
+          release: os.release(),
+          arch: os.arch(),
+          node: process.version
+        };
         passed = receipt.id === receiptId
           && receipt.status === 'passed'
-          && (!obligation.profile || receipt.profile === obligation.profile);
+          && (!obligation.profile || receipt.profile === obligation.profile)
+          && receipt.git_commit === state.head
+          && receipt.git_tree === state.tree
+          && receipt.dirty_tree_fingerprint === state.dirty_tree_fingerprint
+          && JSON.stringify(receipt.environment || {}) === JSON.stringify(environment);
       } catch (error) {
         if (error.code !== 'ENOENT') throw error;
       }
@@ -163,13 +184,26 @@ export async function satisfyExecutionBudgetProof(runtimeDirectory, {
           && !invalidated.has(row.id)
           && (!obligation.kind || row.kind === obligation.kind)
           && (!obligation.scope || row.scope === obligation.scope)
+          && (!obligation.command || row.command === obligation.command)
         );
+        if (passed) {
+          const current = spawnSync(process.execPath, [
+            evidenceScript, 'check', '--id', receiptId
+          ], {
+            cwd: process.cwd(),
+            encoding: 'utf8',
+            shell: false
+          });
+          passed = current.status === 0;
+        }
       } catch (error) {
         if (error.code !== 'ENOENT') throw error;
       }
     }
     if (!passed) {
-      throw new Error(`passing receipt does not satisfy the required proof relationship: ${receiptId}`);
+      throw new Error(
+        `passing receipt does not satisfy the required current-tree proof relationship: ${receiptId}`
+      );
     }
     obligation.status = 'satisfied';
     obligation.receipt_id = receiptId;
@@ -194,6 +228,7 @@ export function applyExecutionBudgetEvent(state, {
   requiredProofKind = null,
   requiredProofScope = null,
   requiredProofProfile = null,
+  requiredProofCommand = null,
   recordedAt = new Date().toISOString()
 }) {
   if (!Object.hasOwn(state.limits, metric)) throw new Error(`unknown budget metric: ${metric}`);
@@ -241,7 +276,11 @@ export function applyExecutionBudgetEvent(state, {
     && (
       !['verification', 'evidence'].includes(requiredProofType)
       || (requiredProofType === 'verification' && !requiredProofProfile)
-      || (requiredProofType === 'evidence' && (!requiredProofKind || !requiredProofScope))
+      || (requiredProofType === 'evidence' && (
+        !requiredProofKind
+        || !requiredProofScope
+        || !requiredProofCommand
+      ))
     )
   ) {
     return {
@@ -283,7 +322,8 @@ export function applyExecutionBudgetEvent(state, {
       receipt_type: requiredProofType,
       ...(requiredProofKind ? { kind: requiredProofKind } : {}),
       ...(requiredProofScope ? { scope: requiredProofScope } : {}),
-      ...(requiredProofProfile ? { profile: requiredProofProfile } : {})
+      ...(requiredProofProfile ? { profile: requiredProofProfile } : {}),
+      ...(requiredProofCommand ? { command: requiredProofCommand } : {})
     });
   }
   return {
