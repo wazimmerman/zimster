@@ -148,3 +148,12 @@ marketplace entry, changelog heading, and the generated Codex mirror.
 All Git-local evidence, dispatch, snapshot, and run files remain on the local
 machine. Zimster contains no upload or telemetry mechanism. Pass `--no-receipt`
 or set `ZIMSTER_RECEIPTS=off` to run without recording receipt state.
+
+## Diagnostics and failure semantics
+
+Normal progress quietly applies expected capability fallbacks. Use
+`npm run doctor -- --json` for the complete machine-readable matrix. Invalid
+packages, reviewer mutation, failed required commands, corrupted state, and
+unfulfilled required verification remain actionable errors. See
+`DIAGNOSTICS.md` for the full distinction and `SKILLS_ONLY.md` for the
+script-free path.

@@ -1,7 +1,7 @@
 # Evaluation Strategy
 
 Zimster's efficiency and quality claims must be established experimentally.
-Version 0.2.0 does not claim to beat Superpowers.
+Version 0.3.0 does not claim to beat Superpowers.
 
 ## Comparison arms
 

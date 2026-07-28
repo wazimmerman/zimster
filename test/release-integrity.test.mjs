@@ -26,3 +26,34 @@ test('version bump synchronizes manifests, lockfile, changelog, and Codex mirror
     assert.match(versionFiles, new RegExp(file.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
   }
 });
+
+test('release documentation covers diagnostics, skills-only installs, and final gates', async () => {
+  const diagnostics = await read('docs/DIAGNOSTICS.md');
+  assert.match(diagnostics, /npm run doctor -- --json/);
+  assert.match(diagnostics, /quiet fallback/i);
+  assert.match(diagnostics, /actionable error/i);
+
+  const skillsOnly = await read('docs/SKILLS_ONLY.md');
+  assert.match(skillsOnly, /npm run sync-skills -- --target/);
+  assert.match(skillsOnly, /build-metadata\.json/);
+  assert.match(skillsOnly, /receipts[\s\S]*unavailable|unavailable[\s\S]*receipts/i);
+
+  const releasing = await read('docs/RELEASING.md');
+  for (const command of [
+    'npm run version:bump', 'npm run check', 'npm run version:check',
+    'npm run checksums', 'git diff --check'
+  ]) {
+    assert.match(releasing, new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+  }
+  assert.match(releasing, /secret/i);
+  assert.match(releasing, /Codex[\s\S]*isolated|isolated[\s\S]*Codex/i);
+});
+
+test('current release docs use the synchronized package version and honest evaluation status', async () => {
+  const pkg = await json('package.json');
+  const readme = await read('README.md');
+  const evaluation = await read('docs/EVALUATION.md');
+  assert.match(readme, new RegExp(`Version ${pkg.version.replaceAll('.', '\\.')}`));
+  assert.match(evaluation, new RegExp(`Version ${pkg.version.replaceAll('.', '\\.')}`));
+  assert.match(evaluation, /does not claim to beat Superpowers/);
+});

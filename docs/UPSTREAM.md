@@ -15,9 +15,9 @@ The full notice is preserved in `THIRD_PARTY_NOTICES.md`.
 |---|---|---|
 | `hooks/run-hook.cmd` | `hooks/run-hook.cmd` | cross-platform wrapper adapted |
 | `hooks/session-start` | `hooks/session-start` | injects only `using-zimster` |
-| hook manifests | matching upstream files | structure adapted |
+| Claude hook manifest | matching upstream file | structure adapted to the current Claude contract |
 | OpenCode/Pi adapters | matching upstream adapters | discovery/cache/bootstrap adapted |
-| harness manifests | upstream manifests | layouts adapted, then Codex corrected to current official contract |
+| harness manifests | upstream manifests | layouts adapted, then each retained manifest corrected to its current primary contract; the unsupported Cursor manifest/hook were removed |
 | TDD/verification/worktree/review/finish skills | corresponding skills | safety mechanisms compressed and redesigned around persistent ownership |
 
 ### Retained mechanisms
@@ -56,3 +56,6 @@ The weekly Superpowers audit treats a new upstream release as a review signal,
 not an automatic merge. Codex contract snapshots should likewise be refreshed
 only after comparing official creator/validator source, updating provenance,
 observing RED against the old contract, and validating the new package layout.
+Cursor, Kimi Code, OpenCode, Pi, and Claude contract decisions and access dates
+are recorded in `RESEARCH.md`; their primary documentation must be rechecked
+before adding or retaining fields.

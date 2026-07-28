@@ -89,7 +89,9 @@ for (const [agent, allowBash] of [['scout', false], ['integration-reviewer', fal
 
 for (const relative of [
   'LICENSE', 'THIRD_PARTY_NOTICES.md', 'README.md', 'docs/ARCHITECTURE.md', 'docs/CLAUDE.md',
-  'docs/EVALUATION.md', 'docs/OPERATIONS.md', 'docs/RESEARCH.md', 'docs/UPSTREAM.md',
+  'docs/DIAGNOSTICS.md', 'docs/EVALUATION.md', 'docs/OPERATIONS.md',
+  'docs/RELEASING.md', 'docs/RESEARCH.md', 'docs/SKILLS_ONLY.md',
+  'docs/UPSTREAM.md',
   'scripts/evidence.mjs', 'scripts/change-snapshot.mjs', 'scripts/dispatch-record.mjs',
   'scripts/check-version.mjs', 'scripts/bump-version.mjs', 'scripts/checksums.mjs', 'config/model-routing.json',
   'schemas/evidence.schema.json', 'schemas/dispatch.schema.json'

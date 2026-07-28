@@ -9,9 +9,10 @@ const target = path.join(root, 'plugins', 'zimster');
 const includes = [
   '.codex-plugin', 'skills', 'agents', 'templates', 'assets', 'config', 'schemas',
   'docs/ARCHITECTURE.md', 'docs/CLAUDE.md', 'docs/CODEX.md', 'docs/CURSOR.md',
-  'docs/EVALUATION.md', 'docs/KIMI.md', 'docs/OPENCODE.md', 'docs/OPERATIONS.md',
-  'docs/PI.md', 'docs/PORTING.md', 'docs/RESEARCH.md', 'docs/ROADMAP.md',
-  'docs/UPSTREAM.md',
+  'docs/DIAGNOSTICS.md', 'docs/EVALUATION.md', 'docs/KIMI.md',
+  'docs/OPENCODE.md', 'docs/OPERATIONS.md', 'docs/PI.md', 'docs/PORTING.md',
+  'docs/RELEASING.md', 'docs/RESEARCH.md', 'docs/ROADMAP.md',
+  'docs/SKILLS_ONLY.md', 'docs/UPSTREAM.md',
   'scripts/change-snapshot.mjs', 'scripts/dispatch-record.mjs',
   'scripts/codex-cachebuster.mjs', 'scripts/doctor.mjs', 'scripts/evidence.mjs',
   'scripts/init-run.mjs', 'scripts/project-commands.mjs',

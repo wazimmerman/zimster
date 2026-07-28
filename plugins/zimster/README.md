@@ -140,6 +140,9 @@ cachebuster updates, reinstall, removal, and live skill-discovery status.
 Harness-specific installation, update, removal, diagnostics, and verification
 status are documented in `docs/CLAUDE.md`, `docs/CURSOR.md`, `docs/KIMI.md`,
 `docs/OPENCODE.md`, and `docs/PI.md`.
+See `docs/DIAGNOSTICS.md` for quiet-fallback versus actionable-error semantics,
+`docs/SKILLS_ONLY.md` for script-free synchronization, and
+`docs/RELEASING.md` for the release checklist.
 
 ## Git lifecycle
 
@@ -231,12 +234,13 @@ Apache-2.0. See `THIRD_PARTY_NOTICES.md` and `docs/UPSTREAM.md`.
 
 ## Project status
 
-Version 0.2.0 adds the operational controls uncovered by the first real Codex
-smoke test: valid marketplace packaging, explicit Git lifecycle, complete
-untracked review, stronger multi-behavior TDD, canonical command discovery,
-deterministic profiles, local evidence/model records, safer reviewer roles,
-durable-state triggers, requirement blockers, and release-version integrity.
+Version 0.3.0 hardens the complete public package: validated Codex marketplace
+and isolated installation flows, quiet capability fallbacks, Git-local
+run/evidence state, mutation-detecting review integrity, enforced Claude
+reviewer roles, safe skills-only synchronization, corrected secondary adapters,
+machine-readable provenance, deterministic packages, and honest live-versus-
+structural harness status.
 
-Live installation in every supported harness and comparative
+Live installation in every harness and comparative
 Zimster-versus-Superpowers economics remain evaluation work, not claimed
 results. See `docs/EVALUATION.md`.

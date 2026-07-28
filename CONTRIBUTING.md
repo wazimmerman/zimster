@@ -12,6 +12,7 @@
    better quality.
 
 Use `npm run version:bump -- <version> --note "summary"` for releases. The
-release tag must match all manifests and the changelog.
+release tag must match all manifests and the changelog. Follow the full
+`docs/RELEASING.md` checklist.
 
 The project uses Node 22 and intentionally has no runtime dependencies.

@@ -64,6 +64,7 @@ test('Codex mirror is generated from canonical source without drift', async () =
 });
 
 test('Codex cachebuster replaces one build suffix without changing the release version', async () => {
+  const pkg = await json('package.json');
   const temporary = await mkdtemp(path.join(os.tmpdir(), 'zimster-cachebuster-'));
   try {
     const plugin = path.join(temporary, 'zimster');
@@ -75,7 +76,7 @@ test('Codex cachebuster replaces one build suffix without changing the release v
     });
     assert.equal(result.status, 0, result.stderr || result.stdout);
     let manifest = JSON.parse(await readFile(path.join(plugin, '.codex-plugin/plugin.json'), 'utf8'));
-    assert.equal(manifest.version, '0.2.0+codex.local-test');
+    assert.equal(manifest.version, `${pkg.version}+codex.local-test`);
 
     result = spawnSync(process.execPath, [script, plugin, '--cachebuster', 'next-test'], {
       cwd: root,
@@ -83,7 +84,7 @@ test('Codex cachebuster replaces one build suffix without changing the release v
     });
     assert.equal(result.status, 0, result.stderr || result.stdout);
     manifest = JSON.parse(await readFile(path.join(plugin, '.codex-plugin/plugin.json'), 'utf8'));
-    assert.equal(manifest.version, '0.2.0+codex.next-test');
+    assert.equal(manifest.version, `${pkg.version}+codex.next-test`);
   } finally {
     await rm(temporary, { recursive: true, force: true });
   }
@@ -102,7 +103,8 @@ test('vendored official Codex validator accepts the marketplace plugin', async (
   assert.equal(result.status, 0, result.stderr || result.stdout);
 });
 
-test('installed Codex package exposes quiet machine-readable diagnostics', () => {
+test('installed Codex package exposes quiet machine-readable diagnostics', async () => {
+  const pkg = await json('package.json');
   const result = spawnSync(process.execPath, [
     path.join(root, marketplacePluginRoot, 'scripts/doctor.mjs'), '--json'
   ], {
@@ -112,7 +114,7 @@ test('installed Codex package exposes quiet machine-readable diagnostics', () =>
   assert.equal(result.status, 0, result.stderr || result.stdout);
   assert.equal(result.stderr, '');
   const report = JSON.parse(result.stdout);
-  assert.equal(report.zimster_version, '0.2.0');
+  assert.equal(report.zimster_version, pkg.version);
   assert.equal(report.package_target, 'codex');
   assert.equal(report.harnesses.codex.structural_status, 'ready');
 });
