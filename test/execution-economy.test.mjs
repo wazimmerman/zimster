@@ -735,3 +735,31 @@ test('evidence identity includes repository-relative cwd and the exact argument 
     await rm(repo, { recursive: true, force: true });
   }
 });
+
+test('evidence identity rejects a cwd genuinely outside the repository', async () => {
+  const repo = await tempRepo();
+  const outside = await mkdtemp(path.join(os.tmpdir(), 'zimster-evidence-outside-'));
+  try {
+    const evidence = path.join(root, 'scripts/evidence.mjs');
+    const result = spawnSync(process.execPath, [
+      evidence, 'record', '--kind', 'command', '--scope', 'focused',
+      '--command', 'node outside.mjs',
+      '--command-argv', JSON.stringify(['node', 'outside.mjs']),
+      '--exit-code', '0'
+    ], {
+      cwd: outside,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        GIT_DIR: path.join(repo, '.git'),
+        GIT_WORK_TREE: repo
+      }
+    });
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /outside.*repository/i);
+    assert.doesNotMatch(result.stdout, /"cwd":"\.\./);
+  } finally {
+    await rm(outside, { recursive: true, force: true });
+    await rm(repo, { recursive: true, force: true });
+  }
+});

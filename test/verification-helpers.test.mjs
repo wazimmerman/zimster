@@ -9,7 +9,9 @@ import { createZip } from '../scripts/lib/zip.mjs';
 import { root } from './helpers.mjs';
 
 function run(command, args, cwd) {
-  return spawnSync(command, args, { cwd, encoding: 'utf8' });
+  const env = { ...process.env };
+  delete env.NODE_TEST_CONTEXT;
+  return spawnSync(command, args, { cwd, encoding: 'utf8', env });
 }
 
 async function tempRepo() {
@@ -130,21 +132,34 @@ test('configured host smoke runs in isolated homes and records unavailable hosts
   }
 });
 
-test('default host smoke records every unconfigured harness as unavailable', () => {
-  const result = run(process.execPath, [
-    path.join(root, 'scripts/host-smoke.mjs')
-  ], root);
-  assert.equal(result.status, 0, result.stderr || result.stdout);
-  const summary = JSON.parse(result.stdout);
-  assert.equal(summary.status, 'passed');
-  assert.deepEqual(
-    [...summary.executed, ...summary.unavailable.map(({ id }) => id)].sort(),
-    ['claude', 'codex', 'cursor', 'kimi', 'opencode', 'pi']
-  );
-  assert.equal(
-    summary.executed.includes('opencode') || summary.unavailable.some(({ id }) => id === 'opencode'),
-    true
-  );
+test('default host smoke records every unconfigured harness as unavailable without dist', async () => {
+  const checkout = await mkdtemp(path.join(os.tmpdir(), 'zimster-clean-checkout-'));
+  try {
+    const env = Object.fromEntries(
+      Object.entries(process.env).filter(([name]) => (
+        name.toLowerCase() !== 'path' && name !== 'NODE_TEST_CONTEXT'
+      ))
+    );
+    env.PATH = '';
+    const result = spawnSync(process.execPath, [
+      path.join(root, 'scripts/host-smoke.mjs')
+    ], {
+      cwd: checkout,
+      encoding: 'utf8',
+      env
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const summary = JSON.parse(result.stdout);
+    assert.equal(summary.status, 'passed');
+    assert.deepEqual(summary.executed, []);
+    assert.deepEqual(
+      summary.unavailable.map(({ id }) => id).sort(),
+      ['claude', 'codex', 'cursor', 'kimi', 'opencode', 'pi']
+    );
+    await assert.rejects(readFile(path.join(checkout, 'dist')), /ENOENT|EISDIR/);
+  } finally {
+    await rm(checkout, { recursive: true, force: true });
+  }
 });
 
 test('host smoke runs a configured command from the extracted exact candidate', async () => {
@@ -159,7 +174,7 @@ test('host smoke runs a configured command from the extracted exact candidate', 
         id: 'candidate-host',
         candidate: 'portable',
         command: process.execPath,
-        args: ['-e', "import { accessSync } from 'node:fs'; accessSync('.opencode/plugins/zimster.js'); process.stdout.write('using-zimster');"],
+        args: ['-e', "import { accessSync, writeSync } from 'node:fs'; accessSync('.opencode/plugins/zimster.js'); writeSync(process.stdout.fd, 'using-zimster');"],
         expected_output: 'using-zimster'
       }]
     })}\n`);

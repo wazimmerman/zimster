@@ -1,6 +1,7 @@
 import { access, readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { directInvocation } from './lib/path-identity.mjs';
 
 const defaultRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const kimiFields = new Set([
@@ -105,8 +106,7 @@ export async function validateSecondaryAdapters(root = defaultRoot) {
   return errors;
 }
 
-const invokedDirectly = process.argv[1]
-  && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const invokedDirectly = await directInvocation(import.meta.url, process.argv[1]);
 if (invokedDirectly) {
   const errors = await validateSecondaryAdapters();
   if (errors.length) {

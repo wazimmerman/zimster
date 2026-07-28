@@ -16,6 +16,7 @@ import { parseOptions, required, writeError, writeLine } from './lib/cli.mjs';
 import { buildMetadata } from './lib/build-metadata.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 import { runGit } from './lib/git-state.mjs';
+import { directInvocation } from './lib/path-identity.mjs';
 
 const sourceRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const sourceSkills = path.join(sourceRoot, 'skills');
@@ -220,7 +221,7 @@ async function main() {
   writeLine(JSON.stringify(result));
 }
 
-if (fileURLToPath(import.meta.url) === path.resolve(process.argv[1] || '')) {
+if (await directInvocation(import.meta.url, process.argv[1])) {
   main().catch((error) => {
     writeError(error.message);
     process.exitCode = 1;

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cp, mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { cp, mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -29,6 +29,34 @@ test('repository exposes the cross-platform skills synchronization command', asy
   const packageJson = await json('package.json');
   assert.equal(packageJson.scripts['sync-skills'], 'node scripts/sync-skills.mjs');
   assert.equal(await exists('scripts/sync-skills.mjs'), true);
+});
+
+test('direct script invocation recognizes a canonical-equivalent directory alias', async () => {
+  const { parent, repo } = await targetRepo();
+  const aliasRoot = await mkdtemp(path.join(os.tmpdir(), 'zimster-script-alias-'));
+  try {
+    const scriptsAlias = path.join(aliasRoot, 'scripts');
+    await symlink(
+      path.join(root, 'scripts'),
+      scriptsAlias,
+      process.platform === 'win32' ? 'junction' : 'dir'
+    );
+    const result = run(process.execPath, [
+      path.join(scriptsAlias, 'sync-skills.mjs'), '--target', repo
+    ], root);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.notEqual(result.stdout.trim(), '');
+    const summary = JSON.parse(result.stdout);
+    assert.equal(summary.target, await realpath(repo));
+    const metadata = JSON.parse(await readFile(
+      path.join(repo, '.agents/skills/using-zimster/references/build-metadata.json'),
+      'utf8'
+    ));
+    assert.equal(metadata.package_target, 'skills-only');
+  } finally {
+    await rm(aliasRoot, { recursive: true, force: true });
+    await rm(parent, { recursive: true, force: true });
+  }
 });
 
 test('using-zimster carries version metadata and a quiet script-free fallback', async () => {

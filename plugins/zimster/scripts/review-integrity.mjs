@@ -1,13 +1,20 @@
 import { createHash } from 'node:crypto';
 import { lstat, readFile, readlink, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { parseOptions, required } from './lib/cli.mjs';
+import { pathToFileURL } from 'node:url';
+import { parseOptions, required, writeError, writeLine } from './lib/cli.mjs';
 import { captureGitState, findRepoRoot, gitValue, runGit } from './lib/git-state.mjs';
+import {
+  canonicalPath,
+  pathFromIdentity,
+  reviewFileIdentity
+} from './lib/path-identity.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
-const root = findRepoRoot(process.cwd());
+const root = await canonicalPath(findRepoRoot(process.cwd()));
+const repositoryIdentity = pathToFileURL(root).href;
 const shaPattern = /^[0-9a-f]{40}$/;
 
 function sha256(value) {
@@ -22,10 +29,8 @@ function immutableCommit(option) {
   return value;
 }
 
-async function pathDigest(requestedPath) {
-  const absolute = path.isAbsolute(requestedPath)
-    ? path.normalize(requestedPath)
-    : path.resolve(root, requestedPath);
+async function pathDigest(identity) {
+  const absolute = pathFromIdentity(root, identity);
   try {
     const metadata = await lstat(absolute);
     if (metadata.isSymbolicLink()) return `symlink:${await readlink(absolute)}`;
@@ -38,11 +43,13 @@ async function pathDigest(requestedPath) {
 }
 
 async function explicitReviewFiles(requested = null) {
-  const files = requested || String(options['review-files'] || '')
+  const supplied = requested || String(options['review-files'] || '')
     .split(',')
-    .map((value) => value.trim().replaceAll('\\', '/'))
-    .filter(Boolean)
-    .sort();
+    .map((value) => value.trim())
+    .filter(Boolean);
+  const files = requested
+    ? [...supplied].sort()
+    : (await Promise.all(supplied.map((file) => reviewFileIdentity(root, file)))).sort();
   return Object.fromEntries(await Promise.all(files.map(async (file) => [file, await pathDigest(file)])));
 }
 
@@ -90,21 +97,25 @@ async function capture() {
     : path.join(runtime, 'review-integrity.json');
   const payload = {
     schema_version: 1,
-    repository: root,
-    git_dir: gitValue(['rev-parse', '--path-format=absolute', '--absolute-git-dir'], root, null),
+    repository: repositoryIdentity,
+    git_dir: pathToFileURL(await canonicalPath(
+      gitValue(['rev-parse', '--path-format=absolute', '--absolute-git-dir'], root, null)
+    )).href,
     base_sha: baseSha,
     head_sha: headSha,
     captured_at: new Date().toISOString(),
     state: await checkoutState()
   };
   await writeFile(output, `${JSON.stringify(payload, null, 2)}\n`);
-  console.log(output);
+  writeLine(output);
 }
 
 async function verify() {
   const receiptPath = path.resolve(required(options, 'receipt'));
   const receipt = JSON.parse(await readFile(receiptPath, 'utf8'));
-  if (receipt.repository !== root) throw new Error('review-integrity receipt belongs to a different repository/worktree');
+  if (receipt.repository !== repositoryIdentity) {
+    throw new Error('review-integrity receipt belongs to a different repository/worktree');
+  }
   const before = receipt.state;
   const current = await checkoutState(Object.keys(before.review_files || {}));
   const violations = [];
@@ -125,12 +136,12 @@ async function verify() {
     violations.push('working-tree fingerprint changed');
   }
   if (violations.length) {
-    console.error('TREE_INTEGRITY_VIOLATION');
-    for (const violation of violations) console.error(`- ${violation}`);
+    writeError('TREE_INTEGRITY_VIOLATION');
+    for (const violation of violations) writeError(`- ${violation}`);
     process.exitCode = 2;
     return;
   }
-  console.log('TREE_INTEGRITY_OK');
+  writeLine('TREE_INTEGRITY_OK');
 }
 
 if (action === 'capture') await capture();

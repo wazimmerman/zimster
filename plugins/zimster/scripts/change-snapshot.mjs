@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile, lstat, readlink } from 'node:fs/promises';
 import path from 'node:path';
-import { parseOptions } from './lib/cli.mjs';
+import { parseOptions, writeLine } from './lib/cli.mjs';
 import { findRepoRoot, gitValue, runGit, untrackedFiles } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 
@@ -82,4 +82,4 @@ else for (const relative of untracked) sections.push(await renderUntracked(relat
 
 await mkdir(path.dirname(output), { recursive: true });
 await writeFile(output, sections.join('\n'), 'utf8');
-console.log(output);
+writeLine(output);

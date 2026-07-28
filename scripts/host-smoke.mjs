@@ -4,6 +4,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseOptions, writeLine } from './lib/cli.mjs';
+import { executableAvailable } from './lib/path-identity.mjs';
 import { archivePathProblem, readStoredZip } from './lib/zip-reader.mjs';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -55,6 +56,13 @@ try {
     }
     const home = path.join(temporary, host.id);
     await mkdir(home, { recursive: true });
+    if (!(await executableAvailable(host.command))) {
+      unavailable.push({
+        id: host.id,
+        reason: String(host.unavailable_reason || `${host.command} is not installed`)
+      });
+      continue;
+    }
     const candidate = await candidateDirectory(host);
     const result = spawnSync(String(host.command), host.args || [], {
       cwd: candidate,

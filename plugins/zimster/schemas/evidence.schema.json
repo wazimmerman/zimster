@@ -26,6 +26,12 @@
         2
       ]
     },
+    "path_identity_format": {
+      "enum": [
+        "canonical-v1"
+      ],
+      "description": "Canonical paths stored as repository-relative POSIX strings or file URLs."
+    },
     "id": {
       "type": "string",
       "minLength": 1

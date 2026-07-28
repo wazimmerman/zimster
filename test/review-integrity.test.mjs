@@ -1,13 +1,16 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { exists, json, root } from './helpers.mjs';
 
 function run(command, args, cwd) {
-  return spawnSync(command, args, { cwd, encoding: 'utf8' });
+  const env = { ...process.env };
+  delete env.NODE_TEST_CONTEXT;
+  return spawnSync(command, args, { cwd, encoding: 'utf8', env });
 }
 
 async function tempRepo() {
@@ -58,26 +61,38 @@ test('review integrity accepts an unchanged checkout and immutable range', async
 
 test('review integrity protects explicit review files outside the worktree', async () => {
   const repo = await tempRepo();
-  const external = path.join(os.tmpdir(), `zimster-mission-${process.pid}-${Date.now()}.md`);
+  const externalRoot = await mkdtemp(path.join(os.tmpdir(), 'zimster-review-external-'));
+  const aliasRoot = await mkdtemp(path.join(os.tmpdir(), 'zimster-review-alias-'));
+  const external = path.join(externalRoot, 'mission file.md');
+  const aliasDirectory = path.join(aliasRoot, 'external');
   try {
     await writeFile(external, '# Mission\n');
+    await symlink(
+      externalRoot,
+      aliasDirectory,
+      process.platform === 'win32' ? 'junction' : 'dir'
+    );
+    const requested = path.join(aliasDirectory, path.basename(external));
+    const canonicalKey = pathToFileURL(await realpath(external)).href;
     const script = path.join(root, 'scripts/review-integrity.mjs');
     const head = run('git', ['rev-parse', 'HEAD'], repo).stdout.trim();
     let result = run(process.execPath, [
-      script, 'capture', '--base', head, '--head', head, '--review-files', external
+      script, 'capture', '--base', head, '--head', head, '--review-files', requested
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const receipt = result.stdout.trim();
     const payload = JSON.parse(await readFile(receipt, 'utf8'));
-    assert.ok(payload.state.review_files[external]);
+    assert.deepEqual(Object.keys(payload.state.review_files), [canonicalKey]);
 
     await writeFile(external, '# Mutated mission\n');
     result = run(process.execPath, [script, 'verify', '--receipt', receipt], repo);
     assert.notEqual(result.status, 0);
-    assert.match(result.stderr + result.stdout, /review-package files/);
-    assert.match(result.stderr + result.stdout, new RegExp(path.basename(external)));
+    const diagnostic = result.stderr + result.stdout;
+    assert.match(diagnostic, /review-package files/);
+    assert.equal(diagnostic.includes(canonicalKey), true);
   } finally {
-    await rm(external, { force: true });
+    await rm(aliasRoot, { recursive: true, force: true });
+    await rm(externalRoot, { recursive: true, force: true });
     await rm(repo, { recursive: true, force: true });
   }
 });

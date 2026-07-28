@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { directInvocation } from './lib/path-identity.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const target = path.join(root, 'plugins', 'zimster');
@@ -28,6 +29,7 @@ const includes = [
   'scripts/lib/build-metadata.mjs', 'scripts/lib/capabilities.mjs',
   'scripts/lib/cli.mjs', 'scripts/lib/execution-budget.mjs',
   'scripts/lib/git-state.mjs', 'scripts/lib/runtime.mjs',
+  'scripts/lib/path-identity.mjs',
   'scripts/lib/run-state.mjs',
   'scripts/lib/zip-reader.mjs', 'scripts/lib/zip.mjs',
   'vendor/openai-codex-plugin-validator',
@@ -94,7 +96,7 @@ export async function syncCodexPlugin({ check = false } = {}) {
   }
 }
 
-const direct = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const direct = await directInvocation(import.meta.url, process.argv[1]);
 if (direct) {
   const check = process.argv.includes('--check');
   const differences = await syncCodexPlugin({ check });

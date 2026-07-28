@@ -5,6 +5,7 @@ import { collectFiles, createZip } from './lib/zip.mjs';
 import { syncCodexPlugin } from './sync-codex-plugin.mjs';
 import { versionRecords } from './lib/version-files.mjs';
 import { buildMetadata } from './lib/build-metadata.mjs';
+import { directInvocation } from './lib/path-identity.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -26,6 +27,7 @@ const operationalScripts = [
   'scripts/lib/capabilities.mjs',
   'scripts/lib/cli.mjs', 'scripts/lib/execution-budget.mjs',
   'scripts/lib/git-state.mjs', 'scripts/lib/runtime.mjs',
+  'scripts/lib/path-identity.mjs',
   'scripts/lib/run-state.mjs',
   'scripts/lib/zip-reader.mjs', 'scripts/lib/zip.mjs'
 ];
@@ -72,7 +74,7 @@ export async function createPackages(outputDirectory = path.join(root, 'dist')) 
   return outputs;
 }
 
-const invokedDirectly = process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url);
+const invokedDirectly = await directInvocation(import.meta.url, process.argv[1]);
 if (invokedDirectly) {
   const outputs = await createPackages();
   for (const output of outputs) console.log(path.relative(root, output));

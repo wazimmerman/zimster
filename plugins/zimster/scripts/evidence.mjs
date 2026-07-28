@@ -15,13 +15,21 @@ import os from 'node:os';
 import path from 'node:path';
 import { parseOptions, required, integerOption } from './lib/cli.mjs';
 import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
+import {
+  canonicalPath,
+  pathFromIdentity,
+  repositoryRelativeIdentity,
+  reviewFileIdentity
+} from './lib/path-identity.mjs';
 import { ensureRuntimeDirectory, migrateLegacyJsonlStore } from './lib/runtime.mjs';
 import { harnessCapabilities } from './lib/capabilities.mjs';
 import { recordExecutionBudgetEvent } from './lib/execution-budget.mjs';
 
 const { positional, options, passthrough } = parseOptions(process.argv.slice(2));
 const commandName = positional[0];
-const root = findRepoRoot(process.cwd());
+const root = await canonicalPath(findRepoRoot(process.cwd()));
+const workingDirectory = await canonicalPath(process.cwd());
+const cwdIdentity = await repositoryRelativeIdentity(root, workingDirectory);
 let evidenceDir;
 let receiptsFile;
 
@@ -91,6 +99,17 @@ async function fingerprintInputs(inputs, cwd = process.cwd()) {
     const absolute = path.resolve(cwd, input);
     return { input, digest: await inputDigest(absolute) };
   }));
+}
+
+async function canonicalInputIdentities(inputs, base) {
+  return Promise.all(inputs.map((input) => reviewFileIdentity(root, input, { base })));
+}
+
+async function fingerprintPathIdentities(identities) {
+  return Promise.all(identities.map(async (input) => ({
+    input,
+    digest: await inputDigest(pathFromIdentity(root, input))
+  })));
 }
 
 async function accountForDuplicateExecution() {
@@ -179,19 +198,20 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
   const failed = integerOption(options, 'tests-failed', null);
   const skipped = integerOption(options, 'tests-skipped', null);
   const command = required(options, 'command');
-  const cwd = path.relative(root, process.cwd()) || '.';
+  const cwd = cwdIdentity;
   const commandArgv = commandArgvOption();
   const discovery = testDiscovery(options, passed, failed);
   const harness = options.harness ? String(options.harness) : null;
   const explicitBehavior = options['behavioral-evidence'];
-  const inputs = listOption('inputs');
+  const inputs = await canonicalInputIdentities(listOption('inputs'), workingDirectory);
   const behavioralEvidence = explicitBehavior === undefined
     ? exitCode === 0 && discovery === 'tests_executed'
     : ['true', '1', 'yes'].includes(String(explicitBehavior).toLowerCase());
   const recordedEnvironment = environment(options['host-version'] ? String(options['host-version']) : null);
-  const dependencies = listOption('dependencies');
+  const dependencies = await canonicalInputIdentities(listOption('dependencies'), root);
   const receipt = {
     schema_version: 2,
+    path_identity_format: 'canonical-v1',
     id: randomUUID(),
     kind: required(options, 'kind'),
     scope: String(options.scope || 'focused'),
@@ -229,9 +249,9 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
       skipped
     },
     dependency_cone: dependencies,
-    dependency_fingerprints: await fingerprintInputs(dependencies),
+    dependency_fingerprints: await fingerprintPathIdentities(dependencies),
     inputs,
-    input_fingerprints: await fingerprintInputs(inputs),
+    input_fingerprints: await fingerprintPathIdentities(inputs),
     notes: options.notes ? String(options.notes) : null
   };
   validateReceipt(receipt);
@@ -279,8 +299,10 @@ async function store(receipt) {
 
 async function findReusable(command, kind, scope) {
   if (options.final === true) return null;
-  const requestedCwd = path.relative(root, process.cwd()) || '.';
+  const requestedCwd = cwdIdentity;
   const requestedArgv = commandArgvOption();
+  const requestedDependencies = await canonicalInputIdentities(listOption('dependencies'), root);
+  const requestedInputs = await canonicalInputIdentities(listOption('inputs'), workingDirectory);
   const allReceipts = await receipts();
   const invalidated = new Set(
     (await ledger())
@@ -297,8 +319,8 @@ async function findReusable(command, kind, scope) {
   );
   for (const receipt of candidates.reverse()) {
     if (!(await invalidationReason(receipt, {
-      dependencies: listOption('dependencies'),
-      inputs: listOption('inputs')
+      dependencies: requestedDependencies,
+      inputs: requestedInputs
     }))) return receipt;
   }
   return null;
@@ -328,8 +350,12 @@ async function invalidationReason(receipt, requested = {}) {
   if (!Array.isArray(recordedInputs) || recordedInputs.length !== (receipt.inputs || []).length) {
     if ((receipt.inputs || []).length) return 'input fingerprints are unavailable';
   } else {
-    const receiptCwd = path.resolve(root, receipt.cwd || '.');
-    const currentInputs = await fingerprintInputs(receipt.inputs || [], receiptCwd);
+    const currentInputs = receipt.path_identity_format === 'canonical-v1'
+      ? await fingerprintPathIdentities(receipt.inputs || [])
+      : await fingerprintInputs(
+        receipt.inputs || [],
+        path.resolve(root, receipt.cwd || '.')
+      );
     for (let index = 0; index < recordedInputs.length; index += 1) {
       if (
         recordedInputs[index]?.input !== currentInputs[index].input
@@ -343,7 +369,9 @@ async function invalidationReason(receipt, requested = {}) {
     if (!Array.isArray(recordedDependencies) || recordedDependencies.length !== receipt.dependency_cone.length) {
       return 'dependency fingerprints are unavailable';
     }
-    const currentDependencies = await fingerprintInputs(receipt.dependency_cone, root);
+    const currentDependencies = receipt.path_identity_format === 'canonical-v1'
+      ? await fingerprintPathIdentities(receipt.dependency_cone)
+      : await fingerprintInputs(receipt.dependency_cone, root);
     for (let index = 0; index < recordedDependencies.length; index += 1) {
       if (
         recordedDependencies[index]?.input !== currentDependencies[index].input
@@ -368,7 +396,7 @@ async function main() {
     if (commandName === 'run') {
       if (!passthrough.length) throw new Error('evidence run requires a command after --');
       const result = spawnSync(passthrough[0], passthrough.slice(1), {
-        cwd: process.cwd(),
+        cwd: workingDirectory,
         shell: false,
         stdio: 'inherit'
       });
@@ -476,7 +504,7 @@ async function main() {
     }
     const startedAt = new Date().toISOString();
     const result = spawnSync(passthrough[0], passthrough.slice(1), {
-      cwd: process.cwd(),
+      cwd: workingDirectory,
       shell: false,
       stdio: 'inherit'
     });
