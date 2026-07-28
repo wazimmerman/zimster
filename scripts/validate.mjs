@@ -95,7 +95,8 @@ for (const relative of [
   'scripts/evidence.mjs', 'scripts/change-snapshot.mjs', 'scripts/dispatch-record.mjs',
   'scripts/verify.mjs', 'scripts/archive-safety.mjs', 'scripts/secret-scan.mjs',
   'scripts/installed-package-smoke.mjs', 'scripts/host-smoke.mjs',
-  'scripts/review-package.mjs',
+  'scripts/review-package.mjs', 'scripts/capability-cache.mjs',
+  'scripts/run-postmortem.mjs',
   'scripts/check-version.mjs', 'scripts/bump-version.mjs', 'scripts/checksums.mjs', 'config/model-routing.json',
   'config/host-smoke.json',
   'schemas/evidence.schema.json', 'schemas/dispatch.schema.json'

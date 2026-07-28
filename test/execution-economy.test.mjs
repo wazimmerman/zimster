@@ -141,6 +141,21 @@ test('execution budget accepts an over-limit strategy change only with a require
       status: 'required',
       metric: 'complete_suite_executions'
     }]);
+
+    const receiptDirectory = runtimePath(repo, 'verification/receipts');
+    await mkdir(receiptDirectory, { recursive: true });
+    await writeFile(path.join(receiptDirectory, 'proof-receipt.json'), `${JSON.stringify({
+      id: 'proof-receipt',
+      status: 'passed'
+    })}\n`);
+    result = run(process.execPath, [
+      budget, 'prove', '--proof', 'release:verify receipt', '--receipt', 'proof-receipt'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(JSON.parse(result.stdout).status, 'BUDGET_PROOF_SATISFIED');
+    const proven = JSON.parse(await readFile(runtimePath(repo, 'budget.json'), 'utf8'));
+    assert.equal(proven.proof_obligations[0].status, 'satisfied');
+    assert.equal(proven.proof_obligations[0].receipt_id, 'proof-receipt');
   } finally {
     await rm(repo, { recursive: true, force: true });
   }
@@ -233,6 +248,46 @@ test('phase checkpoint produces a bounded resumption payload from required compa
     assert.deepEqual(resumed.budget_position, input.budget_position);
     assert.equal(Object.hasOwn(resumed, 'logs'), false);
     assert.equal(Object.hasOwn(resumed, 'objective'), false);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('phase checkpoint accepts a current deterministic-verification receipt', async () => {
+  const repo = await tempRepo();
+  try {
+    const planFile = runtimePath(repo, 'checkpoint-verification-plan.json');
+    await mkdir(path.dirname(planFile), { recursive: true });
+    await writeFile(planFile, `${JSON.stringify({
+      schema_version: 1,
+      profile: 'checkpoint-fixture',
+      steps: [{
+        id: 'passes',
+        command: process.execPath,
+        args: ['-e', 'process.exit(0);']
+      }]
+    })}\n`);
+    let result = run(process.execPath, [
+      path.join(root, 'scripts/verify.mjs'), 'run', '--plan', planFile
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const receipt = JSON.parse(result.stdout);
+    const inputFile = runtimePath(repo, 'checkpoint-input.json');
+    await writeFile(inputFile, `${JSON.stringify(checkpointInput({
+      evidence_receipts: [{ id: receipt.id, status: 'valid' }]
+    }))}\n`);
+    result = run(process.execPath, [
+      path.join(root, 'scripts/phase-checkpoint.mjs'), 'create', '--input', inputFile
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    result = run(process.execPath, [
+      path.join(root, 'scripts/phase-checkpoint.mjs'), 'resume'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.deepEqual(JSON.parse(result.stdout).evidence_receipts, [{
+      id: receipt.id,
+      status: 'valid'
+    }]);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

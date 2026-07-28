@@ -5,7 +5,8 @@ import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 import {
   initializeExecutionBudget,
   normalizeBudgetProfile,
-  recordExecutionBudgetEvent
+  recordExecutionBudgetEvent,
+  satisfyExecutionBudgetProof
 } from './lib/execution-budget.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
@@ -46,6 +47,12 @@ if (action === 'init') {
   if (['BUDGET_CONSTRAINED', 'BUDGET_PROOF_REQUIRED'].includes(result.status)) {
     process.exitCode = 2;
   }
+} else if (action === 'prove') {
+  const result = await satisfyExecutionBudgetProof(runtime, {
+    proof: required(options, 'proof'),
+    receiptId: required(options, 'receipt')
+  });
+  emit(result.status, result.detail);
 } else {
-  throw new Error('Usage: run-budget.mjs <init|record> [options]');
+  throw new Error('Usage: run-budget.mjs <init|record|prove> [options]');
 }

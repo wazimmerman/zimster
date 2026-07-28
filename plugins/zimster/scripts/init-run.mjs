@@ -6,6 +6,7 @@ import { findRepoRoot, gitValue } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory, resolveAuditPath } from './lib/runtime.mjs';
 import { harnessCapabilities } from './lib/capabilities.mjs';
 import { initializeExecutionBudget } from './lib/execution-budget.mjs';
+import { initializeRunState } from './lib/run-state.mjs';
 
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { options } = parseOptions(process.argv.slice(2));
@@ -75,6 +76,10 @@ try {
   throw error;
 }
 if (!auditPath && normalizedProfile !== 'Micro') {
+  await initializeRunState(runtimeDirectory, {
+    startingHead: head,
+    overwrite: options.force === true
+  });
   await initializeExecutionBudget(runtimeDirectory, normalizedProfile, {
     tokenThreshold: integerOption(options, 'token-threshold', null),
     overwrite: options.force === true

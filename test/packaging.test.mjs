@@ -64,7 +64,10 @@ test('packaging is deterministic and emits Codex and Claude archives', async () 
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/installed-package-smoke.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/host-smoke.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/review-package.mjs')), true);
+    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/capability-cache.mjs')), true);
+    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/run-postmortem.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/zip-reader.mjs')), true);
+    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/run-state.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/config/host-smoke.json')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/codex-cachebuster.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/sync-skills.mjs')), true);

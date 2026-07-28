@@ -115,6 +115,58 @@ export async function recordExecutionBudgetEvent(runtimeDirectory, event) {
   });
 }
 
+export async function satisfyExecutionBudgetProof(runtimeDirectory, {
+  proof,
+  receiptId,
+  recordedAt = new Date().toISOString()
+}) {
+  if (!proof) throw new Error('--proof is required');
+  if (!/^[a-zA-Z0-9._-]+$/.test(String(receiptId || ''))) {
+    throw new Error('--receipt must be a safe receipt id');
+  }
+  return withBudgetLock(runtimeDirectory, async () => {
+    let passed = false;
+    try {
+      const receipt = JSON.parse(await readFile(
+        path.join(runtimeDirectory, 'verification', 'receipts', `${receiptId}.json`),
+        'utf8'
+      ));
+      passed = receipt.id === receiptId && receipt.status === 'passed';
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    if (!passed) {
+      try {
+        const rows = (await readFile(
+          path.join(runtimeDirectory, 'evidence', 'receipts.jsonl'),
+          'utf8'
+        )).split('\n').filter(Boolean).map((line) => JSON.parse(line));
+        passed = rows.some((row) =>
+          row.id === receiptId
+          && row.record_type !== 'invalidation'
+          && row.exit_code === 0
+        );
+      } catch (error) {
+        if (error.code !== 'ENOENT') throw error;
+      }
+    }
+    if (!passed) throw new Error(`passing evidence receipt not found: ${receiptId}`);
+    const budget = await readExecutionBudget(runtimeDirectory);
+    const obligation = budget.state.proof_obligations.find((row) =>
+      row.proof === proof && row.status === 'required'
+    );
+    if (!obligation) throw new Error(`required proof obligation not found: ${proof}`);
+    obligation.status = 'satisfied';
+    obligation.receipt_id = receiptId;
+    obligation.satisfied_at = recordedAt;
+    await writeExecutionBudget(budget.budgetFile, budget.state);
+    return {
+      status: 'BUDGET_PROOF_SATISFIED',
+      detail: { proof, receipt_id: receiptId }
+    };
+  });
+}
+
 export function applyExecutionBudgetEvent(state, {
   metric,
   amount = 1,

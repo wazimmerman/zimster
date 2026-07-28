@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "capability_states": [
     "native",
     "supported_with_constraints",
@@ -10,6 +10,16 @@
   ],
   "harnesses": {
     "codex": {
+      "checked_at": "2026-07-28T00:00:00.000Z",
+      "max_age_days": 90,
+      "local_host_version": "codex-cli 0.145.0",
+      "validator_status": "consistent",
+      "sources": [
+        {
+          "title": "Official Codex plugin manifest specification",
+          "url": "https://github.com/openai/codex/blob/main/codex-rs/skills/src/assets/samples/plugin-creator/references/plugin-json-spec.md"
+        }
+      ],
       "verification": "blocked_by_host",
       "capabilities": {
         "native_skill_loading": "unverified",
@@ -26,6 +36,16 @@
       }
     },
     "claude": {
+      "checked_at": "2026-07-28T00:00:00.000Z",
+      "max_age_days": 90,
+      "local_host_version": null,
+      "validator_status": "not_run",
+      "sources": [
+        {
+          "title": "Claude Code plugins reference",
+          "url": "https://code.claude.com/docs/en/plugins-reference"
+        }
+      ],
       "verification": "structurally_validated",
       "capabilities": {
         "native_skill_loading": "native",
@@ -42,6 +62,16 @@
       }
     },
     "cursor": {
+      "checked_at": "2026-07-28T00:00:00.000Z",
+      "max_age_days": 90,
+      "local_host_version": null,
+      "validator_status": "not_run",
+      "sources": [
+        {
+          "title": "Cursor Agent Skills",
+          "url": "https://cursor.com/docs/context/skills"
+        }
+      ],
       "verification": "structurally_validated",
       "capabilities": {
         "native_skill_loading": "native",
@@ -58,6 +88,16 @@
       }
     },
     "kimi": {
+      "checked_at": "2026-07-28T00:00:00.000Z",
+      "max_age_days": 90,
+      "local_host_version": null,
+      "validator_status": "not_run",
+      "sources": [
+        {
+          "title": "Kimi Code plugin customization",
+          "url": "https://moonshotai.github.io/kimi-code/en/customization/plugins.html"
+        }
+      ],
       "verification": "structurally_validated",
       "capabilities": {
         "native_skill_loading": "native",
@@ -74,6 +114,16 @@
       }
     },
     "opencode": {
+      "checked_at": "2026-07-28T00:00:00.000Z",
+      "max_age_days": 90,
+      "local_host_version": "1.18.7",
+      "validator_status": "consistent",
+      "sources": [
+        {
+          "title": "OpenCode plugins",
+          "url": "https://opencode.ai/docs/plugins"
+        }
+      ],
       "verification": "live_verified",
       "capabilities": {
         "native_skill_loading": "native",
@@ -90,6 +140,16 @@
       }
     },
     "pi": {
+      "checked_at": "2026-07-28T00:00:00.000Z",
+      "max_age_days": 90,
+      "local_host_version": null,
+      "validator_status": "not_run",
+      "sources": [
+        {
+          "title": "Pi coding-agent packages",
+          "url": "https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/packages.md"
+        }
+      ],
       "verification": "structurally_validated",
       "capabilities": {
         "native_skill_loading": "native",

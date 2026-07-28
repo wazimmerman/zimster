@@ -10,6 +10,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const operationalScripts = [
   'scripts/archive-safety.mjs', 'scripts/change-snapshot.mjs',
+  'scripts/capability-cache.mjs',
   'scripts/codex-cachebuster.mjs',
   'scripts/dispatch-record.mjs', 'scripts/doctor.mjs',
   'scripts/evidence.mjs', 'scripts/host-smoke.mjs',
@@ -17,12 +18,14 @@ const operationalScripts = [
   'scripts/phase-checkpoint.mjs',
   'scripts/project-commands.mjs', 'scripts/run-budget.mjs',
   'scripts/review-integrity.mjs', 'scripts/review-package.mjs',
+  'scripts/run-postmortem.mjs',
   'scripts/secret-scan.mjs',
   'scripts/sync-skills.mjs', 'scripts/verify.mjs',
   'scripts/lib/build-metadata.mjs',
   'scripts/lib/capabilities.mjs',
   'scripts/lib/cli.mjs', 'scripts/lib/execution-budget.mjs',
   'scripts/lib/git-state.mjs', 'scripts/lib/runtime.mjs',
+  'scripts/lib/run-state.mjs',
   'scripts/lib/zip-reader.mjs', 'scripts/lib/zip.mjs'
 ];
 const common = [

@@ -1,0 +1,211 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import os from 'node:os';
+import path from 'node:path';
+import { root } from './helpers.mjs';
+
+function run(args, cwd = root) {
+  return spawnSync(process.execPath, [
+    path.join(root, 'scripts/run-postmortem.mjs'),
+    ...args
+  ], { cwd, encoding: 'utf8' });
+}
+
+async function json(file, value) {
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFile(file, `${JSON.stringify(value, null, 2)}\n`);
+}
+
+async function jsonl(file, rows) {
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFile(file, `${rows.map((row) => JSON.stringify(row)).join('\n')}\n`);
+}
+
+test('run postmortem aggregates observed execution economy without mixing token meters', async () => {
+  const runtime = await mkdtemp(path.join(os.tmpdir(), 'zimster-postmortem-'));
+  try {
+    await json(path.join(runtime, 'run.json'), {
+      schema_version: 1,
+      id: 'current-run',
+      root_actor_id: 'root',
+      started_at: '2026-07-28T00:00:00.000Z',
+      starting_head: '0123456789abcdef0123456789abcdef01234567'
+    });
+    await json(path.join(runtime, 'budget.json'), {
+      schema_version: 1,
+      profile: 'high-risk',
+      limits: {
+        complete_suite_executions: 3,
+        exact_duplicate_commands: 2,
+        review_rechecks_per_seam: 1,
+        final_correction_waves: 1,
+        optional_deliberate_agents: 5,
+        nesting_depth: 1,
+        context_compactions: 2,
+        research_refreshes: 1
+      },
+      usage: {
+        complete_suite_executions: 1,
+        exact_duplicate_commands: 1,
+        review_rechecks_per_seam: 1,
+        final_correction_waves: 1,
+        optional_deliberate_agents: 1,
+        nesting_depth: 1,
+        context_compactions: 1,
+        research_refreshes: 0
+      },
+      optional_agent_identities: ['reviewer-1'],
+      overrides: [],
+      proof_obligations: []
+    });
+    await jsonl(path.join(runtime, 'dispatches/dispatches.jsonl'), [{
+      id: 'dispatch-1',
+      role: 'reviewer',
+      agent_id: 'reviewer-1',
+      effective_model: 'gpt-5.6-sol',
+      effective_effort: 'high',
+      created_at: '2026-07-28T00:05:00.000Z',
+      completed_at: '2026-07-28T00:10:00.000Z'
+    }, {
+      id: 'archived-dispatch',
+      role: 'reviewer',
+      agent_id: 'archived-reviewer',
+      effective_model: 'old-model',
+      effective_effort: 'old-effort',
+      created_at: '2026-07-27T00:00:00.000Z',
+      completed_at: '2026-07-27T00:10:00.000Z'
+    }]);
+    await jsonl(path.join(runtime, 'events/events.jsonl'), [
+      {
+        event_type: 'run_started',
+        actor_id: 'root',
+        recorded_at: '2026-07-28T00:00:00.000Z'
+      },
+      {
+        event_type: 'run_resumed',
+        actor_id: 'root',
+        recorded_at: '2026-07-28T01:00:00.000Z'
+      },
+      {
+        event_type: 'token_meter',
+        meter: 'goal_meter',
+        compatibility_group: 'goal_meter',
+        tokens: 1000,
+        recorded_at: '2026-07-28T01:01:00.000Z'
+      },
+      {
+        event_type: 'token_meter',
+        meter: 'raw_input',
+        compatibility_group: 'raw_input',
+        tokens: 9000,
+        recorded_at: '2026-07-28T01:01:00.000Z'
+      },
+      {
+        event_type: 'phase_duration',
+        phase: 'implementation',
+        duration_ms: 120000,
+        recorded_at: '2026-07-28T01:02:00.000Z'
+      }
+    ]);
+    await jsonl(path.join(runtime, 'evidence/receipts.jsonl'), [
+      {
+        id: 'test-1',
+        record_type: 'receipt',
+        command_identity: 'same-command',
+        command: 'node --test',
+        kind: 'affected',
+        exit_code: 0,
+        tests: { discovery: 'tests_executed', passed: 3, failed: 0, skipped: 0 },
+        ended_at: '2026-07-28T00:20:00.000Z'
+      },
+      {
+        id: 'test-2',
+        record_type: 'receipt',
+        command_identity: 'same-command',
+        command: 'node --test',
+        kind: 'affected',
+        exit_code: 0,
+        tests: { discovery: 'tests_executed', passed: 3, failed: 0, skipped: 0 },
+        ended_at: '2026-07-28T00:21:00.000Z'
+      },
+      {
+        id: 'archived-test',
+        record_type: 'receipt',
+        command_identity: 'archived-command',
+        command: 'old broad command',
+        kind: 'affected',
+        exit_code: 0,
+        tests: { discovery: 'tests_executed', passed: 99, failed: 0, skipped: 0 },
+        ended_at: '2026-07-27T00:21:00.000Z'
+      }
+    ]);
+    await json(path.join(runtime, 'verification/receipts/suite.json'), {
+      id: 'suite',
+      profile: 'goal',
+      status: 'passed',
+      started_at: '2026-07-28T00:30:00.000Z',
+      steps: [{ id: 'tests', status: 'passed' }]
+    });
+    await json(path.join(runtime, 'verification/receipts/archived.json'), {
+      id: 'archived-suite',
+      profile: 'goal',
+      status: 'passed',
+      started_at: '2026-07-27T00:30:00.000Z',
+      steps: [{ id: 'tests', status: 'passed' }]
+    });
+
+    const result = run([
+      '--runtime', runtime,
+      '--now', '2026-07-28T02:00:00.000Z'
+    ]);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(result.stderr, '');
+    assert.ok(result.stdout.length < 2000);
+    const summary = JSON.parse(result.stdout);
+    assert.equal(summary.status, 'created');
+    const report = JSON.parse(await readFile(summary.report, 'utf8'));
+
+    assert.equal(report.metrics.identities.observation, 'observed');
+    assert.deepEqual(report.metrics.identities.root, ['root']);
+    assert.deepEqual(report.metrics.identities.subagents, ['reviewer-1']);
+    assert.equal(report.metrics.starts_and_resumes.starts, 1);
+    assert.equal(report.metrics.starts_and_resumes.resumes, 1);
+    assert.equal(report.metrics.commands.exact_duplicate_executions, 1);
+    assert.equal(report.metrics.commands.executions, 2);
+    assert.equal(report.metrics.tests_by_evidence_class.affected.passed, 6);
+    assert.equal(report.metrics.complete_suite_executions.value, 1);
+    assert.equal(report.metrics.verification_receipts.value, 1);
+    assert.equal(report.metrics.reviews.value, 1);
+    assert.equal(report.metrics.corrections.value, 1);
+    assert.equal(report.metrics.rechecks.value, 1);
+    assert.deepEqual(
+      report.metrics.tokens.meters.map(({ meter, tokens }) => [meter, tokens]),
+      [['goal_meter', 1000], ['raw_input', 9000]]
+    );
+    assert.equal(Object.hasOwn(report.metrics.tokens, 'total'), false);
+    assert.equal(report.metrics.budget_compliance.status, 'within_budget');
+    assert.deepEqual(report.unavailable_metrics, ['research_events']);
+  } finally {
+    await rm(runtime, { recursive: true, force: true });
+  }
+});
+
+test('run postmortem labels absent measurements unavailable instead of inferring zero', async () => {
+  const runtime = await mkdtemp(path.join(os.tmpdir(), 'zimster-postmortem-empty-'));
+  try {
+    const result = run([
+      '--runtime', runtime,
+      '--now', '2026-07-28T02:00:00.000Z'
+    ]);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const report = JSON.parse(await readFile(JSON.parse(result.stdout).report, 'utf8'));
+    assert.equal(report.metrics.tokens.observation, 'unavailable');
+    assert.equal(report.metrics.commands.observation, 'unavailable');
+    assert.ok(report.unavailable_metrics.includes('tokens'));
+    assert.ok(report.unavailable_metrics.includes('commands'));
+  } finally {
+    await rm(runtime, { recursive: true, force: true });
+  }
+});

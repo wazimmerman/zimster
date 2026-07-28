@@ -29,6 +29,8 @@
     "version:bump": "node scripts/bump-version.mjs",
     "package": "node scripts/package.mjs",
     "checksums": "node scripts/checksums.mjs",
+    "capability:status": "node scripts/capability-cache.mjs status",
+    "postmortem": "node scripts/run-postmortem.mjs",
     "goal:verify": "node scripts/verify.mjs run --profile goal",
     "release:verify": "node scripts/verify.mjs run --profile release",
     "check": "npm run test && npm run validate && npm run package"

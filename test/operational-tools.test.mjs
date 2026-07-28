@@ -250,8 +250,8 @@ test('run-state initializer creates the durable record with machine-readable cap
       init, '--profile', 'standard', '--reason', 'two slices', '--harness', 'codex'
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
-    const runtimePath = run('git', ['rev-parse', '--path-format=absolute', '--git-path', 'zimster/run.md'], repo).stdout.trim();
-    const runMd = await readFile(runtimePath, 'utf8');
+    const runMdPath = run('git', ['rev-parse', '--path-format=absolute', '--git-path', 'zimster/run.md'], repo).stdout.trim();
+    const runMd = await readFile(runMdPath, 'utf8');
     assert.match(runMd, /Profile and rationale/);
     assert.match(runMd, /standard/i);
     assert.match(runMd, /Git disposition/);
@@ -260,6 +260,16 @@ test('run-state initializer creates the durable record with machine-readable cap
     const capabilityReceipt = JSON.parse(capabilityBlock[1]);
     assert.equal(capabilityReceipt.harness, 'codex');
     assert.equal(capabilityReceipt.capabilities.native_skill_loading, 'unverified');
+    const runtimeDirectory = path.dirname(runMdPath);
+    const runState = JSON.parse(await readFile(path.join(runtimeDirectory, 'run.json'), 'utf8'));
+    assert.match(runState.id, /^[0-9a-f-]{36}$/);
+    assert.equal(runState.root_actor_id, 'root');
+    assert.match(runState.started_at, /^\d{4}-\d{2}-\d{2}T/);
+    const events = (await readFile(path.join(runtimeDirectory, 'events/events.jsonl'), 'utf8'))
+      .trim().split('\n').map((line) => JSON.parse(line));
+    assert.equal(events.length, 1);
+    assert.equal(events[0].event_type, 'run_started');
+    assert.equal(events[0].run_id, runState.id);
     await assert.rejects(readFile(path.join(repo, '.zimster/run.md'), 'utf8'), /ENOENT/);
     const runtimeStatus = run('git', ['status', '--short', '--untracked-files=all'], repo).stdout;
     assert.doesNotMatch(runtimeStatus, /\.zimster/, 'durable state must be locally ignored');

@@ -1,11 +1,13 @@
 import { writeSync } from 'node:fs';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseOptions, integerOption, required } from './lib/cli.mjs';
-import { findRepoRoot } from './lib/git-state.mjs';
+import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
+import { appendRunEvent } from './lib/run-state.mjs';
 
 const REQUIRED_FIELDS = Object.freeze([
   'mission_digest',
@@ -97,7 +99,42 @@ function validateCheckpoint(input) {
   }
 }
 
-function actualEvidenceReference(reference) {
+async function verificationEvidenceReference(reference) {
+  let receipt;
+  try {
+    receipt = JSON.parse(await readFile(
+      path.join(runtime, 'verification', 'receipts', `${reference.id}.json`),
+      'utf8'
+    ));
+  } catch (error) {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  }
+  let reason = null;
+  if (receipt.status !== 'passed') reason = 'prior verification did not pass';
+  const state = await captureGitState(root);
+  if (!reason && receipt.git_commit !== state.head) reason = 'immutable Git commit changed';
+  if (!reason && receipt.git_tree !== state.tree) reason = 'immutable Git tree changed';
+  if (
+    !reason
+    && receipt.dirty_tree_fingerprint !== state.dirty_tree_fingerprint
+  ) reason = 'dirty tree changed';
+  const currentEnvironment = {
+    platform: os.platform(),
+    release: os.release(),
+    arch: os.arch(),
+    node: process.version
+  };
+  if (
+    !reason
+    && JSON.stringify(receipt.environment || {}) !== JSON.stringify(currentEnvironment)
+  ) reason = 'environment fingerprint changed';
+  return reason
+    ? { id: reference.id, status: 'stale', invalidation_reason: reason }
+    : { id: reference.id, status: 'valid' };
+}
+
+async function actualEvidenceReference(reference) {
   if (reference.status === 'unavailable') return reference;
   const result = spawnSync(process.execPath, [
     evidenceScript, 'check', '--id', reference.id
@@ -117,6 +154,8 @@ function actualEvidenceReference(reference) {
         : 'evidence check reported stale'
     };
   }
+  const verificationReference = await verificationEvidenceReference(reference);
+  if (verificationReference) return verificationReference;
   throw new Error(
     `cannot verify evidence receipt ${reference.id}: ${
       String(result.stderr || result.stdout || 'evidence check failed').trim()
@@ -124,9 +163,9 @@ function actualEvidenceReference(reference) {
   );
 }
 
-function reconcileEvidenceReferences(references, { requireDeclaredState = false } = {}) {
-  return references.map((reference) => {
-    const actual = actualEvidenceReference(reference);
+async function reconcileEvidenceReferences(references, { requireDeclaredState = false } = {}) {
+  return Promise.all(references.map(async (reference) => {
+    const actual = await actualEvidenceReference(reference);
     if (requireDeclaredState && actual.status !== reference.status) {
       throw new Error(
         `evidence receipt ${reference.id} is ${actual.status}, not declared ${reference.status}`
@@ -142,7 +181,7 @@ function reconcileEvidenceReferences(references, { requireDeclaredState = false 
       );
     }
     return actual;
-  });
+  }));
 }
 
 if (action === 'create') {
@@ -151,7 +190,7 @@ if (action === 'create') {
   if (!Number.isInteger(maxBytes) || maxBytes <= 0) throw new Error('--max-bytes must be a positive integer');
   const input = JSON.parse(await readFile(inputFile, 'utf8'));
   validateCheckpoint(input);
-  input.evidence_receipts = reconcileEvidenceReferences(input.evidence_receipts, {
+  input.evidence_receipts = await reconcileEvidenceReferences(input.evidence_receipts, {
     requireDeclaredState: true
   });
   const checkpoint = {
@@ -165,12 +204,14 @@ if (action === 'create') {
   }
   await mkdir(path.dirname(checkpointFile), { recursive: true });
   await writeFile(checkpointFile, serialized);
+  await appendRunEvent(runtime, { event_type: 'checkpoint_created' });
   output({ status: 'CHECKPOINT_CREATED', bytes, path: checkpointFile });
 } else if (action === 'resume') {
   const checkpoint = JSON.parse(await readFile(checkpointFile, 'utf8'));
   validateCheckpoint(checkpoint);
-  checkpoint.evidence_receipts = reconcileEvidenceReferences(checkpoint.evidence_receipts);
+  checkpoint.evidence_receipts = await reconcileEvidenceReferences(checkpoint.evidence_receipts);
   await writeFile(checkpointFile, `${JSON.stringify(checkpoint, null, 2)}\n`);
+  await appendRunEvent(runtime, { event_type: 'run_resumed', actor_id: 'root' });
   output(checkpoint);
 } else {
   throw new Error('Usage: phase-checkpoint.mjs <create|resume> [options]');
