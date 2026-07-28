@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { cp, mkdtemp, readFile, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import { exists, json, read, root } from './helpers.mjs';
 
 const marketplacePluginRoot = 'plugins/zimster';
@@ -10,6 +13,9 @@ test('Codex manifest follows the accepted ingestion shape', async () => {
   assert.equal(manifest.skills, './skills/');
   assert.equal(Object.hasOwn(manifest, 'hooks'), false, 'Codex rejects unsupported hooks fields');
   assert.match(manifest.description, /owner-driven|proof-first/i);
+  assert.ok(Array.isArray(manifest.interface.defaultPrompt));
+  assert.ok(manifest.interface.defaultPrompt.length > 0 && manifest.interface.defaultPrompt.length <= 3);
+  assert.ok(manifest.interface.defaultPrompt.every((prompt) => typeof prompt === 'string' && prompt.length <= 128));
 });
 
 test('repo marketplace points at a local plugins/zimster directory', async () => {
@@ -20,6 +26,8 @@ test('repo marketplace points at a local plugins/zimster directory', async () =>
     source: 'local',
     path: './plugins/zimster'
   });
+  assert.ok(['NOT_AVAILABLE', 'AVAILABLE', 'INSTALLED_BY_DEFAULT'].includes(entry.policy.installation));
+  assert.ok(['ON_INSTALL', 'ON_USE'].includes(entry.policy.authentication));
   assert.equal(await exists(`${marketplacePluginRoot}/.codex-plugin/plugin.json`), true);
   assert.equal(await exists(`${marketplacePluginRoot}/skills/using-zimster/SKILL.md`), true);
   assert.equal(await exists(`${marketplacePluginRoot}/scripts/evidence.mjs`), true);
@@ -32,6 +40,32 @@ test('Codex mirror is generated from canonical source without drift', async () =
     encoding: 'utf8'
   });
   assert.equal(result.status, 0, result.stderr || result.stdout);
+});
+
+test('Codex cachebuster replaces one build suffix without changing the release version', async () => {
+  const temporary = await mkdtemp(path.join(os.tmpdir(), 'zimster-cachebuster-'));
+  try {
+    const plugin = path.join(temporary, 'zimster');
+    await cp(path.join(root, marketplacePluginRoot), plugin, { recursive: true });
+    const script = path.join(root, 'scripts/codex-cachebuster.mjs');
+    let result = spawnSync(process.execPath, [script, plugin, '--cachebuster', 'local-test'], {
+      cwd: root,
+      encoding: 'utf8'
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    let manifest = JSON.parse(await readFile(path.join(plugin, '.codex-plugin/plugin.json'), 'utf8'));
+    assert.equal(manifest.version, '0.2.0+codex.local-test');
+
+    result = spawnSync(process.execPath, [script, plugin, '--cachebuster', 'next-test'], {
+      cwd: root,
+      encoding: 'utf8'
+    });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    manifest = JSON.parse(await readFile(path.join(plugin, '.codex-plugin/plugin.json'), 'utf8'));
+    assert.equal(manifest.version, '0.2.0+codex.next-test');
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
 });
 
 test('vendored official Codex validator accepts the marketplace plugin', async () => {

@@ -29,6 +29,12 @@ function nonEmpty(value) {
   return typeof value === 'string' && value.trim().length > 0;
 }
 
+function validDefaultPrompt(value) {
+  if (nonEmpty(value)) return true;
+  return Array.isArray(value) && value.length > 0 && value.length <= 3
+    && value.every((prompt) => nonEmpty(prompt) && prompt.length <= 128);
+}
+
 function validateHttps(value, field, errors) {
   if (value === undefined) return;
   try {
@@ -148,7 +154,7 @@ export async function validateCodexPlugin(pluginRoot, contract) {
     if (!Array.isArray(interfaceBlock.capabilities) || !interfaceBlock.capabilities.every(nonEmpty)) {
       errors.push('plugin.json interface.capabilities must be an array of strings');
     }
-    if (!nonEmpty(interfaceBlock.defaultPrompt) && !nonEmpty(interfaceBlock.default_prompt)) {
+    if (!validDefaultPrompt(interfaceBlock.defaultPrompt) && !validDefaultPrompt(interfaceBlock.default_prompt)) {
       errors.push('plugin.json interface.defaultPrompt or default_prompt is required');
     }
     for (const field of ['websiteURL', 'privacyPolicyURL', 'termsOfServiceURL']) {

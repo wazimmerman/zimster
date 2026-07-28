@@ -8,7 +8,8 @@ import { versionRecords } from './lib/version-files.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const operationalScripts = [
-  'scripts/change-snapshot.mjs', 'scripts/dispatch-record.mjs',
+  'scripts/change-snapshot.mjs', 'scripts/codex-cachebuster.mjs',
+  'scripts/dispatch-record.mjs',
   'scripts/evidence.mjs', 'scripts/init-run.mjs', 'scripts/project-commands.mjs',
   'scripts/lib/cli.mjs', 'scripts/lib/git-state.mjs', 'scripts/lib/runtime.mjs'
 ];

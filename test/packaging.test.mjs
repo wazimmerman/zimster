@@ -37,6 +37,7 @@ test('packaging is deterministic and emits Codex and Claude archives', async () 
     assert.equal(codexArchive.includes(Buffer.from('.agents/plugins/marketplace.json')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/.codex-plugin/plugin.json')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/evidence.mjs')), true);
+    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/codex-cachebuster.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/config/model-routing.json')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/runtime.mjs')), true);
     const claudeArchive = await bytes(firstOutputs[0]);

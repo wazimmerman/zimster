@@ -30,7 +30,9 @@
       "Read",
       "Write"
     ],
-    "defaultPrompt": "Help me design, implement, or debug this change with Zimster’s proof-first owner-driven workflow.",
+    "defaultPrompt": [
+      "Use Zimster’s proof-first workflow for this change."
+    ],
     "websiteURL": "https://github.com/wazimmerman/zimster",
     "privacyPolicyURL": "https://github.com/wazimmerman/zimster/blob/main/PRIVACY.md",
     "termsOfServiceURL": "https://github.com/wazimmerman/zimster/blob/main/TERMS.md",

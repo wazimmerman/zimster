@@ -132,6 +132,8 @@ node <zimster-root>/scripts/dispatch-record.mjs record ...
   effort, warning when a fast role inherits the parent model.
 
 See `docs/OPERATIONS.md` for the full policy and command reference.
+See `docs/CODEX.md` for complete package validation, isolated installation,
+cachebuster updates, reinstall, removal, and live skill-discovery status.
 
 ## Git lifecycle
 
@@ -184,6 +186,7 @@ Useful maintenance commands:
 ```text
 npm run sync:codex
 npm run validate:codex
+npm run codex:cachebuster -- /path/to/staging/plugins/zimster
 npm run version:check
 npm run version:bump -- 0.3.0 --note "Release summary"
 npm run package

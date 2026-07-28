@@ -8,10 +8,11 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const target = path.join(root, 'plugins', 'zimster');
 const includes = [
   '.codex-plugin', 'skills', 'agents', 'templates', 'assets', 'config', 'schemas',
-  'docs/ARCHITECTURE.md', 'docs/EVALUATION.md', 'docs/OPERATIONS.md',
+  'docs/ARCHITECTURE.md', 'docs/CODEX.md', 'docs/EVALUATION.md', 'docs/OPERATIONS.md',
   'docs/PORTING.md', 'docs/RESEARCH.md', 'docs/ROADMAP.md', 'docs/UPSTREAM.md',
   'scripts/change-snapshot.mjs', 'scripts/dispatch-record.mjs',
-  'scripts/evidence.mjs', 'scripts/init-run.mjs', 'scripts/project-commands.mjs',
+  'scripts/codex-cachebuster.mjs', 'scripts/evidence.mjs',
+  'scripts/init-run.mjs', 'scripts/project-commands.mjs',
   'scripts/lib/cli.mjs', 'scripts/lib/git-state.mjs', 'scripts/lib/runtime.mjs',
   'vendor/openai-codex-plugin-validator',
   'README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'PRIVACY.md', 'TERMS.md',

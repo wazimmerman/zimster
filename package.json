@@ -20,6 +20,7 @@
     "run:init": "node scripts/init-run.mjs",
     "sync:codex": "node scripts/sync-codex-plugin.mjs",
     "sync:codex:check": "node scripts/sync-codex-plugin.mjs --check",
+    "codex:cachebuster": "node scripts/codex-cachebuster.mjs",
     "version:check": "node scripts/check-version.mjs",
     "version:bump": "node scripts/bump-version.mjs",
     "package": "node scripts/package.mjs",
