@@ -4,13 +4,16 @@ import { fileURLToPath } from 'node:url';
 import { collectFiles, createZip } from './lib/zip.mjs';
 import { syncCodexPlugin } from './sync-codex-plugin.mjs';
 import { versionRecords } from './lib/version-files.mjs';
+import { buildMetadata } from './lib/build-metadata.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 const operationalScripts = [
   'scripts/change-snapshot.mjs', 'scripts/codex-cachebuster.mjs',
-  'scripts/dispatch-record.mjs',
+  'scripts/dispatch-record.mjs', 'scripts/doctor.mjs',
   'scripts/evidence.mjs', 'scripts/init-run.mjs', 'scripts/project-commands.mjs',
+  'scripts/sync-skills.mjs', 'scripts/lib/build-metadata.mjs',
+  'scripts/lib/capabilities.mjs',
   'scripts/lib/cli.mjs', 'scripts/lib/git-state.mjs', 'scripts/lib/runtime.mjs'
 ];
 const common = [
@@ -19,7 +22,7 @@ const common = [
   'LICENSE', 'README.md', 'THIRD_PARTY_NOTICES.md', 'PRIVACY.md', 'TERMS.md',
   'SUPPORT.md', 'CHANGELOG.md'
 ]
-const exclusions = ['dist', '.git', 'node_modules', '.zimster/runtime'];
+const exclusions = ['dist', '.git', 'node_modules', '.zimster'];
 
 export async function createPackages(outputDirectory = path.join(root, 'dist')) {
   const versionRows = await versionRecords();
@@ -43,6 +46,12 @@ export async function createPackages(outputDirectory = path.join(root, 'dist')) 
   const outputs = [];
   for (const [target, includes] of definitions) {
     const entries = await collectFiles(root, includes, exclusions);
+    const metadata = Buffer.from(`${JSON.stringify(await buildMetadata(root, target), null, 2)}\n`);
+    for (const entry of entries) {
+      if (entry[0].endsWith('skills/using-zimster/references/build-metadata.json')) {
+        entry[1] = { data: metadata, mode: 0o644 };
+      }
+    }
     const output = path.join(outputDirectory, `zimster-${version}-${target}.zip`);
     await createZip(output, entries);
     outputs.push(output);

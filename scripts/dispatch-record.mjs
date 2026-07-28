@@ -8,12 +8,14 @@ import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
 const root = findRepoRoot(process.cwd());
-const directory = path.join(root, '.zimster', 'dispatches');
-const file = path.join(directory, 'dispatches.jsonl');
+let directory;
+let file;
 const tiers = new Set(['fast', 'standard', 'expert']);
 
 async function init() {
-  await ensureRuntimeDirectory(root);
+  const runtime = await ensureRuntimeDirectory(root);
+  directory ||= path.join(runtime, 'dispatches');
+  file ||= path.join(directory, 'dispatches.jsonl');
   await mkdir(directory, { recursive: true });
   try { await writeFile(path.join(directory, '.gitignore'), '*\n!.gitignore\n', { flag: 'wx' }); } catch (error) { if (error.code !== 'EEXIST') throw error; }
   try { await readFile(file, 'utf8'); } catch { await writeFile(file, ''); }

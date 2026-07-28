@@ -1,0 +1,113 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import os from 'node:os';
+import path from 'node:path';
+import { directories, exists, json, read, root } from './helpers.mjs';
+
+function run(command, args, cwd) {
+  return spawnSync(command, args, { cwd, encoding: 'utf8' });
+}
+
+async function targetRepo() {
+  const parent = await mkdtemp(path.join(os.tmpdir(), 'zimster-skills-sync-'));
+  const repo = path.join(parent, 'target project');
+  await mkdir(repo);
+  assert.equal(run('git', ['init', '-b', 'main'], repo).status, 0);
+  assert.equal(run('git', ['config', 'user.name', 'Zimster Test'], repo).status, 0);
+  assert.equal(run('git', ['config', 'user.email', 'test@example.com'], repo).status, 0);
+  await mkdir(path.join(repo, '.agents/skills/unrelated'), { recursive: true });
+  await writeFile(path.join(repo, '.agents/skills/unrelated/SKILL.md'), '# Keep me\n');
+  assert.equal(run('git', ['add', '.agents/skills/unrelated/SKILL.md'], repo).status, 0);
+  assert.equal(run('git', ['commit', '-m', 'base'], repo).status, 0);
+  return { parent, repo };
+}
+
+test('repository exposes the cross-platform skills synchronization command', async () => {
+  const packageJson = await json('package.json');
+  assert.equal(packageJson.scripts['sync-skills'], 'node scripts/sync-skills.mjs');
+  assert.equal(await exists('scripts/sync-skills.mjs'), true);
+});
+
+test('using-zimster carries version metadata and a quiet script-free fallback', async () => {
+  const metadata = await json('skills/using-zimster/references/build-metadata.json');
+  assert.equal(metadata.schema_version, 1);
+  assert.equal(metadata.semantic_version, (await json('package.json')).version);
+  assert.equal(metadata.package_target, 'source');
+  const skill = await read('skills/using-zimster/SKILL.md');
+  assert.match(skill, /build-metadata\.json/);
+  assert.match(skill, /script-free|scripts are unavailable/i);
+  assert.match(skill, /do not warn|without a warning/i);
+  assert.match(skill, /receipts.*unavailable|manually maintained receipts/is);
+});
+
+test('skills synchronization safely replaces owned skills and embeds build provenance', async () => {
+  const { parent, repo } = await targetRepo();
+  try {
+    const destination = path.join(repo, '.agents/skills');
+    await mkdir(path.join(destination, 'retired-zimster'), { recursive: true });
+    await writeFile(path.join(destination, 'retired-zimster/SKILL.md'), '# stale\n');
+    await writeFile(path.join(destination, '.zimster-install.json'), JSON.stringify({
+      schema_version: 1,
+      owned_skills: ['retired-zimster']
+    }));
+
+    const result = run(process.execPath, [
+      path.join(root, 'scripts/sync-skills.mjs'), '--target', repo
+    ], root);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(result.stderr, '');
+
+    const sourceSkills = await directories('skills');
+    for (const skill of sourceSkills) {
+      await readFile(path.join(destination, skill, 'SKILL.md'), 'utf8');
+    }
+    await assert.rejects(readFile(path.join(destination, 'retired-zimster/SKILL.md'), 'utf8'), /ENOENT/);
+    assert.equal(await readFile(path.join(destination, 'unrelated/SKILL.md'), 'utf8'), '# Keep me\n');
+
+    const metadata = JSON.parse(await readFile(
+      path.join(destination, 'using-zimster/references/build-metadata.json'),
+      'utf8'
+    ));
+    assert.equal(metadata.schema_version, 1);
+    assert.equal(metadata.semantic_version, (await json('package.json')).version);
+    assert.match(metadata.source_commit, /^[0-9a-f]{40}$/);
+    assert.match(metadata.build_date, /^\d{4}-\d{2}-\d{2}T/);
+    assert.equal(metadata.package_target, 'skills-only');
+    assert.match(metadata.build_id, /^zimster-/);
+
+    const registry = JSON.parse(await readFile(path.join(destination, '.zimster-install.json'), 'utf8'));
+    assert.deepEqual(registry.owned_skills, sourceSkills);
+    const excludePath = run('git', ['rev-parse', '--path-format=absolute', '--git-path', 'info/exclude'], repo).stdout.trim();
+    const exclude = await readFile(excludePath, 'utf8');
+    assert.match(exclude, /# BEGIN ZIMSTER SKILLS/);
+    assert.match(exclude, /\/\.agents\/skills\/using-zimster\//);
+    assert.equal(run('git', ['status', '--short', '--untracked-files=all'], repo).stdout, '');
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+  }
+});
+
+test('skills synchronization dry-run and invalid targets make no changes', async () => {
+  const { parent, repo } = await targetRepo();
+  const invalid = await mkdtemp(path.join(os.tmpdir(), 'zimster-invalid-target-'));
+  try {
+    let result = run(process.execPath, [
+      path.join(root, 'scripts/sync-skills.mjs'), '--target', repo, '--dry-run'
+    ], root);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stdout, /"dry_run":true/);
+    await assert.rejects(readFile(path.join(repo, '.agents/skills/.zimster-install.json'), 'utf8'), /ENOENT/);
+
+    result = run(process.execPath, [
+      path.join(root, 'scripts/sync-skills.mjs'), '--target', invalid
+    ], root);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /Git repository|target/i);
+    await assert.rejects(readFile(path.join(invalid, '.agents/skills/.zimster-install.json'), 'utf8'), /ENOENT/);
+  } finally {
+    await rm(parent, { recursive: true, force: true });
+    await rm(invalid, { recursive: true, force: true });
+  }
+});

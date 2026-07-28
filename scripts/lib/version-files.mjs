@@ -43,6 +43,8 @@ export async function versionRecords() {
   } catch {
     records.push(['plugins/zimster/.codex-plugin/plugin.json', undefined]);
   }
+  const buildMetadata = await readJson('skills/using-zimster/references/build-metadata.json');
+  records.push(['skills/using-zimster/references/build-metadata.json', buildMetadata.semantic_version]);
   return records;
 }
 
@@ -68,4 +70,12 @@ export async function updateVersionFiles(version) {
   if (!entry) throw new Error('Claude marketplace is missing the zimster entry');
   entry.version = version;
   await writeJson('.claude-plugin/marketplace.json', claudeMarketplace);
+
+  const buildMetadata = await readJson('skills/using-zimster/references/build-metadata.json');
+  buildMetadata.semantic_version = version;
+  buildMetadata.source_commit = null;
+  buildMetadata.build_date = null;
+  buildMetadata.build_id = `zimster-${version}-source`;
+  buildMetadata.package_target = 'source';
+  await writeJson('skills/using-zimster/references/build-metadata.json', buildMetadata);
 }

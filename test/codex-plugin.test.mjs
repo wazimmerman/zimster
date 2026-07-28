@@ -80,3 +80,18 @@ test('vendored official Codex validator accepts the marketplace plugin', async (
   });
   assert.equal(result.status, 0, result.stderr || result.stdout);
 });
+
+test('installed Codex package exposes quiet machine-readable diagnostics', () => {
+  const result = spawnSync(process.execPath, [
+    path.join(root, marketplacePluginRoot, 'scripts/doctor.mjs'), '--json'
+  ], {
+    cwd: path.join(root, marketplacePluginRoot),
+    encoding: 'utf8'
+  });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  assert.equal(result.stderr, '');
+  const report = JSON.parse(result.stdout);
+  assert.equal(report.zimster_version, '0.2.0');
+  assert.equal(report.package_target, 'codex');
+  assert.equal(report.harnesses.codex.structural_status, 'ready');
+});

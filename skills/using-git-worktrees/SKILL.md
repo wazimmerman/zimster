@@ -47,7 +47,8 @@ host OS. Avoid hard-coded home paths and shell assumptions. Confirm the
 location is ignored before creation.
 
 After creation, confirm branch/root, install only required dependencies, run
-the smallest baseline, and record path/branch/commit policy in `.zimster/run.md`
+the smallest baseline, and record path/branch/commit policy in the Git-local
+Zimster run record
 when durable state is required.
 
 ## Cleanup

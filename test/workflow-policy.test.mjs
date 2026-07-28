@@ -103,6 +103,8 @@ test('durable state has deterministic creation triggers', async () => {
     assert.match(content, /external or hardware/i);
     assert.match(content, /more than one commit boundary/i);
     assert.match(content, /resum/i);
+    assert.doesNotMatch(content, /\.zimster\/run\.md/);
+    assert.match(content, /Git-local|git rev-parse --git-path/i);
   }
 });
 

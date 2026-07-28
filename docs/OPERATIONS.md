@@ -18,6 +18,9 @@ node <zimster>/scripts/init-run.mjs \
 ```
 
 The command refuses to overwrite an existing run unless `--force` is explicit.
+Normal state is written beneath `git rev-parse --git-path zimster`. Use
+`--audit-path docs/<project-defined-path>.md` only for an explicit audit-mode
+contract. Zimster does not edit tracked `.gitignore` for normal state.
 
 ## Canonical command inventory
 
@@ -34,7 +37,7 @@ not a claim that every listed command is required.
 ```text
 node <zimster>/scripts/change-snapshot.mjs \
   --base <merge-base> \
-  --output .zimster/change-snapshot.md
+  --output /path/from/git-rev-parse/zimster/change-snapshot.md
 ```
 
 The snapshot contains the committed branch range, staged and unstaged diffs,
@@ -83,7 +86,7 @@ node <zimster>/scripts/dispatch-record.mjs record \
   --role scout --purpose "locate state authority" --tier fast \
   --requested-model fast-default --requested-effort low \
   --parent-model expert-parent --turn-limit 12 \
-  --commit-permission none --output .zimster/scout.md
+  --commit-permission none --output <git-local-zimster-path>/scout.md
 ```
 
 After the harness reports effective routing:
@@ -112,5 +115,6 @@ marketplace entry, changelog heading, and the generated Codex mirror.
 
 ## Privacy
 
-All `.zimster/` evidence, dispatch, snapshot, and run files are local. Zimster
-contains no upload or telemetry mechanism.
+All Git-local evidence, dispatch, snapshot, and run files remain on the local
+machine. Zimster contains no upload or telemetry mechanism. Pass `--no-receipt`
+or set `ZIMSTER_RECEIPTS=off` to run without recording receipt state.

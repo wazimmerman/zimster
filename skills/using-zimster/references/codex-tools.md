@@ -8,7 +8,8 @@ the Codex plugin tree.
 Operational helpers (`scripts/`, `config/`, `schemas/`, and `templates/`) ship
 inside the plugin. Resolve commands from the installed Zimster plugin root—the
 parent containing `.codex-plugin/plugin.json`—not from the user's target
-repository. The target repository receives only `.zimster/` run artifacts.
+repository. Normal run artifacts live under the target worktree's Git-local
+`zimster` administrative directory, outside product history.
 
 When multi-agent tools are available:
 

@@ -75,6 +75,37 @@
     "exit_code": {
       "type": "integer"
     },
+    "harness": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "capabilities": {
+      "type": [
+        "object",
+        "null"
+      ],
+      "additionalProperties": {
+        "enum": [
+          "native",
+          "supported_with_constraints",
+          "prompt_constrained",
+          "inline_fallback",
+          "unavailable",
+          "unverified"
+        ]
+      }
+    },
+    "behavioral_evidence": {
+      "type": "boolean"
+    },
+    "invalidation_reason": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
     "environment": {
       "type": "object"
     },
@@ -94,6 +125,13 @@
             "tests_executed",
             "unknown"
           ]
+        },
+        "discovered": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
         },
         "passed": {
           "type": [

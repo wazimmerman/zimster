@@ -7,7 +7,9 @@ import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 
 const { options } = parseOptions(process.argv.slice(2));
 const root = findRepoRoot(process.cwd());
-const output = path.resolve(root, String(options.output || '.zimster/change-snapshot.md'));
+const output = options.output
+  ? path.resolve(root, String(options.output))
+  : path.join(await ensureRuntimeDirectory(root), 'change-snapshot.md');
 const base = options.base ? String(options.base) : null;
 const head = gitValue(['rev-parse', 'HEAD'], root, 'UNBORN');
 const branch = gitValue(['branch', '--show-current'], root, 'DETACHED');
@@ -67,7 +69,6 @@ sections.push('## Untracked files', '');
 if (!untracked.length) sections.push('(none)', '');
 else for (const relative of untracked) sections.push(await renderUntracked(relative), '');
 
-await ensureRuntimeDirectory(root);
 await mkdir(path.dirname(output), { recursive: true });
 await writeFile(output, sections.join('\n'), 'utf8');
 console.log(output);

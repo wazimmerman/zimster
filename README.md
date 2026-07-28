@@ -111,12 +111,13 @@ Every run reports the selected profile and rationale.
 
 Zimster ships local, dependency-free Node tools. Resolve them from the installed
 Zimster plugin root rather than assuming they exist in the target repository.
-The target project receives only `.zimster/` run artifacts.
+Normal operational state lives under the target worktree's Git administrative
+path and does not appear in the product tree.
 
 ```text
 node <zimster-root>/scripts/init-run.mjs --profile standard --reason "two slices"
 node <zimster-root>/scripts/project-commands.mjs <target-repo>
-node <zimster-root>/scripts/change-snapshot.mjs --output .zimster/change-snapshot.md
+node <zimster-root>/scripts/change-snapshot.mjs
 node <zimster-root>/scripts/evidence.mjs run --kind test --scope focused -- <command>
 node <zimster-root>/scripts/dispatch-record.mjs record ...
 ```

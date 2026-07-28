@@ -44,7 +44,8 @@ Do not present fake alternatives that no competent engineer would choose.
 
 ## 4. Write the mission contract
 
-For long or multi-file work, create `.zimster/mission.md`:
+For long or multi-file work, create `mission.md` under the Git-local Zimster
+runtime directory from `git rev-parse --git-path zimster`:
 
 ```markdown
 # Mission

@@ -5,6 +5,8 @@ import os from 'node:os';
 import path from 'node:path';
 import { createPackages } from '../scripts/package.mjs';
 import { json } from './helpers.mjs';
+import { spawnSync } from 'node:child_process';
+import { root } from './helpers.mjs';
 
 async function bytes(file) {
   return readFile(file);
@@ -38,10 +40,17 @@ test('packaging is deterministic and emits Codex and Claude archives', async () 
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/.codex-plugin/plugin.json')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/evidence.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/codex-cachebuster.mjs')), true);
+    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/sync-skills.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/config/model-routing.json')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/runtime.mjs')), true);
     const claudeArchive = await bytes(firstOutputs[0]);
     assert.equal(claudeArchive.includes(Buffer.from('scripts/evidence.mjs')), true);
+    const sourceCommit = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
+    assert.equal(claudeArchive.includes(Buffer.from(`"source_commit": "${sourceCommit}"`)), true);
+    assert.equal(claudeArchive.includes(Buffer.from('"package_target": "claude"')), true);
+    assert.equal(codexArchive.includes(Buffer.from('"package_target": "codex"')), true);
+    const portableArchive = await bytes(firstOutputs[2]);
+    assert.equal(portableArchive.includes(Buffer.from('"package_target": "portable"')), true);
   } finally {
     await rm(first, { recursive: true, force: true });
     await rm(second, { recursive: true, force: true });

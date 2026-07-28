@@ -1,0 +1,109 @@
+{
+  "schema_version": 1,
+  "capability_states": [
+    "native",
+    "supported_with_constraints",
+    "prompt_constrained",
+    "inline_fallback",
+    "unavailable",
+    "unverified"
+  ],
+  "harnesses": {
+    "codex": {
+      "verification": "blocked_by_host",
+      "capabilities": {
+        "native_skill_loading": "unverified",
+        "plugin_relative_helper_scripts": "native",
+        "named_custom_agents": "unavailable",
+        "read_only_tool_enforcement": "unavailable",
+        "isolated_reviewer_worktrees": "inline_fallback",
+        "per_agent_model_selection": "unverified",
+        "per_agent_reasoning_effort": "unverified",
+        "turn_limits": "unverified",
+        "agent_resume": "supported_with_constraints",
+        "nested_agent_prohibition": "prompt_constrained",
+        "token_turn_telemetry": "supported_with_constraints"
+      }
+    },
+    "claude": {
+      "verification": "structurally_validated",
+      "capabilities": {
+        "native_skill_loading": "native",
+        "plugin_relative_helper_scripts": "native",
+        "named_custom_agents": "native",
+        "read_only_tool_enforcement": "supported_with_constraints",
+        "isolated_reviewer_worktrees": "native",
+        "per_agent_model_selection": "native",
+        "per_agent_reasoning_effort": "native",
+        "turn_limits": "native",
+        "agent_resume": "supported_with_constraints",
+        "nested_agent_prohibition": "native",
+        "token_turn_telemetry": "unverified"
+      }
+    },
+    "cursor": {
+      "verification": "structurally_validated",
+      "capabilities": {
+        "native_skill_loading": "supported_with_constraints",
+        "plugin_relative_helper_scripts": "unavailable",
+        "named_custom_agents": "unavailable",
+        "read_only_tool_enforcement": "prompt_constrained",
+        "isolated_reviewer_worktrees": "inline_fallback",
+        "per_agent_model_selection": "unverified",
+        "per_agent_reasoning_effort": "unavailable",
+        "turn_limits": "unavailable",
+        "agent_resume": "supported_with_constraints",
+        "nested_agent_prohibition": "prompt_constrained",
+        "token_turn_telemetry": "unverified"
+      }
+    },
+    "kimi": {
+      "verification": "structurally_validated",
+      "capabilities": {
+        "native_skill_loading": "native",
+        "plugin_relative_helper_scripts": "native",
+        "named_custom_agents": "unverified",
+        "read_only_tool_enforcement": "unverified",
+        "isolated_reviewer_worktrees": "unverified",
+        "per_agent_model_selection": "supported_with_constraints",
+        "per_agent_reasoning_effort": "unverified",
+        "turn_limits": "unverified",
+        "agent_resume": "supported_with_constraints",
+        "nested_agent_prohibition": "prompt_constrained",
+        "token_turn_telemetry": "unverified"
+      }
+    },
+    "opencode": {
+      "verification": "experimental",
+      "capabilities": {
+        "native_skill_loading": "native",
+        "plugin_relative_helper_scripts": "supported_with_constraints",
+        "named_custom_agents": "native",
+        "read_only_tool_enforcement": "native",
+        "isolated_reviewer_worktrees": "unavailable",
+        "per_agent_model_selection": "native",
+        "per_agent_reasoning_effort": "unverified",
+        "turn_limits": "native",
+        "agent_resume": "supported_with_constraints",
+        "nested_agent_prohibition": "prompt_constrained",
+        "token_turn_telemetry": "supported_with_constraints"
+      }
+    },
+    "pi": {
+      "verification": "structurally_validated",
+      "capabilities": {
+        "native_skill_loading": "native",
+        "plugin_relative_helper_scripts": "supported_with_constraints",
+        "named_custom_agents": "unavailable",
+        "read_only_tool_enforcement": "prompt_constrained",
+        "isolated_reviewer_worktrees": "inline_fallback",
+        "per_agent_model_selection": "unavailable",
+        "per_agent_reasoning_effort": "unavailable",
+        "turn_limits": "unavailable",
+        "agent_resume": "supported_with_constraints",
+        "nested_agent_prohibition": "prompt_constrained",
+        "token_turn_telemetry": "unverified"
+      }
+    }
+  }
+}

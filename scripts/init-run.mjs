@@ -1,14 +1,18 @@
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseOptions } from './lib/cli.mjs';
 import { findRepoRoot, gitValue } from './lib/git-state.mjs';
-import { ensureRuntimeDirectory } from './lib/runtime.mjs';
+import { ensureRuntimeDirectory, resolveAuditPath } from './lib/runtime.mjs';
 
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { options } = parseOptions(process.argv.slice(2));
 const repo = findRepoRoot(process.cwd());
-const target = path.join(repo, '.zimster', 'run.md');
+const auditPath = options['audit-path'] ? String(options['audit-path']) : null;
+const runtimeDirectory = auditPath ? null : await ensureRuntimeDirectory(repo);
+const target = auditPath
+  ? resolveAuditPath(repo, auditPath)
+  : path.join(runtimeDirectory, 'run.md');
 const profile = String(options.profile || 'standard').toLowerCase();
 if (!['micro', 'standard', 'high-risk', 'high_risk', 'high'].includes(profile)) throw new Error('--profile must be micro, standard, or high-risk');
 const normalizedProfile = profile === 'micro' ? 'Micro' : profile === 'standard' ? 'Standard' : 'High risk';
@@ -22,9 +26,20 @@ let template = await readFile(path.join(scriptRoot, 'templates', 'run.md'), 'utf
 template = template
   .replace('## Mission and constraints', '## Mission and constraints\n\n[Describe the required outcome and binding constraints.]')
   .replace('## Architecture and current slice', `## Profile and rationale\n\n- Profile: ${normalizedProfile}\n- Rationale: ${reason}\n- Durable-state triggers: ${triggers.join('; ')}\n\n## Architecture and current slice`)
-  .replace('## Completed evidence', `## Git disposition\n\n- Branch: ${branch || 'DETACHED'}\n- Starting head: ${head}\n- Commit policy: ${commitPolicy}\n\n## Dispatch records\n\n[Reference .zimster/dispatches IDs; include requested/effective model or unverified.]\n\n## Completed evidence`);
+  .replace('## Completed evidence', `## Git disposition\n\n- Branch: ${branch || 'DETACHED'}\n- Starting head: ${head}\n- Commit policy: ${commitPolicy}\n\n## Dispatch records\n\n[Reference Git-local zimster/dispatches IDs; include requested/effective model or unverified.]\n\n## Completed evidence`);
 
-await ensureRuntimeDirectory(repo);
+await mkdir(path.dirname(target), { recursive: true });
+const legacy = path.join(repo, '.zimster', 'run.md');
+if (!auditPath && options.force !== true) {
+  try {
+    await access(legacy);
+    await rename(legacy, target);
+    console.log(target);
+    process.exit(0);
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+}
 try {
   await writeFile(target, template, { flag: options.force === true ? 'w' : 'wx' });
 } catch (error) {

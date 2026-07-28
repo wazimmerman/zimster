@@ -6,15 +6,18 @@ import path from 'node:path';
 import { parseOptions, required, integerOption } from './lib/cli.mjs';
 import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
+import { harnessCapabilities } from './lib/capabilities.mjs';
 
 const { positional, options, passthrough } = parseOptions(process.argv.slice(2));
 const commandName = positional[0];
 const root = findRepoRoot(process.cwd());
-const evidenceDir = path.join(root, '.zimster', 'evidence');
-const receiptsFile = path.join(evidenceDir, 'receipts.jsonl');
+let evidenceDir;
+let receiptsFile;
 
 async function init() {
-  await ensureRuntimeDirectory(root);
+  const runtime = await ensureRuntimeDirectory(root);
+  evidenceDir ||= path.join(runtime, 'evidence');
+  receiptsFile ||= path.join(evidenceDir, 'receipts.jsonl');
   await mkdir(evidenceDir, { recursive: true });
   try { await writeFile(path.join(evidenceDir, '.gitignore'), '*\n!.gitignore\n', { flag: 'wx' }); } catch (error) { if (error.code !== 'EEXIST') throw error; }
   try { await readFile(receiptsFile, 'utf8'); } catch { await writeFile(receiptsFile, ''); }
@@ -47,6 +50,12 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
   const failed = integerOption(options, 'tests-failed', null);
   const skipped = integerOption(options, 'tests-skipped', null);
   const command = required(options, 'command');
+  const discovery = testDiscovery(options, passed, failed);
+  const harness = options.harness ? String(options.harness) : null;
+  const explicitBehavior = options['behavioral-evidence'];
+  const behavioralEvidence = explicitBehavior === undefined
+    ? exitCode === 0 && discovery === 'tests_executed'
+    : ['true', '1', 'yes'].includes(String(explicitBehavior).toLowerCase());
   return {
     schema_version: 1,
     id: randomUUID(),
@@ -62,14 +71,21 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
     exit_code: exitCode,
     source: String(options.source || 'manual-record'),
     final_gate: options.final === true,
+    harness,
+    capabilities: harness ? await harnessCapabilities(harness) : null,
+    behavioral_evidence: behavioralEvidence,
+    invalidation_reason: null,
     environment: {
       platform: os.platform(),
       release: os.release(),
       arch: os.arch(),
-      node: process.version
+      node: process.version,
+      npm: process.env.npm_config_user_agent || null,
+      host_version: options['host-version'] ? String(options['host-version']) : null
     },
     tests: {
-      discovery: testDiscovery(options, passed, failed),
+      discovery,
+      discovered: integerOption(options, 'tests-discovered', [passed, failed, skipped].some((value) => value !== null) ? (passed ?? 0) + (failed ?? 0) + (skipped ?? 0) : null),
       passed,
       failed,
       skipped
@@ -97,6 +113,19 @@ async function findReusable(command, kind, scope) {
 }
 
 async function main() {
+  const receiptsDisabled = options['no-receipt'] === true
+    || ['0', 'off', 'false', 'disabled'].includes(String(process.env.ZIMSTER_RECEIPTS || '').toLowerCase());
+  if (receiptsDisabled && commandName === 'record') {
+    console.log('RECEIPTS_DISABLED');
+    return;
+  }
+  if (receiptsDisabled && commandName === 'run') {
+    if (!passthrough.length) throw new Error('evidence run requires a command after --');
+    const result = spawnSync(passthrough.join(' '), { cwd: process.cwd(), shell: true, stdio: 'inherit' });
+    console.log('RECEIPTS_DISABLED');
+    process.exitCode = result.status ?? 1;
+    return;
+  }
   if (commandName === 'init') {
     await init();
     console.log(evidenceDir);

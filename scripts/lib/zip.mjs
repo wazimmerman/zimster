@@ -52,7 +52,7 @@ export async function createZip(outputPath, entries) {
   let offset = 0;
 
   for (const [name, source] of entries) {
-    const data = await readFile(source.absolute);
+    const data = source.data === undefined ? await readFile(source.absolute) : Buffer.from(source.data);
     const nameBuffer = Buffer.from(name, 'utf8');
     const checksum = crc32(data);
     const flags = 0x0800;

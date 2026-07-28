@@ -75,7 +75,9 @@ load-bearing seam early, and obtains one final integration review.
 
 ## Durable state trigger
 
-Create `.zimster/run.md` with `scripts/init-run.mjs` when any condition is true:
+Create durable state with plugin-relative `scripts/init-run.mjs` when any
+condition is true. By default it writes to the worktree-safe Git-local path
+reported by `git rev-parse --git-path zimster/run.md`, outside product history:
 
 - more than one vertical slice;
 - any subagent is dispatched;
@@ -89,6 +91,10 @@ A Micro task may omit durable state only when none of those conditions apply.
 Keep the record compact: mission, profile/rationale, branch disposition,
 architecture, slice status, evidence IDs, dispatch records, risks, unavailable
 proof, and next action. Do not paste full logs or transcripts.
+
+Use `--audit-path <project-relative-documentation-path>` only when the project
+has explicitly opted into committed audit evidence. Do not modify tracked
+`.gitignore` merely for operational state.
 
 ## Delegation and model routing
 
@@ -124,3 +130,18 @@ Read only the matching reference:
 
 When subagents are unavailable, execute inline and state that independent
 review assurance was unavailable.
+
+## Installed version and script-free mode
+
+Read `references/build-metadata.json` beside this skill to report the installed
+semantic version, build identity, source commit when available, and package
+target. Do not infer the installed Zimster version from the target project's
+package metadata or Git history.
+
+Operational helpers are optional in a skills-only installation. When the
+installed skill tree has no plugin-relative `scripts/` directory, continue
+inline without a warning: preserve Git safety, TDD, review scope, and fresh
+verification. Record that generated receipts are unavailable; maintain the
+compact run record manually when durable state is required. Detailed helper
+availability belongs in an explicit doctor or diagnostic result, not routine
+workflow progress.

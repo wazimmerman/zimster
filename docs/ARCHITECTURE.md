@@ -43,8 +43,9 @@ Dependency-free Node 22 tools turn important policy into inspectable state:
 - `package.mjs` creates deterministic archives only from a current mirror and
   synchronized version set.
 
-No run receipt or model record is uploaded. Runtime artifacts remain local to
-the target repository under `.zimster/`.
+No run receipt or model record is uploaded. Normal runtime artifacts live
+under the worktree-safe Git administrative path returned by
+`git rev-parse --git-path zimster`, outside product history.
 
 ## Codex source and package flow
 
@@ -62,13 +63,15 @@ changed, or extra files. Packaging refuses a stale mirror.
 
 ## Execution state
 
-Create `.zimster/run.md` when there is more than one slice, any subagent or
+Create the Git-local `zimster/run.md` when there is more than one slice, any subagent or
 independent review, pending external/hardware proof, more than one commit
 boundary, compaction risk, or a resumed session. It stores mission,
 profile/rationale, Git disposition, architecture, current slice, evidence IDs,
 dispatch IDs, open findings, unavailable proof, budget, and next action.
 
 Detailed logs, diffs, and transcripts remain separate artifacts.
+Projects may opt into a project-defined audit documentation path; normal
+operation never turns approval or run bookkeeping into a standalone commit.
 
 ## Git state and review representation
 

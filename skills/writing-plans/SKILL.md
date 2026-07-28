@@ -31,7 +31,7 @@ Micro | Standard | High risk, six dimensions, hard triggers.
 
 ## Git and durable-state policy
 Default/feature branch behavior, worktree need, commit permission/boundaries,
-and deterministic `.zimster/run.md` triggers.
+and deterministic Git-local durable-state triggers.
 
 ## Architecture and ownership
 Files/components, authoritative state, interfaces, cancellation/cleanup.

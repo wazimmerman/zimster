@@ -1,13 +1,25 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
+import { gitValue } from './git-state.mjs';
 
 export async function ensureRuntimeDirectory(repoRoot) {
-  const directory = path.join(repoRoot, '.zimster');
+  const absolute = gitValue(
+    ['rev-parse', '--path-format=absolute', '--git-path', 'zimster'],
+    repoRoot,
+    null
+  );
+  const fallback = gitValue(['rev-parse', '--git-path', 'zimster'], repoRoot, null);
+  if (!absolute && !fallback) throw new Error('unable to resolve Git-local Zimster runtime path');
+  const directory = absolute || path.resolve(repoRoot, fallback);
   await mkdir(directory, { recursive: true });
-  try {
-    await writeFile(path.join(directory, '.gitignore'), '*\n', { flag: 'wx' });
-  } catch (error) {
-    if (error.code !== 'EEXIST') throw error;
-  }
   return directory;
+}
+
+export function resolveAuditPath(repoRoot, requestedPath) {
+  const target = path.resolve(repoRoot, requestedPath);
+  const relative = path.relative(repoRoot, target);
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) {
+    throw new Error('--audit-path must be a project-relative file path inside the repository');
+  }
+  return target;
 }
