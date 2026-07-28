@@ -75,6 +75,37 @@ test('packaging is deterministic and emits Codex and Claude archives', async () 
     assert.equal(claudeArchive.includes(Buffer.from(`"source_commit": "${sourceCommit}"`)), true);
     assert.equal(claudeArchive.includes(Buffer.from('"package_target": "claude"')), true);
     assert.equal(codexArchive.includes(Buffer.from('"package_target": "codex"')), true);
+    const codexExtracted = await mkdtemp(path.join(os.tmpdir(), 'zimster-codex-package-fallback-'));
+    const fallbackTarget = await mkdtemp(path.join(os.tmpdir(), 'zimster-codex-fallback-target-'));
+    try {
+      for (const [name, data] of storedZipEntries(codexArchive)) {
+        if (!name.startsWith('plugins/zimster/')) continue;
+        const relative = name.slice('plugins/zimster/'.length);
+        const target = path.join(codexExtracted, ...relative.split('/'));
+        await mkdir(path.dirname(target), { recursive: true });
+        await writeFile(target, data);
+      }
+      assert.equal(
+        spawnSync('git', ['init', '-b', 'main'], { cwd: fallbackTarget, encoding: 'utf8' }).status,
+        0
+      );
+      const fallback = spawnSync(process.execPath, [
+        path.join(codexExtracted, 'scripts/sync-skills.mjs'), '--target', fallbackTarget
+      ], {
+        cwd: codexExtracted,
+        encoding: 'utf8'
+      });
+      assert.equal(fallback.status, 0, fallback.stderr || fallback.stdout);
+      const fallbackMetadata = JSON.parse(await readFile(
+        path.join(fallbackTarget, '.agents/skills/using-zimster/references/build-metadata.json'),
+        'utf8'
+      ));
+      assert.equal(fallbackMetadata.source_commit, sourceCommit);
+      assert.equal(fallbackMetadata.package_target, 'skills-only');
+    } finally {
+      await rm(codexExtracted, { recursive: true, force: true });
+      await rm(fallbackTarget, { recursive: true, force: true });
+    }
     const extracted = await mkdtemp(path.join(os.tmpdir(), 'zimster-claude-package-smoke-'));
     try {
       for (const [name, data] of storedZipEntries(claudeArchive)) {
