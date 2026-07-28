@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 import { loadCodexContract, validateCodexPlugin, validateRepoMarketplace } from './lib/codex-plugin-contract.mjs';
 import { syncCodexPlugin } from './sync-codex-plugin.mjs';
 import { versionRecords } from './lib/version-files.mjs';
+import { validateClaudePlugin } from './lib/claude-plugin-contract.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const errors = [];
@@ -75,6 +76,7 @@ const contract = await loadCodexContract(root);
 for (const error of await validateCodexPlugin(path.join(root, 'plugins', 'zimster'), contract)) errors.push(`Codex plugin: ${error}`);
 for (const error of await validateRepoMarketplace(root)) errors.push(`Codex marketplace: ${error}`);
 for (const difference of await syncCodexPlugin({ check: true })) errors.push(`Codex mirror: ${difference}`);
+for (const error of await validateClaudePlugin(root)) errors.push(`Claude plugin: ${error}`);
 
 for (const [agent, allowBash] of [['scout', false], ['integration-reviewer', false], ['test-reviewer', true]]) {
   const content = await read(`agents/${agent}.md`);
@@ -84,7 +86,7 @@ for (const [agent, allowBash] of [['scout', false], ['integration-reviewer', fal
 }
 
 for (const relative of [
-  'LICENSE', 'THIRD_PARTY_NOTICES.md', 'README.md', 'docs/ARCHITECTURE.md',
+  'LICENSE', 'THIRD_PARTY_NOTICES.md', 'README.md', 'docs/ARCHITECTURE.md', 'docs/CLAUDE.md',
   'docs/EVALUATION.md', 'docs/OPERATIONS.md', 'docs/RESEARCH.md', 'docs/UPSTREAM.md',
   'scripts/evidence.mjs', 'scripts/change-snapshot.mjs', 'scripts/dispatch-record.mjs',
   'scripts/check-version.mjs', 'scripts/bump-version.mjs', 'scripts/checksums.mjs', 'config/model-routing.json',

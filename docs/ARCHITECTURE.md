@@ -39,6 +39,8 @@ Dependency-free Node 22 tools turn important policy into inspectable state:
 - `dispatch-record.mjs` records requested/effective model routing;
 - `sync-codex-plugin.mjs` generates the Codex plugin mirror;
 - `validate-codex.mjs` checks the pinned official contract snapshot;
+- `validate-claude-plugin.mjs` checks the current documented Claude manifest,
+  hook, and plugin-agent contract when the host CLI is unavailable;
 - `check-version.mjs` and `bump-version.mjs` synchronize release metadata;
 - `package.mjs` creates deterministic archives only from a current mirror and
   synchronized version set.

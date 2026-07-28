@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile, access } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, rm, writeFile, access } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createPackages } from '../scripts/package.mjs';
@@ -10,6 +10,22 @@ import { root } from './helpers.mjs';
 
 async function bytes(file) {
   return readFile(file);
+}
+
+function storedZipEntries(archive) {
+  const entries = new Map();
+  let offset = 0;
+  while (archive.readUInt32LE(offset) === 0x04034b50) {
+    const size = archive.readUInt32LE(offset + 18);
+    const nameLength = archive.readUInt16LE(offset + 26);
+    const extraLength = archive.readUInt16LE(offset + 28);
+    const nameStart = offset + 30;
+    const dataStart = nameStart + nameLength + extraLength;
+    const name = archive.subarray(nameStart, nameStart + nameLength).toString('utf8');
+    entries.set(name, archive.subarray(dataStart, dataStart + size));
+    offset = dataStart + size;
+  }
+  return entries;
 }
 
 test('packaging is deterministic and emits Codex and Claude archives', async () => {
@@ -46,10 +62,41 @@ test('packaging is deterministic and emits Codex and Claude archives', async () 
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/runtime.mjs')), true);
     const claudeArchive = await bytes(firstOutputs[0]);
     assert.equal(claudeArchive.includes(Buffer.from('scripts/evidence.mjs')), true);
+    for (const required of [
+      '.claude-plugin/plugin.json',
+      'agents/integration-reviewer.md',
+      'agents/test-reviewer.md',
+      'hooks/hooks.json',
+      'hooks/run-hook.cmd',
+      'hooks/session-start'
+    ]) {
+      assert.equal(claudeArchive.includes(Buffer.from(required)), true, `Claude archive missing ${required}`);
+    }
     const sourceCommit = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
     assert.equal(claudeArchive.includes(Buffer.from(`"source_commit": "${sourceCommit}"`)), true);
     assert.equal(claudeArchive.includes(Buffer.from('"package_target": "claude"')), true);
     assert.equal(codexArchive.includes(Buffer.from('"package_target": "codex"')), true);
+    const extracted = await mkdtemp(path.join(os.tmpdir(), 'zimster-claude-package-smoke-'));
+    try {
+      for (const [name, data] of storedZipEntries(claudeArchive)) {
+        const target = path.join(extracted, ...name.split('/'));
+        await mkdir(path.dirname(target), { recursive: true });
+        await writeFile(target, data);
+      }
+      await chmod(path.join(extracted, 'hooks/run-hook.cmd'), 0o755);
+      await chmod(path.join(extracted, 'hooks/session-start'), 0o755);
+      const smoke = spawnSync('bash', ['hooks/run-hook.cmd', 'session-start'], {
+        cwd: extracted,
+        encoding: 'utf8',
+        env: { ...process.env, CLAUDE_PLUGIN_ROOT: extracted },
+        input: '{"hook_event_name":"SessionStart","source":"startup"}\n'
+      });
+      assert.equal(smoke.status, 0, smoke.stderr || smoke.stdout);
+      assert.equal(smoke.stderr, '');
+      assert.match(JSON.parse(smoke.stdout).hookSpecificOutput.additionalContext, /# Using Zimster/);
+    } finally {
+      await rm(extracted, { recursive: true, force: true });
+    }
     const portableArchive = await bytes(firstOutputs[2]);
     assert.equal(portableArchive.includes(Buffer.from('"package_target": "portable"')), true);
   } finally {

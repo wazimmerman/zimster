@@ -77,7 +77,9 @@ The Codex ZIP is a repository marketplace package containing both
 The Claude archive contains `.claude-plugin/`, `skills/`, `agents/`, `hooks/`,
 and the operational helpers. For local development, point Claude Code's plugin
 development option at the extracted archive or repository, then invoke the
-`using-zimster` skill.
+`using-zimster` skill. Exact validation, isolated installation, update,
+reviewer enforcement, and removal commands are in
+[`docs/CLAUDE.md`](docs/CLAUDE.md).
 
 ## Main workflow
 

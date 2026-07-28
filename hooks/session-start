@@ -3,7 +3,12 @@
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PLUGIN_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
-bootstrap=$(cat "${PLUGIN_ROOT}/skills/using-zimster/SKILL.md" 2>&1 || printf '%s' 'Error reading using-zimster skill')
+skill_file="${PLUGIN_ROOT}/skills/using-zimster/SKILL.md"
+if [ ! -r "$skill_file" ]; then
+  printf 'zimster SessionStart: cannot read required using-zimster skill at %s\n' "$skill_file" >&2
+  exit 2
+fi
+bootstrap=$(cat "$skill_file")
 escape_json() {
   local value="$1"
   value="${value//\\/\\\\}"
@@ -16,9 +21,9 @@ escape_json() {
 encoded=$(escape_json "$bootstrap")
 context="<ZIMSTER_BOOTSTRAP>\nzimster:using-zimster bootstrap\n\n${encoded}\n</ZIMSTER_BOOTSTRAP>"
 if [ -n "${CURSOR_PLUGIN_ROOT:-}" ]; then
-  printf '{\n  "additional_context": "%s"\n}\n' "$context" | cat
+  printf '{\n  "additional_context": "%s"\n}\n' "$context"
 elif [ -n "${CLAUDE_PLUGIN_ROOT:-}" ]; then
-  printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "SessionStart",\n    "additionalContext": "%s"\n  }\n}\n' "$context" | cat
+  printf '{\n  "hookSpecificOutput": {\n    "hookEventName": "SessionStart",\n    "additionalContext": "%s"\n  }\n}\n' "$context"
 else
-  printf '{\n  "additionalContext": "%s"\n}\n' "$context" | cat
+  printf '{\n  "additionalContext": "%s"\n}\n' "$context"
 fi
