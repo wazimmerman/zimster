@@ -25,7 +25,21 @@ const requiredFiles = [
   'docs/UPSTREAM.md',
   'scripts/validate.mjs',
   'scripts/package.mjs',
-  'scripts/doctor.mjs'
+  'scripts/doctor.mjs',
+  'scripts/sync-codex-plugin.mjs',
+  'scripts/validate-codex.mjs',
+  'scripts/change-snapshot.mjs',
+  'scripts/evidence.mjs',
+  'scripts/dispatch-record.mjs',
+  'scripts/init-run.mjs',
+  'scripts/lib/runtime.mjs',
+  'scripts/check-version.mjs',
+  'scripts/checksums.mjs',
+  'scripts/bump-version.mjs',
+  'schemas/evidence.schema.json',
+  'schemas/dispatch.schema.json',
+  'config/model-routing.json',
+  'plugins/zimster/.codex-plugin/plugin.json'
 ];
 
 test('ships the public plugin structure', async () => {
@@ -48,14 +62,6 @@ test('all primary manifests agree on name and version', async () => {
     assert.equal(manifest.license, 'MIT', `${manifestPath} license`);
   }
 });
-
-test('Codex is a first-class skill plugin with no accidental Claude hook discovery', async () => {
-  const manifest = await json('.codex-plugin/plugin.json');
-  assert.equal(manifest.skills, './skills/');
-  assert.deepEqual(manifest.hooks, {});
-  assert.match(manifest.description, /owner-driven|proof-first/i);
-});
-
 
 
 test('every Codex skill ships OpenAI interface metadata', async () => {

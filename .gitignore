@@ -1,5 +1,5 @@
 node_modules/
 dist/
-.zimster/runtime/
+.zimster/
 .DS_Store
 *.log

@@ -1,0 +1,4 @@
+interface:
+  display_name: "Risk-Adaptive Review"
+  short_description: "Review risky seams and converge in one fix wave"
+  default_prompt: "Use $risk-adaptive-review to inspect the risky seams in this change and return one complete finding batch."

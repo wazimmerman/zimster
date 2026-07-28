@@ -1,0 +1,34 @@
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { parseOptions } from './lib/cli.mjs';
+import { findRepoRoot, gitValue } from './lib/git-state.mjs';
+import { ensureRuntimeDirectory } from './lib/runtime.mjs';
+
+const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const { options } = parseOptions(process.argv.slice(2));
+const repo = findRepoRoot(process.cwd());
+const target = path.join(repo, '.zimster', 'run.md');
+const profile = String(options.profile || 'standard').toLowerCase();
+if (!['micro', 'standard', 'high-risk', 'high_risk', 'high'].includes(profile)) throw new Error('--profile must be micro, standard, or high-risk');
+const normalizedProfile = profile === 'micro' ? 'Micro' : profile === 'standard' ? 'Standard' : 'High risk';
+const reason = String(options.reason || 'Profile selected from the Zimster risk table.');
+const triggers = String(options.triggers || options.trigger || 'manual initialization').split(',').map((value) => value.trim()).filter(Boolean);
+const commitPolicy = String(options['commit-policy'] || 'Record user/repository policy before implementation.');
+const branch = gitValue(['branch', '--show-current'], repo, 'DETACHED');
+const head = gitValue(['rev-parse', 'HEAD'], repo, 'UNBORN');
+
+let template = await readFile(path.join(scriptRoot, 'templates', 'run.md'), 'utf8');
+template = template
+  .replace('## Mission and constraints', '## Mission and constraints\n\n[Describe the required outcome and binding constraints.]')
+  .replace('## Architecture and current slice', `## Profile and rationale\n\n- Profile: ${normalizedProfile}\n- Rationale: ${reason}\n- Durable-state triggers: ${triggers.join('; ')}\n\n## Architecture and current slice`)
+  .replace('## Completed evidence', `## Git disposition\n\n- Branch: ${branch || 'DETACHED'}\n- Starting head: ${head}\n- Commit policy: ${commitPolicy}\n\n## Dispatch records\n\n[Reference .zimster/dispatches IDs; include requested/effective model or unverified.]\n\n## Completed evidence`);
+
+await ensureRuntimeDirectory(repo);
+try {
+  await writeFile(target, template, { flag: options.force === true ? 'w' : 'wx' });
+} catch (error) {
+  if (error.code === 'EEXIST') throw new Error(`${target} already exists; pass --force to replace it`);
+  throw error;
+}
+console.log(target);

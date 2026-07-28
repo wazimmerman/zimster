@@ -1,11 +1,17 @@
 # Contributing
 
-1. Open an issue for behavioral changes to the workflow.
-2. Add or update a structural or behavioral test before changing a skill.
-3. Keep core skills harness-neutral and operating-system-neutral.
-4. Run `npm run check` before submitting a pull request.
-5. Record adapted upstream material in `docs/UPSTREAM.md` and preserve its license.
-6. Include before/after evaluation evidence for changes that claim lower cost,
-   faster execution, or better quality.
+1. Open an issue for behavioral workflow changes.
+2. Use a feature branch/worktree and define commit disposition before editing.
+3. Add or update a failing structural/behavioral test before policy changes.
+4. Keep core skills harness- and operating-system-neutral.
+5. Run `npm run sync:codex` after changing mirrored plugin content.
+6. Run `npm run check`, `npm run version:check`, and `git diff --check`.
+7. Inspect staged, unstaged, and untracked files with the change snapshot.
+8. Record adapted material in `docs/UPSTREAM.md` and preserve its license.
+9. Include paired evaluation evidence for claims of lower cost, faster runs, or
+   better quality.
+
+Use `npm run version:bump -- <version> --note "summary"` for releases. The
+release tag must match all manifests and the changelog.
 
 The project uses Node 22 and intentionally has no runtime dependencies.

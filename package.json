@@ -1,6 +1,6 @@
 {
   "name": "zimster",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "A proof-first, owner-driven development workflow for capable coding agents.",
   "type": "module",
   "private": false,
@@ -11,8 +11,19 @@
   "scripts": {
     "test": "node --test --test-reporter=spec",
     "validate": "node scripts/validate.mjs",
+    "validate:codex": "node scripts/validate-codex.mjs",
     "doctor": "node scripts/doctor.mjs",
+    "commands": "node scripts/project-commands.mjs",
+    "snapshot": "node scripts/change-snapshot.mjs",
+    "evidence": "node scripts/evidence.mjs",
+    "dispatch": "node scripts/dispatch-record.mjs",
+    "run:init": "node scripts/init-run.mjs",
+    "sync:codex": "node scripts/sync-codex-plugin.mjs",
+    "sync:codex:check": "node scripts/sync-codex-plugin.mjs --check",
+    "version:check": "node scripts/check-version.mjs",
+    "version:bump": "node scripts/bump-version.mjs",
     "package": "node scripts/package.mjs",
+    "checksums": "node scripts/checksums.mjs",
     "check": "npm run test && npm run validate && npm run package"
   },
   "main": ".opencode/plugins/zimster.js",
@@ -55,7 +66,11 @@
     "TERMS.md",
     "SUPPORT.md",
     "CHANGELOG.md",
-    "AGENTS.md"
+    "AGENTS.md",
+    "plugins",
+    "config",
+    "schemas",
+    "vendor"
   ],
   "pi": {
     "extensions": [

@@ -1,0 +1,39 @@
+{
+  "source_repository": "https://github.com/openai/codex",
+  "source_files": [
+    "codex-rs/skills/src/assets/samples/plugin-creator/SKILL.md",
+    "codex-rs/skills/src/assets/samples/plugin-creator/references/plugin-json-spec.md",
+    "codex-rs/skills/src/assets/samples/plugin-creator/scripts/create_basic_plugin.py",
+    "codex-rs/skills/src/assets/samples/plugin-creator/scripts/validate_plugin.py"
+  ],
+  "source_blob_sha": "88fae0fd00998ea32fa2393869042f0231a2b43b",
+  "license": "Apache-2.0",
+  "manifest_allowed_keys": [
+    "id",
+    "name",
+    "version",
+    "description",
+    "skills",
+    "apps",
+    "mcpServers",
+    "interface",
+    "author",
+    "homepage",
+    "repository",
+    "license",
+    "keywords"
+  ],
+  "manifest_required_fields": ["name", "version", "description", "author", "interface"],
+  "interface_required_fields": [
+    "displayName",
+    "shortDescription",
+    "longDescription",
+    "developerName",
+    "category",
+    "capabilities"
+  ],
+  "marketplace_source": {
+    "source": "local",
+    "path_pattern": "./plugins/<plugin-name>"
+  }
+}

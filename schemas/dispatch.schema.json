@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wazimmerman/zimster/schemas/dispatch.schema.json",
+  "title": "Zimster subagent dispatch record",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "id",
+    "role",
+    "purpose",
+    "tier",
+    "requested_model",
+    "requested_effort",
+    "effective_model",
+    "effective_effort",
+    "turn_limit",
+    "created_at"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "role": {
+      "type": "string",
+      "minLength": 1
+    },
+    "purpose": {
+      "type": "string",
+      "minLength": 1
+    },
+    "tier": {
+      "enum": [
+        "fast",
+        "standard",
+        "expert"
+      ]
+    },
+    "requested_model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "requested_effort": {
+      "type": "string",
+      "minLength": 1
+    },
+    "effective_model": {
+      "type": "string",
+      "minLength": 1
+    },
+    "effective_effort": {
+      "type": "string",
+      "minLength": 1
+    },
+    "turn_limit": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "commit_permission": {
+      "enum": [
+        "none",
+        "dedicated-branch",
+        "owner-approved"
+      ]
+    },
+    "ownership": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "completed_at": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "warning": {
+      "type": "string"
+    }
+  },
+  "additionalProperties": true
+}

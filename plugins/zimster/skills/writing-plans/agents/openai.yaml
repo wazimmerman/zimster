@@ -1,0 +1,4 @@
+interface:
+  display_name: "Writing Plans"
+  short_description: "Plan coherent vertical slices with exact proof"
+  default_prompt: "Use $writing-plans to create a concise vertical-slice implementation plan with proof obligations."

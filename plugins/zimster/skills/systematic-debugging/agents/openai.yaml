@@ -1,0 +1,4 @@
+interface:
+  display_name: "Systematic Debugging"
+  short_description: "Reproduce, isolate, and prove the root-cause fix"
+  default_prompt: "Use $systematic-debugging to reproduce this failure, isolate its cause, and prove the fix."

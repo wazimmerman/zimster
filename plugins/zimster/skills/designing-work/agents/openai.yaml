@@ -1,0 +1,4 @@
+interface:
+  display_name: "Designing Work"
+  short_description: "Clarify consequential choices before coding"
+  default_prompt: "Use $designing-work to resolve the important design choices before implementation."

@@ -26,10 +26,13 @@ jobs:
       - run: npm run test
       - run: npm run validate
       - run: npm run package
+      - run: npm run checksums
       - name: Upload deterministic packages
         if: matrix.os == 'ubuntu-latest'
         uses: actions/upload-artifact@v4
         with:
           name: zimster-packages
-          path: dist/*.zip
+          path: |
+            dist/*.zip
+            dist/*SHA256SUMS.txt
           if-no-files-found: error

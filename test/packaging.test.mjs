@@ -4,6 +4,7 @@ import { mkdtemp, readFile, rm, writeFile, access } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import { createPackages } from '../scripts/package.mjs';
+import { json } from './helpers.mjs';
 
 async function bytes(file) {
   return readFile(file);
@@ -15,10 +16,11 @@ test('packaging is deterministic and emits Codex and Claude archives', async () 
   try {
     const firstOutputs = await createPackages(first);
     const secondOutputs = await createPackages(second);
+    const { version } = await json('package.json');
     assert.deepEqual(firstOutputs.map((entry) => path.basename(entry)), [
-      'zimster-0.1.0-claude.zip',
-      'zimster-0.1.0-codex.zip',
-      'zimster-0.1.0-portable.zip'
+      `zimster-${version}-claude.zip`,
+      `zimster-${version}-codex.zip`,
+      `zimster-${version}-portable.zip`
     ]);
     for (let index = 0; index < firstOutputs.length; index += 1) {
       assert.deepEqual(await bytes(firstOutputs[index]), await bytes(secondOutputs[index]));
@@ -27,11 +29,18 @@ test('packaging is deterministic and emits Codex and Claude archives', async () 
     const codexArchive = await bytes(firstOutputs[1]);
     for (const skill of ['using-zimster', 'owner-driven-development', 'test-driven-development', 'risk-adaptive-review']) {
       assert.equal(
-        codexArchive.includes(Buffer.from(`skills/${skill}/agents/openai.yaml`)),
+        codexArchive.includes(Buffer.from(`plugins/zimster/skills/${skill}/agents/openai.yaml`)),
         true,
         `Codex archive missing OpenAI metadata for ${skill}`
       );
     }
+    assert.equal(codexArchive.includes(Buffer.from('.agents/plugins/marketplace.json')), true);
+    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/.codex-plugin/plugin.json')), true);
+    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/evidence.mjs')), true);
+    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/config/model-routing.json')), true);
+    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/runtime.mjs')), true);
+    const claudeArchive = await bytes(firstOutputs[0]);
+    assert.equal(claudeArchive.includes(Buffer.from('scripts/evidence.mjs')), true);
   } finally {
     await rm(first, { recursive: true, force: true });
     await rm(second, { recursive: true, force: true });

@@ -7,8 +7,8 @@
     {
       "name": "zimster",
       "source": {
-        "source": "url",
-        "url": "./"
+        "source": "local",
+        "path": "./plugins/zimster"
       },
       "policy": {
         "installation": "AVAILABLE",

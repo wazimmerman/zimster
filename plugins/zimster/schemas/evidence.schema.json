@@ -1,0 +1,135 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wazimmerman/zimster/schemas/evidence.schema.json",
+  "title": "Zimster evidence receipt",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "id",
+    "kind",
+    "scope",
+    "command",
+    "cwd",
+    "git_head",
+    "git_tree",
+    "working_tree_hash",
+    "started_at",
+    "ended_at",
+    "exit_code",
+    "environment",
+    "tests"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "kind": {
+      "type": "string",
+      "minLength": 1
+    },
+    "scope": {
+      "enum": [
+        "baseline",
+        "focused",
+        "affected",
+        "integration",
+        "full",
+        "external",
+        "hardware",
+        "manual"
+      ]
+    },
+    "command": {
+      "type": "string",
+      "minLength": 1
+    },
+    "cwd": {
+      "type": "string"
+    },
+    "git_head": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "git_tree": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "working_tree_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "started_at": {
+      "type": "string"
+    },
+    "ended_at": {
+      "type": "string"
+    },
+    "exit_code": {
+      "type": "integer"
+    },
+    "environment": {
+      "type": "object"
+    },
+    "tests": {
+      "type": "object",
+      "required": [
+        "discovery",
+        "passed",
+        "failed",
+        "skipped"
+      ],
+      "properties": {
+        "discovery": {
+          "enum": [
+            "not_reached",
+            "zero_discovered",
+            "tests_executed",
+            "unknown"
+          ]
+        },
+        "passed": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "failed": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        },
+        "skipped": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 0
+        }
+      }
+    },
+    "dependency_cone": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "inputs": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  },
+  "additionalProperties": true
+}

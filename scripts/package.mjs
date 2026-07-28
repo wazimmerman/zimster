@@ -2,13 +2,31 @@ import { readFile, rm, mkdir, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { collectFiles, createZip } from './lib/zip.mjs';
+import { syncCodexPlugin } from './sync-codex-plugin.mjs';
+import { versionRecords } from './lib/version-files.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-const common = ['skills', 'agents', 'templates', 'assets', 'docs', 'LICENSE', 'README.md', 'THIRD_PARTY_NOTICES.md', 'PRIVACY.md', 'TERMS.md', 'SUPPORT.md', 'CHANGELOG.md', 'package.json'];
+const operationalScripts = [
+  'scripts/change-snapshot.mjs', 'scripts/dispatch-record.mjs',
+  'scripts/evidence.mjs', 'scripts/init-run.mjs', 'scripts/project-commands.mjs',
+  'scripts/lib/cli.mjs', 'scripts/lib/git-state.mjs', 'scripts/lib/runtime.mjs'
+];
+const common = [
+  'skills', 'agents', 'templates', 'assets', 'docs', 'config', 'schemas',
+  ...operationalScripts,
+  'LICENSE', 'README.md', 'THIRD_PARTY_NOTICES.md', 'PRIVACY.md', 'TERMS.md',
+  'SUPPORT.md', 'CHANGELOG.md'
+]
 const exclusions = ['dist', '.git', 'node_modules', '.zimster/runtime'];
 
 export async function createPackages(outputDirectory = path.join(root, 'dist')) {
+  const versionRows = await versionRecords();
+  const canonicalVersion = versionRows.find(([name]) => name === 'package.json')?.[1];
+  const mismatches = versionRows.filter(([, version]) => version !== canonicalVersion);
+  if (mismatches.length) throw new Error(`version metadata is stale: ${mismatches.map(([name, version]) => `${name}=${version ?? 'missing'}`).join(', ')}`);
+  const mirrorDifferences = await syncCodexPlugin({ check: true });
+  if (mirrorDifferences.length) throw new Error(`Codex plugin mirror is stale: ${mirrorDifferences.join(', ')}`);
   const { version } = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
   await mkdir(outputDirectory, { recursive: true });
   for (const entry of await readdir(outputDirectory)) {
@@ -17,8 +35,8 @@ export async function createPackages(outputDirectory = path.join(root, 'dist')) 
 
   const definitions = [
     ['claude', ['.claude-plugin', 'hooks', ...common]],
-    ['codex', ['.codex-plugin', '.agents', ...common]],
-    ['portable', ['.agents', '.claude-plugin', '.codex-plugin', '.cursor-plugin', '.kimi-plugin', '.opencode', '.pi', 'hooks', 'scripts', ...common]]
+    ['codex', ['.agents', 'plugins/zimster', 'README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md']],
+    ['portable', ['.agents', '.claude-plugin', '.codex-plugin', '.cursor-plugin', '.kimi-plugin', '.opencode', '.pi', 'plugins/zimster', 'hooks', 'scripts', 'vendor', 'package.json', 'package-lock.json', ...common]]
   ];
 
   const outputs = [];
