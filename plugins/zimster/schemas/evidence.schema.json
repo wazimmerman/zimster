@@ -242,6 +242,36 @@
         },
         "additionalProperties": false
       }
+    },
+    "requirement_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "pattern": "^[A-Z][A-Z0-9]*-[0-9]{3,}$"
+      }
+    },
+    "establishes": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "does_not_establish": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "environment_scope": {
+      "type": [
+        "string",
+        "null"
+      ]
     }
   },
   "additionalProperties": true,

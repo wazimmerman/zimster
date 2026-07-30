@@ -31,6 +31,8 @@ test('repo marketplace points at a local plugins/zimster directory', async () =>
   assert.equal(await exists(`${marketplacePluginRoot}/.codex-plugin/plugin.json`), true);
   assert.equal(await exists(`${marketplacePluginRoot}/skills/using-zimster/SKILL.md`), true);
   assert.equal(await exists(`${marketplacePluginRoot}/scripts/evidence.mjs`), true);
+  assert.equal(await exists(`${marketplacePluginRoot}/scripts/semantic-assurance.mjs`), true);
+  assert.equal(await exists(`${marketplacePluginRoot}/scripts/lib/semantic-assurance.mjs`), true);
   assert.equal(await exists(`${marketplacePluginRoot}/config/model-routing.json`), true);
 });
 

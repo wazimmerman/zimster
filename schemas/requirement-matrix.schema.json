@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wazimmerman/zimster/schemas/requirement-matrix.schema.json",
+  "title": "Zimster requirement-to-evidence matrix",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "candidate_head",
+    "candidate_tree",
+    "requirements",
+    "observations"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "candidate_head": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "candidate_tree": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "requirements": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/requirement"},
+      "minItems": 1
+    },
+    "observations": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/evidence"}
+    }
+  },
+  "$defs": {
+    "requirementId": {
+      "type": "string",
+      "pattern": "^[A-Z][A-Z0-9]*-[0-9]{3,}$"
+    },
+    "stringList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "requirement": {
+      "type": "object",
+      "required": [
+        "id",
+        "authoritative_text",
+        "source",
+        "implementation_locations",
+        "evidence_refs",
+        "evidence_scope",
+        "unavailable_proof",
+        "status",
+        "intended_acceptance_claims"
+      ],
+      "properties": {
+        "id": {"$ref": "#/$defs/requirementId"},
+        "authoritative_text": {"type": "string", "minLength": 1},
+        "source": {"type": "string", "minLength": 1},
+        "implementation_locations": {"$ref": "#/$defs/stringList"},
+        "evidence_refs": {"$ref": "#/$defs/stringList"},
+        "evidence_scope": {
+          "type": "object",
+          "properties": {
+            "git_tree": {"enum": ["candidate", "any"]},
+            "environment": {"type": "string", "minLength": 1}
+          },
+          "additionalProperties": false
+        },
+        "unavailable_proof": {"$ref": "#/$defs/stringList"},
+        "status": {
+          "enum": [
+            "verified",
+            "partially_verified",
+            "unverified",
+            "blocked_by_environment",
+            "blocked_by_requirement",
+            "not_applicable"
+          ]
+        },
+        "intended_acceptance_claims": {"$ref": "#/$defs/stringList"}
+      },
+      "additionalProperties": false
+    },
+    "evidence": {
+      "type": "object",
+      "required": [
+        "id",
+        "status",
+        "requirement_ids",
+        "establishes",
+        "does_not_establish",
+        "environment_scope"
+      ],
+      "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "status": {"enum": ["valid", "stale", "invalidated", "unavailable"]},
+        "requirement_ids": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/requirementId"},
+          "uniqueItems": true
+        },
+        "establishes": {"$ref": "#/$defs/stringList"},
+        "does_not_establish": {"$ref": "#/$defs/stringList"},
+        "environment_scope": {"type": "string", "minLength": 1},
+        "git_commit": {"type": ["string", "null"]},
+        "git_tree": {"type": ["string", "null"]}
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

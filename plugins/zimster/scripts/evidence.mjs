@@ -38,9 +38,21 @@ function writeLine(value, stream = process.stdout) {
 }
 
 function listOption(name) {
-  return options[name]
-    ? String(options[name]).split(',').map((value) => value.trim()).filter(Boolean)
-    : [];
+  if (!options[name]) return [];
+  const value = String(options[name]).trim();
+  if (value.startsWith('[')) {
+    let parsed;
+    try {
+      parsed = JSON.parse(value);
+    } catch {
+      throw new Error(`--${name} must be a comma-separated list or JSON array of strings`);
+    }
+    if (!Array.isArray(parsed) || !parsed.every((item) => typeof item === 'string' && item.trim())) {
+      throw new Error(`--${name} must be a comma-separated list or JSON array of strings`);
+    }
+    return parsed;
+  }
+  return value.split(',').map((item) => item.trim()).filter(Boolean);
 }
 
 function npmVersion() {
@@ -209,6 +221,12 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
     : ['true', '1', 'yes'].includes(String(explicitBehavior).toLowerCase());
   const recordedEnvironment = environment(options['host-version'] ? String(options['host-version']) : null);
   const dependencies = await canonicalInputIdentities(listOption('dependencies'), root);
+  const requirementIds = listOption('requirement-ids');
+  for (const id of requirementIds) {
+    if (!/^[A-Z][A-Z0-9]*-[0-9]{3,}$/.test(id)) {
+      throw new Error(`malformed requirement ID: ${id}`);
+    }
+  }
   const receipt = {
     schema_version: 2,
     path_identity_format: 'canonical-v1',
@@ -252,6 +270,12 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
     dependency_fingerprints: await fingerprintPathIdentities(dependencies),
     inputs,
     input_fingerprints: await fingerprintPathIdentities(inputs),
+    requirement_ids: requirementIds,
+    establishes: listOption('establishes'),
+    does_not_establish: listOption('does-not-establish'),
+    environment_scope: options['environment-scope']
+      ? String(options['environment-scope'])
+      : null,
     notes: options.notes ? String(options.notes) : null
   };
   validateReceipt(receipt);
