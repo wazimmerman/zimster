@@ -37,7 +37,8 @@
     "privacyPolicyURL": "https://github.com/wazimmerman/zimster/blob/main/PRIVACY.md",
     "termsOfServiceURL": "https://github.com/wazimmerman/zimster/blob/main/TERMS.md",
     "brandColor": "#F59E0B",
-    "composerIcon": "./assets/zimster.svg",
-    "screenshots": []
+    "composerIcon": "./assets/zimster-plugin-icon.png",
+    "screenshots": [],
+    "logo": "./assets/zimster-plugin-icon.png"
   }
 }
