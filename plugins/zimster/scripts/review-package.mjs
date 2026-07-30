@@ -5,7 +5,10 @@ import { parseOptions, writeLine } from './lib/cli.mjs';
 import { captureGitState, findRepoRoot, gitValue, runGit } from './lib/git-state.mjs';
 import { evidenceStalenessReason } from './lib/evidence-validity.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
-import { selectSemanticLenses } from './lib/semantic-assurance.mjs';
+import {
+  selectSemanticLenses,
+  semanticContractDigest
+} from './lib/semantic-assurance.mjs';
 
 const { options } = parseOptions(process.argv.slice(2));
 const root = findRepoRoot(process.cwd());
@@ -171,6 +174,15 @@ if (matrixFile) {
     )
   };
 }
+const semanticContract = bindingFile && matrixFile
+  ? {
+      schema_version: 1,
+      sha256: semanticContractDigest({
+        bindingRequirements: bindingFile.value.requirements,
+        matrix: matrixFile.value
+      })
+    }
+  : null;
 const riskSignals = listOption('risk-signals');
 const lenses = [...new Set([
   ...listOption('lenses'),
@@ -241,6 +253,7 @@ const identity = sha256(JSON.stringify({
   requirements: requirements?.sha256 || null,
   binding_requirements: bindingRequirements?.sha256 || null,
   requirement_matrix: requirementMatrix?.sha256 || null,
+  semantic_contract: semanticContract?.sha256 || null,
   lenses,
   risk_signals: riskSignals,
   intended_acceptance_claims: intendedAcceptanceClaims,
@@ -269,6 +282,7 @@ const reviewPackage = {
   requirements,
   binding_requirements: bindingRequirements,
   requirement_matrix: requirementMatrix,
+  semantic_contract: semanticContract,
   lenses,
   risk_signals: riskSignals,
   intended_acceptance_claims: intendedAcceptanceClaims,

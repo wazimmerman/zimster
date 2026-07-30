@@ -199,11 +199,16 @@ npm run assurance -- complete \
 The first command reports coverage and proof/claim blockers. The second also
 requires a clean current checkout and profile-appropriate review. Owner-inline
 inspection is `self_review`; Standard and High-risk need clean-context
-`independent_review` for the exact base/head, package ID, requirement-matrix
-hash, and required lens set. High-risk obligation records bind the candidate
-head/tree to nonempty evidence references; Micro uses `--micro-eligibility`
+`independent_review` for the exact base/head, package ID, stable
+semantic-contract digest, and required lens set. The contract digest covers
+binding meaning, intended claims, implementation locations, and evidence scope;
+mutable receipt references, statuses, observations, and verification results
+are validated separately. High-risk obligation records bind the candidate
+head/tree to evidence references that match the exact requirement ID and exact
+established claim; Micro uses `--micro-eligibility`
 with all risk dimensions Low, no hard trigger or public contract, and
-candidate-bound deterministic proof references. Boolean eligibility or
+candidate-bound deterministic proof references with the same exact
+requirement-and-claim linkage. Boolean eligibility or
 load-bearing switches are not accepted. Review unavailable produces
 `OWNER_VERIFIED_REVIEW_UNAVAILABLE` or another non-candidate state.
 

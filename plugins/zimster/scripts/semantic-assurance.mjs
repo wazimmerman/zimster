@@ -5,7 +5,8 @@ import { parseOptions, required, writeError, writeLine } from './lib/cli.mjs';
 import {
   COMPLETION_STATES,
   evaluateCandidateCompletion,
-  evaluateRequirementMatrix
+  evaluateRequirementMatrix,
+  semanticContractDigest
 } from './lib/semantic-assurance.mjs';
 import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
 import { evidenceStalenessReason } from './lib/evidence-validity.mjs';
@@ -77,6 +78,10 @@ async function evaluatedMatrix() {
   return {
     matrix: matrixDocument.value,
     matrixSha256: matrixDocument.sha256,
+    semanticContractSha256: semanticContractDigest({
+      bindingRequirements: requirements.requirements,
+      matrix: matrixDocument.value
+    }),
     checkout,
     result: evaluateRequirementMatrix({
       bindingRequirements: requirements.requirements,
@@ -100,7 +105,7 @@ async function matrixDecision() {
 async function completionDecision() {
   const {
     matrix,
-    matrixSha256,
+    semanticContractSha256,
     checkout,
     result: evaluatedResult
   } = await evaluatedMatrix();
@@ -139,8 +144,8 @@ async function completionDecision() {
     if (reviewPackage.head !== matrix.candidate_head) {
       packageIssues.push('review package head differs from the requirement matrix candidate');
     }
-    if (reviewPackage.requirement_matrix?.sha256 !== matrixSha256) {
-      packageIssues.push('review package requirement matrix identity differs from the current matrix');
+    if (reviewPackage.semantic_contract?.sha256 !== semanticContractSha256) {
+      packageIssues.push('review package semantic contract differs from the current contract');
     }
   }
   const finalMatrixResult = packageIssues.length
@@ -164,7 +169,7 @@ async function completionDecision() {
     candidateHead: matrix.candidate_head,
     candidateTree: matrix.candidate_tree,
     reviewPackageId: reviewPackage?.id,
-    requirementMatrixSha256: matrixSha256,
+    semanticContractSha256,
     requiredLenses: reviewPackage?.lenses || [],
     loadBearingReviewObligations: options['load-bearing-review-obligations']
       ? await jsonFile('load-bearing-review-obligations')

@@ -82,3 +82,15 @@ test('evidence schema accepts runtime scopes and requires semantic scope fields 
     assert.equal(versionTwoRule.then.required.includes(field), true);
   }
 });
+
+test('semantic review schema binds the stable semantic contract separately from matrix state', async () => {
+  const schema = JSON.parse(
+    await readFile(path.join(root, 'schemas/semantic-review.schema.json'), 'utf8')
+  );
+  assert.equal(schema.required.includes('requirement_matrix_sha256'), true);
+  assert.equal(schema.required.includes('semantic_contract_sha256'), true);
+  assert.deepEqual(schema.properties.semantic_contract_sha256, {
+    type: 'string',
+    pattern: '^[0-9a-f]{64}$'
+  });
+});

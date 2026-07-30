@@ -21,6 +21,7 @@
     "reviewed_at",
     "review_package_id",
     "requirement_matrix_sha256",
+    "semantic_contract_sha256",
     "checkout_integrity_result"
   ],
   "properties": {
@@ -65,6 +66,10 @@
     "reviewed_at": {"type": "string", "format": "date-time"},
     "review_package_id": {"type": "string", "minLength": 1},
     "requirement_matrix_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "semantic_contract_sha256": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
     },

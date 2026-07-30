@@ -32,7 +32,12 @@ Report the selected profile and rationale.
 
 Owner-inline inspection is `self_review`; it cannot satisfy Standard or
 High-risk `independent_review`. Approval applies only to the exact candidate
-base/head, review-package ID, requirement-matrix hash, and required lens set.
+base/head, review-package ID, stable semantic-contract digest, and required
+lens set. The digest covers binding text, intended claims, implementation
+locations, and evidence scope, but excludes mutable evidence references,
+statuses, observations, and verification results. Final evidence may advance
+without invalidating approval when that contract and the candidate are
+unchanged.
 If review is unavailable, use `OWNER_VERIFIED_REVIEW_UNAVAILABLE`, never
 approval. `CANDIDATE_COMPLETE` requires the profile-appropriate semantic
 approval and complete matrix evidence. High-risk work requires all

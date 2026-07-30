@@ -154,15 +154,20 @@ Semantic review records distinguish `self_review` from `independent_review`.
 Owner-inline work is always self-review. A review package binds the immutable
 base/head, complete canonical snapshot, relevant unchanged interfaces, matrix,
 evidence state, claims, unavailable proof, and selected lenses. Review attempts
-to falsify those claims.
+to falsify those claims. Approval binds a stable semantic-contract digest over
+binding text, intended claims, implementation locations, and evidence scope.
+Mutable receipt references, statuses, observations, and verification results
+remain separately validated so final proof can advance without invalidating an
+unchanged reviewed contract.
 
 Checkout integrity is orthogonal: `REVIEW_CHECKOUT_UNCHANGED`,
 `REVIEW_CHECKOUT_CHANGED`, and `REVIEW_CHECKOUT_UNVERIFIED` describe only the
 review checkout. Eligible Micro work may complete owner-only. Standard and
 High-risk completion requires clean-context independent approval for the exact
 head; High risk also requires load-bearing obligations and final integration
-approval. Missing review/proof yields an honest partial or blocked state, never
-`CANDIDATE_COMPLETE`.
+approval. Micro and load-bearing proof references must support the exact named
+requirement ID and established claim. Missing review/proof yields an honest
+partial or blocked state, never `CANDIDATE_COMPLETE`.
 
 ## Model-routing model
 

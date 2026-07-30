@@ -9,6 +9,27 @@ import { root } from './helpers.mjs';
 
 const CLEAN_FINGERPRINT = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
+function semanticContractSha256(bindingRequirements, matrix) {
+  const byId = (left, right) => left.id.localeCompare(right.id);
+  return createHash('sha256').update(JSON.stringify({
+    schema_version: 1,
+    binding_requirements: bindingRequirements.requirements
+      .map(({ id, text }) => ({ id, text }))
+      .sort(byId),
+    requirements: matrix.requirements.map((entry) => ({
+      id: entry.id,
+      authoritative_text: entry.authoritative_text,
+      source: entry.source,
+      implementation_locations: [...entry.implementation_locations].sort(),
+      evidence_scope: {
+        git_tree: entry.evidence_scope?.git_tree || null,
+        environment: entry.evidence_scope?.environment || null
+      },
+      intended_acceptance_claims: [...entry.intended_acceptance_claims].sort()
+    })).sort(byId)
+  })).digest('hex');
+}
+
 function run(args, cwd = root) {
   return spawnSync(process.execPath, [
     path.join(root, 'scripts/semantic-assurance.mjs'),
@@ -110,11 +131,11 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
     const evidencePath = path.join(directory, 'receipts.jsonl');
     const reviewsPath = path.join(directory, 'reviews.json');
     const reviewPackagePath = path.join(directory, 'review-package.json');
-    await writeFile(requirementsPath, JSON.stringify({
+    const bindingRequirements = {
       schema_version: 1,
       requirements: [{ id: 'GATE-001', text: 'Gate candidate completion.' }]
-    }));
-    await writeFile(matrixPath, JSON.stringify({
+    };
+    const requirementMatrix = {
       schema_version: 1,
       candidate_head: candidateHead,
       candidate_tree: candidateTree,
@@ -130,10 +151,13 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
         intended_acceptance_claims: ['Candidate completion is gated.']
       }],
       observations: []
-    }));
+    };
+    await writeFile(requirementsPath, JSON.stringify(bindingRequirements));
+    await writeFile(matrixPath, JSON.stringify(requirementMatrix));
     const matrixSha256 = createHash('sha256')
       .update(await import('node:fs/promises').then(({ readFile }) => readFile(matrixPath)))
       .digest('hex');
+    const contractSha256 = semanticContractSha256(bindingRequirements, requirementMatrix);
     await writeFile(evidencePath, `${JSON.stringify({
       schema_version: 2,
       id: 'receipt-1',
@@ -168,6 +192,7 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
         reviewed_at: '2026-07-30T12:00:00.000Z',
         review_package_id: 'package-001',
         requirement_matrix_sha256: matrixSha256,
+        semantic_contract_sha256: contractSha256,
         checkout_integrity_result: 'REVIEW_CHECKOUT_UNCHANGED'
       }]
     }));
@@ -181,6 +206,7 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
         candidate_head: candidateHead,
         candidate_tree: candidateTree
       },
+      semantic_contract: { sha256: contractSha256 },
       lenses: ['mission-scope']
     }));
 
@@ -199,6 +225,31 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
     assert.equal(decision.state, 'CANDIDATE_COMPLETE');
     assert.deepEqual(decision.allowed_claims, ['Candidate completion is gated.']);
     assert.match(result.stderr, /CANDIDATE_COMPLETE.*review=review-001/i);
+
+    requirementMatrix.observations.push({
+      id: 'final-evidence-state',
+      status: 'valid',
+      requirement_ids: ['GATE-001'],
+      establishes: ['Candidate completion is gated.'],
+      does_not_establish: [],
+      environment_scope: 'node-linux',
+      git_commit: candidateHead,
+      git_tree: candidateTree,
+      dirty_tree_fingerprint: CLEAN_FINGERPRINT
+    });
+    await writeFile(matrixPath, JSON.stringify(requirementMatrix));
+    result = run([
+      'complete',
+      '--profile', 'standard',
+      '--owner-verified',
+      '--requirements', requirementsPath,
+      '--matrix', matrixPath,
+      '--evidence', evidencePath,
+      '--reviews', reviewsPath,
+      '--review-package', reviewPackagePath
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(JSON.parse(result.stdout).state, 'CANDIDATE_COMPLETE');
 
     await writeFile(path.join(repo, 'tracked.txt'), 'corrected\n');
     assert.equal(spawnSync('git', ['add', 'tracked.txt'], { cwd: repo }).status, 0);
@@ -222,7 +273,7 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
   }
 });
 
-test('completion CLI rejects a review that is not bound to its exact package and matrix', async () => {
+test('completion CLI rejects a review that is not bound to its exact package and semantic contract', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'zimster-package-binding-cli-'));
   try {
     const repo = path.join(directory, 'repo');
@@ -267,6 +318,10 @@ test('completion CLI rejects a review that is not bound to its exact package and
     }));
     const matrixBytes = await import('node:fs/promises').then(({ readFile }) => readFile(matrixPath));
     const matrixSha256 = createHash('sha256').update(matrixBytes).digest('hex');
+    const contractSha256 = semanticContractSha256(
+      JSON.parse(await import('node:fs/promises').then(({ readFile }) => readFile(requirementsPath))),
+      JSON.parse(matrixBytes)
+    );
     await writeFile(evidencePath, `${JSON.stringify({
       schema_version: 2,
       id: 'receipt-1',
@@ -301,6 +356,7 @@ test('completion CLI rejects a review that is not bound to its exact package and
         reviewed_at: '2026-07-30T12:00:00.000Z',
         review_package_id: 'stale-package',
         requirement_matrix_sha256: matrixSha256,
+        semantic_contract_sha256: contractSha256,
         checkout_integrity_result: 'REVIEW_CHECKOUT_UNCHANGED'
       }]
     }));
@@ -310,6 +366,7 @@ test('completion CLI rejects a review that is not bound to its exact package and
       base: 'a'.repeat(40),
       head: candidateHead,
       requirement_matrix: { sha256: matrixSha256 },
+      semantic_contract: { sha256: contractSha256 },
       lenses: ['mission-scope']
     }));
     const result = run([

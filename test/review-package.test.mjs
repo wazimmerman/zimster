@@ -125,6 +125,7 @@ test('review package keeps authoritative changes and hashes generated mirrors wi
     ]);
     assert.deepEqual(review.binding_requirements.requirement_ids, ['REVIEW-001']);
     assert.equal(review.requirement_matrix.candidate_head, head);
+    assert.match(review.semantic_contract.sha256, /^[0-9a-f]{64}$/);
     assert.deepEqual(review.intended_acceptance_claims, [
       'Semantic review inputs are complete.'
     ]);
@@ -172,6 +173,41 @@ test('review package keeps authoritative changes and hashes generated mirrors wi
     assert.equal(
       correctedPackage.evidence.find(({ id }) => id === receipt.id).status,
       'stale'
+    );
+    assert.equal(
+      correctedPackage.semantic_contract.sha256,
+      review.semantic_contract.sha256
+    );
+
+    const changedMatrix = JSON.parse(await readFile(matrix, 'utf8'));
+    changedMatrix.requirements[0].intended_acceptance_claims = [
+      'A changed semantic acceptance claim.'
+    ];
+    changedMatrix.requirements[0].implementation_locations = [
+      'scripts/different-contract.mjs'
+    ];
+    await writeFile(matrix, JSON.stringify(changedMatrix));
+    const changedContract = run(process.execPath, [
+      path.join(root, 'scripts/review-package.mjs'),
+      '--base', base,
+      '--head', head,
+      '--requirements', requirements,
+      '--binding-requirements', bindingRequirements,
+      '--matrix', matrix,
+      '--interfaces', 'interface.json',
+      '--lenses', 'mission,state-authority',
+      '--risk-signals', 'build-tool,shared-adapter-control-flow',
+      '--intended-claims', JSON.stringify(['A changed semantic acceptance claim.']),
+      '--unavailable-proof', JSON.stringify(['Independent review pending.']),
+      '--requested-state', 'CANDIDATE_COMPLETE'
+    ], repo);
+    assert.equal(changedContract.status, 0, changedContract.stderr || changedContract.stdout);
+    const changedContractPackage = JSON.parse(
+      await readFile(JSON.parse(changedContract.stdout).package, 'utf8')
+    );
+    assert.notEqual(
+      changedContractPackage.semantic_contract.sha256,
+      review.semantic_contract.sha256
     );
   } finally {
     await rm(repo, { recursive: true, force: true });

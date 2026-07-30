@@ -5,6 +5,7 @@ import {
   evaluateCandidateCompletion,
   evaluateRequirementMatrix,
   independentApprovalFor,
+  semanticContractDigest,
   selectSemanticLenses,
   validateReviewRecord
 } from '../scripts/lib/semantic-assurance.mjs';
@@ -13,6 +14,7 @@ const SHA_A = 'a'.repeat(40);
 const SHA_B = 'b'.repeat(40);
 const TREE = 'c'.repeat(40);
 const MATRIX_SHA = 'd'.repeat(64);
+const CONTRACT_SHA = 'e'.repeat(64);
 const CLEAN_FINGERPRINT = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 const REQUIRED_LENSES = ['mission-scope', 'test-falsifiability'];
 
@@ -27,7 +29,7 @@ function review(overrides = {}) {
     reviewer_identity: 'reviewer-1',
     dispatch_record_id: null,
     clean_bounded_context: true,
-    reviewed_requirement_ids: ['ASSURANCE-001'],
+    reviewed_requirement_ids: ['ASSURANCE-001', 'GATE-001', 'GATE-002'],
     intended_claims: ['Independent review is required for Standard work.'],
     semantic_lenses: ['mission-scope'],
     review_scope: 'integration',
@@ -37,6 +39,7 @@ function review(overrides = {}) {
     reviewed_at: '2026-07-30T12:00:00.000Z',
     review_package_id: 'package-001',
     requirement_matrix_sha256: MATRIX_SHA,
+    semantic_contract_sha256: CONTRACT_SHA,
     checkout_integrity_result: 'REVIEW_CHECKOUT_UNCHANGED',
     ...overrides
   };
@@ -48,7 +51,7 @@ function approvalOptions(overrides = {}) {
     candidateBase: SHA_A,
     candidateHead: SHA_B,
     reviewPackageId: 'package-001',
-    requirementMatrixSha256: MATRIX_SHA,
+    semanticContractSha256: CONTRACT_SHA,
     requiredLenses: REQUIRED_LENSES,
     reviews: [review({ semantic_lenses: REQUIRED_LENSES })],
     bindingRequirementIds: ['ASSURANCE-001'],
@@ -66,6 +69,12 @@ test('owner-inline review must be labeled self_review', () => {
     owner_inline: true,
     review_type: 'self_review'
   })));
+  const missingContract = review();
+  delete missingContract.semantic_contract_sha256;
+  assert.throws(
+    () => validateReviewRecord(missingContract),
+    /semantic_contract_sha256/
+  );
 });
 
 test('self-review never satisfies Standard or High-risk independent review', () => {
@@ -122,11 +131,11 @@ test('unchanged checkout is not semantic approval', () => {
   );
 });
 
-test('approval is bound to the exact base, package, matrix, and required lenses', () => {
+test('approval is bound to the exact base, package, semantic contract, and required lenses', () => {
   for (const [field, value, expected] of [
-    ['candidateBase', 'e'.repeat(40), /base/i],
+    ['candidateBase', 'f'.repeat(40), /base/i],
     ['reviewPackageId', 'package-002', /package/i],
-    ['requirementMatrixSha256', 'f'.repeat(64), /matrix/i]
+    ['semanticContractSha256', 'f'.repeat(64), /semantic contract/i]
   ]) {
     const result = independentApprovalFor(approvalOptions({ [field]: value }));
     assert.equal(result.approved, false);
@@ -137,6 +146,67 @@ test('approval is bound to the exact base, package, matrix, and required lenses'
   }));
   assert.equal(result.approved, false);
   assert.match(result.reason, /lens/i);
+});
+
+test('mutable matrix evidence state does not invalidate an unchanged reviewed semantic contract', () => {
+  assert.deepEqual(
+    independentApprovalFor(approvalOptions({
+      reviews: [review({
+        requirement_matrix_sha256: 'f'.repeat(64),
+        semantic_lenses: REQUIRED_LENSES
+      })]
+    })),
+    {
+      approved: true,
+      state: COMPLETION_STATES.SEMANTIC_REVIEW_APPROVED,
+      reviewId: 'review-001'
+    }
+  );
+});
+
+test('semantic contract digest ignores proof state but changes with binding meaning', () => {
+  const bindingRequirements = binding('GATE-001');
+  const matrix = {
+    schema_version: 1,
+    candidate_head: SHA_B,
+    candidate_tree: TREE,
+    requirements: [matrixEntry('GATE-001')],
+    observations: []
+  };
+  const digest = semanticContractDigest({ bindingRequirements, matrix });
+  const mutableProofState = structuredClone(matrix);
+  mutableProofState.requirements[0].status = 'partially_verified';
+  mutableProofState.requirements[0].evidence_refs = ['later-final-receipt'];
+  mutableProofState.requirements[0].unavailable_proof = ['Final proof pending.'];
+  mutableProofState.observations.push({ id: 'later-final-observation' });
+  assert.equal(
+    semanticContractDigest({ bindingRequirements, matrix: mutableProofState }),
+    digest
+  );
+  assert.notEqual(
+    semanticContractDigest({
+      bindingRequirements: [{ id: 'GATE-001', text: 'Changed binding requirement.' }],
+      matrix
+    }),
+    digest
+  );
+  const changedClaim = structuredClone(matrix);
+  changedClaim.requirements[0].intended_acceptance_claims = ['Changed claim.'];
+  assert.notEqual(
+    semanticContractDigest({ bindingRequirements, matrix: changedClaim }),
+    digest
+  );
+  const changedImplementationContract = structuredClone(matrix);
+  changedImplementationContract.requirements[0].implementation_locations = [
+    'scripts/changed-contract.mjs'
+  ];
+  assert.notEqual(
+    semanticContractDigest({
+      bindingRequirements,
+      matrix: changedImplementationContract
+    }),
+    digest
+  );
 });
 
 function binding(...ids) {
@@ -300,8 +370,22 @@ test('evidence from a dirty checkout cannot prove the committed candidate tree',
 
 const COMPLETE_MATRIX = Object.freeze({
   valid: true,
-  binding_requirement_ids: ['ASSURANCE-001'],
-  valid_evidence_ids: ['evidence-ASSURANCE-001'],
+  binding_requirement_ids: ['ASSURANCE-001', 'GATE-001', 'GATE-002'],
+  valid_evidence_ids: ['evidence-micro', 'evidence-load-bearing'],
+  evidence_support: [
+    {
+      id: 'evidence-micro',
+      requirement_ids: ['GATE-001'],
+      establishes: ['Micro eligibility is deterministically established.'],
+      does_not_establish: []
+    },
+    {
+      id: 'evidence-load-bearing',
+      requirement_ids: ['GATE-002'],
+      establishes: ['High-risk load-bearing architecture is satisfied.'],
+      does_not_establish: []
+    }
+  ],
   counts: {
     verified: 1,
     partially_verified: 0,
@@ -331,7 +415,9 @@ function microEligibility(overrides = {}) {
     coherent_slice: true,
     public_contract: false,
     hard_triggers: [],
-    deterministic_proof_refs: ['evidence-ASSURANCE-001'],
+    requirement_id: 'GATE-001',
+    claim: 'Micro eligibility is deterministically established.',
+    deterministic_proof_refs: ['evidence-micro'],
     ...overrides
   };
 }
@@ -343,8 +429,10 @@ function loadBearingObligations(overrides = {}) {
     candidate_tree: TREE,
     obligations: [{
       id: 'load-bearing-architecture',
+      requirement_id: 'GATE-002',
+      claim: 'High-risk load-bearing architecture is satisfied.',
       status: 'satisfied',
-      evidence_refs: ['evidence-ASSURANCE-001']
+      evidence_refs: ['evidence-load-bearing']
     }],
     ...overrides
   };
@@ -375,7 +463,9 @@ test('Micro completion rejects boolean self-attestation and stale eligibility re
     { microEligibility: microEligibility({
       dimensions: { ...microEligibility().dimensions, novelty: 'medium' }
     }) },
-    { microEligibility: microEligibility({ deterministic_proof_refs: ['missing'] }) }
+    { microEligibility: microEligibility({ deterministic_proof_refs: ['missing'] }) },
+    { microEligibility: microEligibility({ requirement_id: 'GATE-002' }) },
+    { microEligibility: microEligibility({ claim: 'A different or narrower claim.' }) }
   ]) {
     const result = evaluateCandidateCompletion({
       profile: 'micro',
@@ -407,7 +497,7 @@ test('Standard and High-risk work with only self-review remain review pending', 
       candidateTree: TREE,
       candidateBase: SHA_A,
       reviewPackageId: 'package-001',
-      requirementMatrixSha256: MATRIX_SHA,
+      semanticContractSha256: CONTRACT_SHA,
       requiredLenses: REQUIRED_LENSES,
       loadBearingReviewObligations: loadBearingObligations()
     });
@@ -430,7 +520,7 @@ test('complete Standard proof and exact independent approval reach candidate com
     candidateTree: TREE,
     candidateBase: SHA_A,
     reviewPackageId: 'package-001',
-    requirementMatrixSha256: MATRIX_SHA,
+    semanticContractSha256: CONTRACT_SHA,
     requiredLenses: REQUIRED_LENSES
   }), {
     state: COMPLETION_STATES.CANDIDATE_COMPLETE,
@@ -456,7 +546,7 @@ test('missing or stale matrix proof blocks candidate completion', () => {
     candidateTree: TREE,
     candidateBase: SHA_A,
     reviewPackageId: 'package-001',
-    requirementMatrixSha256: MATRIX_SHA,
+    semanticContractSha256: CONTRACT_SHA,
     requiredLenses: REQUIRED_LENSES
   });
   assert.equal(result.state, COMPLETION_STATES.BLOCKED_BY_MISSING_EVIDENCE);
@@ -474,7 +564,7 @@ test('approval for an older head cannot approve a corrected candidate', () => {
     candidateTree: TREE,
     candidateBase: SHA_A,
     reviewPackageId: 'package-001',
-    requirementMatrixSha256: MATRIX_SHA,
+    semanticContractSha256: CONTRACT_SHA,
     requiredLenses: REQUIRED_LENSES
   });
   assert.equal(result.state, COMPLETION_STATES.REVIEW_PENDING);
@@ -523,7 +613,7 @@ test('High-risk work fails closed when load-bearing review obligations are not r
     candidateTree: TREE,
     candidateBase: SHA_A,
     reviewPackageId: 'package-001',
-    requirementMatrixSha256: MATRIX_SHA,
+    semanticContractSha256: CONTRACT_SHA,
     requiredLenses: REQUIRED_LENSES
   });
   assert.equal(result.state, COMPLETION_STATES.REVIEW_PENDING);
@@ -542,8 +632,32 @@ test('High-risk completion rejects boolean or stale load-bearing attestations', 
       loadBearingReviewObligations: loadBearingObligations({
         obligations: [{
           id: 'load-bearing-architecture',
+          requirement_id: 'GATE-002',
+          claim: 'High-risk load-bearing architecture is satisfied.',
           status: 'satisfied',
           evidence_refs: ['missing']
+        }]
+      })
+    },
+    {
+      loadBearingReviewObligations: loadBearingObligations({
+        obligations: [{
+          id: 'load-bearing-architecture',
+          requirement_id: 'GATE-001',
+          claim: 'High-risk load-bearing architecture is satisfied.',
+          status: 'satisfied',
+          evidence_refs: ['evidence-load-bearing']
+        }]
+      })
+    },
+    {
+      loadBearingReviewObligations: loadBearingObligations({
+        obligations: [{
+          id: 'load-bearing-architecture',
+          requirement_id: 'GATE-002',
+          claim: 'A different or narrower claim.',
+          status: 'satisfied',
+          evidence_refs: ['evidence-load-bearing']
         }]
       })
     }
@@ -561,7 +675,7 @@ test('High-risk completion rejects boolean or stale load-bearing attestations', 
       candidateTree: TREE,
       candidateBase: SHA_A,
       reviewPackageId: 'package-001',
-      requirementMatrixSha256: MATRIX_SHA,
+      semanticContractSha256: CONTRACT_SHA,
       requiredLenses: REQUIRED_LENSES
     });
     assert.equal(result.state, COMPLETION_STATES.REVIEW_PENDING);

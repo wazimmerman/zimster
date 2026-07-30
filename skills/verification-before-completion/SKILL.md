@@ -116,10 +116,13 @@ supplied with `--micro-eligibility <eligibility.json>`. The record binds the
 exact candidate head/tree, all-Low risk dimensions, no public contract or hard
 trigger, and nonempty deterministic evidence references. Standard and
 High-risk work require `independent_review` for the exact candidate base/head,
-review-package ID, matrix hash, and required lenses; High-risk also requires a
-candidate-bound load-bearing obligation record with evidence references and
-final integration review. Boolean self-attestations are rejected. Owner-inline
-review is `self_review`. Checkout
+review-package ID, stable semantic-contract digest, and required lenses;
+High-risk also requires a candidate-bound load-bearing obligation record with
+evidence references and final integration review. Every eligibility or
+obligation reference must name evidence that explicitly supports the record's
+exact requirement ID and exact claim; a fresh receipt for another requirement
+or a narrower claim is rejected. Boolean self-attestations are rejected.
+Owner-inline review is `self_review`. Checkout
 integrity (`REVIEW_CHECKOUT_UNCHANGED` or `REVIEW_CHECKOUT_CHANGED`) never
 implies semantic approval.
 

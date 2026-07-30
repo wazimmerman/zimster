@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const CLEAN_DIRTY_TREE_FINGERPRINT = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
@@ -33,6 +35,32 @@ export const COMPLETION_STATES = Object.freeze({
   BLOCKED_BY_MISSING_EVIDENCE: 'BLOCKED_BY_MISSING_EVIDENCE'
 });
 
+export function semanticContractDigest({ bindingRequirements, matrix }) {
+  const bindings = Array.isArray(bindingRequirements) ? bindingRequirements : [];
+  const requirements = Array.isArray(matrix?.requirements) ? matrix.requirements : [];
+  const byId = (left, right) => String(left.id).localeCompare(String(right.id));
+  const contract = {
+    schema_version: 1,
+    binding_requirements: bindings
+      .map(({ id, text }) => ({ id, text }))
+      .sort(byId),
+    requirements: requirements.map((entry) => ({
+      id: entry.id,
+      authoritative_text: entry.authoritative_text,
+      source: entry.source,
+      implementation_locations: [...(entry.implementation_locations || [])].sort(),
+      evidence_scope: {
+        git_tree: entry.evidence_scope?.git_tree || null,
+        environment: entry.evidence_scope?.environment || null
+      },
+      intended_acceptance_claims: [
+        ...(entry.intended_acceptance_claims || [])
+      ].sort()
+    })).sort(byId)
+  };
+  return createHash('sha256').update(JSON.stringify(contract)).digest('hex');
+}
+
 function requireString(record, field) {
   if (typeof record[field] !== 'string' || !record[field].trim()) {
     throw new Error(`review record requires ${field}`);
@@ -52,6 +80,9 @@ export function validateReviewRecord(record) {
   for (const field of ['id', 'review_package_id']) requireString(record, field);
   if (!SHA256_PATTERN.test(record.requirement_matrix_sha256 || '')) {
     throw new Error('review record requires requirement_matrix_sha256');
+  }
+  if (!SHA256_PATTERN.test(record.semantic_contract_sha256 || '')) {
+    throw new Error('review record requires semantic_contract_sha256');
   }
   for (const field of ['base_sha', 'head_sha']) {
     if (!SHA_PATTERN.test(record[field] || '')) {
@@ -93,7 +124,7 @@ export function independentApprovalFor({
   candidateBase,
   candidateHead,
   reviewPackageId,
-  requirementMatrixSha256,
+  semanticContractSha256,
   requiredLenses = [],
   reviews,
   bindingRequirementIds = [],
@@ -105,8 +136,8 @@ export function independentApprovalFor({
   if (!SHA_PATTERN.test(candidateBase || '')) {
     throw new Error('independentApprovalFor requires an immutable candidate base');
   }
-  if (!reviewPackageId || !SHA256_PATTERN.test(requirementMatrixSha256 || '')) {
-    throw new Error('independentApprovalFor requires the current package and matrix identity');
+  if (!reviewPackageId || !SHA256_PATTERN.test(semanticContractSha256 || '')) {
+    throw new Error('independentApprovalFor requires the review package and semantic contract identity');
   }
   if (!Array.isArray(requiredLenses) || !requiredLenses.length) {
     throw new Error('independentApprovalFor requires semantic lenses from the review package');
@@ -152,17 +183,17 @@ export function independentApprovalFor({
       reason: 'independent review does not cover the current review package'
     };
   }
-  const exactMatrixReviews = exactPackageReviews.filter(
-    (record) => record.requirement_matrix_sha256 === requirementMatrixSha256
+  const exactContractReviews = exactPackageReviews.filter(
+    (record) => record.semantic_contract_sha256 === semanticContractSha256
   );
-  if (!exactMatrixReviews.length) {
+  if (!exactContractReviews.length) {
     return {
       approved: false,
       state: COMPLETION_STATES.REVIEW_PENDING,
-      reason: 'independent review does not cover the current requirement matrix'
+      reason: 'independent review does not cover the current semantic contract'
     };
   }
-  const review = exactMatrixReviews.at(-1);
+  const review = exactContractReviews.at(-1);
   if (review.verdict !== 'approved') {
     return {
       approved: false,
@@ -269,6 +300,7 @@ export function evaluateRequirementMatrix({
   const unverified = [];
   const allowedClaims = new Set();
   const validEvidenceIds = new Set();
+  const evidenceSupport = new Map();
   const counts = Object.fromEntries(REQUIREMENT_STATES.map((state) => [state, 0]));
   if (!matrix || matrix.schema_version !== 1) issues.push('matrix schema_version must be 1');
   if (!SHA_PATTERN.test(matrix?.candidate_head || '')) {
@@ -334,6 +366,12 @@ export function evaluateRequirementMatrix({
       } else {
         usableEvidence.push(item);
         validEvidenceIds.add(item.id);
+        evidenceSupport.set(item.id, {
+          id: item.id,
+          requirement_ids: [...(item.requirement_ids || [])].sort(),
+          establishes: [...(item.establishes || [])].sort(),
+          does_not_establish: [...(item.does_not_establish || [])].sort()
+        });
       }
     }
     if (entry.status === 'verified') {
@@ -380,6 +418,9 @@ export function evaluateRequirementMatrix({
     valid: issues.length === 0 && unverified.length === 0,
     binding_requirement_ids: [...bindingIds].sort(),
     valid_evidence_ids: [...validEvidenceIds].sort(),
+    evidence_support: [...evidenceSupport.values()].sort((left, right) =>
+      left.id.localeCompare(right.id)
+    ),
     counts,
     allowed_claims: [...allowedClaims].sort(),
     unverified_obligations: [...new Set(unverified)].sort(),
@@ -387,11 +428,24 @@ export function evaluateRequirementMatrix({
   };
 }
 
-function proofRefsAreValid(references, matrixResult) {
-  const valid = new Set(matrixResult?.valid_evidence_ids || []);
+function proofRefsSupport(references, requirementId, claim, matrixResult) {
+  const bindings = new Set(matrixResult?.binding_requirement_ids || []);
+  const support = new Map(
+    (matrixResult?.evidence_support || []).map((item) => [item.id, item])
+  );
   return Array.isArray(references)
     && references.length > 0
-    && references.every((reference) => valid.has(reference));
+    && typeof requirementId === 'string'
+    && bindings.has(requirementId)
+    && typeof claim === 'string'
+    && claim.trim()
+    && references.every((reference) => {
+      const item = support.get(reference);
+      return item
+        && item.requirement_ids.includes(requirementId)
+        && item.establishes.includes(claim)
+        && !item.does_not_establish.includes(claim);
+    });
 }
 
 function validMicroEligibility(record, candidateHead, candidateTree, matrixResult) {
@@ -411,7 +465,12 @@ function validMicroEligibility(record, candidateHead, candidateTree, matrixResul
     && Array.isArray(record.hard_triggers)
     && record.hard_triggers.length === 0
     && dimensions.every((dimension) => record.dimensions?.[dimension] === 'low')
-    && proofRefsAreValid(record.deterministic_proof_refs, matrixResult);
+    && proofRefsSupport(
+      record.deterministic_proof_refs,
+      record.requirement_id,
+      record.claim,
+      matrixResult
+    );
 }
 
 function validLoadBearingObligations(record, candidateHead, candidateTree, matrixResult) {
@@ -424,7 +483,12 @@ function validLoadBearingObligations(record, candidateHead, candidateTree, matri
       typeof obligation?.id === 'string'
       && obligation.id.trim()
       && obligation.status === 'satisfied'
-      && proofRefsAreValid(obligation.evidence_refs, matrixResult)
+      && proofRefsSupport(
+        obligation.evidence_refs,
+        obligation.requirement_id,
+        obligation.claim,
+        matrixResult
+      )
     );
 }
 
@@ -439,7 +503,7 @@ export function evaluateCandidateCompletion({
   candidateHead,
   candidateTree,
   reviewPackageId,
-  requirementMatrixSha256,
+  semanticContractSha256,
   requiredLenses = [],
   loadBearingReviewObligations = null,
   correctionPending = false
@@ -520,7 +584,7 @@ export function evaluateCandidateCompletion({
     candidateBase,
     candidateHead,
     reviewPackageId,
-    requirementMatrixSha256,
+    semanticContractSha256,
     requiredLenses,
     reviews,
     bindingRequirementIds: matrixResult.binding_requirement_ids || [],
