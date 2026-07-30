@@ -183,9 +183,15 @@ test('risk lenses cover framework defaults and shared control flow', async () =>
   assert.match(review, /plugin system/i);
   assert.match(review, /inherited project configuration/i);
   assert.match(review, /generated.*user-managed topology/i);
+  assert.match(review, /alternate location/i);
+  assert.match(review, /working director/i);
   assert.match(review, /shared-control-flow/);
   assert.match(review, /shared adapter|shared provider/i);
   assert.match(review, /common.*specialized/i);
+  assert.match(review, /early[- ]return.*bypass/is);
+  assert.match(review, /specialized setup.*order/is);
+  assert.match(review, /fallback.*mask/is);
+  assert.match(review, /specialized[- ]contract.*suppress/is);
 });
 
 test('review packages falsify claims and corrections invalidate affected approval', async () => {

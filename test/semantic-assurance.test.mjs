@@ -11,7 +11,10 @@ import {
 
 const SHA_A = 'a'.repeat(40);
 const SHA_B = 'b'.repeat(40);
+const TREE = 'c'.repeat(40);
+const MATRIX_SHA = 'd'.repeat(64);
 const CLEAN_FINGERPRINT = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+const REQUIRED_LENSES = ['mission-scope', 'test-falsifiability'];
 
 function review(overrides = {}) {
   return {
@@ -33,7 +36,23 @@ function review(overrides = {}) {
     unverified_obligations: [],
     reviewed_at: '2026-07-30T12:00:00.000Z',
     review_package_id: 'package-001',
+    requirement_matrix_sha256: MATRIX_SHA,
     checkout_integrity_result: 'REVIEW_CHECKOUT_UNCHANGED',
+    ...overrides
+  };
+}
+
+function approvalOptions(overrides = {}) {
+  return {
+    profile: 'standard',
+    candidateBase: SHA_A,
+    candidateHead: SHA_B,
+    reviewPackageId: 'package-001',
+    requirementMatrixSha256: MATRIX_SHA,
+    requiredLenses: REQUIRED_LENSES,
+    reviews: [review({ semantic_lenses: REQUIRED_LENSES })],
+    bindingRequirementIds: ['ASSURANCE-001'],
+    intendedClaims: ['Independent review is required for Standard work.'],
     ...overrides
   };
 }
@@ -58,11 +77,10 @@ test('self-review never satisfies Standard or High-risk independent review', () 
   for (const profile of ['standard', 'high-risk']) {
     assert.deepEqual(
       independentApprovalFor({
-        profile,
-        candidateHead: SHA_B,
-        reviews: [selfReview],
-        bindingRequirementIds: ['ASSURANCE-001'],
-        intendedClaims: selfReview.intended_claims
+        ...approvalOptions({
+          profile,
+          reviews: [selfReview]
+        }),
       }),
       {
         approved: false,
@@ -76,11 +94,7 @@ test('self-review never satisfies Standard or High-risk independent review', () 
 test('approved clean-context independent review satisfies the exact Standard candidate', () => {
   assert.deepEqual(
     independentApprovalFor({
-      profile: 'standard',
-      candidateHead: SHA_B,
-      reviews: [review()],
-      bindingRequirementIds: ['ASSURANCE-001'],
-      intendedClaims: ['Independent review is required for Standard work.']
+      ...approvalOptions()
     }),
     {
       approved: true,
@@ -93,11 +107,12 @@ test('approved clean-context independent review satisfies the exact Standard can
 test('unchanged checkout is not semantic approval', () => {
   assert.deepEqual(
     independentApprovalFor({
-      profile: 'standard',
-      candidateHead: SHA_B,
-      reviews: [review({ verdict: 'blocked_by_missing_evidence' })],
-      bindingRequirementIds: ['ASSURANCE-001'],
-      intendedClaims: ['Independent review is required for Standard work.']
+      ...approvalOptions({
+        reviews: [review({
+          verdict: 'blocked_by_missing_evidence',
+          semantic_lenses: REQUIRED_LENSES
+        })]
+      })
     }),
     {
       approved: false,
@@ -105,6 +120,23 @@ test('unchanged checkout is not semantic approval', () => {
       reason: 'independent review verdict is blocked_by_missing_evidence'
     }
   );
+});
+
+test('approval is bound to the exact base, package, matrix, and required lenses', () => {
+  for (const [field, value, expected] of [
+    ['candidateBase', 'e'.repeat(40), /base/i],
+    ['reviewPackageId', 'package-002', /package/i],
+    ['requirementMatrixSha256', 'f'.repeat(64), /matrix/i]
+  ]) {
+    const result = independentApprovalFor(approvalOptions({ [field]: value }));
+    assert.equal(result.approved, false);
+    assert.match(result.reason, expected);
+  }
+  const result = independentApprovalFor(approvalOptions({
+    requiredLenses: [...REQUIRED_LENSES, 'shared-control-flow']
+  }));
+  assert.equal(result.approved, false);
+  assert.match(result.reason, /lens/i);
 });
 
 function binding(...ids) {
@@ -138,7 +170,7 @@ function scopedEvidence(id, overrides = {}) {
     does_not_establish: [],
     environment_scope: 'node-linux',
     git_commit: SHA_B,
-    git_tree: 'c'.repeat(40),
+    git_tree: TREE,
     dirty_tree_fingerprint: CLEAN_FINGERPRINT,
     ...overrides
   };
@@ -150,7 +182,7 @@ function evaluate(entries, bindingRequirements, evidence) {
     matrix: {
       schema_version: 1,
       candidate_head: SHA_B,
-      candidate_tree: 'c'.repeat(40),
+      candidate_tree: TREE,
       requirements: entries,
       observations: []
     },
@@ -175,6 +207,44 @@ test('a complete matrix derives only evidence-backed acceptance claims', () => {
   });
   assert.deepEqual(result.allowed_claims, ['Claim CLAIM-001.', 'Claim MATRIX-001.']);
   assert.deepEqual(result.unverified_obligations, []);
+});
+
+test('not_applicable requirements require a reason and scoped evidence', () => {
+  const withoutReason = evaluate(
+    [matrixEntry('MATRIX-001', {
+      status: 'not_applicable',
+      evidence_refs: [],
+      intended_acceptance_claims: []
+    })],
+    binding('MATRIX-001'),
+    []
+  );
+  assert.equal(withoutReason.valid, false);
+  assert.match(withoutReason.issues.join('\n'), /not_applicable.*reason/i);
+
+  const withoutEvidence = evaluate(
+    [matrixEntry('MATRIX-001', {
+      status: 'not_applicable',
+      evidence_refs: [],
+      intended_acceptance_claims: [],
+      not_applicable_reason: 'The target interface is absent.'
+    })],
+    binding('MATRIX-001'),
+    []
+  );
+  assert.equal(withoutEvidence.valid, false);
+  assert.match(withoutEvidence.issues.join('\n'), /not_applicable.*evidence/i);
+
+  const withBoth = evaluate(
+    [matrixEntry('MATRIX-001', {
+      status: 'not_applicable',
+      intended_acceptance_claims: [],
+      not_applicable_reason: 'The target interface is absent.'
+    })],
+    binding('MATRIX-001'),
+    [scopedEvidence('MATRIX-001')]
+  );
+  assert.equal(withBoth.valid, true);
 });
 
 test('a missing binding requirement blocks matrix completion', () => {
@@ -231,6 +301,7 @@ test('evidence from a dirty checkout cannot prove the committed candidate tree',
 const COMPLETE_MATRIX = Object.freeze({
   valid: true,
   binding_requirement_ids: ['ASSURANCE-001'],
+  valid_evidence_ids: ['evidence-ASSURANCE-001'],
   counts: {
     verified: 1,
     partially_verified: 0,
@@ -244,21 +315,79 @@ const COMPLETE_MATRIX = Object.freeze({
   issues: []
 });
 
+function microEligibility(overrides = {}) {
+  return {
+    schema_version: 1,
+    candidate_head: SHA_B,
+    candidate_tree: TREE,
+    dimensions: {
+      blast_radius: 'low',
+      concurrency: 'low',
+      security_data: 'low',
+      boundary: 'low',
+      novelty: 'low',
+      observability: 'low'
+    },
+    coherent_slice: true,
+    public_contract: false,
+    hard_triggers: [],
+    deterministic_proof_refs: ['evidence-ASSURANCE-001'],
+    ...overrides
+  };
+}
+
+function loadBearingObligations(overrides = {}) {
+  return {
+    schema_version: 1,
+    candidate_head: SHA_B,
+    candidate_tree: TREE,
+    obligations: [{
+      id: 'load-bearing-architecture',
+      status: 'satisfied',
+      evidence_refs: ['evidence-ASSURANCE-001']
+    }],
+    ...overrides
+  };
+}
+
 test('eligible Micro work can complete owner-only', () => {
   assert.deepEqual(evaluateCandidateCompletion({
     profile: 'micro',
-    microEligible: true,
+    microEligibility: microEligibility(),
     ownerVerified: true,
     reviewUnavailable: false,
     matrixResult: COMPLETE_MATRIX,
     reviews: [],
-    candidateHead: SHA_B
+    candidateHead: SHA_B,
+    candidateTree: TREE
   }), {
     state: COMPLETION_STATES.CANDIDATE_COMPLETE,
     allowed_claims: ['Candidate claim.'],
     review_id: null,
     reasons: []
   });
+});
+
+test('Micro completion rejects boolean self-attestation and stale eligibility records', () => {
+  for (const input of [
+    { microEligible: true },
+    { microEligibility: microEligibility({ candidate_head: 'e'.repeat(40) }) },
+    { microEligibility: microEligibility({
+      dimensions: { ...microEligibility().dimensions, novelty: 'medium' }
+    }) },
+    { microEligibility: microEligibility({ deterministic_proof_refs: ['missing'] }) }
+  ]) {
+    const result = evaluateCandidateCompletion({
+      profile: 'micro',
+      ...input,
+      ownerVerified: true,
+      matrixResult: COMPLETE_MATRIX,
+      candidateHead: SHA_B,
+      candidateTree: TREE
+    });
+    assert.equal(result.state, COMPLETION_STATES.PARTIALLY_VERIFIED);
+    assert.match(result.reasons.join('\n'), /Micro.*eligibility/i);
+  }
 });
 
 test('Standard and High-risk work with only self-review remain review pending', () => {
@@ -270,13 +399,17 @@ test('Standard and High-risk work with only self-review remain review pending', 
   for (const profile of ['standard', 'high-risk']) {
     const result = evaluateCandidateCompletion({
       profile,
-      microEligible: false,
       ownerVerified: true,
       reviewUnavailable: false,
       matrixResult: COMPLETE_MATRIX,
       reviews: [selfReview],
       candidateHead: SHA_B,
-      loadBearingReviewObligationsSatisfied: true
+      candidateTree: TREE,
+      candidateBase: SHA_A,
+      reviewPackageId: 'package-001',
+      requirementMatrixSha256: MATRIX_SHA,
+      requiredLenses: REQUIRED_LENSES,
+      loadBearingReviewObligations: loadBearingObligations()
     });
     assert.equal(result.state, COMPLETION_STATES.REVIEW_PENDING);
     assert.match(result.reasons.join('\n'), /independent semantic review/i);
@@ -286,12 +419,19 @@ test('Standard and High-risk work with only self-review remain review pending', 
 test('complete Standard proof and exact independent approval reach candidate complete', () => {
   assert.deepEqual(evaluateCandidateCompletion({
     profile: 'standard',
-    microEligible: false,
     ownerVerified: true,
     reviewUnavailable: false,
     matrixResult: COMPLETE_MATRIX,
-    reviews: [review({ intended_claims: ['Candidate claim.'] })],
-    candidateHead: SHA_B
+    reviews: [review({
+      intended_claims: ['Candidate claim.'],
+      semantic_lenses: REQUIRED_LENSES
+    })],
+    candidateHead: SHA_B,
+    candidateTree: TREE,
+    candidateBase: SHA_A,
+    reviewPackageId: 'package-001',
+    requirementMatrixSha256: MATRIX_SHA,
+    requiredLenses: REQUIRED_LENSES
   }), {
     state: COMPLETION_STATES.CANDIDATE_COMPLETE,
     allowed_claims: ['Candidate claim.'],
@@ -312,7 +452,12 @@ test('missing or stale matrix proof blocks candidate completion', () => {
       unverified_obligations: ['MATRIX-001: evidence is stale']
     },
     reviews: [review({ intended_claims: ['Candidate claim.'] })],
-    candidateHead: SHA_B
+    candidateHead: SHA_B,
+    candidateTree: TREE,
+    candidateBase: SHA_A,
+    reviewPackageId: 'package-001',
+    requirementMatrixSha256: MATRIX_SHA,
+    requiredLenses: REQUIRED_LENSES
   });
   assert.equal(result.state, COMPLETION_STATES.BLOCKED_BY_MISSING_EVIDENCE);
   assert.deepEqual(result.allowed_claims, []);
@@ -325,7 +470,12 @@ test('approval for an older head cannot approve a corrected candidate', () => {
     reviewUnavailable: false,
     matrixResult: COMPLETE_MATRIX,
     reviews: [review({ intended_claims: ['Candidate claim.'] })],
-    candidateHead: 'd'.repeat(40)
+    candidateHead: 'e'.repeat(40),
+    candidateTree: TREE,
+    candidateBase: SHA_A,
+    reviewPackageId: 'package-001',
+    requirementMatrixSha256: MATRIX_SHA,
+    requiredLenses: REQUIRED_LENSES
   });
   assert.equal(result.state, COMPLETION_STATES.REVIEW_PENDING);
   assert.match(result.reasons.join('\n'), /candidate head/i);
@@ -339,7 +489,8 @@ test('unavailable independent review produces an honest non-candidate state', ()
     matrixResult: COMPLETE_MATRIX,
     reviews: [],
     candidateHead: SHA_B,
-    loadBearingReviewObligationsSatisfied: true
+    candidateTree: TREE,
+    loadBearingReviewObligations: loadBearingObligations()
   });
   assert.equal(result.state, COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE);
   assert.deepEqual(result.allowed_claims, ['Candidate claim.']);
@@ -353,7 +504,8 @@ test('a correction invalidates prior approval until the bounded recheck', () => 
     matrixResult: COMPLETE_MATRIX,
     reviews: [review()],
     candidateHead: SHA_B,
-    loadBearingReviewObligationsSatisfied: true,
+    candidateTree: TREE,
+    loadBearingReviewObligations: loadBearingObligations(),
     correctionPending: true
   });
   assert.equal(result.state, COMPLETION_STATES.REVIEW_PENDING);
@@ -367,10 +519,54 @@ test('High-risk work fails closed when load-bearing review obligations are not r
     reviewUnavailable: false,
     matrixResult: COMPLETE_MATRIX,
     reviews: [review({ intended_claims: ['Candidate claim.'] })],
-    candidateHead: SHA_B
+    candidateHead: SHA_B,
+    candidateTree: TREE,
+    candidateBase: SHA_A,
+    reviewPackageId: 'package-001',
+    requirementMatrixSha256: MATRIX_SHA,
+    requiredLenses: REQUIRED_LENSES
   });
   assert.equal(result.state, COMPLETION_STATES.REVIEW_PENDING);
   assert.match(result.reasons.join('\n'), /load-bearing review obligations/i);
+});
+
+test('High-risk completion rejects boolean or stale load-bearing attestations', () => {
+  for (const input of [
+    { loadBearingReviewObligationsSatisfied: true },
+    {
+      loadBearingReviewObligations: loadBearingObligations({
+        candidate_tree: 'f'.repeat(40)
+      })
+    },
+    {
+      loadBearingReviewObligations: loadBearingObligations({
+        obligations: [{
+          id: 'load-bearing-architecture',
+          status: 'satisfied',
+          evidence_refs: ['missing']
+        }]
+      })
+    }
+  ]) {
+    const result = evaluateCandidateCompletion({
+      profile: 'high-risk',
+      ...input,
+      ownerVerified: true,
+      matrixResult: COMPLETE_MATRIX,
+      reviews: [review({
+        intended_claims: ['Candidate claim.'],
+        semantic_lenses: REQUIRED_LENSES
+      })],
+      candidateHead: SHA_B,
+      candidateTree: TREE,
+      candidateBase: SHA_A,
+      reviewPackageId: 'package-001',
+      requirementMatrixSha256: MATRIX_SHA,
+      requiredLenses: REQUIRED_LENSES
+    });
+    assert.equal(result.state, COMPLETION_STATES.REVIEW_PENDING);
+    assert.match(result.reasons.join('\n'), /load-bearing review obligations/i);
+  }
 });
 
 test('convention-heavy framework signals select the framework-defaults lens', () => {

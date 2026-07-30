@@ -1,26 +1,22 @@
 import {
   appendFile,
-  lstat,
   mkdir,
   readFile,
-  readdir,
-  readlink,
-  realpath,
   writeFile
 } from 'node:fs/promises';
 import { writeSync } from 'node:fs';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { parseOptions, required, integerOption } from './lib/cli.mjs';
 import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
+import { canonicalPath, repositoryRelativeIdentity, reviewFileIdentity } from './lib/path-identity.mjs';
 import {
-  canonicalPath,
-  pathFromIdentity,
-  repositoryRelativeIdentity,
-  reviewFileIdentity
-} from './lib/path-identity.mjs';
+  evidenceStalenessReason,
+  fingerprintJson,
+  fingerprintPathIdentities
+} from './lib/evidence-validity.mjs';
 import { ensureRuntimeDirectory, migrateLegacyJsonlStore } from './lib/runtime.mjs';
 import { harnessCapabilities } from './lib/capabilities.mjs';
 import { recordExecutionBudgetEvent } from './lib/execution-budget.mjs';
@@ -71,57 +67,8 @@ function environment(hostVersion = null) {
   };
 }
 
-async function inputDigest(absolute, seen = new Set()) {
-  let metadata;
-  try {
-    metadata = await lstat(absolute);
-  } catch (error) {
-    if (error.code === 'ENOENT') return 'missing';
-    throw error;
-  }
-  if (metadata.isSymbolicLink()) {
-    const target = await readlink(absolute);
-    let resolved;
-    try {
-      resolved = await realpath(absolute);
-    } catch (error) {
-      if (error.code === 'ENOENT') return `symlink:${target}:missing`;
-      throw error;
-    }
-    return `symlink:${target}:${await inputDigest(resolved, seen)}`;
-  }
-  if (metadata.isFile()) {
-    return `file:${createHash('sha256').update(await readFile(absolute)).digest('hex')}`;
-  }
-  if (metadata.isDirectory()) {
-    const canonical = await realpath(absolute);
-    if (seen.has(canonical)) return `cycle:${canonical}`;
-    const nextSeen = new Set(seen).add(canonical);
-    const hash = createHash('sha256');
-    for (const name of (await readdir(absolute)).sort()) {
-      hash.update(`${name}\0${await inputDigest(path.join(absolute, name), nextSeen)}\0`);
-    }
-    return `directory:${hash.digest('hex')}`;
-  }
-  return `other:${metadata.mode}:${metadata.size}`;
-}
-
-async function fingerprintInputs(inputs, cwd = process.cwd()) {
-  return Promise.all(inputs.map(async (input) => {
-    const absolute = path.resolve(cwd, input);
-    return { input, digest: await inputDigest(absolute) };
-  }));
-}
-
 async function canonicalInputIdentities(inputs, base) {
   return Promise.all(inputs.map((input) => reviewFileIdentity(root, input, { base })));
-}
-
-async function fingerprintPathIdentities(identities) {
-  return Promise.all(identities.map(async (input) => ({
-    input,
-    digest: await inputDigest(pathFromIdentity(root, input))
-  })));
 }
 
 async function accountForDuplicateExecution() {
@@ -169,10 +116,6 @@ async function ledger() {
   await init();
   const content = await readFile(receiptsFile, 'utf8');
   return content.split('\n').filter(Boolean).map((line) => JSON.parse(line));
-}
-
-function fingerprintJson(value) {
-  return createHash('sha256').update(JSON.stringify(value)).digest('hex');
 }
 
 function commandArgvOption() {
@@ -267,9 +210,9 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
       skipped
     },
     dependency_cone: dependencies,
-    dependency_fingerprints: await fingerprintPathIdentities(dependencies),
+    dependency_fingerprints: await fingerprintPathIdentities(root, dependencies),
     inputs,
-    input_fingerprints: await fingerprintPathIdentities(inputs),
+    input_fingerprints: await fingerprintPathIdentities(root, inputs),
     requirement_ids: requirementIds,
     establishes: listOption('establishes'),
     does_not_establish: listOption('does-not-establish'),
@@ -355,62 +298,13 @@ function sameList(left, right) {
 }
 
 async function invalidationReason(receipt, requested = {}) {
-  const currentEnvironment = environment(options['host-version'] ? String(options['host-version']) : null);
-  if (receipt.environment_fingerprint && receipt.environment_fingerprint !== fingerprintJson(currentEnvironment)) {
-    return 'environment fingerprint changed';
-  }
-  for (const key of ['platform', 'release', 'arch', 'node', 'npm', 'host_version']) {
-    if ((receipt.environment?.[key] ?? null) !== currentEnvironment[key]) {
-      return `environment.${key} changed`;
-    }
-  }
-  if (requested.dependencies && !sameList(receipt.dependency_cone, requested.dependencies)) {
-    return 'declared dependency cone changed';
-  }
-  if (requested.inputs && !sameList(receipt.inputs, requested.inputs)) {
-    return 'declared inputs changed';
-  }
-  const recordedInputs = receipt.input_fingerprints;
-  if (!Array.isArray(recordedInputs) || recordedInputs.length !== (receipt.inputs || []).length) {
-    if ((receipt.inputs || []).length) return 'input fingerprints are unavailable';
-  } else {
-    const currentInputs = receipt.path_identity_format === 'canonical-v1'
-      ? await fingerprintPathIdentities(receipt.inputs || [])
-      : await fingerprintInputs(
-        receipt.inputs || [],
-        path.resolve(root, receipt.cwd || '.')
-      );
-    for (let index = 0; index < recordedInputs.length; index += 1) {
-      if (
-        recordedInputs[index]?.input !== currentInputs[index].input
-        || recordedInputs[index]?.digest !== currentInputs[index].digest
-      ) return `input ${currentInputs[index].input} changed`;
-    }
-  }
   const state = await captureGitState(root);
-  const recordedDependencies = receipt.dependency_fingerprints;
-  if ((receipt.dependency_cone || []).length) {
-    if (!Array.isArray(recordedDependencies) || recordedDependencies.length !== receipt.dependency_cone.length) {
-      return 'dependency fingerprints are unavailable';
-    }
-    const currentDependencies = receipt.path_identity_format === 'canonical-v1'
-      ? await fingerprintPathIdentities(receipt.dependency_cone)
-      : await fingerprintInputs(receipt.dependency_cone, root);
-    for (let index = 0; index < recordedDependencies.length; index += 1) {
-      if (
-        recordedDependencies[index]?.input !== currentDependencies[index].input
-        || recordedDependencies[index]?.digest !== currentDependencies[index].digest
-      ) return `dependency ${currentDependencies[index].input} changed`;
-    }
-  } else if (state.tree !== receipt.git_tree) {
-    return 'immutable Git tree changed';
-  }
-  if (receipt.dirty_tree_fingerprint) {
-    if (state.dirty_tree_fingerprint !== receipt.dirty_tree_fingerprint) return 'dirty tree changed';
-  } else if (state.working_tree_hash !== receipt.working_tree_hash) {
-    return 'working tree changed';
-  }
-  return null;
+  return evidenceStalenessReason(receipt, {
+    root,
+    state,
+    environment: environment(options['host-version'] ? String(options['host-version']) : null),
+    requested
+  });
 }
 
 async function main() {

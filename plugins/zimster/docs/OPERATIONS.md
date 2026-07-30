@@ -188,17 +188,23 @@ npm run assurance -- matrix \
 
 npm run assurance -- complete \
   --profile high-risk --owner-verified \
-  --load-bearing-review-obligations-satisfied \
+  --load-bearing-review-obligations <candidate-bound-obligations.json> \
   --requirements <binding-requirements.json> \
   --matrix <requirement-matrix.json> \
   --evidence <receipts.jsonl> \
-  --reviews <review-records.json>
+  --reviews <review-records.json> \
+  --review-package <review-package.json>
 ```
 
 The first command reports coverage and proof/claim blockers. The second also
 requires a clean current checkout and profile-appropriate review. Owner-inline
 inspection is `self_review`; Standard and High-risk need clean-context
-`independent_review` for the exact head. Review unavailable produces
+`independent_review` for the exact base/head, package ID, requirement-matrix
+hash, and required lens set. High-risk obligation records bind the candidate
+head/tree to nonempty evidence references; Micro uses `--micro-eligibility`
+with all risk dimensions Low, no hard trigger or public contract, and
+candidate-bound deterministic proof references. Boolean eligibility or
+load-bearing switches are not accepted. Review unavailable produces
 `OWNER_VERIFIED_REVIEW_UNAVAILABLE` or another non-candidate state.
 
 ## Release controls

@@ -106,13 +106,20 @@ On a clean final checkout, run the dependency-free gate:
 node <zimster>/scripts/semantic-assurance.mjs complete \
   --profile <micro|standard|high-risk> --owner-verified \
   --requirements <binding.json> --matrix <matrix.json> \
-  --evidence <receipts.jsonl> --reviews <reviews.json>
+  --evidence <receipts.jsonl> --reviews <reviews.json> \
+  --review-package <review-package.json> \
+  --load-bearing-review-obligations <obligations.json>
 ```
 
 Eligible Micro work may complete owner-only when deterministic eligibility is
-also supplied. Standard and High-risk work require `independent_review` for the
-exact candidate head; High-risk also requires load-bearing obligations and
-final integration review. Owner-inline review is `self_review`. Checkout
+supplied with `--micro-eligibility <eligibility.json>`. The record binds the
+exact candidate head/tree, all-Low risk dimensions, no public contract or hard
+trigger, and nonempty deterministic evidence references. Standard and
+High-risk work require `independent_review` for the exact candidate base/head,
+review-package ID, matrix hash, and required lenses; High-risk also requires a
+candidate-bound load-bearing obligation record with evidence references and
+final integration review. Boolean self-attestations are rejected. Owner-inline
+review is `self_review`. Checkout
 integrity (`REVIEW_CHECKOUT_UNCHANGED` or `REVIEW_CHECKOUT_CHANGED`) never
 implies semantic approval.
 

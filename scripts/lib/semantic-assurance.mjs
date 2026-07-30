@@ -1,4 +1,5 @@
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
+const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const CLEAN_DIRTY_TREE_FINGERPRINT = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 const REQUIREMENT_ID_PATTERN = /^[A-Z][A-Z0-9]*-[0-9]{3,}$/;
 const REQUIREMENT_STATES = Object.freeze([
@@ -49,6 +50,9 @@ export function validateReviewRecord(record) {
     throw new Error('owner-inline review must use self_review');
   }
   for (const field of ['id', 'review_package_id']) requireString(record, field);
+  if (!SHA256_PATTERN.test(record.requirement_matrix_sha256 || '')) {
+    throw new Error('review record requires requirement_matrix_sha256');
+  }
   for (const field of ['base_sha', 'head_sha']) {
     if (!SHA_PATTERN.test(record[field] || '')) {
       throw new Error(`${field} must be an immutable 40-character SHA`);
@@ -86,13 +90,26 @@ export function validateReviewRecord(record) {
 
 export function independentApprovalFor({
   profile,
+  candidateBase,
   candidateHead,
+  reviewPackageId,
+  requirementMatrixSha256,
+  requiredLenses = [],
   reviews,
   bindingRequirementIds = [],
   intendedClaims = []
 }) {
   if (!['standard', 'high-risk'].includes(profile)) {
     throw new Error('independentApprovalFor requires standard or high-risk profile');
+  }
+  if (!SHA_PATTERN.test(candidateBase || '')) {
+    throw new Error('independentApprovalFor requires an immutable candidate base');
+  }
+  if (!reviewPackageId || !SHA256_PATTERN.test(requirementMatrixSha256 || '')) {
+    throw new Error('independentApprovalFor requires the current package and matrix identity');
+  }
+  if (!Array.isArray(requiredLenses) || !requiredLenses.length) {
+    throw new Error('independentApprovalFor requires semantic lenses from the review package');
   }
   const independentReviews = reviews.filter((record) => {
     validateReviewRecord(record);
@@ -115,7 +132,37 @@ export function independentApprovalFor({
       reason: 'independent review does not cover the candidate head'
     };
   }
-  const review = exactHeadReviews.at(-1);
+  const exactBaseReviews = exactHeadReviews.filter(
+    (record) => record.base_sha === candidateBase
+  );
+  if (!exactBaseReviews.length) {
+    return {
+      approved: false,
+      state: COMPLETION_STATES.REVIEW_PENDING,
+      reason: 'independent review does not cover the candidate base'
+    };
+  }
+  const exactPackageReviews = exactBaseReviews.filter(
+    (record) => record.review_package_id === reviewPackageId
+  );
+  if (!exactPackageReviews.length) {
+    return {
+      approved: false,
+      state: COMPLETION_STATES.REVIEW_PENDING,
+      reason: 'independent review does not cover the current review package'
+    };
+  }
+  const exactMatrixReviews = exactPackageReviews.filter(
+    (record) => record.requirement_matrix_sha256 === requirementMatrixSha256
+  );
+  if (!exactMatrixReviews.length) {
+    return {
+      approved: false,
+      state: COMPLETION_STATES.REVIEW_PENDING,
+      reason: 'independent review does not cover the current requirement matrix'
+    };
+  }
+  const review = exactMatrixReviews.at(-1);
   if (review.verdict !== 'approved') {
     return {
       approved: false,
@@ -150,6 +197,16 @@ export function independentApprovalFor({
       approved: false,
       state: COMPLETION_STATES.BLOCKED_BY_MISSING_EVIDENCE,
       reason: 'independent review did not cover every binding requirement and intended claim'
+    };
+  }
+  const missingLenses = requiredLenses.filter(
+    (lens) => !review.semantic_lenses.includes(lens)
+  );
+  if (missingLenses.length) {
+    return {
+      approved: false,
+      state: COMPLETION_STATES.BLOCKED_BY_MISSING_EVIDENCE,
+      reason: `independent review did not apply required semantic lenses: ${missingLenses.join(', ')}`
     };
   }
   if (profile === 'high-risk' && review.review_scope !== 'integration') {
@@ -211,6 +268,7 @@ export function evaluateRequirementMatrix({
   const issues = [];
   const unverified = [];
   const allowedClaims = new Set();
+  const validEvidenceIds = new Set();
   const counts = Object.fromEntries(REQUIREMENT_STATES.map((state) => [state, 0]));
   if (!matrix || matrix.schema_version !== 1) issues.push('matrix schema_version must be 1');
   if (!SHA_PATTERN.test(matrix?.candidate_head || '')) {
@@ -275,6 +333,7 @@ export function evaluateRequirementMatrix({
         unverified.push(`${entry.id}: ${issue}`);
       } else {
         usableEvidence.push(item);
+        validEvidenceIds.add(item.id);
       }
     }
     if (entry.status === 'verified') {
@@ -303,7 +362,16 @@ export function evaluateRequirementMatrix({
           allowedClaims.add(claim);
         }
       }
-    } else if (entry.status !== 'not_applicable') {
+    } else if (entry.status === 'not_applicable') {
+      if (typeof entry.not_applicable_reason !== 'string' || !entry.not_applicable_reason.trim()) {
+        issues.push(`${entry.id}: not_applicable status requires a reason`);
+        unverified.push(`${entry.id}: not_applicable status is unjustified`);
+      }
+      if (!references.length || !usableEvidence.length) {
+        issues.push(`${entry.id}: not_applicable status requires scoped evidence`);
+        unverified.push(`${entry.id}: not_applicable status lacks usable evidence`);
+      }
+    } else {
       const reason = entry.unavailable_proof?.join('; ') || `status is ${entry.status}`;
       unverified.push(`${entry.id}: ${reason}`);
     }
@@ -311,6 +379,7 @@ export function evaluateRequirementMatrix({
   return {
     valid: issues.length === 0 && unverified.length === 0,
     binding_requirement_ids: [...bindingIds].sort(),
+    valid_evidence_ids: [...validEvidenceIds].sort(),
     counts,
     allowed_claims: [...allowedClaims].sort(),
     unverified_obligations: [...new Set(unverified)].sort(),
@@ -318,15 +387,61 @@ export function evaluateRequirementMatrix({
   };
 }
 
+function proofRefsAreValid(references, matrixResult) {
+  const valid = new Set(matrixResult?.valid_evidence_ids || []);
+  return Array.isArray(references)
+    && references.length > 0
+    && references.every((reference) => valid.has(reference));
+}
+
+function validMicroEligibility(record, candidateHead, candidateTree, matrixResult) {
+  const dimensions = [
+    'blast_radius',
+    'concurrency',
+    'security_data',
+    'boundary',
+    'novelty',
+    'observability'
+  ];
+  return record?.schema_version === 1
+    && record.candidate_head === candidateHead
+    && record.candidate_tree === candidateTree
+    && record.coherent_slice === true
+    && record.public_contract === false
+    && Array.isArray(record.hard_triggers)
+    && record.hard_triggers.length === 0
+    && dimensions.every((dimension) => record.dimensions?.[dimension] === 'low')
+    && proofRefsAreValid(record.deterministic_proof_refs, matrixResult);
+}
+
+function validLoadBearingObligations(record, candidateHead, candidateTree, matrixResult) {
+  return record?.schema_version === 1
+    && record.candidate_head === candidateHead
+    && record.candidate_tree === candidateTree
+    && Array.isArray(record.obligations)
+    && record.obligations.length > 0
+    && record.obligations.every((obligation) =>
+      typeof obligation?.id === 'string'
+      && obligation.id.trim()
+      && obligation.status === 'satisfied'
+      && proofRefsAreValid(obligation.evidence_refs, matrixResult)
+    );
+}
+
 export function evaluateCandidateCompletion({
   profile,
-  microEligible = false,
+  microEligibility = null,
   ownerVerified = false,
   reviewUnavailable = false,
   matrixResult,
   reviews = [],
+  candidateBase,
   candidateHead,
-  loadBearingReviewObligationsSatisfied = false,
+  candidateTree,
+  reviewPackageId,
+  requirementMatrixSha256,
+  requiredLenses = [],
+  loadBearingReviewObligations = null,
   correctionPending = false
 }) {
   if (!['micro', 'standard', 'high-risk'].includes(profile)) {
@@ -361,7 +476,12 @@ export function evaluateCandidateCompletion({
   }
   const allowedClaims = matrixResult.allowed_claims || [];
   if (profile === 'micro') {
-    if (!microEligible) {
+    if (!validMicroEligibility(
+      microEligibility,
+      candidateHead,
+      candidateTree,
+      matrixResult
+    )) {
       return result(COMPLETION_STATES.PARTIALLY_VERIFIED, {
         allowedClaims,
         reasons: ['Micro owner-only completion requires deterministic Micro eligibility']
@@ -381,7 +501,15 @@ export function evaluateCandidateCompletion({
       reasons: ['correction invalidated prior approval; bounded recheck is required']
     });
   }
-  if (profile === 'high-risk' && !loadBearingReviewObligationsSatisfied) {
+  if (
+    profile === 'high-risk'
+    && !validLoadBearingObligations(
+      loadBearingReviewObligations,
+      candidateHead,
+      candidateTree,
+      matrixResult
+    )
+  ) {
     return result(COMPLETION_STATES.REVIEW_PENDING, {
       allowedClaims,
       reasons: ['High-risk load-bearing review obligations are incomplete']
@@ -389,7 +517,11 @@ export function evaluateCandidateCompletion({
   }
   const approval = independentApprovalFor({
     profile,
+    candidateBase,
     candidateHead,
+    reviewPackageId,
+    requirementMatrixSha256,
+    requiredLenses,
     reviews,
     bindingRequirementIds: matrixResult.binding_requirement_ids || [],
     intendedClaims: allowedClaims

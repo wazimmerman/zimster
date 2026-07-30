@@ -37,7 +37,8 @@ test('review package keeps authoritative changes and hashes generated mirrors wi
     const evidence = run(process.execPath, [
       path.join(root, 'scripts/evidence.mjs'), 'record',
       '--kind', 'test', '--scope', 'affected', '--command', 'node --test',
-      '--exit-code', '0', '--tests-passed', '1', '--tests-failed', '0'
+      '--exit-code', '0', '--tests-passed', '1', '--tests-failed', '0',
+      '--dependencies', 'scripts/example.mjs'
     ], repo);
     assert.equal(evidence.status, 0, evidence.stderr || evidence.stdout);
     const receipt = JSON.parse(evidence.stdout);
@@ -130,9 +131,48 @@ test('review package keeps authoritative changes and hashes generated mirrors wi
     assert.deepEqual(review.unavailable_proof, ['Independent review pending.']);
     assert.equal(review.requested_completion_state, 'CANDIDATE_COMPLETE');
     assert.equal(review.evidence.some(({ id }) => id === receipt.id), true);
+    const summarizedReceipt = review.evidence.find(({ id }) => id === receipt.id);
+    assert.equal(
+      summarizedReceipt.git_tree,
+      run('git', ['rev-parse', 'HEAD^{tree}'], repo).stdout.trim()
+    );
+    assert.match(summarizedReceipt.dirty_tree_fingerprint, /^[0-9a-f]{64}$/);
+    assert.deepEqual(summarizedReceipt.dependency_freshness, {
+      status: 'fresh',
+      reason: null
+    });
     const diff = await readFile(review.authoritative_diff, 'utf8');
     assert.match(diff, /scripts\/example\.mjs/);
     assert.doesNotMatch(diff, /plugins\/zimster/);
+
+    const invalidation = run(process.execPath, [
+      path.join(root, 'scripts/evidence.mjs'), 'invalidate',
+      '--id', receipt.id,
+      '--reason', 'review correction changed the proof state'
+    ], repo);
+    assert.equal(invalidation.status, 0, invalidation.stderr || invalidation.stdout);
+    const corrected = run(process.execPath, [
+      path.join(root, 'scripts/review-package.mjs'),
+      '--base', base,
+      '--head', head,
+      '--requirements', requirements,
+      '--binding-requirements', bindingRequirements,
+      '--matrix', matrix,
+      '--interfaces', 'interface.json',
+      '--lenses', 'mission,state-authority',
+      '--risk-signals', 'build-tool,shared-adapter-control-flow',
+      '--intended-claims', JSON.stringify(['Semantic review inputs are complete.']),
+      '--unavailable-proof', JSON.stringify(['Independent review pending.']),
+      '--requested-state', 'CANDIDATE_COMPLETE'
+    ], repo);
+    assert.equal(corrected.status, 0, corrected.stderr || corrected.stdout);
+    const correctedSummary = JSON.parse(corrected.stdout);
+    assert.notEqual(correctedSummary.id, summary.id);
+    const correctedPackage = JSON.parse(await readFile(correctedSummary.package, 'utf8'));
+    assert.equal(
+      correctedPackage.evidence.find(({ id }) => id === receipt.id).status,
+      'stale'
+    );
   } finally {
     await rm(repo, { recursive: true, force: true });
     await rm(external, { recursive: true, force: true });

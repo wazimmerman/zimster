@@ -2,7 +2,8 @@ import { createHash } from 'node:crypto';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseOptions, writeLine } from './lib/cli.mjs';
-import { findRepoRoot, gitValue, runGit } from './lib/git-state.mjs';
+import { captureGitState, findRepoRoot, gitValue, runGit } from './lib/git-state.mjs';
+import { evidenceStalenessReason } from './lib/evidence-validity.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 import { selectSemanticLenses } from './lib/semantic-assurance.mjs';
 
@@ -197,18 +198,38 @@ try {
       .map((row) => [row.id, row])
   );
   for (const row of receipts.slice(-20)) selected.set(row.id, row);
-  evidence = [...selected.values()].map((row) => ({
-    id: row.id,
-    kind: row.kind,
-    scope: row.scope,
-    exit_code: row.exit_code,
-    git_commit: row.git_commit || row.git_head,
-    status: invalidated.has(row.id) ? 'stale' : row.exit_code === 0 ? 'recorded_pass' : 'recorded_fail',
-    requirement_ids: row.requirement_ids || [],
-    establishes: row.establishes || [],
-    does_not_establish: row.does_not_establish || [],
-    environment_scope: row.environment_scope || null,
-    ...(invalidated.has(row.id) ? { invalidation_reason: invalidated.get(row.id) } : {})
+  const currentState = await captureGitState(root);
+  evidence = await Promise.all([...selected.values()].map(async (row) => {
+    const naturalReason = row.exit_code === 0
+      ? await evidenceStalenessReason(row, { root, state: currentState })
+      : null;
+    const explicitReason = invalidated.get(row.id) || null;
+    const freshnessReason = explicitReason || naturalReason;
+    return {
+      id: row.id,
+      kind: row.kind,
+      scope: row.scope,
+      exit_code: row.exit_code,
+      git_commit: row.git_commit || row.git_head,
+      git_tree: row.git_tree || null,
+      working_tree_hash: row.working_tree_hash || null,
+      dirty_tree_fingerprint: row.dirty_tree_fingerprint || null,
+      dependency_cone: row.dependency_cone || [],
+      dependency_fingerprints: row.dependency_fingerprints || [],
+      dependency_freshness: {
+        status: freshnessReason ? 'stale' : row.exit_code === 0 ? 'fresh' : 'failed',
+        reason: freshnessReason
+      },
+      status: freshnessReason
+        ? 'stale'
+        : row.exit_code === 0 ? 'recorded_pass' : 'recorded_fail',
+      requirement_ids: row.requirement_ids || [],
+      establishes: row.establishes || [],
+      does_not_establish: row.does_not_establish || [],
+      environment_scope: row.environment_scope || null,
+      ...(explicitReason ? { invalidation_reason: explicitReason } : {}),
+      ...(naturalReason ? { natural_staleness_reason: naturalReason } : {})
+    };
   }));
 } catch (error) {
   if (error.code !== 'ENOENT') throw error;
@@ -225,6 +246,7 @@ const identity = sha256(JSON.stringify({
   intended_acceptance_claims: intendedAcceptanceClaims,
   unavailable_proof: unavailableProof,
   requested_completion_state: requestedCompletionState,
+  evidence_state: sha256(JSON.stringify(evidence)),
   interfaces: interfaces.map(({ path: relative, sha256: hash }) => [relative, hash])
 })).slice(0, 24);
 const directory = path.join(runtime, 'reviews', identity);

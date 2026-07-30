@@ -41,16 +41,8 @@
       "minLength": 1
     },
     "scope": {
-      "enum": [
-        "baseline",
-        "focused",
-        "affected",
-        "integration",
-        "full",
-        "external",
-        "hardware",
-        "manual"
-      ]
+      "type": "string",
+      "minLength": 1
     },
     "command": {
       "type": "string",
@@ -291,7 +283,11 @@
           "git_commit",
           "dirty_tree_fingerprint",
           "environment_fingerprint",
-          "dependency_fingerprints"
+          "dependency_fingerprints",
+          "requirement_ids",
+          "establishes",
+          "does_not_establish",
+          "environment_scope"
         ]
       }
     }

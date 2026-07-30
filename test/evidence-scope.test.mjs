@@ -63,3 +63,22 @@ test('evidence receipts bound requirements, claims, and environment scope', asyn
     await rm(repo, { recursive: true, force: true });
   }
 });
+
+test('evidence schema accepts runtime scopes and requires semantic scope fields in v2', async () => {
+  const schema = JSON.parse(await readFile(path.join(root, 'schemas/evidence.schema.json'), 'utf8'));
+  assert.deepEqual(schema.properties.scope, {
+    type: 'string',
+    minLength: 1
+  });
+  const versionTwoRule = schema.allOf.find(
+    ({ if: condition }) => condition?.properties?.schema_version?.const === 2
+  );
+  for (const field of [
+    'requirement_ids',
+    'establishes',
+    'does_not_establish',
+    'environment_scope'
+  ]) {
+    assert.equal(versionTwoRule.then.required.includes(field), true);
+  }
+});

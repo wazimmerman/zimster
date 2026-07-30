@@ -51,6 +51,7 @@ const requiredFiles = [
   'scripts/lib/runtime.mjs',
   'scripts/lib/run-state.mjs',
   'scripts/lib/semantic-assurance.mjs',
+  'scripts/lib/evidence-validity.mjs',
   'scripts/check-version.mjs',
   'scripts/checksums.mjs',
   'scripts/bump-version.mjs',

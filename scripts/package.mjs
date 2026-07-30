@@ -31,6 +31,7 @@ const operationalScripts = [
   'scripts/lib/path-identity.mjs',
   'scripts/lib/run-state.mjs',
   'scripts/lib/semantic-assurance.mjs',
+  'scripts/lib/evidence-validity.mjs',
   'scripts/lib/zip-reader.mjs', 'scripts/lib/zip.mjs'
 ];
 const common = [

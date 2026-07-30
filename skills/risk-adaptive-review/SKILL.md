@@ -32,7 +32,8 @@ Report the selected profile and rationale.
 
 Owner-inline inspection is `self_review`; it cannot satisfy Standard or
 High-risk `independent_review`. Approval applies only to the exact candidate
-head. If review is unavailable, use `OWNER_VERIFIED_REVIEW_UNAVAILABLE`, never
+base/head, review-package ID, requirement-matrix hash, and required lens set.
+If review is unavailable, use `OWNER_VERIFIED_REVIEW_UNAVAILABLE`, never
 approval. `CANDIDATE_COMPLETE` requires the profile-appropriate semantic
 approval and complete matrix evidence. High-risk work requires all
 load-bearing obligations and final integration approval.
@@ -74,10 +75,15 @@ Combine relevant lenses in one review:
 - `framework-defaults-and-conventions` for inherited project configuration,
   build tools, wrappers/adapters, configuration loaders, CLI frameworks,
   routers, ORMs, plugin systems, or generated/user-managed topology that change
-  discovery, precedence, abbreviation, dynamic behavior, or defaults;
+  discovery, precedence, abbreviation, dynamic behavior, or defaults. Check
+  default and alternate locations, inherited and explicit configuration,
+  precedence, abbreviations, dynamic behavior, and invocation from a different
+  working directory;
 - `shared-control-flow` when a shared adapter, provider, platform, or backend
   branches from common to specialized behavior and could bypass shared
-  validation, cleanup, error handling, or state updates.
+  validation, cleanup, error handling, or state updates. Check early return
+  bypasses, specialized setup ordering, fallback masking of errors, and
+  specialized-contract suppression by common defaults or cleanup.
 
 Do not create one reviewer per lens.
 
@@ -106,7 +112,8 @@ for:
 - slice and selected lenses;
 - complete change snapshot with immutable base and head SHAs;
 - relevant unchanged interfaces and evidence receipts with claim/environment
-  scope and invalidation state;
+  scope, Git tree, dirty-tree fingerprint, dependency freshness, and
+  invalidation state;
 - known unavailable proof;
 - intended acceptance claims and requested completion state.
 

@@ -33,6 +33,7 @@ const includes = [
   'scripts/lib/path-identity.mjs',
   'scripts/lib/run-state.mjs',
   'scripts/lib/semantic-assurance.mjs',
+  'scripts/lib/evidence-validity.mjs',
   'scripts/lib/zip-reader.mjs', 'scripts/lib/zip.mjs',
   'vendor/openai-codex-plugin-validator',
   'README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'PRIVACY.md', 'TERMS.md',
