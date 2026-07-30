@@ -49,7 +49,8 @@ test('review integrity accepts an unchanged checkout and immutable range', async
     result = run(process.execPath, [script, 'verify', '--receipt', receipt], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(result.stderr, '');
-    assert.match(result.stdout, /TREE_INTEGRITY_OK/);
+    assert.match(result.stdout, /REVIEW_CHECKOUT_UNCHANGED/);
+    assert.doesNotMatch(result.stdout, /APPROVED|SEMANTIC/i);
 
     result = run(process.execPath, [script, 'capture', '--base', 'main', '--head', head], repo);
     assert.notEqual(result.status, 0);
@@ -113,7 +114,7 @@ test('review integrity reports exact tracked staged and untracked mutations with
     result = run(process.execPath, [script, 'verify', '--receipt', receipt], repo);
     assert.notEqual(result.status, 0);
     const diagnostic = result.stderr + result.stdout;
-    assert.match(diagnostic, /TREE_INTEGRITY_VIOLATION/);
+    assert.match(diagnostic, /REVIEW_CHECKOUT_CHANGED/);
     for (const file of ['tracked.txt', 'staged.txt', 'untracked.txt']) assert.match(diagnostic, new RegExp(file));
     assert.match(diagnostic, /untracked files: untracked\.txt/);
     assert.equal(run('git', ['diff', '--cached', '--name-only'], repo).stdout.trim(), 'staged.txt');

@@ -1,0 +1,79 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wazimmerman/zimster/schemas/semantic-review.schema.json",
+  "title": "Zimster semantic review record",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "id",
+    "review_type",
+    "owner_inline",
+    "base_sha",
+    "head_sha",
+    "clean_bounded_context",
+    "reviewed_requirement_ids",
+    "intended_claims",
+    "semantic_lenses",
+    "review_scope",
+    "verdict",
+    "findings",
+    "unverified_obligations",
+    "reviewed_at",
+    "review_package_id",
+    "checkout_integrity_result"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "id": {"type": "string", "minLength": 1},
+    "review_type": {"enum": ["self_review", "independent_review"]},
+    "owner_inline": {"type": "boolean"},
+    "base_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "head_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "reviewer_identity": {"type": ["string", "null"]},
+    "dispatch_record_id": {"type": ["string", "null"]},
+    "clean_bounded_context": {"type": "boolean"},
+    "reviewed_requirement_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "pattern": "^[A-Z][A-Z0-9]*-[0-9]{3,}$"}
+    },
+    "intended_claims": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "semantic_lenses": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "review_scope": {"enum": ["seam", "integration"]},
+    "verdict": {
+      "enum": [
+        "approved",
+        "needs_correction",
+        "blocked_by_missing_evidence",
+        "self_review_only"
+      ]
+    },
+    "findings": {"type": "array", "items": {"type": "object"}},
+    "unverified_obligations": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    },
+    "reviewed_at": {"type": "string", "format": "date-time"},
+    "review_package_id": {"type": "string", "minLength": 1},
+    "checkout_integrity_result": {
+      "enum": [
+        "REVIEW_CHECKOUT_UNCHANGED",
+        "REVIEW_CHECKOUT_CHANGED",
+        "REVIEW_CHECKOUT_UNVERIFIED"
+      ]
+    }
+  },
+  "anyOf": [
+    {"required": ["reviewer_identity"]},
+    {"required": ["dispatch_record_id"]}
+  ],
+  "additionalProperties": false
+}

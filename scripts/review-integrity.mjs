@@ -136,12 +136,12 @@ async function verify() {
     violations.push('working-tree fingerprint changed');
   }
   if (violations.length) {
-    writeError('TREE_INTEGRITY_VIOLATION');
+    writeError('REVIEW_CHECKOUT_CHANGED');
     for (const violation of violations) writeError(`- ${violation}`);
     process.exitCode = 2;
     return;
   }
-  writeLine('TREE_INTEGRITY_OK');
+  writeLine('REVIEW_CHECKOUT_UNCHANGED');
 }
 
 if (action === 'capture') await capture();
