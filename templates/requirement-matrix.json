@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "candidate_head": "0000000000000000000000000000000000000000",
+  "candidate_tree": "0000000000000000000000000000000000000000",
+  "requirements": [
+    {
+      "id": "FEATURE-001",
+      "authoritative_text": "Replace this example with one authoritative, testable requirement.",
+      "source": "docs/zimster/plans/YYYY-MM-DD-feature.md#binding-requirements",
+      "implementation_locations": [
+        "path/to/implementation"
+      ],
+      "evidence_refs": [],
+      "evidence_scope": {
+        "git_tree": "candidate",
+        "environment": "node-linux"
+      },
+      "unavailable_proof": [
+        "Fresh exact-candidate evidence pending."
+      ],
+      "status": "unverified",
+      "intended_acceptance_claims": [
+        "Replace this with the narrow claim the named proof can establish."
+      ]
+    }
+  ],
+  "observations": []
+}

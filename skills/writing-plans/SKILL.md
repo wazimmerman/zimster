@@ -24,7 +24,12 @@ setup, config, docs, or one type definition into separate task gates.
 # <Feature> Implementation Plan
 
 ## Mission and constraints
-Binding requirements only.
+Binding requirements only, each with a stable requirement ID.
+
+## Requirement-to-evidence matrix
+For every stable requirement ID: authoritative text/source, implementation
+locations, evidence references, environment or harness scope, unavailable
+proof, status, and intended acceptance claims.
 
 ## Profile and rationale
 Micro | Standard | High risk, six dimensions, hard triggers.
@@ -50,7 +55,8 @@ Repository-declared canonical focused, affected, integration, and full gates.
 
 ## Integration and completion
 Complete change review including untracked files, final gates,
-external/hardware/manual evidence, documentation, and honest state.
+external/hardware/manual evidence, documentation, semantic review package,
+candidate-completion gate, and honest state.
 ```
 
 ## Profile rules
@@ -66,6 +72,9 @@ State the rationale; do not leave classification to the executing model.
 Include exact names/formats/version floors/state transitions/errors,
 interfaces, authoritative facts, stale-work rejection, rollback/cancellation,
 representative tests, and proof for claims such as secure/lossless/atomic.
+The requirement-to-evidence matrix must preserve each stable requirement ID,
+its intended acceptance claims, and the exact environment or harness needed
+for proof. Label unavailable proof; do not convert it into an implied claim.
 
 Avoid repeated generic TDD prose, complete production code unless required for
 an exact contract, vague “write tests/handle edge cases,” reviewer-per-heading,
@@ -96,7 +105,8 @@ Check:
 4. exact constraints appear once and remain reachable;
 5. no procedural repetition multiplies dispatches without evidence;
 6. canonical commands and test-discovery expectations are explicit;
-7. unavailable proof is labeled;
+7. stable requirement IDs, intended acceptance claims, evidence scope, and
+   unavailable proof are represented in the requirement-to-evidence matrix;
 8. commit and final working-tree disposition are unambiguous.
 
 Save under repository preference or

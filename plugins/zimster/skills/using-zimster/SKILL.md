@@ -73,6 +73,30 @@ Use High risk when any dimension is High or any hard trigger exists:
 The owner consults at most one targeted specialist when useful, reviews the
 load-bearing seam early, and obtains one final integration review.
 
+## Semantic assurance contract
+
+Keep four facts separate:
+
+- checkout integrity says only whether a reviewer-visible checkout changed;
+- evidence validity says only whether a receipt still applies to its tree,
+  dependency cone, environment, and claim;
+- `self_review` is the implementation owner's inline inspection;
+- `independent_review` is a clean bounded-context attempt to falsify the
+  candidate's intended acceptance claims.
+
+Owner-inline review is always `self_review`. It cannot satisfy Standard or
+High-risk independent review. Eligible Micro work may complete owner-only only
+when deterministic eligibility and the requirement-to-evidence matrix both
+pass. Standard and High-risk work require approved `independent_review` for the
+exact candidate head; High-risk work also requires every load-bearing
+obligation and final integration review.
+
+`REVIEW_CHECKOUT_UNCHANGED` and `REVIEW_CHECKOUT_CHANGED` are checkout-integrity
+observations; checkout integrity never implies semantic approval. If review is
+unavailable, report `OWNER_VERIFIED_REVIEW_UNAVAILABLE` or another honest
+partial state, never readiness. Only the deterministic completion gate may
+emit `CANDIDATE_COMPLETE`.
+
 ## Durable state trigger
 
 Create durable state with plugin-relative `scripts/init-run.mjs` when any
@@ -155,8 +179,8 @@ gates are never reused.
 The release sequence is build candidate packages → installed-package smoke in
 isolated homes → available host discovery/smoke → immutable compact review
 package → final integration review → one correction/recheck → fresh exact-tree
-verification. Source-only review cannot substitute for an available installed
-candidate test.
+verification → candidate-completion gate. Source-only review cannot substitute
+for an available installed candidate test.
 
 ## Capability research and postmortem
 
@@ -176,7 +200,8 @@ Read only the matching reference:
 - Cursor/Kimi/OpenCode/Pi: `references/other-harnesses.md`
 
 When subagents are unavailable, execute inline and state that independent
-review assurance was unavailable.
+review assurance was unavailable; do not relabel owner-inline work as
+`independent_review`.
 
 ## Installed version and script-free mode
 

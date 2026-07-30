@@ -90,9 +90,31 @@ not a complete review when new files exist.
 
 ## Requirements audit
 
-Map every mission obligation to code/config location, automated evidence,
-integration evidence, external/hardware/manual evidence, or explicit
-unavailable proof. Tests passing does not prove every requirement.
+Give every binding obligation a stable requirement ID. Maintain a
+machine-readable requirement-to-evidence matrix containing authoritative
+text/source, implementation locations, evidence references, environment or
+harness scope, unavailable proof, status, and intended acceptance claims.
+
+Evidence must name the stable requirement IDs it supports, what claims it
+establishes, what it explicitly does not establish, and its environment or
+harness. Narrow evidence cannot establish a broad compatibility claim. Tests
+passing does not prove every requirement.
+
+On a clean final checkout, run the dependency-free gate:
+
+```text
+node <zimster>/scripts/semantic-assurance.mjs complete \
+  --profile <micro|standard|high-risk> --owner-verified \
+  --requirements <binding.json> --matrix <matrix.json> \
+  --evidence <receipts.jsonl> --reviews <reviews.json>
+```
+
+Eligible Micro work may complete owner-only when deterministic eligibility is
+also supplied. Standard and High-risk work require `independent_review` for the
+exact candidate head; High-risk also requires load-bearing obligations and
+final integration review. Owner-inline review is `self_review`. Checkout
+integrity (`REVIEW_CHECKOUT_UNCHANGED` or `REVIEW_CHECKOUT_CHANGED`) never
+implies semantic approval.
 
 ## Honest states
 
@@ -104,9 +126,15 @@ unavailable proof. Tests passing does not prove every requirement.
 - `BLOCKED_BY_ENVIRONMENT`—blocked by environment because required proof cannot run here;
 - `BLOCKED_BY_REQUIREMENT`—requirements are contradictory, impossible, or lack
   an authoritative decision;
+- `OWNER_VERIFIED_REVIEW_UNAVAILABLE`—owner proof exists but required
+  independent review could not run;
 - `PARTIALLY_VERIFIED`—some obligations remain unproved.
+- `CANDIDATE_COMPLETE`—the matrix and profile-appropriate exact-head review
+  gate both pass.
 
 Never let automated tests imply service, hardware, or human proof.
+Standard and High-risk work without `independent_review` cannot become
+`CANDIDATE_COMPLETE`; report unavailable review honestly.
 
 ## Report
 

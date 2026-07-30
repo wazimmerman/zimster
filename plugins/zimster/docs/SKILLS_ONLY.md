@@ -42,6 +42,12 @@ untracked review, integrity-aware independent review, and fresh canonical final
 verification. Maintain compact durable state manually when its deterministic
 triggers apply.
 
+When scripts are absent, preserve the semantic contracts manually: stable
+requirement IDs, a requirement-to-evidence matrix, proof-bounded intended
+claims, explicit `self_review` versus `independent_review`, and separate
+checkout-integrity versus semantic verdicts. State that generated validation
+and completion receipts are unavailable; do not invent `CANDIDATE_COMPLETE`.
+
 An absent `using-zimster/SKILL.md`, invalid build metadata, or a partial skill
 copy is package corruption and remains an actionable error.
 

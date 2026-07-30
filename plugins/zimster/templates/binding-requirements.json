@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "source": "docs/zimster/plans/YYYY-MM-DD-feature.md#binding-requirements",
+  "requirements": [
+    {
+      "id": "FEATURE-001",
+      "text": "Replace this example with one authoritative, testable requirement."
+    }
+  ]
+}

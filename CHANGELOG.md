@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.5.0 — 2026-07-30
+
+- Enforce semantic assurance and requirement-to-evidence completion gates
+
 ## 0.4.0 — 2026-07-28
 
 - Execution-economy optimization

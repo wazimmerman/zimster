@@ -26,16 +26,24 @@ The default order is:
 build candidate packages
 → installed-package smoke in isolated homes
 → available live host discovery and smoke
-→ immutable compact review package
-→ final integration review
+→ immutable semantic review package
+→ final clean-context integration `independent_review`
 → one correction wave and resumed recheck
 → final exact-tree verification
+→ requirement/evidence candidate-completion gate
 ```
 
 The final integration review cannot approve source-only correctness when
 installed-package smoke is available. `npm run release:verify` deterministically
 orchestrates version checks, packaging, checksums, archive safety, secret scan,
 official plugin validation, configured host smoke, and review-package creation.
+Installed-package smoke therefore precedes final integration review.
+
+The semantic package binds stable requirement IDs, the requirement-to-evidence
+matrix, immutable range, complete change snapshot, relevant unchanged
+interfaces, evidence validity and claim scope, unavailable proof, intended
+acceptance claims, selected risk lenses, and requested completion state.
+Checkout integrity is reported separately from semantic approval.
 
 ## Validate the exact tree
 
@@ -46,6 +54,8 @@ npm run release:verify
 npm run check
 npm run version:check
 npm run version:check -- --tag v<next-version>
+npm run assurance -- complete --profile <profile> --owner-verified ...
+npm run sync:codex:check
 npm run doctor -- --json
 npm run checksums
 git diff --check
@@ -77,6 +87,11 @@ Use immutable base/head SHAs for the final integration review. Inspect
 without staging merely for review. Run the reviewer integrity guard for any
 shell-capable probe. Commit documentation and release metadata with real
 release changes, never as a standalone approval-bookkeeping commit.
+
+A correction invalidates affected evidence and exact-head approval. Apply at
+most the bounded correction wave, refresh the matrix/package for the corrected
+head, and resume the same reviewer once. Do not label a release complete when
+the gate reports missing evidence or review unavailable.
 
 The tag must exactly match `package.json`; CI reruns `npm run version:check`,
 `npm run check`, and `npm run checksums` before publishing artifacts.

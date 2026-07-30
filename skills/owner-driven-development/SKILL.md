@@ -22,6 +22,7 @@ profile and Git disposition
 → final integration review when required
 → one consolidated correction wave
 → fresh completion evidence
+→ deterministic candidate-completion gate
 → finishing-a-development-branch
 ```
 
@@ -38,6 +39,23 @@ Before production edits:
 
 If requirements conflict or cannot all be satisfied, stop as
 `BLOCKED_BY_REQUIREMENT`; do not disguise it as an environment problem.
+
+## Semantic review and candidate state
+
+The owner's inline inspection is `self_review`, including an owner-inline
+change review. It never becomes `independent_review` by being thorough. Keep
+checkout integrity, evidence validity, self-review, and semantic approval
+separate. `REVIEW_CHECKOUT_UNCHANGED` and `REVIEW_CHECKOUT_CHANGED` say only
+whether the bounded review checkout changed; checkout integrity does not imply
+semantic approval.
+
+Eligible Micro work may reach owner-only completion only after deterministic
+eligibility and complete matrix proof. Standard and High-risk work require an
+approved clean-context `independent_review` for the exact candidate head.
+High-risk work additionally requires its load-bearing obligations and final
+independent integration review. When review is unavailable, record
+`OWNER_VERIFIED_REVIEW_UNAVAILABLE`, not readiness. Only a valid matrix plus
+profile-appropriate approval may produce `CANDIDATE_COMPLETE`.
 
 ## 2. Git lifecycle and commit policy
 
@@ -113,9 +131,10 @@ For each slice:
 4. refactor while focused proofs remain green;
 5. run affected repository-declared commands;
 6. record evidence receipts and stale dependencies;
-7. review the architectural seam when the profile requires it;
-8. commit at the verified slice boundary unless commit policy forbids it;
-9. update durable state.
+7. update the stable-ID requirement-to-evidence matrix and intended claims;
+8. review the architectural seam when the profile requires it;
+9. commit at the verified slice boundary unless commit policy forbids it;
+10. update durable state.
 
 Use exploration code only as disposable learning.
 
@@ -151,7 +170,8 @@ required proof.
 Supported states include `CODE_READY`, `INTEGRATION_VERIFIED`,
 `EXTERNAL_SERVICE_VERIFIED`, `HARDWARE_VERIFIED`,
 `HUMAN_ACCEPTANCE_VERIFIED`, `BLOCKED_BY_ENVIRONMENT`,
-`BLOCKED_BY_REQUIREMENT`, and `PARTIALLY_VERIFIED`.
+`BLOCKED_BY_REQUIREMENT`, `PARTIALLY_VERIFIED`,
+`OWNER_VERIFIED_REVIEW_UNAVAILABLE`, and `CANDIDATE_COMPLETE`.
 
 Always invoke `verification-before-completion`, then
 `finishing-a-development-branch`. The final report must state branch, commits,

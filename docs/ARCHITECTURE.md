@@ -53,7 +53,10 @@ Dependency-free Node 22 tools turn important policy into inspectable state:
 - `installed-package-smoke.mjs` exercises exact candidate archives in isolated
   homes before review packaging;
 - `review-package.mjs` represents immutable canonical changes and mirror
-  hashes without duplicating generated content;
+  hashes without duplicating generated content, plus binding requirement IDs,
+  matrix state, intended claims, evidence scope, unavailable proof, and lenses;
+- `semantic-assurance.mjs` validates the requirement-to-evidence matrix and
+  deterministically gates candidate completion;
 - `capability-cache.mjs` decides whether one host contract needs refreshed
   research;
 - `run-postmortem.mjs` aggregates run-scoped observed/inferred/unavailable
@@ -129,12 +132,37 @@ An evidence receipt includes:
 - start/end time and exit code;
 - test-discovery classification and exact counts;
 - dependency cone, inputs, source, and notes;
+- supported requirement IDs, established/excluded claims, and environment or
+  harness scope;
 - whether it was a final gate.
 
 Focused evidence may be reused only on the same fingerprint. Documentation-only
 changes rerun only affected provenance/packaging proof until the final gate is
 due. Final gates are always fresh. Duplicate evidence is surfaced instead of
 silently rerun.
+
+## Semantic assurance model
+
+Binding obligations receive stable IDs in a machine-readable requirement set.
+The corresponding matrix names authoritative text/source, implementation
+locations, evidence references, candidate tree and environment scope,
+unavailable proof, status, and intended acceptance claims. Validation rejects
+missing IDs, stale/invalidated/wrong-tree proof, dirty candidate evidence,
+environment mismatch, and claims broader than their evidence.
+
+Semantic review records distinguish `self_review` from `independent_review`.
+Owner-inline work is always self-review. A review package binds the immutable
+base/head, complete canonical snapshot, relevant unchanged interfaces, matrix,
+evidence state, claims, unavailable proof, and selected lenses. Review attempts
+to falsify those claims.
+
+Checkout integrity is orthogonal: `REVIEW_CHECKOUT_UNCHANGED`,
+`REVIEW_CHECKOUT_CHANGED`, and `REVIEW_CHECKOUT_UNVERIFIED` describe only the
+review checkout. Eligible Micro work may complete owner-only. Standard and
+High-risk completion requires clean-context independent approval for the exact
+head; High risk also requires load-bearing obligations and final integration
+approval. Missing review/proof yields an honest partial or blocked state, never
+`CANDIDATE_COMPLETE`.
 
 ## Model-routing model
 
@@ -175,5 +203,7 @@ lottery.
 
 Zimster separates code, integration, service, hardware, human acceptance,
 environment blockers, requirement blockers, and partial verification. The
-final report also states branch, commits, staged/unstaged/untracked files, and
-whether implementation remains uncommitted.
+completion gate derives permitted claims only from valid matrix proof and emits
+`CANDIDATE_COMPLETE` only after profile-appropriate semantic review. The final
+report also states branch, commits, staged/unstaged/untracked files, and whether
+implementation remains uncommitted.

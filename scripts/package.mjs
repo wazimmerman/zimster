@@ -20,6 +20,7 @@ const operationalScripts = [
   'scripts/phase-checkpoint.mjs',
   'scripts/project-commands.mjs', 'scripts/run-budget.mjs',
   'scripts/review-integrity.mjs', 'scripts/review-package.mjs',
+  'scripts/semantic-assurance.mjs',
   'scripts/run-postmortem.mjs',
   'scripts/secret-scan.mjs',
   'scripts/sync-skills.mjs', 'scripts/verify.mjs',
@@ -29,6 +30,7 @@ const operationalScripts = [
   'scripts/lib/git-state.mjs', 'scripts/lib/runtime.mjs',
   'scripts/lib/path-identity.mjs',
   'scripts/lib/run-state.mjs',
+  'scripts/lib/semantic-assurance.mjs',
   'scripts/lib/zip-reader.mjs', 'scripts/lib/zip.mjs'
 ];
 const common = [

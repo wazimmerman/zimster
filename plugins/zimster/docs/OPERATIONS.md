@@ -102,9 +102,11 @@ node <zimster>/scripts/review-integrity.mjs verify \
 ```
 
 Any HEAD, index, tracked, untracked, or declared review-package mutation stops
-the review with `TREE_INTEGRITY_VIOLATION`. The guard reports exact affected
-files and never stages, repairs, resets, or discards them. Declared inputs may
-be absolute attachment or Git-local paths outside the worktree.
+the review with `REVIEW_CHECKOUT_CHANGED`; an unchanged checkout reports
+`REVIEW_CHECKOUT_UNCHANGED`. These statuses never imply semantic approval. The
+guard reports exact affected files and never stages, repairs, resets, or
+discards them. Declared inputs may be absolute attachment or Git-local paths
+outside the worktree.
 
 ## Evidence receipts
 
@@ -140,6 +142,11 @@ fingerprints for declared input paths change. Supply the same `--host-version`
 when checking host-bound evidence. `--reuse` is allowed only for non-final
 work; final gates are rerun.
 
+New receipts may also carry `--requirement-ids`, `--establishes`,
+`--does-not-establish`, and `--environment-scope`. Use JSON arrays when a claim
+contains commas. This prevents a narrow native harness or fixture from being
+reported as broad compatibility proof.
+
 Test-discovery values are `not_reached`, `zero_discovered`, `tests_executed`,
 and `unknown`. `unknown` and `not_reached` carry no counts; `zero_discovered`
 requires zero counts; `tests_executed` requires positive, internally consistent
@@ -166,10 +173,38 @@ node <zimster>/scripts/dispatch-record.mjs update \
 
 A fast role that actually used the parent model is marked with a warning.
 
+## Requirement matrix and candidate completion
+
+Start from `templates/binding-requirements.json` and
+`templates/requirement-matrix.json`. Replace example SHAs with the exact
+candidate commit/tree and keep the matrix outside product history unless the
+project explicitly requires a committed audit artifact.
+
+```text
+npm run assurance -- matrix \
+  --requirements <binding-requirements.json> \
+  --matrix <requirement-matrix.json> \
+  --evidence <receipts.jsonl>
+
+npm run assurance -- complete \
+  --profile high-risk --owner-verified \
+  --load-bearing-review-obligations-satisfied \
+  --requirements <binding-requirements.json> \
+  --matrix <requirement-matrix.json> \
+  --evidence <receipts.jsonl> \
+  --reviews <review-records.json>
+```
+
+The first command reports coverage and proof/claim blockers. The second also
+requires a clean current checkout and profile-appropriate review. Owner-inline
+inspection is `self_review`; Standard and High-risk need clean-context
+`independent_review` for the exact head. Review unavailable produces
+`OWNER_VERIFIED_REVIEW_UNAVAILABLE` or another non-candidate state.
+
 ## Release controls
 
 ```text
-npm run version:bump -- 0.4.0 --note "Release summary"
+npm run version:bump -- <next-version> --note "Release summary"
 npm run version:check
 npm run sync:codex:check
 npm run release:verify
@@ -178,7 +213,7 @@ npm run postmortem
 
 `version:bump` updates package/lock versions, three current primary manifests, Claude
 marketplace entry, changelog heading, and the generated Codex mirror.
-`version:check -- --tag v0.4.0` additionally validates a release tag.
+`version:check -- --tag v<next-version>` additionally validates a release tag.
 
 ## Privacy
 

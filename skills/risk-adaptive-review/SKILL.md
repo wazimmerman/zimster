@@ -23,12 +23,19 @@ Review follows risk and architectural seams, not plan-heading count.
 | Profile | Deterministic rule | Review |
 |---|---|---|
 | Micro | All dimensions Low, one coherent slice, no public contract or hard trigger | Owner verification only |
-| Standard | One or more Medium dimensions, subsystem/multi-component work, and no High/hard trigger | One review at the concentrated seam or integration point |
-| High risk | Any High dimension or hard trigger | Early load-bearing seam review plus final integration review |
+| Standard | One or more Medium dimensions, subsystem/multi-component work, and no High/hard trigger | Clean-context `independent_review` at the concentrated seam or integration point |
+| High risk | Any High dimension or hard trigger | Early load-bearing review plus final clean-context integration `independent_review` |
 
 Hard triggers include auth/trust, destructive migration, concurrency ownership,
 public compatibility, native OS/hardware, unstable service, or live-only proof.
 Report the selected profile and rationale.
+
+Owner-inline inspection is `self_review`; it cannot satisfy Standard or
+High-risk `independent_review`. Approval applies only to the exact candidate
+head. If review is unavailable, use `OWNER_VERIFIED_REVIEW_UNAVAILABLE`, never
+approval. `CANDIDATE_COMPLETE` requires the profile-appropriate semantic
+approval and complete matrix evidence. High-risk work requires all
+load-bearing obligations and final integration approval.
 
 ## Complete review scope
 
@@ -64,10 +71,17 @@ Combine relevant lenses in one review:
 - performance/resource limits;
 - asynchronous frontend state/accessibility;
 - OS, hardware, and external-service truthfulness.
+- `framework-defaults-and-conventions` for inherited project configuration,
+  build tools, wrappers/adapters, configuration loaders, CLI frameworks,
+  routers, ORMs, plugin systems, or generated/user-managed topology that change
+  discovery, precedence, abbreviation, dynamic behavior, or defaults;
+- `shared-control-flow` when a shared adapter, provider, platform, or backend
+  branches from common to specialized behavior and could bypass shared
+  validation, cleanup, error handling, or state updates.
 
 Do not create one reviewer per lens.
 
-## Reviewer roles and tree safety
+## Reviewer roles, types, and checkout safety
 
 Use the pure `integration-reviewer` for code/evidence inspection; it has no
 Bash. Use the `test-reviewer` only for one named focused experiment. A
@@ -75,28 +89,39 @@ test-capable reviewer must run plugin-relative `review-integrity.mjs capture`
 with immutable base/head SHAs and `--review-files` naming the mission,
 snapshot, evidence ledger, and other binding inputs before its command, then
 run `review-integrity.mjs verify` afterward. It reports
-`TREE_INTEGRITY_VIOLATION` if HEAD, index, tracked, untracked, or review-package
-files change. Review inputs may be explicit absolute paths outside the
+`REVIEW_CHECKOUT_CHANGED` if HEAD, index, tracked, untracked, or review-package
+files change and `REVIEW_CHECKOUT_UNCHANGED` otherwise. Checkout integrity does
+not imply semantic approval. Review inputs may be explicit absolute paths outside the
 worktree, including attachments and Git-local receipts. A shell-capable,
 prompt-constrained Codex reviewer always uses this guard. Reviewers never edit
 the owner's checkout or recruit agents.
 
-## Inputs
+## Semantic review package
 
-Provide paths to:
+Create one immutable semantic review package. It must provide paths and hashes
+for:
 
-- mission/binding requirements;
+- mission and binding requirement IDs;
+- stable-ID requirement-to-evidence matrix;
 - slice and selected lenses;
 - complete change snapshot with immutable base and head SHAs;
-- evidence receipts;
+- relevant unchanged interfaces and evidence receipts with claim/environment
+  scope and invalidation state;
 - known unavailable proof;
-- requested completion state.
+- intended acceptance claims and requested completion state.
+
+The reviewer must attempt to falsify every intended acceptance claim and report
+each unverified obligation. A clean package is necessary but is not approval.
 
 ## Initial output
 
 ```markdown
-## Verdict
-APPROVED | NEEDS_CORRECTION | BLOCKED_BY_MISSING_EVIDENCE
+## Review type
+independent_review | self_review
+
+## Semantic verdict
+SEMANTIC_REVIEW_APPROVED | NEEDS_CORRECTION |
+BLOCKED_BY_MISSING_EVIDENCE | SELF_REVIEW_ONLY
 
 ## Findings
 - [Critical|Important|Minor] file:line — defect, consequence, proof.
@@ -109,6 +134,10 @@ What was checked and why.
 
 ## Unverified obligations
 Requirements not established here.
+
+## Checkout integrity
+REVIEW_CHECKOUT_UNCHANGED | REVIEW_CHECKOUT_CHANGED |
+REVIEW_CHECKOUT_UNVERIFIED
 ```
 
 Critical/Important findings require action. Minor findings are fixed

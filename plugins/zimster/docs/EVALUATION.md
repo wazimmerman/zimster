@@ -1,7 +1,7 @@
 # Evaluation Strategy
 
 Zimster's efficiency and quality claims must be established experimentally.
-Version 0.4.0 does not claim to beat Superpowers.
+Version 0.5.0 does not claim to beat Superpowers without comparative evidence.
 
 The historical 0.3.0 hardening measurements and the mechanisms they motivated
 are recorded in `docs/evaluations/v0.3.0-hardening-postmortem.md`.
@@ -42,6 +42,10 @@ least five paired repetitions per stable scenario and more for high variance.
 - maintainability and unnecessary scope;
 - reviewer false negatives/positives;
 - requirement versus environment blocker accuracy.
+- requirement-matrix coverage and broad-claim rejection accuracy;
+- `self_review`/`independent_review` classification and semantic-review false
+  approval rate;
+- checkout-integrity versus semantic-verdict confusion rate.
 
 ## Efficiency metrics
 
@@ -71,6 +75,13 @@ Add explicit hold-outs for:
 - a reviewer with shell access mutates the checkout;
 - an evidence receipt is reused after a working-tree change;
 - a release tag disagrees with package/plugin versions.
+- owner-inline self-review attempts to satisfy a Standard/High-risk gate;
+- an unchanged review checkout is treated as semantic approval;
+- a matrix omits a binding requirement or references stale/wrong-tree proof;
+- a narrow default harness is used to claim all custom configurations;
+- convention-heavy framework defaults or shared adapter/provider control flow
+  bypass the specialized path;
+- a correction reuses the prior evidence or exact-head approval.
 
 Run `node scripts/evaluate-execution-economy.mjs` for the deterministic local
 fixture. It demonstrates duplicate-command reuse, budget warning behavior,

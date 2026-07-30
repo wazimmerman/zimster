@@ -126,3 +126,76 @@ test('completion states include requirement blockers', async () => {
   assert.match(verification, /BLOCKED_BY_REQUIREMENT/);
   assert.match(owner, /BLOCKED_BY_REQUIREMENT/);
 });
+
+test('review types and checkout integrity have non-overlapping assurance meaning', async () => {
+  const bootstrap = await read('skills/using-zimster/SKILL.md');
+  const owner = await read('skills/owner-driven-development/SKILL.md');
+  const review = await read('skills/risk-adaptive-review/SKILL.md');
+  for (const content of [bootstrap, owner, review]) {
+    assert.match(content, /self_review/);
+    assert.match(content, /independent_review/);
+    assert.match(content, /owner-inline.*self.review|self.review.*owner-inline/is);
+    assert.match(content, /REVIEW_CHECKOUT_UNCHANGED/);
+    assert.match(content, /REVIEW_CHECKOUT_CHANGED/);
+    assert.match(content, /checkout integrity.*(?:never|does not).*semantic approval|semantic approval.*(?:never|does not).*checkout integrity/is);
+    assert.doesNotMatch(content, /TREE_INTEGRITY_(?:OK|VIOLATION)/);
+  }
+});
+
+test('profile-appropriate semantic approval gates candidate completion', async () => {
+  const bootstrap = await read('skills/using-zimster/SKILL.md');
+  const owner = await read('skills/owner-driven-development/SKILL.md');
+  const review = await read('skills/risk-adaptive-review/SKILL.md');
+  const verification = await read('skills/verification-before-completion/SKILL.md');
+  assert.match(bootstrap, /Micro.*owner-only.*deterministic|deterministic.*Micro.*owner-only/is);
+  for (const content of [bootstrap, owner, review, verification]) {
+    assert.match(content, /Standard.*High.risk.*independent_review|independent_review.*Standard.*High.risk/is);
+    assert.match(content, /exact.*candidate.*head|candidate.*head.*exact/is);
+    assert.match(content, /OWNER_VERIFIED_REVIEW_UNAVAILABLE/);
+    assert.match(content, /CANDIDATE_COMPLETE/);
+  }
+  assert.match(review, /High.risk.*load-bearing.*final.*integration|load-bearing.*High.risk.*final.*integration/is);
+});
+
+test('plans and verification bind stable requirement IDs to scoped proof and claims', async () => {
+  const plan = await read('skills/writing-plans/SKILL.md');
+  const verification = await read('skills/verification-before-completion/SKILL.md');
+  for (const content of [plan, verification]) {
+    assert.match(content, /stable requirement IDs/i);
+    assert.match(content, /requirement-to-evidence matrix/i);
+    assert.match(content, /intended acceptance claims/i);
+    assert.match(content, /environment|harness/i);
+    assert.match(content, /unavailable proof/i);
+  }
+  assert.match(verification, /narrow evidence.*broad|broad.*narrow evidence/is);
+  assert.match(verification, /semantic-assurance\.mjs complete/);
+});
+
+test('risk lenses cover framework defaults and shared control flow', async () => {
+  const review = await read('skills/risk-adaptive-review/SKILL.md');
+  assert.match(review, /framework-defaults-and-conventions/);
+  assert.match(review, /build tool|build-tool/i);
+  assert.match(review, /wrapper|adapter/i);
+  assert.match(review, /configuration loader/i);
+  assert.match(review, /CLI framework/i);
+  assert.match(review, /router/i);
+  assert.match(review, /ORM/);
+  assert.match(review, /plugin system/i);
+  assert.match(review, /inherited project configuration/i);
+  assert.match(review, /generated.*user-managed topology/i);
+  assert.match(review, /shared-control-flow/);
+  assert.match(review, /shared adapter|shared provider/i);
+  assert.match(review, /common.*specialized/i);
+});
+
+test('review packages falsify claims and corrections invalidate affected approval', async () => {
+  const review = await read('skills/risk-adaptive-review/SKILL.md');
+  const receiving = await read('skills/receiving-code-review/SKILL.md');
+  assert.match(review, /semantic review package/i);
+  assert.match(review, /binding requirement IDs/i);
+  assert.match(review, /attempt.*falsif|falsif.*intended acceptance claims/is);
+  assert.match(review, /BLOCKED_BY_MISSING_EVIDENCE/);
+  assert.match(receiving, /invalidate.*evidence|evidence.*invalidate/is);
+  assert.match(receiving, /invalidate.*approval|approval.*invalidate/is);
+  assert.match(receiving, /same reviewer.*one.*recheck|one.*recheck.*same reviewer/is);
+});

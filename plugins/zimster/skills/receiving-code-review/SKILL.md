@@ -27,6 +27,10 @@ Write or strengthen a failing proof where behavior is defective, then fix the
 underlying invariant. Run focused covering tests and affected integration
 checks.
 
+A correction invalidates every affected evidence receipt and the prior
+exact-head semantic approval. Update the requirement-to-evidence matrix and
+review package for the corrected head before requesting the bounded recheck.
+
 Do not make one agent or commit per finding when one owner understands the
 shared cause.
 

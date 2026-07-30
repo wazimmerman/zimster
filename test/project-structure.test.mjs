@@ -33,6 +33,7 @@ const requiredFiles = [
   'scripts/installed-package-smoke.mjs',
   'scripts/host-smoke.mjs',
   'scripts/review-package.mjs',
+  'scripts/semantic-assurance.mjs',
   'scripts/capability-cache.mjs',
   'scripts/run-postmortem.mjs',
   'scripts/evaluate-execution-economy.mjs',
@@ -49,11 +50,19 @@ const requiredFiles = [
   'scripts/lib/zip-reader.mjs',
   'scripts/lib/runtime.mjs',
   'scripts/lib/run-state.mjs',
+  'scripts/lib/semantic-assurance.mjs',
   'scripts/check-version.mjs',
   'scripts/checksums.mjs',
   'scripts/bump-version.mjs',
   'schemas/evidence.schema.json',
   'schemas/dispatch.schema.json',
+  'schemas/binding-requirements.schema.json',
+  'schemas/requirement-matrix.schema.json',
+  'schemas/semantic-review.schema.json',
+  'schemas/review-records.schema.json',
+  'schemas/completion-decision.schema.json',
+  'templates/binding-requirements.json',
+  'templates/requirement-matrix.json',
   'config/model-routing.json',
   'config/host-smoke.json',
   'plugins/zimster/.codex-plugin/plugin.json'
@@ -77,6 +86,12 @@ test('all primary manifests agree on name and version', async () => {
     assert.equal(manifest.version, packageJson.version, `${manifestPath} version`);
     assert.equal(manifest.license, 'MIT', `${manifestPath} license`);
   }
+});
+
+test('semantic assurance is exposed as a dependency-free project command', async () => {
+  const packageJson = await json('package.json');
+  assert.equal(packageJson.scripts.assurance, 'node scripts/semantic-assurance.mjs');
+  assert.equal(packageJson.dependencies, undefined);
 });
 
 

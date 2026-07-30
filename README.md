@@ -31,6 +31,10 @@ slices. Delegation is optional, bounded, model-aware, and selected by risk.
 - Explicit Git/commit disposition and complete untracked-file review.
 - Auditable requested/effective model records.
 - Local evidence receipts that detect stale and duplicate commands.
+- Stable-ID requirement-to-evidence matrices and proof-bounded acceptance
+  claims.
+- Explicit `self_review` versus clean-context `independent_review`.
+- Separate semantic verdict and reviewer-checkout integrity statuses.
 - Honest states for code, integration, services, hardware, requirements, and
   human acceptance.
 
@@ -94,6 +98,7 @@ select profile and Git disposition
 → one correction wave and one resumed recheck
 → complete staged/unstaged/untracked review
 → fresh canonical final gates
+→ requirement/evidence and semantic-review completion gate
 → explicit branch/commit handoff
 ```
 
@@ -121,6 +126,8 @@ node <zimster-root>/scripts/init-run.mjs --profile standard --reason "two slices
 node <zimster-root>/scripts/project-commands.mjs <target-repo>
 node <zimster-root>/scripts/change-snapshot.mjs
 node <zimster-root>/scripts/evidence.mjs run --kind test --scope focused -- <command>
+node <zimster-root>/scripts/semantic-assurance.mjs matrix ...
+node <zimster-root>/scripts/semantic-assurance.mjs complete ...
 node <zimster-root>/scripts/dispatch-record.mjs record ...
 ```
 
@@ -130,7 +137,11 @@ node <zimster-root>/scripts/dispatch-record.mjs record ...
 - `change-snapshot.mjs` includes committed-range, staged, unstaged, and untracked
   content without altering the index.
 - `evidence.mjs` binds results to the working-tree fingerprint, command, cwd,
-  environment, test discovery, counts, and dependency cone.
+  environment, test discovery, counts, dependency cone, requirement IDs, and
+  established/excluded claims.
+- `semantic-assurance.mjs` validates complete stable-ID matrix coverage,
+  candidate-tree evidence and claim scope, then gates candidate completion on
+  the selected profile's semantic review.
 - `dispatch-record.mjs` records abstract tier plus requested/effective model and
   effort, warning when a fast role inherits the parent model.
 
@@ -179,6 +190,15 @@ scripts, task runners, and CI. It distinguishes:
 Final gates are always fresh. Valid focused evidence may be reused only while
 its fingerprint and dependency cone remain current.
 
+Checkout integrity, evidence validity, self-review, and semantic approval are
+different facts. Owner-inline inspection is `self_review`.
+`REVIEW_CHECKOUT_UNCHANGED` proves no reviewer-visible mutation, not approval.
+Eligible Micro work may complete owner-only; Standard and High-risk work
+require approved clean-context `independent_review` for the exact candidate
+head. Review-unavailable work remains explicitly partial. Only a complete
+requirement-to-evidence matrix and profile-appropriate review can emit
+`CANDIDATE_COMPLETE`.
+
 ## Local development
 
 ```text
@@ -194,10 +214,12 @@ Useful maintenance commands:
 
 ```text
 npm run sync:codex
+npm run assurance -- matrix ...
+npm run assurance -- complete ...
 npm run validate:codex
 npm run codex:cachebuster -- /path/to/staging/plugins/zimster
 npm run version:check
-npm run version:bump -- 0.4.0 --note "Release summary"
+npm run version:bump -- <next-version> --note "Release summary"
 npm run package
 npm run checksums
 ```
@@ -221,7 +243,7 @@ plugins/zimster/         generated self-contained Codex plugin
 hooks/                   Claude compact bootstrap
 scripts/                 operational, validation, version, packaging tools
 config/                  abstract model routing policy
-schemas/                 local evidence/dispatch receipt schemas
+schemas/                 evidence, requirement, review, and completion schemas
 vendor/                  pinned Codex contract snapshot and license
 ```
 
@@ -234,12 +256,11 @@ Apache-2.0. See `THIRD_PARTY_NOTICES.md` and `docs/UPSTREAM.md`.
 
 ## Project status
 
-Version 0.4.0 adds execution-economy controls: deterministic goal/release
-verification, enforced budgets, phase-bounded physical contexts under one
-logical owner, tree-keyed evidence reuse, installed-candidate smoke before
-review, compact review packages, dated capability caching, and run-scoped
-postmortems. The validated cross-harness packaging and quiet fallback contracts
-from 0.3.0 remain intact.
+Version 0.5.0 adds semantic assurance: explicit review types, stable-ID
+requirements, evidence/claim scope, semantic review packages, risk-triggered
+framework and shared-control-flow lenses, and deterministic candidate
+completion. It retains execution-economy controls, cross-harness packaging,
+and quiet fallback contracts.
 
 Live installation in every harness and comparative
 Zimster-versus-Superpowers economics remain evaluation work, not claimed
