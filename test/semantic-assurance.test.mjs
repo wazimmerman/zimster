@@ -2,8 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
   COMPLETION_STATES,
+  evaluateCandidateCompletion,
   evaluateRequirementMatrix,
   independentApprovalFor,
+  selectSemanticLenses,
   validateReviewRecord
 } from '../scripts/lib/semantic-assurance.mjs';
 
@@ -224,4 +226,180 @@ test('evidence from a dirty checkout cannot prove the committed candidate tree',
   assert.equal(result.valid, false);
   assert.deepEqual(result.allowed_claims, []);
   assert.match(result.unverified_obligations.join('\n'), /dirty checkout/i);
+});
+
+const COMPLETE_MATRIX = Object.freeze({
+  valid: true,
+  binding_requirement_ids: ['ASSURANCE-001'],
+  counts: {
+    verified: 1,
+    partially_verified: 0,
+    unverified: 0,
+    blocked_by_environment: 0,
+    blocked_by_requirement: 0,
+    not_applicable: 0
+  },
+  allowed_claims: ['Candidate claim.'],
+  unverified_obligations: [],
+  issues: []
+});
+
+test('eligible Micro work can complete owner-only', () => {
+  assert.deepEqual(evaluateCandidateCompletion({
+    profile: 'micro',
+    microEligible: true,
+    ownerVerified: true,
+    reviewUnavailable: false,
+    matrixResult: COMPLETE_MATRIX,
+    reviews: [],
+    candidateHead: SHA_B
+  }), {
+    state: COMPLETION_STATES.CANDIDATE_COMPLETE,
+    allowed_claims: ['Candidate claim.'],
+    review_id: null,
+    reasons: []
+  });
+});
+
+test('Standard and High-risk work with only self-review remain review pending', () => {
+  const selfReview = review({
+    review_type: 'self_review',
+    owner_inline: true,
+    verdict: 'approved'
+  });
+  for (const profile of ['standard', 'high-risk']) {
+    const result = evaluateCandidateCompletion({
+      profile,
+      microEligible: false,
+      ownerVerified: true,
+      reviewUnavailable: false,
+      matrixResult: COMPLETE_MATRIX,
+      reviews: [selfReview],
+      candidateHead: SHA_B,
+      loadBearingReviewObligationsSatisfied: true
+    });
+    assert.equal(result.state, COMPLETION_STATES.REVIEW_PENDING);
+    assert.match(result.reasons.join('\n'), /independent semantic review/i);
+  }
+});
+
+test('complete Standard proof and exact independent approval reach candidate complete', () => {
+  assert.deepEqual(evaluateCandidateCompletion({
+    profile: 'standard',
+    microEligible: false,
+    ownerVerified: true,
+    reviewUnavailable: false,
+    matrixResult: COMPLETE_MATRIX,
+    reviews: [review({ intended_claims: ['Candidate claim.'] })],
+    candidateHead: SHA_B
+  }), {
+    state: COMPLETION_STATES.CANDIDATE_COMPLETE,
+    allowed_claims: ['Candidate claim.'],
+    review_id: 'review-001',
+    reasons: []
+  });
+});
+
+test('missing or stale matrix proof blocks candidate completion', () => {
+  const result = evaluateCandidateCompletion({
+    profile: 'standard',
+    ownerVerified: true,
+    reviewUnavailable: false,
+    matrixResult: {
+      ...COMPLETE_MATRIX,
+      valid: false,
+      allowed_claims: [],
+      unverified_obligations: ['MATRIX-001: evidence is stale']
+    },
+    reviews: [review({ intended_claims: ['Candidate claim.'] })],
+    candidateHead: SHA_B
+  });
+  assert.equal(result.state, COMPLETION_STATES.BLOCKED_BY_MISSING_EVIDENCE);
+  assert.deepEqual(result.allowed_claims, []);
+});
+
+test('approval for an older head cannot approve a corrected candidate', () => {
+  const result = evaluateCandidateCompletion({
+    profile: 'standard',
+    ownerVerified: true,
+    reviewUnavailable: false,
+    matrixResult: COMPLETE_MATRIX,
+    reviews: [review({ intended_claims: ['Candidate claim.'] })],
+    candidateHead: 'd'.repeat(40)
+  });
+  assert.equal(result.state, COMPLETION_STATES.REVIEW_PENDING);
+  assert.match(result.reasons.join('\n'), /candidate head/i);
+});
+
+test('unavailable independent review produces an honest non-candidate state', () => {
+  const result = evaluateCandidateCompletion({
+    profile: 'high-risk',
+    ownerVerified: true,
+    reviewUnavailable: true,
+    matrixResult: COMPLETE_MATRIX,
+    reviews: [],
+    candidateHead: SHA_B,
+    loadBearingReviewObligationsSatisfied: true
+  });
+  assert.equal(result.state, COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE);
+  assert.deepEqual(result.allowed_claims, ['Candidate claim.']);
+});
+
+test('a correction invalidates prior approval until the bounded recheck', () => {
+  const result = evaluateCandidateCompletion({
+    profile: 'high-risk',
+    ownerVerified: true,
+    reviewUnavailable: false,
+    matrixResult: COMPLETE_MATRIX,
+    reviews: [review()],
+    candidateHead: SHA_B,
+    loadBearingReviewObligationsSatisfied: true,
+    correctionPending: true
+  });
+  assert.equal(result.state, COMPLETION_STATES.REVIEW_PENDING);
+  assert.match(result.reasons.join('\n'), /correction.*recheck/i);
+});
+
+test('High-risk work fails closed when load-bearing review obligations are not recorded', () => {
+  const result = evaluateCandidateCompletion({
+    profile: 'high-risk',
+    ownerVerified: true,
+    reviewUnavailable: false,
+    matrixResult: COMPLETE_MATRIX,
+    reviews: [review({ intended_claims: ['Candidate claim.'] })],
+    candidateHead: SHA_B
+  });
+  assert.equal(result.state, COMPLETION_STATES.REVIEW_PENDING);
+  assert.match(result.reasons.join('\n'), /load-bearing review obligations/i);
+});
+
+test('convention-heavy framework signals select the framework-defaults lens', () => {
+  for (const signal of [
+    'build-tool',
+    'wrapper-adapter',
+    'configuration-loader',
+    'cli-framework',
+    'router',
+    'orm',
+    'plugin-system',
+    'inherited-project-configuration',
+    'generated-user-managed-topology'
+  ]) {
+    assert.deepEqual(selectSemanticLenses([signal]), [
+      'framework-defaults-and-conventions'
+    ]);
+  }
+  assert.deepEqual(selectSemanticLenses(['documentation']), []);
+});
+
+test('shared adapter or provider branching selects the shared-control-flow lens', () => {
+  for (const signal of [
+    'shared-adapter-control-flow',
+    'shared-provider-control-flow',
+    'shared-platform-control-flow',
+    'shared-backend-control-flow'
+  ]) {
+    assert.deepEqual(selectSemanticLenses([signal]), ['shared-control-flow']);
+  }
+  assert.deepEqual(selectSemanticLenses(['isolated-adapter']), []);
 });

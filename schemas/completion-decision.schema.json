@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wazimmerman/zimster/schemas/completion-decision.schema.json",
+  "title": "Zimster semantic completion decision",
+  "type": "object",
+  "required": ["state", "allowed_claims", "review_id", "reasons"],
+  "properties": {
+    "state": {
+      "enum": [
+        "IMPLEMENTATION_COMPLETE",
+        "OWNER_VERIFIED",
+        "REVIEW_PENDING",
+        "SEMANTIC_REVIEW_APPROVED",
+        "OWNER_VERIFIED_REVIEW_UNAVAILABLE",
+        "PARTIALLY_VERIFIED",
+        "CANDIDATE_COMPLETE",
+        "BLOCKED_BY_MISSING_EVIDENCE"
+      ]
+    },
+    "allowed_claims": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "review_id": {"type": ["string", "null"]},
+    "reasons": {
+      "type": "array",
+      "items": {"type": "string", "minLength": 1}
+    }
+  },
+  "additionalProperties": false
+}

@@ -21,6 +21,19 @@ test('test-capable reviewer has explicit tree-integrity controls', async () => {
   assert.match(content, /review-integrity\.mjs.*verify/is);
   assert.match(content, /immutable.*base.*head|base.*head.*immutable/is);
   assert.match(content, /--review-files/);
+  assert.match(content, /REVIEW_CHECKOUT_CHANGED/);
+  assert.doesNotMatch(content, /TREE_INTEGRITY_(?:OK|VIOLATION)/);
+});
+
+test('integration reviewer falsifies claims and separates semantic and checkout verdicts', async () => {
+  const content = await read('agents/integration-reviewer.md');
+  assert.match(content, /falsif/i);
+  assert.match(content, /SEMANTIC_REVIEW_APPROVED/);
+  assert.match(content, /NEEDS_CORRECTION/);
+  assert.match(content, /BLOCKED_BY_MISSING_EVIDENCE/);
+  assert.match(content, /SELF_REVIEW_ONLY/);
+  assert.match(content, /REVIEW_CHECKOUT_(?:UNCHANGED|CHANGED|UNVERIFIED)/);
+  assert.match(content, /unverified obligations/i);
 });
 
 test('model routing is explicit and auditable', async () => {

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { parseOptions, writeLine } from './lib/cli.mjs';
 import { findRepoRoot, gitValue, runGit } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
+import { selectSemanticLenses } from './lib/semantic-assurance.mjs';
 
 const { options } = parseOptions(process.argv.slice(2));
 const root = findRepoRoot(process.cwd());
@@ -25,9 +26,16 @@ function sha256(data) {
 }
 
 function listOption(name) {
-  return options[name]
-    ? String(options[name]).split(',').map((value) => value.trim()).filter(Boolean)
-    : [];
+  if (!options[name]) return [];
+  const value = String(options[name]).trim();
+  if (value.startsWith('[')) {
+    const parsed = JSON.parse(value);
+    if (!Array.isArray(parsed) || !parsed.every((item) => typeof item === 'string' && item.trim())) {
+      throw new Error(`--${name} must be a comma-separated list or JSON array of strings`);
+    }
+    return parsed;
+  }
+  return value.split(',').map((item) => item.trim()).filter(Boolean);
 }
 
 function fileAt(commit, relative) {
@@ -93,7 +101,83 @@ if (options.requirements) {
     digest: text.length > 512 ? `${text.slice(0, 509)}...` : text
   };
 }
-const lenses = listOption('lenses');
+
+async function semanticFile(option) {
+  if (!options[option]) return null;
+  const file = path.resolve(process.cwd(), String(options[option]));
+  const data = await readFile(file);
+  return {
+    path: file,
+    bytes: data.length,
+    sha256: sha256(data),
+    value: JSON.parse(data.toString('utf8'))
+  };
+}
+
+const bindingFile = await semanticFile('binding-requirements');
+const matrixFile = await semanticFile('matrix');
+let bindingRequirements = null;
+let requirementMatrix = null;
+if (bindingFile) {
+  const requirementIds = (bindingFile.value.requirements || []).map(({ id }) => id);
+  if (new Set(requirementIds).size !== requirementIds.length) {
+    throw new Error('binding requirements contain duplicate IDs');
+  }
+  for (const id of requirementIds) {
+    if (!/^[A-Z][A-Z0-9]*-[0-9]{3,}$/.test(id)) {
+      throw new Error(`binding requirements contain malformed ID ${id}`);
+    }
+  }
+  bindingRequirements = {
+    path: bindingFile.path,
+    bytes: bindingFile.bytes,
+    sha256: bindingFile.sha256,
+    source: bindingFile.value.source || null,
+    requirement_ids: requirementIds
+  };
+}
+if (matrixFile) {
+  const matrix = matrixFile.value;
+  if (matrix.candidate_head !== head) {
+    throw new Error(`requirement matrix candidate_head ${matrix.candidate_head} differs from review head ${head}`);
+  }
+  const headTree = gitValue(['rev-parse', `${head}^{tree}`], root, null);
+  if (matrix.candidate_tree !== headTree) {
+    throw new Error(`requirement matrix candidate_tree ${matrix.candidate_tree} differs from review head tree ${headTree}`);
+  }
+  const requirementIds = (matrix.requirements || []).map(({ id }) => id);
+  if (
+    bindingRequirements
+    && JSON.stringify([...requirementIds].sort())
+      !== JSON.stringify([...bindingRequirements.requirement_ids].sort())
+  ) {
+    throw new Error('requirement matrix IDs differ from the binding requirement set');
+  }
+  requirementMatrix = {
+    path: matrixFile.path,
+    bytes: matrixFile.bytes,
+    sha256: matrixFile.sha256,
+    candidate_head: matrix.candidate_head,
+    candidate_tree: matrix.candidate_tree,
+    requirement_ids: requirementIds,
+    statuses: Object.fromEntries(
+      [...new Set((matrix.requirements || []).map(({ status }) => status))]
+        .sort()
+        .map((status) => [
+          status,
+          matrix.requirements.filter((entry) => entry.status === status).length
+        ])
+    )
+  };
+}
+const riskSignals = listOption('risk-signals');
+const lenses = [...new Set([
+  ...listOption('lenses'),
+  ...selectSemanticLenses(riskSignals)
+])];
+const intendedAcceptanceClaims = listOption('intended-claims');
+const unavailableProof = listOption('unavailable-proof');
+const requestedCompletionState = String(options['requested-state'] || 'PARTIALLY_VERIFIED');
 const runtime = await ensureRuntimeDirectory(root);
 let evidence = [];
 try {
@@ -103,13 +187,27 @@ try {
     rows.filter((row) => row.record_type === 'invalidation')
       .map((row) => [row.receipt_id, row.reason])
   );
-  evidence = rows.filter((row) => row.record_type !== 'invalidation').slice(-20).map((row) => ({
+  const receipts = rows.filter((row) => row.record_type !== 'invalidation');
+  const referencedIds = new Set(
+    (matrixFile?.value.requirements || []).flatMap((entry) => entry.evidence_refs || [])
+  );
+  const selected = new Map(
+    receipts
+      .filter((row) => referencedIds.has(row.id))
+      .map((row) => [row.id, row])
+  );
+  for (const row of receipts.slice(-20)) selected.set(row.id, row);
+  evidence = [...selected.values()].map((row) => ({
     id: row.id,
     kind: row.kind,
     scope: row.scope,
     exit_code: row.exit_code,
     git_commit: row.git_commit || row.git_head,
     status: invalidated.has(row.id) ? 'stale' : row.exit_code === 0 ? 'recorded_pass' : 'recorded_fail',
+    requirement_ids: row.requirement_ids || [],
+    establishes: row.establishes || [],
+    does_not_establish: row.does_not_establish || [],
+    environment_scope: row.environment_scope || null,
     ...(invalidated.has(row.id) ? { invalidation_reason: invalidated.get(row.id) } : {})
   }));
 } catch (error) {
@@ -120,7 +218,13 @@ const identity = sha256(JSON.stringify({
   base,
   head,
   requirements: requirements?.sha256 || null,
+  binding_requirements: bindingRequirements?.sha256 || null,
+  requirement_matrix: requirementMatrix?.sha256 || null,
   lenses,
+  risk_signals: riskSignals,
+  intended_acceptance_claims: intendedAcceptanceClaims,
+  unavailable_proof: unavailableProof,
+  requested_completion_state: requestedCompletionState,
   interfaces: interfaces.map(({ path: relative, sha256: hash }) => [relative, hash])
 })).slice(0, 24);
 const directory = path.join(runtime, 'reviews', identity);
@@ -141,7 +245,14 @@ const reviewPackage = {
   base,
   head,
   requirements,
+  binding_requirements: bindingRequirements,
+  requirement_matrix: requirementMatrix,
   lenses,
+  risk_signals: riskSignals,
+  intended_acceptance_claims: intendedAcceptanceClaims,
+  unavailable_proof: unavailableProof,
+  requested_completion_state: requestedCompletionState,
+  review_objective: 'Attempt to falsify every intended acceptance claim and report unverified obligations.',
   authoritative_changed_files: authoritative,
   authoritative_diff: diffPath,
   relevant_unchanged_interfaces: interfaces,

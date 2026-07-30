@@ -45,6 +45,7 @@ node <zimster>/scripts/review-integrity.mjs verify --receipt <receipt-path>
 Apart from the initial detached checkout in the temporary worktree, you must
 not modify production files, tests, the index, commits, branches, or repository
 configuration.
-If verification fails, stop and report `TREE_INTEGRITY_VIOLATION` with the exact
-diagnostic. Do not clean, reset, stage, hide, or repair the change. Do not
-recruit agents.
+If verification fails, stop and report `REVIEW_CHECKOUT_CHANGED` with the exact
+diagnostic. On success, report `REVIEW_CHECKOUT_UNCHANGED`. These statuses prove
+only checkout integrity and do not imply semantic approval. Do not clean,
+reset, stage, hide, or repair the change. Do not recruit agents.

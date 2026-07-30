@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wazimmerman/zimster/schemas/review-records.schema.json",
+  "title": "Zimster semantic review record set",
+  "type": "object",
+  "required": ["schema_version", "reviews"],
+  "properties": {
+    "schema_version": {"const": 1},
+    "reviews": {
+      "type": "array",
+      "items": {
+        "$ref": "semantic-review.schema.json"
+      }
+    }
+  },
+  "additionalProperties": false
+}

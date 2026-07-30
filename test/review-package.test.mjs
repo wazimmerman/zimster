@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -41,16 +41,59 @@ test('review package keeps authoritative changes and hashes generated mirrors wi
     ], repo);
     assert.equal(evidence.status, 0, evidence.stderr || evidence.stdout);
     const receipt = JSON.parse(evidence.stdout);
+    const ledger = path.join(repo, '.git', 'zimster', 'evidence', 'receipts.jsonl');
+    for (let index = 0; index < 21; index += 1) {
+      await appendFile(ledger, `${JSON.stringify({
+        schema_version: 2,
+        id: `filler-${index}`,
+        kind: 'test',
+        scope: 'focused',
+        exit_code: 0
+      })}\n`);
+    }
     const requirements = path.join(external, 'requirements.md');
+    const bindingRequirements = path.join(external, 'binding-requirements.json');
+    const matrix = path.join(external, 'requirement-matrix.json');
     await writeFile(requirements, '# Mission\n\nKeep review packages compact.\n');
+    await writeFile(bindingRequirements, JSON.stringify({
+      schema_version: 1,
+      source: 'requirements.md',
+      requirements: [{
+        id: 'REVIEW-001',
+        text: 'Review packages include semantic assurance inputs.'
+      }]
+    }));
+    await writeFile(matrix, JSON.stringify({
+      schema_version: 1,
+      candidate_head: head,
+      candidate_tree: run('git', ['rev-parse', 'HEAD^{tree}'], repo).stdout.trim(),
+      requirements: [{
+        id: 'REVIEW-001',
+        authoritative_text: 'Review packages include semantic assurance inputs.',
+        source: 'requirements.md#review-001',
+        implementation_locations: ['scripts/example.mjs'],
+        evidence_refs: [receipt.id],
+        evidence_scope: { git_tree: 'candidate', environment: 'node-linux' },
+        unavailable_proof: ['Independent review pending.'],
+        status: 'partially_verified',
+        intended_acceptance_claims: ['Semantic review inputs are complete.']
+      }],
+      observations: []
+    }));
 
     const result = run(process.execPath, [
       path.join(root, 'scripts/review-package.mjs'),
       '--base', base,
       '--head', head,
       '--requirements', requirements,
+      '--binding-requirements', bindingRequirements,
+      '--matrix', matrix,
       '--interfaces', 'interface.json',
-      '--lenses', 'mission,state-authority'
+      '--lenses', 'mission,state-authority',
+      '--risk-signals', 'build-tool,shared-adapter-control-flow',
+      '--intended-claims', JSON.stringify(['Semantic review inputs are complete.']),
+      '--unavailable-proof', JSON.stringify(['Independent review pending.']),
+      '--requested-state', 'CANDIDATE_COMPLETE'
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(result.stderr, '');
@@ -73,7 +116,19 @@ test('review package keeps authoritative changes and hashes generated mirrors wi
     assert.deepEqual(review.relevant_unchanged_interfaces.map(({ path: file }) => file), [
       'interface.json'
     ]);
-    assert.deepEqual(review.lenses, ['mission', 'state-authority']);
+    assert.deepEqual(review.lenses, [
+      'mission',
+      'state-authority',
+      'framework-defaults-and-conventions',
+      'shared-control-flow'
+    ]);
+    assert.deepEqual(review.binding_requirements.requirement_ids, ['REVIEW-001']);
+    assert.equal(review.requirement_matrix.candidate_head, head);
+    assert.deepEqual(review.intended_acceptance_claims, [
+      'Semantic review inputs are complete.'
+    ]);
+    assert.deepEqual(review.unavailable_proof, ['Independent review pending.']);
+    assert.equal(review.requested_completion_state, 'CANDIDATE_COMPLETE');
     assert.equal(review.evidence.some(({ id }) => id === receipt.id), true);
     const diff = await readFile(review.authoritative_diff, 'utf8');
     assert.match(diff, /scripts\/example\.mjs/);

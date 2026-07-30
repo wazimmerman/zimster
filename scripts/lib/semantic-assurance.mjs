@@ -310,9 +310,129 @@ export function evaluateRequirementMatrix({
   }
   return {
     valid: issues.length === 0 && unverified.length === 0,
+    binding_requirement_ids: [...bindingIds].sort(),
     counts,
     allowed_claims: [...allowedClaims].sort(),
     unverified_obligations: [...new Set(unverified)].sort(),
     issues: [...new Set(issues)].sort()
   };
+}
+
+export function evaluateCandidateCompletion({
+  profile,
+  microEligible = false,
+  ownerVerified = false,
+  reviewUnavailable = false,
+  matrixResult,
+  reviews = [],
+  candidateHead,
+  loadBearingReviewObligationsSatisfied = false,
+  correctionPending = false
+}) {
+  if (!['micro', 'standard', 'high-risk'].includes(profile)) {
+    throw new Error('profile must be micro, standard, or high-risk');
+  }
+  const result = (state, {
+    allowedClaims = [],
+    reviewId = null,
+    reasons = []
+  } = {}) => ({
+    state,
+    allowed_claims: allowedClaims,
+    review_id: reviewId,
+    reasons
+  });
+  if (!ownerVerified) {
+    return result(COMPLETION_STATES.IMPLEMENTATION_COMPLETE, {
+      reasons: ['owner verification is incomplete']
+    });
+  }
+  if (!matrixResult?.valid) {
+    const reasons = [
+      ...(matrixResult?.issues || []),
+      ...(matrixResult?.unverified_obligations || [])
+    ];
+    return result(
+      reviewUnavailable
+        ? COMPLETION_STATES.PARTIALLY_VERIFIED
+        : COMPLETION_STATES.BLOCKED_BY_MISSING_EVIDENCE,
+      { reasons: reasons.length ? reasons : ['requirement evidence is incomplete'] }
+    );
+  }
+  const allowedClaims = matrixResult.allowed_claims || [];
+  if (profile === 'micro') {
+    if (!microEligible) {
+      return result(COMPLETION_STATES.PARTIALLY_VERIFIED, {
+        allowedClaims,
+        reasons: ['Micro owner-only completion requires deterministic Micro eligibility']
+      });
+    }
+    return result(COMPLETION_STATES.CANDIDATE_COMPLETE, { allowedClaims });
+  }
+  if (reviewUnavailable) {
+    return result(COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE, {
+      allowedClaims,
+      reasons: ['independent semantic review is unavailable']
+    });
+  }
+  if (correctionPending) {
+    return result(COMPLETION_STATES.REVIEW_PENDING, {
+      allowedClaims,
+      reasons: ['correction invalidated prior approval; bounded recheck is required']
+    });
+  }
+  if (profile === 'high-risk' && !loadBearingReviewObligationsSatisfied) {
+    return result(COMPLETION_STATES.REVIEW_PENDING, {
+      allowedClaims,
+      reasons: ['High-risk load-bearing review obligations are incomplete']
+    });
+  }
+  const approval = independentApprovalFor({
+    profile,
+    candidateHead,
+    reviews,
+    bindingRequirementIds: matrixResult.binding_requirement_ids || [],
+    intendedClaims: allowedClaims
+  });
+  if (!approval.approved) {
+    return result(approval.state, {
+      allowedClaims,
+      reasons: [approval.reason]
+    });
+  }
+  return result(COMPLETION_STATES.CANDIDATE_COMPLETE, {
+    allowedClaims,
+    reviewId: approval.reviewId
+  });
+}
+
+export function selectSemanticLenses(signals = []) {
+  const requested = new Set(signals);
+  const frameworkSignals = [
+    'build-tool',
+    'wrapper-adapter',
+    'configuration-loader',
+    'cli-framework',
+    'router',
+    'orm',
+    'plugin-system',
+    'inherited-project-configuration',
+    'generated-user-managed-topology',
+    'convention-heavy-framework'
+  ];
+  const sharedControlFlowSignals = [
+    'shared-adapter-control-flow',
+    'shared-provider-control-flow',
+    'shared-platform-control-flow',
+    'shared-backend-control-flow',
+    'common-specialized-branching'
+  ];
+  const lenses = [];
+  if (frameworkSignals.some((signal) => requested.has(signal))) {
+    lenses.push('framework-defaults-and-conventions');
+  }
+  if (sharedControlFlowSignals.some((signal) => requested.has(signal))) {
+    lenses.push('shared-control-flow');
+  }
+  return lenses;
 }
