@@ -5,10 +5,9 @@ description: Select the smallest Zimster workflow and risk profile that material
 
 # Using Zimster
 
-Zimster preserves disciplined planning, RED-GREEN-REFACTOR, systematic
-debugging, independent review, worktree isolation, and evidence-based
-completion. One capable agent normally owns coherent implementation from start
-to finish.
+One capable agent normally owns coherent implementation with disciplined
+planning, RED-GREEN-REFACTOR, debugging, independent review, worktree
+isolation, and evidence-based completion.
 
 <SUBAGENT-STOP>
 A subagent follows its bounded assignment and named skill. It does not restart
@@ -77,25 +76,22 @@ load-bearing seam early, and obtains one final integration review.
 
 Keep four facts separate:
 
-- checkout integrity says only whether a reviewer-visible checkout changed;
-- evidence validity says only whether a receipt still applies to its tree,
-  dependency cone, environment, and claim;
-- `self_review` is the implementation owner's inline inspection;
-- `independent_review` is a clean bounded-context attempt to falsify the
-  candidate's intended acceptance claims.
+- checkout integrity (`REVIEW_CHECKOUT_UNCHANGED` or
+  `REVIEW_CHECKOUT_CHANGED`) says only whether the reviewer-visible checkout
+  changed; neither status implies semantic approval;
+- evidence validity says whether a receipt applies to its tree, dependency
+  cone, environment, and claim;
+- `self_review` is the owner's inline inspection;
+- `independent_review` is clean bounded-context falsification of candidate
+  claims.
 
-Owner-inline review is always `self_review`. It cannot satisfy Standard or
-High-risk independent review. Eligible Micro work may complete owner-only only
-when deterministic eligibility and the requirement-to-evidence matrix both
-pass. Standard and High-risk work require approved `independent_review` for the
-exact candidate head; High-risk work also requires every load-bearing
-obligation and final integration review.
-
-`REVIEW_CHECKOUT_UNCHANGED` and `REVIEW_CHECKOUT_CHANGED` are checkout-integrity
-observations; checkout integrity never implies semantic approval. If review is
-unavailable, report `OWNER_VERIFIED_REVIEW_UNAVAILABLE` or another honest
-partial state, never readiness. Only the deterministic completion gate may
-emit `CANDIDATE_COMPLETE`.
+Owner-inline review is always `self_review` and cannot satisfy Standard or
+High-risk independent review. Micro owner-only needs deterministic eligibility
+and a passing requirement matrix. Standard and High-risk need approved
+`independent_review` for the exact candidate head; High-risk also needs every
+load-bearing obligation and final integration review. If unavailable, report
+`OWNER_VERIFIED_REVIEW_UNAVAILABLE` or another honest partial state, never
+readiness. Only the deterministic completion gate may emit `CANDIDATE_COMPLETE`.
 
 ## Durable state trigger
 
@@ -205,15 +201,11 @@ review assurance was unavailable; do not relabel owner-inline work as
 
 ## Installed version and script-free mode
 
-Read `references/build-metadata.json` beside this skill to report the installed
-semantic version, build identity, source commit when available, and package
-target. Do not infer the installed Zimster version from the target project's
-package metadata or Git history.
+Read adjacent `references/build-metadata.json` for installed version, build,
+available source commit, and package target; never infer these from the target
+project's metadata or Git history.
 
-Operational helpers are optional in a skills-only installation. When the
-installed skill tree has no plugin-relative `scripts/` directory, continue
-inline without a warning: preserve Git safety, TDD, review scope, and fresh
-verification. Record that generated receipts are unavailable; maintain the
-compact run record manually when durable state is required. Detailed helper
-availability belongs in an explicit doctor or diagnostic result, not routine
-workflow progress.
+If a skills-only installation has no plugin-relative `scripts/`, continue
+without a warning while preserving Git safety, TDD, review scope, and fresh
+verification. Record receipts as unavailable and maintain required compact
+state manually. Report helper detail only in explicit diagnostics.

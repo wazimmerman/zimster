@@ -6,6 +6,32 @@ import os from 'node:os';
 import path from 'node:path';
 import { exists, json, read, root } from './helpers.mjs';
 
+const SESSION_START_OUTPUT_LIMIT_BYTES = 10_000;
+const SESSION_START_OUTPUT_TARGET_BYTES = 9_800;
+const REQUIRED_BOOTSTRAP_SECTIONS = [
+  '# Using Zimster',
+  '## Select the smallest workflow',
+  '## Deterministic execution profile',
+  '## Semantic assurance contract',
+  '## Durable state trigger',
+  '## Delegation and model routing',
+  '## Cost controls',
+  '## Logical ownership and phase checkpoints',
+  '## Deterministic verification and evidence reuse',
+  '## Capability research and postmortem',
+  '## Harness adaptation',
+  '## Installed version and script-free mode'
+];
+
+function assertSessionStartOutputSize(output, maximum = SESSION_START_OUTPUT_LIMIT_BYTES) {
+  const bytes = Buffer.byteLength(output, 'utf8');
+  assert.ok(
+    bytes <= maximum,
+    `SessionStart output is ${bytes} UTF-8 bytes; maximum is ${maximum}`
+  );
+  return bytes;
+}
+
 function frontmatter(content) {
   const block = content.match(/^---\n([\s\S]*?)\n---\n/)?.[1];
   assert.ok(block, 'agent must contain YAML frontmatter');
@@ -72,6 +98,9 @@ test('Claude focused reviewer is bounded and isolated in a temporary worktree', 
 
 test('Claude SessionStart covers startup resume clear and compact with one compact bootstrap', async () => {
   const hooks = await json('hooks/hooks.json');
+  const canonicalBootstrap = await read('skills/using-zimster/SKILL.md');
+  const generatedBootstrap = await read('plugins/zimster/skills/using-zimster/SKILL.md');
+  assert.equal(generatedBootstrap, canonicalBootstrap);
   const entry = hooks.hooks.SessionStart[0];
   assert.deepEqual(new Set(entry.matcher.split('|')), new Set(['startup', 'resume', 'clear', 'compact']));
   assert.equal(entry.hooks.length, 1);
@@ -99,8 +128,45 @@ test('Claude SessionStart covers startup resume clear and compact with one compa
     assert.equal(context.match(/zimster:using-zimster bootstrap/g)?.length, 1);
     assert.equal(context.match(/<ZIMSTER_BOOTSTRAP>/g)?.length, 1);
     assert.match(context, /# Using Zimster/);
-    assert.ok(Buffer.byteLength(result.stdout) < 10_000, 'SessionStart output must stay under Claude’s context cap');
+    for (const section of REQUIRED_BOOTSTRAP_SECTIONS) {
+      assert.equal(
+        context.split(section).length - 1,
+        1,
+        `SessionStart bootstrap must contain exactly one ${section} section`
+      );
+    }
+    assert.match(context, /<SUBAGENT-STOP>[\s\S]*does not restart[\s\S]*recruit more agents/);
+    assert.match(context, /User and repository instructions override Zimster defaults/);
+    assert.match(context, /Always report the selected profile and its risk rationale/);
+    assert.match(context, /`REVIEW_CHECKOUT_UNCHANGED` or\s+`REVIEW_CHECKOUT_CHANGED`/);
+    assert.match(context, /Owner-inline review is always `self_review`/);
+    assert.match(context, /cannot satisfy Standard or\s+High-risk independent review/);
+    assert.match(context, /Only the deterministic completion gate may\s+emit `CANDIDATE_COMPLETE`/);
+    assert.match(context, /scripts\/init-run\.mjs[\s\S]*git rev-parse --git-path zimster\/run\.md/);
+    assert.match(context, /config\/model-routing\.json[\s\S]*scripts\/dispatch-record\.mjs/);
+    assert.match(context, /Never lower a required\s+quality gate silently/);
+    assert.match(context, /The logical owner is continuous/);
+    assert.match(context, /Required fresh final\s+gates are never reused/);
+    assert.match(context, /observed, inferred, and unavailable metrics\s+distinct/);
+    assert.match(context, /Read only the matching reference/);
+    assert.match(context, /references\/build-metadata\.json/);
+    assert.match(context, /no plugin-relative `scripts\/`[\s\S]*without a warning/);
+    const bytes = assertSessionStartOutputSize(result.stdout);
+    assert.ok(
+      bytes <= SESSION_START_OUTPUT_TARGET_BYTES,
+      `SessionStart output is ${bytes} UTF-8 bytes; correction target is ${SESSION_START_OUTPUT_TARGET_BYTES}`
+    );
   }
+});
+
+test('SessionStart byte contract measures UTF-8 and rejects an oversized payload', () => {
+  const oversized = 'é'.repeat(5_001);
+  assert.equal(oversized.length, 5_001);
+  assert.equal(Buffer.byteLength(oversized, 'utf8'), 10_002);
+  assert.throws(
+    () => assertSessionStartOutputSize(oversized),
+    /10002 UTF-8 bytes; maximum is 10000/
+  );
 });
 
 test('Claude SessionStart reports a missing required bootstrap as an actionable error', async () => {
