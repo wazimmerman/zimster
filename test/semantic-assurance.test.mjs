@@ -113,7 +113,7 @@ test('approved clean-context independent review satisfies the exact Standard can
   );
 });
 
-test('unchanged checkout is not semantic approval', () => {
+test('checkout integrity never substitutes for semantic approval', () => {
   assert.deepEqual(
     independentApprovalFor({
       ...approvalOptions({
@@ -127,6 +127,21 @@ test('unchanged checkout is not semantic approval', () => {
       approved: false,
       state: COMPLETION_STATES.BLOCKED_BY_MISSING_EVIDENCE,
       reason: 'independent review verdict is blocked_by_missing_evidence'
+    }
+  );
+  assert.deepEqual(
+    independentApprovalFor({
+      ...approvalOptions({
+        reviews: [review({
+          checkout_integrity_result: 'REVIEW_CHECKOUT_CHANGED',
+          semantic_lenses: REQUIRED_LENSES
+        })]
+      })
+    }),
+    {
+      approved: false,
+      state: COMPLETION_STATES.REVIEW_PENDING,
+      reason: 'review checkout integrity was not established'
     }
   );
 });

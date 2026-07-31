@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { read } from './helpers.mjs';
+import { json, read } from './helpers.mjs';
 
 test('TDD preserves the red-green-refactor proof discipline', async () => {
   const tdd = await read('skills/test-driven-development/SKILL.md');
@@ -131,15 +131,42 @@ test('review types and checkout integrity have non-overlapping assurance meaning
   const bootstrap = await read('skills/using-zimster/SKILL.md');
   const owner = await read('skills/owner-driven-development/SKILL.md');
   const review = await read('skills/risk-adaptive-review/SKILL.md');
+  const reviewSchema = await json('schemas/semantic-review.schema.json');
+  const completionSchema = await json('schemas/completion-decision.schema.json');
   for (const content of [bootstrap, owner, review]) {
     assert.match(content, /self_review/);
     assert.match(content, /independent_review/);
     assert.match(content, /owner-inline.*self.review|self.review.*owner-inline/is);
     assert.match(content, /REVIEW_CHECKOUT_UNCHANGED/);
     assert.match(content, /REVIEW_CHECKOUT_CHANGED/);
-    assert.match(content, /checkout integrity.*(?:never|does not).*semantic approval|semantic approval.*(?:never|does not).*checkout integrity/is);
     assert.doesNotMatch(content, /TREE_INTEGRITY_(?:OK|VIOLATION)/);
   }
+  assert.deepEqual(
+    reviewSchema.properties.review_type.enum,
+    ['self_review', 'independent_review']
+  );
+  assert.deepEqual(
+    reviewSchema.properties.checkout_integrity_result.enum,
+    [
+      'REVIEW_CHECKOUT_UNCHANGED',
+      'REVIEW_CHECKOUT_CHANGED',
+      'REVIEW_CHECKOUT_UNVERIFIED'
+    ]
+  );
+  assert.deepEqual(
+    reviewSchema.properties.verdict.enum,
+    [
+      'approved',
+      'needs_correction',
+      'blocked_by_missing_evidence',
+      'self_review_only'
+    ]
+  );
+  assert.ok(reviewSchema.required.includes('review_type'));
+  assert.ok(reviewSchema.required.includes('verdict'));
+  assert.ok(reviewSchema.required.includes('checkout_integrity_result'));
+  assert.ok(completionSchema.properties.state.enum.includes('SEMANTIC_REVIEW_APPROVED'));
+  assert.ok(completionSchema.properties.state.enum.includes('CANDIDATE_COMPLETE'));
 });
 
 test('profile-appropriate semantic approval gates candidate completion', async () => {
