@@ -156,8 +156,9 @@ node <zimster-root>/scripts/dispatch-record.mjs record ...
 - `semantic-assurance.mjs` validates complete stable-ID matrix coverage,
   candidate-tree evidence and claim scope, then gates candidate completion on
   the selected profile's semantic review.
-- `dispatch-record.mjs` records abstract tier plus requested/effective model and
-  effort, warning when a fast role inherits the parent model.
+- `dispatch-record.mjs` requires selected-delegation, authoritative-proposal,
+  and resolution IDs for new v2 dispatches; historical v1 tier records remain
+  readable and updateable.
 
 See `docs/OPERATIONS.md` for the full policy and command reference.
 See `docs/INSTALL.md` for Codex, Claude Code, and skills-only installation,

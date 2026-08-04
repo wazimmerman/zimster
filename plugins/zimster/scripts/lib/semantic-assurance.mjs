@@ -29,6 +29,13 @@ const HOST_VERIFICATION_STATES = Object.freeze([
   'UNAVAILABLE',
   'UNSUPPORTED'
 ]);
+const RELEASE_HOST_POLICIES = Object.freeze({
+  public_beta: Object.freeze({ minimum_live_verified_hosts: 1, required_live_host_ids: Object.freeze([]) }),
+  stable: Object.freeze({
+    minimum_live_verified_hosts: PUBLIC_BETA_HOST_IDS.length,
+    required_live_host_ids: PUBLIC_BETA_HOST_IDS
+  })
+});
 
 export const REVIEW_TYPES = Object.freeze([
   'self_review',
@@ -157,10 +164,16 @@ export function validateHostSmokeReceipt(receipt, {
   const liveIds = receipt.hosts
     .filter(({ verification_state: state }) => state === 'LIVE_VERIFIED')
     .map(({ id }) => id);
+  const canonicalPolicy = RELEASE_HOST_POLICIES[releaseChannel];
   const minimumLive = receipt.policy?.minimum_live_verified_hosts;
   const requiredLive = receipt.policy?.required_live_host_ids;
-  if (!Number.isInteger(minimumLive) || minimumLive < 1 || !Array.isArray(requiredLive)) {
-    throw new Error('release-channel host policy is malformed');
+  if (
+    minimumLive !== canonicalPolicy.minimum_live_verified_hosts
+    || !Array.isArray(requiredLive)
+    || JSON.stringify([...requiredLive].sort())
+      !== JSON.stringify([...canonicalPolicy.required_live_host_ids].sort())
+  ) {
+    throw new Error(`${releaseChannel} host policy does not match the canonical release profile`);
   }
   if (liveIds.length < minimumLive) {
     throw new Error(`${releaseChannel} requires at least ${minimumLive} LIVE_VERIFIED host receipt(s)`);
@@ -249,6 +262,17 @@ export function validateReviewRecord(record) {
   }
   if (!['approved', 'needs_correction', 'blocked_by_missing_evidence', 'self_review_only'].includes(record.verdict)) {
     throw new Error('review record has an unsupported verdict');
+  }
+  if (record.verdict === 'approved') {
+    const loadBearingFindings = record.findings.filter(({ severity }) =>
+      ['Critical', 'Important'].includes(severity)
+    );
+    if (loadBearingFindings.length) {
+      throw new Error('approved review record contradicts its load-bearing findings');
+    }
+    if (record.unverified_obligations.length) {
+      throw new Error('approved review record contradicts its unresolved obligations');
+    }
   }
   if (!CHECKOUT_INTEGRITY_RESULTS.includes(record.checkout_integrity_result)) {
     throw new Error('review record has an unsupported checkout_integrity_result');

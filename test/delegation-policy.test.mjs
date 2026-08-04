@@ -391,7 +391,23 @@ test('COMPAT-001: legacy dispatch records remain readable with capability-class 
   try {
     const dispatch = path.join(root, 'scripts/dispatch-record.mjs');
     let result = run(process.execPath, [dispatch, 'record', '--role', 'scout', '--purpose', 'inventory', '--tier', 'fast'], repo);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /delegation-id|legacy.*read/i);
+    result = run(process.execPath, [dispatch, 'init'], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
+    const runtime = run('git', [
+      'rev-parse', '--path-format=absolute', '--git-path', 'zimster/dispatches/dispatches.jsonl'
+    ], repo).stdout.trim();
+    await writeFile(runtime, `${JSON.stringify({
+      schema_version: 1,
+      id: 'legacy-dispatch',
+      role: 'scout',
+      purpose: 'historical inventory',
+      tier: 'fast',
+      requested_model: 'fast-default',
+      effective_model: 'unverified',
+      created_at: '2026-07-30T00:00:00.000Z'
+    })}\n`);
     result = run(process.execPath, [dispatch, 'list', '--normalized'], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const legacy = JSON.parse(result.stdout.trim());

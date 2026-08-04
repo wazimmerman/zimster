@@ -1,4 +1,4 @@
-import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { parseOptions, required, integerOption, writeError, writeLine } from './lib/cli.mjs';
@@ -21,7 +21,6 @@ const action = positional[0];
 const root = findRepoRoot(process.cwd());
 let directory;
 let file;
-const tiers = new Set(['fast', 'standard', 'expert']);
 const capabilityClasses = new Set(['economy', 'balanced', 'expert', 'inherit']);
 
 async function init() {
@@ -152,8 +151,11 @@ async function main() {
     return;
   }
   if (action !== 'record') throw new Error('Usage: dispatch-record.mjs <init|record|update|recover|list>');
+  if (!options['delegation-id']) {
+    throw new Error('new dispatch records require --delegation-id; dispatch v1 is read-only compatibility data');
+  }
 
-  if (options['delegation-id']) {
+  {
     const runtime = await ensureRuntimeDirectory(root);
     const decisions = await runtimeRows(runtime, 'delegation', 'decisions.jsonl');
     const decision = decisions.find((item) => item.id === String(options['delegation-id']));
@@ -273,30 +275,6 @@ async function main() {
     writeLine(JSON.stringify(recorded));
     return;
   }
-
-  const tier = required(options, 'tier');
-  if (!tiers.has(tier)) throw new Error('--tier must be fast, standard, or expert');
-  const row = addInheritanceWarning({
-    schema_version: 1,
-    id: randomUUID(),
-    role: required(options, 'role'),
-    purpose: required(options, 'purpose'),
-    tier,
-    requested_model: String(options['requested-model'] || 'harness-default'),
-    requested_effort: String(options['requested-effort'] || 'harness-default'),
-    effective_model: String(options['effective-model'] || 'unverified'),
-    effective_effort: String(options['effective-effort'] || 'unverified'),
-    parent_model: options['parent-model'] ? String(options['parent-model']) : null,
-    agent_id: options['agent-id'] ? String(options['agent-id']) : null,
-    turn_limit: integerOption(options, 'turn-limit', 12),
-    commit_permission: String(options['commit-permission'] || 'none'),
-    ownership: options.ownership ? String(options.ownership) : null,
-    output_path: options.output ? String(options.output) : null,
-    created_at: new Date().toISOString()
-  });
-  await init();
-  await appendFile(file, `${JSON.stringify(row)}\n`);
-  writeLine(JSON.stringify(row));
 }
 
 main().catch((error) => {

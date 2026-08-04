@@ -64,7 +64,8 @@ Dependency-free Node 22 tools turn important policy into inspectable state:
 - `dispatch-record.mjs` records requested/effective model routing;
 - `delegation-record.mjs` records the delegation decision before routing;
 - `model-routing.mjs` creates proposals and resolves mappings and fallbacks;
-- `adapter-config.mjs` emits owned host overrides only to an explicit output;
+- `adapter-config.mjs` emits owned host overrides only for enforcing routing
+  modes and only to an explicit output; advisory `recommend` remains inherited;
 - `convergence.mjs` records bounded continue/escalate decisions;
 - `sync-codex-plugin.mjs` generates the Codex plugin mirror;
 - `validate-codex.mjs` checks the pinned official contract snapshot;

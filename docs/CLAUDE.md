@@ -17,7 +17,9 @@ npm run validate:claude
 The GitHub marketplace source is `wazimmerman/zimster`. Plugin agent defaults
 inherit model and effort. `adapter-config.mjs generate --harness claude` can
 stage same-name project `.claude/agents/` or user overrides only at an explicit
-output; the generated registry makes rollback/removal ownership-safe.
+output when routing mode is `map_only` or `auto_within_policy`; `recommend` and
+`inherit` generate no enforced override. The generated registry makes
+rollback/removal ownership-safe.
 
 When Claude Code is installed, also run its authoritative validator from the
 repository or extracted Claude archive:

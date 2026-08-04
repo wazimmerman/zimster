@@ -180,13 +180,10 @@ exit code.
 
 ## Legacy dispatch records
 
-```text
-node <zimster>/scripts/dispatch-record.mjs record \
-  --role scout --purpose "locate state authority" --tier fast \
-  --requested-model fast-default --requested-effort low \
-  --parent-model expert-parent --turn-limit 12 \
-  --commit-permission none --output <git-local-zimster-path>/scout.md
-```
+Dispatch v1 records created by Zimster 0.5 remain readable and updateable, but
+the v1 writer is closed. New dispatches require a selected delegation decision,
+an authoritative proposal, and a resolution linked through `--delegation-id`,
+`--proposal-id`, and `--resolution-id`.
 
 After the harness reports effective routing:
 
@@ -197,8 +194,9 @@ node <zimster>/scripts/dispatch-record.mjs update \
 ```
 
 A fast role that actually used the parent model is marked with a warning.
-This v1 interface remains for 0.5 compatibility. New work uses delegation,
-proposal, resolution, and v2 dispatch IDs described in `CONFIGURATION.md`.
+The v1 reader/update path remains for 0.5 compatibility. New work uses
+delegation, proposal, resolution, and v2 dispatch IDs described in
+`CONFIGURATION.md`.
 
 ## Requirement matrix and candidate completion
 

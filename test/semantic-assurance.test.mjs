@@ -114,6 +114,15 @@ test('approved clean-context independent review satisfies the exact Standard can
   );
 });
 
+test('an approved review cannot carry load-bearing findings or unresolved obligations', () => {
+  assert.throws(() => validateReviewRecord(review({
+    findings: [{ severity: 'Critical', summary: 'completion gate bypass' }]
+  })), /approved.*finding|contradict/i);
+  assert.throws(() => validateReviewRecord(review({
+    unverified_obligations: ['Exact-head verification remains unresolved.']
+  })), /approved.*obligation|contradict/i);
+});
+
 test('checkout integrity never substitutes for semantic approval', () => {
   assert.deepEqual(
     independentApprovalFor({
@@ -696,6 +705,15 @@ test('BETA-003 stable profile may require stronger live coverage than public bet
     candidateTree: TREE,
     releaseChannel: 'stable'
   }));
+
+  const selfWeakened = hostVerificationReceipt();
+  selfWeakened.release_channel = 'stable';
+  selfWeakened.policy = { minimum_live_verified_hosts: 1, required_live_host_ids: [] };
+  assert.throws(() => validateHostSmokeReceipt(selfWeakened, {
+    candidateHead: SHA_B,
+    candidateTree: TREE,
+    releaseChannel: 'stable'
+  }), /stable|policy|six|required live/i);
 });
 
 test('BETA-003 host verification remains bound to exact archive provenance', () => {

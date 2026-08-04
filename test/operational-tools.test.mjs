@@ -224,14 +224,61 @@ test('doctor exposes the shared capability vocabulary without warning on JSON ou
   assert.match(report.routing.configuration_digest, /^[0-9a-f]{64}$/);
 });
 
-test('dispatch recorder stores abstract tier plus requested and effective model evidence', async () => {
+test('doctor rejects a supplied stale or malformed host receipt instead of displaying its claims', async () => {
+  const temporary = await mkdtemp(path.join(os.tmpdir(), 'zimster-doctor-receipt-'));
+  try {
+    const receipt = path.join(temporary, 'stale.json');
+    await writeFile(receipt, `${JSON.stringify({
+      schema_version: 3,
+      status: 'passed',
+      release_channel: 'public_beta',
+      candidate_head: '0'.repeat(40),
+      candidate_tree: '1'.repeat(40)
+    })}\n`);
+    const result = run(process.execPath, [
+      path.join(root, 'scripts/doctor.mjs'), '--json', '--host-smoke-receipt', receipt
+    ], root);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const report = JSON.parse(result.stdout);
+    assert.equal(report.public_beta.status, 'BLOCKED_BY_ENVIRONMENT');
+    assert.match(report.public_beta.reason, /invalid|stale|candidate|receipt/i);
+    assert.equal(report.support_matrix.opencode.verification_level === 'LIVE_VERIFIED', false);
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
+});
+
+test('legacy dispatch records remain updateable without permitting new gate-free v1 records', async () => {
   const repo = await tempRepo();
   try {
     const dispatch = path.join(root, 'scripts/dispatch-record.mjs');
     let result = run(process.execPath, [dispatch, 'init'], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     result = run(process.execPath, [dispatch, 'record', '--role', 'scout', '--purpose', 'inspect cache call sites', '--tier', 'fast', '--requested-model', 'fast-default', '--requested-effort', 'low', '--effective-model', 'unverified', '--effective-effort', 'unverified', '--parent-model', 'expert-parent', '--turn-limit', '12'], repo);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    const legacyDirectory = path.join(repo, '.zimster', 'dispatches');
+    await mkdir(legacyDirectory, { recursive: true });
+    await writeFile(path.join(legacyDirectory, 'dispatches.jsonl'), `${JSON.stringify({
+      schema_version: 1,
+      id: 'legacy-dispatch',
+      role: 'scout',
+      purpose: 'historical cache inventory',
+      tier: 'fast',
+      requested_model: 'fast-default',
+      requested_effort: 'low',
+      effective_model: 'unverified',
+      effective_effort: 'unverified',
+      parent_model: 'expert-parent',
+      turn_limit: 12,
+      created_at: '2026-07-30T00:00:00.000Z'
+    })}\n`);
+    result = run(process.execPath, [dispatch, 'list', '--normalized'], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
+    const migrated = run('git', [
+      'rev-parse', '--path-format=absolute', '--git-path', 'zimster/dispatches/dispatches.jsonl'
+    ], repo).stdout.trim();
+    assert.match(await readFile(migrated, 'utf8'), /legacy-dispatch/);
+    assert.notEqual(result.stdout.trim(), '', `dispatch list was empty; migrated file: ${migrated}`);
     let row = JSON.parse(result.stdout.trim().split('\n').at(-1));
     assert.equal(row.tier, 'fast');
     assert.equal(row.requested_model, 'fast-default');

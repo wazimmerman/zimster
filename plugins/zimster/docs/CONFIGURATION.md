@@ -44,9 +44,11 @@ not durable policy. Requested provider, model, and effort remain separate from
 effective values and mismatch reporting.
 
 Validate with `node scripts/model-routing.mjs validate-config --config <path>`.
-Generate optional host overrides only to an explicit output with
-`adapter-config.mjs generate`; removal requires the generated ownership
-manifest and refuses modified files, symlinks, or collisions.
+Only `map_only` and `auto_within_policy` may generate optional host overrides,
+and only to an explicit output with `adapter-config.mjs generate`. `recommend`
+remains advisory and inherits at spawn; `inherit` also writes no override.
+Removal requires the generated ownership manifest and refuses modified files,
+symlinks, or collisions.
 
 ## Proposal lifetime and local evidence
 

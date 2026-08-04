@@ -9,7 +9,8 @@ import {
   resolveProjectConfigPath,
   resolveUserConfigPath
 } from './lib/config-layers.mjs';
-import { findRepoRoot, gitValue } from './lib/git-state.mjs';
+import { captureGitState, findRepoRoot, gitValue } from './lib/git-state.mjs';
+import { validateHostSmokeReceipt } from './lib/semantic-assurance.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { options } = parseOptions(process.argv.slice(2));
@@ -85,13 +86,28 @@ if (sourceCheckout) {
 }
 const routingConfig = routingLayers.effective.routing || {};
 let betaReceipt = null;
+let betaReceiptProblem = 'no current exact-package LIVE_VERIFIED host receipt';
 if (sourceCheckout) {
   try {
-    const receiptPath = gitValue([
-      'rev-parse', '--path-format=absolute', '--git-path', 'zimster/host-smoke/latest.json'
-    ], findRepoRoot(root), null);
-    if (receiptPath) betaReceipt = JSON.parse(await readFile(receiptPath, 'utf8'));
-  } catch {}
+    const repository = findRepoRoot(root);
+    const receiptPath = options['host-smoke-receipt']
+      ? path.resolve(String(options['host-smoke-receipt']))
+      : gitValue([
+        'rev-parse', '--path-format=absolute', '--git-path', 'zimster/host-smoke/latest.json'
+      ], repository, null);
+    const candidate = await captureGitState(repository);
+    if (
+      candidate.dirty_tree_fingerprint
+      !== 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+    ) throw new Error('current checkout is dirty');
+    betaReceipt = validateHostSmokeReceipt(
+      JSON.parse(await readFile(receiptPath, 'utf8')),
+      { candidateHead: candidate.head, candidateTree: candidate.tree, releaseChannel: 'public_beta' }
+    );
+  } catch (error) {
+    betaReceipt = null;
+    betaReceiptProblem = `host receipt is invalid or stale: ${error.message}`;
+  }
 }
 const receiptHosts = new Map((betaReceipt?.hosts || []).map((host) => [host.id, host]));
 const supportMatrix = Object.fromEntries(Object.keys(matrix.harnesses).map((name) => {
@@ -161,7 +177,7 @@ const report = {
       all_claims_bounded: false,
       executed: [],
       unavailable: Object.keys(matrix.harnesses),
-      reason: 'no current exact-package LIVE_VERIFIED host receipt'
+      reason: betaReceiptProblem
     },
   harnesses,
   support_matrix: supportMatrix

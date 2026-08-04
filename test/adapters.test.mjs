@@ -169,6 +169,35 @@ test('adapter generator writes only explicit owned outputs and removes only matc
   }
 });
 
+test('ROUTE-003: recommend mode cannot generate concrete adapter model overrides', async () => {
+  const temporary = await mkdtemp(path.join(os.tmpdir(), 'zimster-adapter-recommend-'));
+  try {
+    const config = path.join(temporary, 'config.json');
+    const capabilities = path.join(temporary, 'capabilities.json');
+    await writeFile(capabilities, JSON.stringify({ per_agent_model_selection: 'native' }));
+    await writeFile(config, JSON.stringify({
+      schema_version: 1,
+      routing: {
+        mode: 'recommend', policy: 'balanced',
+        role_classes: { reviewer: 'expert' },
+        mappings: { expert: [{
+          model: 'advisory-only', effort: 'high',
+          availability: 'declared_available', availability_source: 'test'
+        }] }
+      }
+    }));
+    const result = spawnSync(process.execPath, [
+      path.join(root, 'scripts/adapter-config.mjs'), 'generate',
+      '--harness', 'codex', '--scope', 'project', '--config', config,
+      '--output', path.join(temporary, 'output'), '--capabilities', capabilities
+    ], { cwd: temporary, encoding: 'utf8' });
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /recommend.*inherit|advisory.*override/i);
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
+});
+
 test('adapter generator keeps provider identity separate except for OpenCode provider/model syntax', async () => {
   const temporary = await mkdtemp(path.join(os.tmpdir(), 'zimster-adapter-provider-'));
   try {

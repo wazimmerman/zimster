@@ -89,7 +89,9 @@ async function generate() {
   if (!['project', 'user'].includes(scope)) throw new Error('--scope must be project or user');
   const output = path.resolve(required(options, 'output'));
   const config = validateRoutingConfig(JSON.parse(await readFile(path.resolve(required(options, 'config')), 'utf8')));
-  if (config.routing.mode === 'inherit') throw new Error('inherit mode does not generate concrete adapter overrides');
+  if (!['map_only', 'auto_within_policy'].includes(config.routing.mode)) {
+    throw new Error(`${config.routing.mode} mode is advisory or inherited and cannot generate concrete adapter overrides`);
+  }
   const catalog = options.catalog
     ? JSON.parse(await readFile(path.resolve(String(options.catalog)), 'utf8'))
     : null;

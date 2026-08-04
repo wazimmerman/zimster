@@ -24,7 +24,9 @@ proposal, resolution, and requested/effective reporting contracts. Enable
 2. Install 0.6.0 in an isolated host home and run exact-package smoke.
 3. Validate configuration with `model-routing.mjs validate-config`.
 4. Add project or user mappings; Zimster never writes them automatically.
-5. Generate adapter overrides to an explicit staging path and inspect them.
+5. For `map_only` or `auto_within_policy`, generate adapter overrides to an
+   explicit staging path and inspect them; `recommend` and `inherit` do not
+   generate enforced overrides.
 6. Enable autonomous convergence only after reviewing the configured budgets.
 
 For emergency workflow rollback, set `routing.mode` to `inherit` and

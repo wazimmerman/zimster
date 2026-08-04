@@ -73,6 +73,9 @@ test('BETA-001 and BETA-003: six beta surfaces use claim-scoped states and chann
     'verification level', 'what was tested', 'what was not tested',
     'installation availability', 'known limitations'
   ]) assert.match(readme, new RegExp(phrase, 'i'));
+  const research = await read('docs/RESEARCH.md');
+  assert.match(research, /OpenCode[\s\S]*1\.18\.9[\s\S]*exact-package[\s\S]*discovery/i);
+  assert.doesNotMatch(research, /Current-version 0\.6 exact-package proof[^|\n]*pending/i);
 });
 
 test('BETA-002: privacy, diagnostics, contribution, and security contracts are public-beta ready', async () => {
