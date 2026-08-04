@@ -31,7 +31,7 @@ const operationalScripts = [
   'scripts/lib/cli.mjs', 'scripts/lib/execution-budget.mjs',
   'scripts/lib/git-state.mjs', 'scripts/lib/runtime.mjs',
   'scripts/lib/config-layers.mjs', 'scripts/lib/model-routing.mjs',
-  'scripts/lib/convergence.mjs',
+  'scripts/lib/convergence.mjs', 'scripts/lib/proposal-state.mjs',
   'scripts/lib/path-identity.mjs',
   'scripts/lib/run-state.mjs',
   'scripts/lib/semantic-assurance.mjs',
@@ -41,6 +41,7 @@ const operationalScripts = [
 const publicContracts = [
   'schemas/delegation-decision.schema.json', 'schemas/model-proposal.schema.json',
   'schemas/routing-observation.schema.json', 'schemas/convergence-decision.schema.json',
+  'schemas/host-smoke-receipt.schema.json',
   'docs/INSTALL.md', 'docs/CONFIGURATION.md', 'docs/KNOWN_LIMITATIONS.md',
   'docs/MIGRATING-0.5.0.md'
 ];

@@ -1,7 +1,8 @@
-import { access, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { access, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { integerOption, parseOptions, writeLine } from './lib/cli.mjs';
+import { integerOption, parseOptions, required, writeLine } from './lib/cli.mjs';
 import { findRepoRoot, gitValue } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory, resolveAuditPath } from './lib/runtime.mjs';
 import { harnessCapabilities } from './lib/capabilities.mjs';
@@ -32,10 +33,37 @@ const capabilityReceipt = {
   capabilities: harness ? await harnessCapabilities(harness) : null
 };
 const capabilitySection = `## Harness capability receipt\n\n\`\`\`json\n${JSON.stringify(capabilityReceipt, null, 2)}\n\`\`\``;
-const convergenceConfigPath = options['convergence-config']
-  ? path.resolve(repo, String(options['convergence-config']))
-  : path.join(scriptRoot, 'config', 'convergence.json');
-const convergenceConfig = validateConvergenceConfig(JSON.parse(await readFile(convergenceConfigPath, 'utf8')));
+const selfHostingCandidate = options['self-hosting-candidate']
+  ? String(options['self-hosting-candidate'])
+  : null;
+let acceptedPolicy = null;
+let convergenceConfig;
+if (selfHostingCandidate) {
+  if (options['convergence-config']) {
+    throw new Error('self-hosting candidates cannot use candidate-tree --convergence-config; provide an external accepted-policy artifact');
+  }
+  const acceptedPath = await realpath(path.resolve(
+    process.cwd(),
+    required(options, 'accepted-policy-config')
+  ));
+  const relative = path.relative(repo, acceptedPath);
+  if (relative === '' || (!relative.startsWith(`..${path.sep}`) && relative !== '..' && !path.isAbsolute(relative))) {
+    throw new Error('self-hosting accepted-policy config must be outside the candidate repository');
+  }
+  const bytes = await readFile(acceptedPath);
+  const sha256 = createHash('sha256').update(bytes).digest('hex');
+  const expected = required(options, 'accepted-policy-sha256').toLowerCase();
+  if (!/^[0-9a-f]{64}$/.test(expected) || sha256 !== expected) {
+    throw new Error('self-hosting accepted-policy digest does not match the immutable expected SHA-256');
+  }
+  convergenceConfig = validateConvergenceConfig(JSON.parse(bytes.toString('utf8')));
+  acceptedPolicy = { path: acceptedPath, sha256 };
+} else {
+  const convergenceConfigPath = options['convergence-config']
+    ? path.resolve(repo, String(options['convergence-config']))
+    : path.join(scriptRoot, 'config', 'convergence.json');
+  convergenceConfig = validateConvergenceConfig(JSON.parse(await readFile(convergenceConfigPath, 'utf8')));
+}
 
 function withCapabilityReceipt(contents) {
   const existing = /## Harness capability receipt\n\n```json\n[\s\S]*?\n```/;
@@ -95,11 +123,14 @@ if (!auditPath && normalizedProfile !== 'Micro') {
     `${JSON.stringify(convergenceConfig, null, 2)}\n`,
     { flag: options.force === true ? 'w' : 'wx' }
   );
-  if (options['self-hosting-candidate']) {
+  if (selfHostingCandidate) {
     await writeFile(path.join(runtimeDirectory, 'bootstrap.json'), `${JSON.stringify({
       schema_version: 1,
-      candidate_version: String(options['self-hosting-candidate']),
-      ...convergenceConfig.self_hosting,
+      candidate_version: selfHostingCandidate,
+      governing_policy: 'external_accepted_policy',
+      candidate_rules_authoritative: false,
+      candidate_test_scope: 'isolated_fixtures_and_package_homes',
+      accepted_policy: acceptedPolicy,
       created_at: new Date().toISOString()
     }, null, 2)}\n`, { flag: options.force === true ? 'w' : 'wx' });
   }

@@ -30,7 +30,9 @@
     "input_fingerprint": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
     "supersedes": { "type": ["string", "null"] },
     "superseded_by": { "type": ["string", "null"] },
-    "status": { "enum": ["active", "consumed", "invalidated", "cancelled"] },
+    "status": { "enum": ["active", "claimed", "consumed", "invalidated", "cancelled"] },
+    "claim_id": { "type": "string", "minLength": 1 },
+    "claimed_at": { "type": "string", "format": "date-time" },
     "consumed_by": { "type": "string", "minLength": 1 },
     "consumed_at": { "type": "string", "format": "date-time" },
     "created_at": { "type": "string", "format": "date-time" }

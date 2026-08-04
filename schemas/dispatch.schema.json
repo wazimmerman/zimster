@@ -23,7 +23,7 @@
     },
     {
       "type": "object",
-      "required": ["schema_version", "id", "run_id", "session_id", "delegation_id", "proposal_id", "resolution_id", "role", "purpose", "capability_class", "requested_model", "requested_provider", "requested_effort", "effective_model", "effective_effort", "availability", "enforcement", "effective_reporting", "resolution_mode", "mapping_source", "mapping_digest", "fallback_trace", "turn_limit", "owner_acceptance", "created_at"],
+      "required": ["schema_version", "id", "run_id", "session_id", "delegation_id", "proposal_id", "proposal_claim_id", "resolution_id", "role", "purpose", "capability_class", "requested_model", "requested_provider", "requested_effort", "effective_model", "effective_effort", "availability", "enforcement", "effective_reporting", "resolution_mode", "mapping_source", "mapping_digest", "fallback_trace", "turn_limit", "owner_acceptance", "created_at"],
       "properties": {
         "schema_version": { "const": 2 },
         "id": { "type": "string", "minLength": 1 },
@@ -31,6 +31,7 @@
         "session_id": { "type": "string", "minLength": 1 },
         "delegation_id": { "type": "string", "minLength": 1 },
         "proposal_id": { "type": "string", "minLength": 1 },
+        "proposal_claim_id": { "type": "string", "minLength": 1 },
         "resolution_id": { "type": "string", "minLength": 1 },
         "role": { "type": "string", "minLength": 1 },
         "purpose": { "type": "string", "minLength": 1 },

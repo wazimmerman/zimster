@@ -74,7 +74,12 @@ receipts are required for Codex, Claude Code, Cursor, Kimi Code, OpenCode, and
 Pi. `host-smoke.mjs` reports `BLOCKED_BY_ENVIRONMENT` and exits nonzero when any
 required host is absent or unconfigured. Structural validation, historical live
 proof, and an extracted archive smoke cannot satisfy this gate. Never emit
-`CANDIDATE_COMPLETE` until `all_required` is true for the exact candidate.
+`CANDIDATE_COMPLETE` until `all_required` is true and each host result records
+installation plus fresh-session discovery against an archive SHA-256 bound to
+the clean candidate head and tree through embedded build metadata. Host smoke
+also rejects overrides of isolated home/config variables. Semantic completion
+validates that receipt;
+an `executed` host-name list alone is insufficient.
 
 ## Inspect artifacts
 

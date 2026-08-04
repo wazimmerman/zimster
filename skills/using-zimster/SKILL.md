@@ -144,8 +144,8 @@ the largest consumers. At about 80%, stop optional delegation and polish,
 consolidate findings, and prioritize required proof. Never lower a required
 quality gate silently.
 
-For Standard and High-risk runs, initialize the machine-readable execution
-budget. Record suites, duplicates, agent identities/depth, rechecks,
+Initialize the machine-readable execution budget for Standard and High-risk
+runs. Record suites, duplicates, agent identities/depth, rechecks,
 corrections, context renewals, research, and exposed token thresholds. Crossing
 a limit needs a recorded strategy change/invalidation and named proof.
 
@@ -205,9 +205,9 @@ and isolated until review and acceptance pass.
 
 ## Installed version and script-free mode
 
-Read adjacent `references/build-metadata.json` for installed version, build,
-available source commit, and package target; never infer these from the target
-project's metadata or Git history.
+Read adjacent `references/build-metadata.json` for version, build, source
+commit/tree and cleanliness, and package target; never infer these from the
+target project's metadata or Git history.
 
 If skills-only has no plugin-relative `scripts/`, continue without a warning
 while preserving safety, TDD, review, and verification. Mark helper receipts

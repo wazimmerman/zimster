@@ -14,7 +14,8 @@
         "OWNER_VERIFIED_REVIEW_UNAVAILABLE",
         "PARTIALLY_VERIFIED",
         "CANDIDATE_COMPLETE",
-        "BLOCKED_BY_MISSING_EVIDENCE"
+        "BLOCKED_BY_MISSING_EVIDENCE",
+        "BLOCKED_BY_ENVIRONMENT"
       ]
     },
     "allowed_claims": {

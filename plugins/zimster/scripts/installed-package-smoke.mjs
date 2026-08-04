@@ -90,6 +90,7 @@ try {
       'schemas/model-proposal.schema.json',
       'schemas/routing-observation.schema.json',
       'schemas/convergence-decision.schema.json',
+      'schemas/host-smoke-receipt.schema.json',
       'docs/INSTALL.md',
       'docs/CONFIGURATION.md',
       'docs/MIGRATING-0.5.0.md'

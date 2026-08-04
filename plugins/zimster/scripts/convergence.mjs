@@ -13,9 +13,15 @@ import {
 const { positional, options } = parseOptions(process.argv.slice(2));
 const root = findRepoRoot(process.cwd());
 
+function requiredBoolean(name) {
+  const value = required(options, name);
+  if (!['true', 'false'].includes(String(value))) throw new Error(`--${name} must be true or false`);
+  return String(value) === 'true';
+}
+
 async function main() {
   if (positional[0] !== 'decide') {
-    throw new Error('Usage: convergence.mjs decide --event <kind> --scope <in-scope|out-of-scope> --sensitivity <ordinary|sensitive> --metric <name>');
+    throw new Error('Usage: convergence.mjs decide --event <kind> --scope <in-scope|out-of-scope> --sensitivity <ordinary|sensitive> --reversible <true|false> --authorized <true|false> --deterministic <true|false> --locality <local|external> --metric <name>');
   }
   const runtime = await ensureRuntimeDirectory(root);
   const configPath = options.config
@@ -26,22 +32,39 @@ async function main() {
   const metric = normalizeConvergenceMetric(required(options, 'metric'));
   const scope = required(options, 'scope');
   const sensitivity = required(options, 'sensitivity');
+  const reversible = requiredBoolean('reversible');
+  const authorized = requiredBoolean('authorized');
+  const deterministic = requiredBoolean('deterministic');
+  const locality = required(options, 'locality');
+  const condition = options.condition ? String(options.condition) : null;
+  const enabled = config.autonomous_convergence.enabled;
   const used = metric === 'review_rechecks_per_seam'
     ? Number(budget.scoped_usage?.[metric]?.[String(options['budget-scope'] || 'default')] || 0)
     : Number(budget.usage?.[metric] || 0);
   const limit = Number(budget.limits?.[metric]);
   const decision = decideConvergence({
     event: required(options, 'event'), scope, sensitivity,
-    reversible: options.reversible !== 'false',
-    authorized: options.authorized !== 'false',
-    condition: options.condition ? String(options.condition) : null,
+    reversible,
+    authorized,
+    deterministic,
+    locality,
+    condition,
     metric, used, limit,
-    enabled: config.autonomous_convergence.enabled
+    enabled
   });
   const runState = JSON.parse(await readFile(path.join(runtime, 'run.json'), 'utf8'));
   const record = convergenceRecord({
     runId: runState.id,
-    event: required(options, 'event'), scope, sensitivity, decision
+    event: required(options, 'event'),
+    scope,
+    sensitivity,
+    reversible,
+    authorized,
+    deterministic,
+    locality,
+    condition,
+    enabled,
+    decision
   });
   const directory = path.join(runtime, 'convergence');
   await mkdir(directory, { recursive: true });

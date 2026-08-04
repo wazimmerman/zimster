@@ -17,6 +17,10 @@ import {
   validateDelegationDecision,
   validateRoutingConfig
 } from './lib/model-routing.mjs';
+import {
+  appendActiveProposal,
+  supersedeActiveProposal
+} from './lib/proposal-state.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
@@ -52,10 +56,6 @@ async function storage() {
 async function jsonl(file) {
   try { return (await readFile(file, 'utf8')).split('\n').filter(Boolean).map((line) => JSON.parse(line)); }
   catch (error) { if (error.code === 'ENOENT') return []; throw error; }
-}
-
-async function writeJsonl(file, rows) {
-  await writeFile(file, rows.map((row) => JSON.stringify(row)).join('\n') + (rows.length ? '\n' : ''));
 }
 
 async function decisionById(runtime, id) {
@@ -257,16 +257,9 @@ async function main() {
     proposal.availability = recommendation ? 'available' : preview.availability;
   }
   if (proposal.supersedes) {
-    const proposals = await jsonl(files.proposals);
-    const previous = proposals.find((row) => row.id === proposal.supersedes);
-    if (!previous) throw new Error(`superseded proposal not found: ${proposal.supersedes}`);
-    if (previous.status !== 'active') throw new Error(`superseded proposal must be active; status is ${previous.status}`);
-    if (previous.delegation_id !== proposal.delegation_id) throw new Error('superseded proposal belongs to a different delegation decision');
-    previous.status = 'invalidated';
-    previous.superseded_by = proposal.id;
-    await writeJsonl(files.proposals, [...proposals, proposal]);
+    await supersedeActiveProposal(files.runtime, proposal.supersedes, proposal);
   } else {
-    await appendFile(files.proposals, `${JSON.stringify(proposal)}\n`);
+    await appendActiveProposal(files.runtime, proposal);
   }
   writeLine(JSON.stringify(proposal));
 }

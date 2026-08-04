@@ -37,8 +37,10 @@ physical context uses `phase-checkpoint.mjs resume`; logical ownership remains
 with the same root owner.
 
 Pass `--convergence-config <path>` to snapshot validated limits. A self-hosting
-candidate also passes `--self-hosting-candidate <version>`; its bootstrap
-receipt keeps candidate policy non-authoritative.
+candidate instead passes `--self-hosting-candidate <version>`,
+`--accepted-policy-config <outside-repository-path>`, and the independently
+known `--accepted-policy-sha256 <digest>`. Initialization rejects candidate-tree
+policy and records the accepted artifact identity in the bootstrap receipt.
 
 ## Delegation, routing, and convergence
 
@@ -47,10 +49,15 @@ decision may reach `model-routing.mjs propose`. Regenerate a dispatch-phase
 proposal and resolve it with current task, Git, configuration, harness,
 capability, catalog, and override evidence immediately before a v2 dispatch.
 The dispatch command revalidates those inputs and consumes the proposal once.
-After delegated implementation, the owner records acceptance only after proof.
+It first creates an atomic proposal claim; concurrent dispatch/supersession loses
+that claim without spawning. After an interrupted claim, the owner runs
+`dispatch-record.mjs recover --proposal-id <id> --claim-id <id>` to finalize an
+already recorded dispatch or release an uncommitted reservation. After delegated
+implementation, the owner records acceptance only after proof.
 
 Use `convergence.mjs decide --event <kind> --scope in-scope --sensitivity
-ordinary --metric <budget>` after an ordinary deterministic failure. A
+ordinary --reversible true --authorized true --deterministic true --locality
+local --metric <budget>` after an ordinary deterministic failure. A
 `continue` record replaces repeated authorization; escalation or exhaustion
 stops the autonomous path.
 

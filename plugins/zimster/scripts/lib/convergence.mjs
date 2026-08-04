@@ -13,6 +13,10 @@ export const CONVERGENCE_ALIASES = Object.freeze({
   final_correction_waves: 'correction_commits',
   context_compactions: 'context_renewals'
 });
+const SCOPES = Object.freeze(['in-scope', 'out-of-scope']);
+const SENSITIVITIES = Object.freeze(['ordinary', 'sensitive']);
+const LOCALITIES = Object.freeze(['local', 'external']);
+const CONDITIONS = Object.freeze([null, 'contradiction', 'missing_independent_review', 'policy_required_approval']);
 
 export function normalizeConvergenceMetric(metric) {
   return CONVERGENCE_ALIASES[metric] || metric;
@@ -42,13 +46,22 @@ export function decideConvergence({
   sensitivity,
   reversible,
   authorized,
+  deterministic,
+  locality,
   metric,
   used,
   limit,
   condition = null,
   enabled = true
 }) {
-  if (!event) throw new Error('convergence event is required');
+  if (typeof event !== 'string' || !event.trim()) throw new Error('convergence event must be a non-empty string');
+  if (!SCOPES.includes(scope)) throw new Error('convergence scope must be in-scope or out-of-scope');
+  if (!SENSITIVITIES.includes(sensitivity)) throw new Error('convergence sensitivity must be ordinary or sensitive');
+  if (!LOCALITIES.includes(locality)) throw new Error('convergence locality must be local or external');
+  for (const [name, value] of Object.entries({ reversible, authorized, deterministic, enabled })) {
+    if (typeof value !== 'boolean') throw new Error(`convergence ${name} must be boolean`);
+  }
+  if (!CONDITIONS.includes(condition)) throw new Error('convergence condition is unsupported');
   const canonicalMetric = normalizeConvergenceMetric(metric);
   if (!CONVERGENCE_METRICS.includes(canonicalMetric)) throw new Error(`unknown convergence metric: ${metric}`);
   if (!Number.isInteger(used) || used < 0 || !Number.isInteger(limit) || limit < 0) {
@@ -59,7 +72,13 @@ export function decideConvergence({
   else if (scope === 'out-of-scope') reason = 'material_scope_expansion';
   else if (sensitivity === 'sensitive' && authorized !== true) reason = 'sensitive_decision_lacks_authority';
   else if (condition === 'missing_independent_review') reason = 'missing_independent_review';
-  else if (condition === 'policy_required_approval' || enabled !== true || reversible !== true) reason = 'policy_required_approval';
+  else if (
+    condition === 'policy_required_approval'
+    || enabled !== true
+    || reversible !== true
+    || deterministic !== true
+    || locality !== 'local'
+  ) reason = 'policy_required_approval';
   if (reason) return { outcome: 'escalate', reason, metric: canonicalMetric, used, limit };
   if (used >= limit) return { outcome: 'budget_exhausted', reason: 'exhausted_budget', metric: canonicalMetric, used, limit };
   return {
@@ -71,7 +90,19 @@ export function decideConvergence({
   };
 }
 
-export function convergenceRecord({ runId, event, scope, sensitivity, decision }) {
+export function convergenceRecord({
+  runId,
+  event,
+  scope,
+  sensitivity,
+  reversible,
+  authorized,
+  deterministic,
+  locality,
+  condition,
+  enabled,
+  decision
+}) {
   return {
     schema_version: 1,
     id: randomUUID(),
@@ -81,6 +112,12 @@ export function convergenceRecord({ runId, event, scope, sensitivity, decision }
     reason: decision.reason,
     scope,
     sensitivity,
+    reversible,
+    authorized,
+    deterministic,
+    locality,
+    condition,
+    autonomous_convergence_enabled: enabled,
     metric: decision.metric,
     used: decision.used,
     limit: decision.limit,

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -9,6 +9,13 @@ import {
   createModelProposal,
   validateDelegationDecision
 } from '../scripts/lib/model-routing.mjs';
+import {
+  appendActiveProposal,
+  commitDispatchClaim,
+  recoverProposalClaim,
+  reserveProposalForDispatch,
+  supersedeActiveProposal
+} from '../scripts/lib/proposal-state.mjs';
 
 function run(command, args, cwd) {
   return spawnSync(command, args, { cwd, encoding: 'utf8' });
@@ -71,6 +78,137 @@ test('DEL-003: selected delegation requires every bounded execution field', () =
     acceptance_proof: 'node --test test/focused.test.mjs'
   };
   assert.deepEqual(validateDelegationDecision(complete), complete);
+});
+
+test('ROUTE-005: proposal reservation is atomic and an interrupted claim recovers without duplicate dispatch', async () => {
+  const runtime = await mkdtemp(path.join(os.tmpdir(), 'zimster-proposal-state-'));
+  try {
+    const proposal = {
+      id: 'proposal-atomic',
+      delegation_id: 'delegation-atomic',
+      status: 'active',
+      superseded_by: null
+    };
+    await appendActiveProposal(runtime, proposal);
+    const attempts = await Promise.allSettled([
+      reserveProposalForDispatch(runtime, proposal.id),
+      reserveProposalForDispatch(runtime, proposal.id)
+    ]);
+    assert.equal(attempts.filter(({ status }) => status === 'fulfilled').length, 1);
+    assert.equal(attempts.filter(({ status }) => status === 'rejected').length, 1);
+    const firstClaim = attempts.find(({ status }) => status === 'fulfilled').value.claim;
+    assert.deepEqual(
+      await recoverProposalClaim(runtime, proposal.id, firstClaim.id),
+      { status: 'released', proposal_id: proposal.id, claim_id: firstClaim.id }
+    );
+    const retry = await reserveProposalForDispatch(runtime, proposal.id);
+    const dispatch = {
+      id: 'dispatch-atomic',
+      proposal_id: proposal.id,
+      proposal_claim_id: retry.claim.id
+    };
+    assert.deepEqual(await commitDispatchClaim(runtime, retry.claim.id, dispatch), dispatch);
+    const recovery = await recoverProposalClaim(runtime, proposal.id, retry.claim.id);
+    assert.deepEqual(recovery, {
+      status: 'consumed',
+      proposal_id: proposal.id,
+      dispatch_id: dispatch.id
+    });
+    await assert.rejects(reserveProposalForDispatch(runtime, proposal.id), /single-use|consumed|claimed/i);
+    const dispatches = (await readFile(path.join(runtime, 'dispatches/dispatches.jsonl'), 'utf8')).trim().split('\n');
+    assert.equal(dispatches.length, 1);
+
+    const interrupted = {
+      id: 'proposal-interrupted-dispatch',
+      delegation_id: proposal.delegation_id,
+      status: 'active',
+      superseded_by: null
+    };
+    await appendActiveProposal(runtime, interrupted);
+    const claims = path.join(runtime, 'routing/claims');
+    await mkdir(claims, { recursive: true });
+    const interruptedClaim = {
+      schema_version: 1,
+      id: 'claim-interrupted-dispatch',
+      proposal_id: interrupted.id,
+      purpose: 'dispatch',
+      status: 'reserved',
+      claimed_at: '2026-08-04T00:00:00.000Z'
+    };
+    await writeFile(
+      path.join(claims, `${interrupted.id}.lock`),
+      `${JSON.stringify(interruptedClaim)}\n`,
+      { flag: 'wx' }
+    );
+    assert.deepEqual(
+      await recoverProposalClaim(runtime, interrupted.id, interruptedClaim.id),
+      { status: 'released', proposal_id: interrupted.id, claim_id: interruptedClaim.id }
+    );
+  } finally {
+    await rm(runtime, { recursive: true, force: true });
+  }
+});
+
+test('ROUTE-005: supersession and dispatch reservation cannot both claim one active proposal', async () => {
+  const runtime = await mkdtemp(path.join(os.tmpdir(), 'zimster-proposal-supersession-'));
+  try {
+    const proposal = {
+      id: 'proposal-original',
+      delegation_id: 'delegation-atomic',
+      status: 'active',
+      superseded_by: null
+    };
+    const replacement = {
+      id: 'proposal-replacement',
+      delegation_id: proposal.delegation_id,
+      status: 'active',
+      superseded_by: null,
+      supersedes: proposal.id
+    };
+    await appendActiveProposal(runtime, proposal);
+    const attempts = await Promise.allSettled([
+      reserveProposalForDispatch(runtime, proposal.id),
+      supersedeActiveProposal(runtime, proposal.id, replacement)
+    ]);
+    assert.equal(attempts.filter(({ status }) => status === 'fulfilled').length, 1);
+    assert.equal(attempts.filter(({ status }) => status === 'rejected').length, 1);
+    const rows = (await readFile(path.join(runtime, 'routing/proposals.jsonl'), 'utf8'))
+      .trim().split('\n').map((line) => JSON.parse(line));
+    const original = rows.find(({ id }) => id === proposal.id);
+    assert.ok(['claimed', 'invalidated'].includes(original.status));
+    assert.equal(rows.filter(({ id }) => id === replacement.id).length, original.status === 'invalidated' ? 1 : 0);
+
+    const interrupted = {
+      id: 'proposal-interrupted-supersession',
+      delegation_id: proposal.delegation_id,
+      status: 'active',
+      superseded_by: null
+    };
+    await appendActiveProposal(runtime, interrupted);
+    const claims = path.join(runtime, 'routing/claims');
+    await mkdir(claims, { recursive: true });
+    const interruptedClaim = {
+      schema_version: 1,
+      id: 'claim-interrupted-supersession',
+      proposal_id: interrupted.id,
+      purpose: 'supersession',
+      status: 'reserved',
+      replacement_proposal_id: 'proposal-never-written',
+      claimed_at: '2026-08-04T00:00:00.000Z',
+      completed_at: null
+    };
+    await writeFile(
+      path.join(claims, `${interrupted.id}.lock`),
+      `${JSON.stringify(interruptedClaim)}\n`,
+      { flag: 'wx' }
+    );
+    assert.deepEqual(
+      await recoverProposalClaim(runtime, interrupted.id, interruptedClaim.id),
+      { status: 'released', proposal_id: interrupted.id, claim_id: interruptedClaim.id }
+    );
+  } finally {
+    await rm(runtime, { recursive: true, force: true });
+  }
 });
 
 test('delegation CLI records false before routing and cheap mappings cannot create a proposal', async () => {

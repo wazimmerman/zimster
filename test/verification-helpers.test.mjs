@@ -1,12 +1,34 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { createPackages } from '../scripts/package.mjs';
 import { createZip } from '../scripts/lib/zip.mjs';
 import { root } from './helpers.mjs';
+
+const CLEAN_FINGERPRINT = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+
+async function createExactPortableArchive(dist, head = 'a'.repeat(40), tree = 'b'.repeat(40)) {
+  await mkdir(dist, { recursive: true });
+  await createZip(path.join(dist, 'zimster-0.6.0-portable.zip'), [
+    ['.opencode/plugins/zimster.js', { data: Buffer.from('export default {};\n'), mode: 0o644 }],
+    ['skills/using-zimster/references/build-metadata.json', {
+      data: Buffer.from(`${JSON.stringify({
+        schema_version: 1,
+        semantic_version: '0.6.0',
+        source_commit: head,
+        source_tree: tree,
+        source_dirty_tree_fingerprint: CLEAN_FINGERPRINT,
+        build_date: '2026-08-04T00:00:00.000Z',
+        build_id: `zimster-0.6.0-${head.slice(0, 12)}-portable`,
+        package_target: 'portable'
+      }, null, 2)}\n`),
+      mode: 0o644
+    }]
+  ]);
+}
 
 function run(command, args, cwd) {
   const env = { ...process.env };
@@ -95,13 +117,17 @@ test('secret scan reports worktree and archived credential material without prin
 
 test('configured host smoke runs in isolated homes and records unavailable hosts', async () => {
   const repo = await tempRepo();
+  const dist = path.join(repo, 'dist');
   try {
+    await createExactPortableArchive(dist);
     const config = path.join(repo, 'host-smoke.json');
     await writeFile(config, `${JSON.stringify({
       schema_version: 1,
       hosts: [
         {
           id: 'available-host',
+          candidate: 'portable',
+          proof_kind: 'exact_package_install_and_fresh_session_discovery',
           command: process.execPath,
           args: [
             '-e',
@@ -111,12 +137,16 @@ test('configured host smoke runs in isolated homes and records unavailable hosts
         },
         {
           id: 'missing-host',
+          candidate: 'portable',
+          proof_kind: 'exact_package_install_and_fresh_session_discovery',
           unavailable_reason: 'CLI is not installed'
         }
       ]
     })}\n`);
     const result = run(process.execPath, [
-      path.join(root, 'scripts/host-smoke.mjs'), '--config', config
+      path.join(root, 'scripts/host-smoke.mjs'), '--config', config, '--dist', dist,
+      '--candidate-head', 'a'.repeat(40), '--candidate-tree', 'b'.repeat(40),
+      '--dirty-tree-fingerprint', CLEAN_FINGERPRINT
     ], repo);
     assert.equal(result.status, 2, result.stderr || result.stdout);
     assert.equal(result.stderr, '');
@@ -127,6 +157,23 @@ test('configured host smoke runs in isolated homes and records unavailable hosts
       id: 'missing-host',
       reason: 'CLI is not installed'
     }]);
+
+    const unsafeConfig = path.join(repo, 'unsafe-host-smoke.json');
+    await writeFile(unsafeConfig, `${JSON.stringify({
+      schema_version: 1,
+      hosts: [{
+        id: 'unsafe-host', candidate: 'portable',
+        proof_kind: 'exact_package_install_and_fresh_session_discovery',
+        command: process.execPath, args: ['-e', ''], env: { HOME: '/not-isolated' }
+      }]
+    })}\n`);
+    const unsafe = run(process.execPath, [
+      path.join(root, 'scripts/host-smoke.mjs'), '--config', unsafeConfig, '--dist', dist,
+      '--candidate-head', 'a'.repeat(40), '--candidate-tree', 'b'.repeat(40),
+      '--dirty-tree-fingerprint', CLEAN_FINGERPRINT
+    ], repo);
+    assert.notEqual(unsafe.status, 0);
+    assert.match(unsafe.stderr, /isolation-critical environment/i);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }
@@ -166,13 +213,14 @@ test('host smoke runs a configured command from the extracted exact candidate', 
   const directory = await mkdtemp(path.join(os.tmpdir(), 'zimster-host-candidate-'));
   try {
     const dist = path.join(directory, 'dist');
-    await createPackages(dist);
+    await createExactPortableArchive(dist);
     const config = path.join(directory, 'host-smoke.json');
     await writeFile(config, `${JSON.stringify({
       schema_version: 1,
       hosts: [{
         id: 'candidate-host',
         candidate: 'portable',
+        proof_kind: 'exact_package_install_and_fresh_session_discovery',
         command: process.execPath,
         args: ['-e', "import { accessSync, writeSync } from 'node:fs'; accessSync('.opencode/plugins/zimster.js'); writeSync(process.stdout.fd, 'using-zimster');"],
         expected_output: 'using-zimster'
@@ -180,12 +228,27 @@ test('host smoke runs a configured command from the extracted exact candidate', 
     })}\n`);
     const result = run(process.execPath, [
       path.join(root, 'scripts/host-smoke.mjs'),
-      '--config', config, '--dist', dist
+      '--config', config, '--dist', dist,
+      '--candidate-head', 'a'.repeat(40), '--candidate-tree', 'b'.repeat(40),
+      '--dirty-tree-fingerprint', CLEAN_FINGERPRINT
     ], root);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const summary = JSON.parse(result.stdout);
     assert.deepEqual(summary.executed, ['candidate-host']);
     assert.deepEqual(summary.failures, []);
+    assert.equal(summary.hosts[0].fresh_session_discovery, true);
+    assert.match(summary.hosts[0].archive_sha256, /^[0-9a-f]{64}$/);
+    assert.equal(summary.hosts[0].source_commit, 'a'.repeat(40));
+    assert.equal(summary.hosts[0].source_tree, 'b'.repeat(40));
+
+    const stale = run(process.execPath, [
+      path.join(root, 'scripts/host-smoke.mjs'),
+      '--config', config, '--dist', dist,
+      '--candidate-head', 'c'.repeat(40), '--candidate-tree', 'b'.repeat(40),
+      '--dirty-tree-fingerprint', CLEAN_FINGERPRINT
+    ], root);
+    assert.notEqual(stale.status, 0);
+    assert.match(stale.stderr, /archive provenance.*candidate head and tree/i);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

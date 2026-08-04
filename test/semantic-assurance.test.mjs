@@ -7,6 +7,7 @@ import {
   independentApprovalFor,
   semanticContractDigest,
   selectSemanticLenses,
+  validateHostSmokeReceipt,
   validateReviewRecord
 } from '../scripts/lib/semantic-assurance.mjs';
 
@@ -543,6 +544,69 @@ test('complete Standard proof and exact independent approval reach candidate com
     review_id: 'review-001',
     reasons: []
   });
+});
+
+test('BETA-003 completion requires all-six exact-package fresh-session proof bound to the candidate', () => {
+  const required = ['codex', 'claude', 'cursor', 'kimi', 'opencode', 'pi'];
+  const artifacts = {
+    claude: '1'.repeat(64),
+    codex: '2'.repeat(64),
+    portable: '3'.repeat(64)
+  };
+  const candidateByHost = {
+    codex: 'codex', claude: 'claude', cursor: 'portable', kimi: 'portable',
+    opencode: 'portable', pi: 'portable'
+  };
+  const receipt = {
+    schema_version: 2,
+    status: 'passed',
+    all_required: true,
+    candidate_head: SHA_B,
+    candidate_tree: TREE,
+    dirty_tree_fingerprint: CLEAN_FINGERPRINT,
+    required_host_ids: required,
+    artifact_digests: artifacts,
+    hosts: required.map((id) => ({
+      id,
+      status: 'passed',
+      candidate: candidateByHost[id],
+      archive_sha256: artifacts[candidateByHost[id]],
+      source_commit: SHA_B,
+      source_tree: TREE,
+      exact_package_install: true,
+      fresh_session_discovery: true
+    })),
+    generated_at: '2026-08-04T12:00:00.000Z'
+  };
+  assert.deepEqual(validateHostSmokeReceipt(receipt, {
+    candidateHead: SHA_B,
+    candidateTree: TREE
+  }), receipt);
+  const matrixResult = {
+    ...COMPLETE_MATRIX,
+    binding_requirement_ids: [...COMPLETE_MATRIX.binding_requirement_ids, 'BETA-003']
+  };
+  const betaReview = review({
+    reviewed_requirement_ids: [...review().reviewed_requirement_ids, 'BETA-003'],
+    intended_claims: ['Candidate claim.'],
+    semantic_lenses: REQUIRED_LENSES
+  });
+  const base = {
+    profile: 'standard', ownerVerified: true, reviewUnavailable: false,
+    matrixResult, reviews: [betaReview], candidateHead: SHA_B, candidateTree: TREE,
+    candidateBase: SHA_A, reviewPackageId: 'package-001',
+    semanticContractSha256: CONTRACT_SHA, requiredLenses: REQUIRED_LENSES
+  };
+  const blocked = evaluateCandidateCompletion(base);
+  assert.equal(blocked.state, COMPLETION_STATES.BLOCKED_BY_ENVIRONMENT);
+  assert.match(blocked.reasons.join('\n'), /all-six|host smoke|fresh-session/i);
+  assert.equal(evaluateCandidateCompletion({ ...base, hostSmokeReceipt: receipt }).state, COMPLETION_STATES.CANDIDATE_COMPLETE);
+  assert.throws(() => validateHostSmokeReceipt({
+    ...receipt,
+    hosts: receipt.hosts.map((host) => host.id === 'pi'
+      ? { ...host, archive_sha256: '4'.repeat(64) }
+      : host)
+  }, { candidateHead: SHA_B, candidateTree: TREE }), /artifact|digest/i);
 });
 
 test('missing or stale matrix proof blocks candidate completion', () => {

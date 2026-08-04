@@ -35,7 +35,7 @@ const includes = [
   'scripts/lib/cli.mjs', 'scripts/lib/execution-budget.mjs',
   'scripts/lib/git-state.mjs', 'scripts/lib/runtime.mjs',
   'scripts/lib/config-layers.mjs', 'scripts/lib/model-routing.mjs',
-  'scripts/lib/convergence.mjs',
+  'scripts/lib/convergence.mjs', 'scripts/lib/proposal-state.mjs',
   'scripts/lib/path-identity.mjs',
   'scripts/lib/run-state.mjs',
   'scripts/lib/semantic-assurance.mjs',

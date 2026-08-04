@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wazimmerman/zimster/schemas/host-smoke-receipt.schema.json",
+  "title": "Zimster exact-package host smoke receipt",
+  "type": "object",
+  "required": ["schema_version", "status", "candidate_head", "candidate_tree", "dirty_tree_fingerprint", "required_host_ids", "all_required", "artifact_digests", "hosts", "executed", "unavailable", "failures", "generated_at"],
+  "properties": {
+    "schema_version": {"const": 2},
+    "status": {"enum": ["passed", "failed", "BLOCKED_BY_ENVIRONMENT"]},
+    "candidate_head": {"type": ["string", "null"]},
+    "candidate_tree": {"type": ["string", "null"]},
+    "dirty_tree_fingerprint": {"type": ["string", "null"]},
+    "required_host_ids": {"type": "array", "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "all_required": {"type": "boolean"},
+    "artifact_digests": {"type": "object", "additionalProperties": {"type": "string", "pattern": "^[0-9a-f]{64}$"}},
+    "hosts": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "status", "candidate"],
+        "properties": {
+          "id": {"type": "string", "minLength": 1},
+          "status": {"enum": ["passed", "failed", "unavailable"]},
+          "candidate": {"enum": ["claude", "codex", "portable"]},
+          "archive": {"type": "string", "minLength": 1},
+          "archive_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+          "source_commit": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+          "source_tree": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+          "exact_package_install": {"type": "boolean"},
+          "fresh_session_discovery": {"type": "boolean"},
+          "reason": {"type": "string"}
+        },
+        "additionalProperties": true
+      }
+    },
+    "executed": {"type": "array", "uniqueItems": true, "items": {"type": "string"}},
+    "unavailable": {"type": "array", "items": {"type": "object"}},
+    "failures": {"type": "array", "items": {"type": "object"}},
+    "generated_at": {"type": "string", "format": "date-time"}
+  },
+  "additionalProperties": true
+}

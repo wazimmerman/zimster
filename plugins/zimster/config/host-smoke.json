@@ -4,23 +4,32 @@
   "hosts": [
     {
       "id": "claude",
+      "candidate": "claude",
+      "proof_kind": "exact_package_install_and_fresh_session_discovery",
       "unavailable_reason": "Configure an isolated Claude Code smoke command when the CLI is available."
     },
     {
       "id": "codex",
+      "candidate": "codex",
+      "proof_kind": "exact_package_install_and_fresh_session_discovery",
       "unavailable_reason": "Configure an isolated Codex smoke command when live host proof is required."
     },
     {
       "id": "cursor",
+      "candidate": "portable",
+      "proof_kind": "exact_package_install_and_fresh_session_discovery",
       "unavailable_reason": "Configure an isolated Cursor smoke command when the CLI is available."
     },
     {
       "id": "kimi",
+      "candidate": "portable",
+      "proof_kind": "exact_package_install_and_fresh_session_discovery",
       "unavailable_reason": "Configure an isolated Kimi Code smoke command when the CLI is available."
     },
     {
       "id": "opencode",
       "candidate": "portable",
+      "proof_kind": "exact_package_install_and_fresh_session_discovery",
       "command": "opencode",
       "args": [
         "debug",
@@ -31,6 +40,8 @@
     },
     {
       "id": "pi",
+      "candidate": "portable",
+      "proof_kind": "exact_package_install_and_fresh_session_discovery",
       "unavailable_reason": "Configure an isolated Pi smoke command when the CLI is available."
     }
   ]

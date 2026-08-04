@@ -240,6 +240,15 @@ export function applyExecutionBudgetEvent(state, {
   recordedAt = new Date().toISOString()
 }) {
   metric = normalizeConvergenceMetric(metric);
+  if (!Object.hasOwn(state.limits, metric)) {
+    const legacy = Object.entries(CONVERGENCE_ALIASES)
+      .find(([alias, canonical]) => canonical === metric && Object.hasOwn(state.limits, alias));
+    if (legacy) {
+      const [alias] = legacy;
+      state.limits[metric] = state.limits[alias];
+      state.usage[metric] = state.usage[alias] || 0;
+    }
+  }
   if (!Object.hasOwn(state.limits, metric)) throw new Error(`unknown budget metric: ${metric}`);
   if (!Number.isInteger(amount) || amount <= 0) throw new Error('--amount must be a positive integer');
   if (metric === 'optional_deliberate_agents') {

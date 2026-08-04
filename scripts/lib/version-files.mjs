@@ -73,6 +73,8 @@ export async function updateVersionFiles(version) {
   const buildMetadata = await readJson('skills/using-zimster/references/build-metadata.json');
   buildMetadata.semantic_version = version;
   buildMetadata.source_commit = null;
+  buildMetadata.source_tree = null;
+  buildMetadata.source_dirty_tree_fingerprint = null;
   buildMetadata.build_date = null;
   buildMetadata.build_id = `zimster-${version}-source`;
   buildMetadata.package_target = 'source';

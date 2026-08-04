@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
@@ -34,12 +35,25 @@ test('CONV-001: canonical convergence budgets validate and legacy metric aliases
   result = applyExecutionBudgetEvent(state, { metric: 'context_compactions' });
   assert.equal(result.status, 'BUDGET_OK');
   assert.equal(state.usage.context_renewals, 1);
+
+  const legacyState = {
+    ...structuredClone(state),
+    limits: { final_correction_waves: 1, context_compactions: 2 },
+    usage: { final_correction_waves: 0, context_compactions: 0 },
+    events: [], overrides: [], proof_obligations: [], scoped_usage: {},
+    optional_agent_identities: []
+  };
+  result = applyExecutionBudgetEvent(legacyState, { metric: 'correction_commits' });
+  assert.equal(result.status, 'BUDGET_WARNING');
+  assert.equal(legacyState.usage.correction_commits, 1);
+  assert.equal(legacyState.usage.final_correction_waves, 1);
 });
 
 test('CONV-002 and CONV-003: ordinary failures continue through the boundary and exhaustion escalates', () => {
   const base = {
     event: 'focused_test_failure', scope: 'in-scope', sensitivity: 'ordinary',
-    reversible: true, authorized: true, metric: 'correction_commits'
+    reversible: true, authorized: true, deterministic: true, locality: 'local',
+    metric: 'correction_commits'
   };
   assert.equal(decideConvergence({ ...base, used: 0, limit: 1 }).outcome, 'continue');
   const exhausted = decideConvergence({ ...base, used: 1, limit: 1 });
@@ -50,7 +64,8 @@ test('CONV-002 and CONV-003: ordinary failures continue through the boundary and
 test('CONV-003: only the six binding escalation conditions stop autonomous convergence', () => {
   const common = {
     event: 'focused_test_failure', scope: 'in-scope', sensitivity: 'ordinary',
-    reversible: true, authorized: true, metric: 'correction_commits', used: 0, limit: 1
+    reversible: true, authorized: true, deterministic: true, locality: 'local',
+    metric: 'correction_commits', used: 0, limit: 1
   };
   const cases = [
     [{ condition: 'contradiction' }, 'contradiction'],
@@ -66,33 +81,80 @@ test('CONV-003: only the six binding escalation conditions stop autonomous conve
   }
 });
 
+test('CONV-002: missing or malformed safety facts fail closed', () => {
+  const safe = {
+    event: 'focused_test_failure', scope: 'in-scope', sensitivity: 'ordinary',
+    reversible: true, authorized: true, deterministic: true, locality: 'local',
+    metric: 'correction_commits', used: 0, limit: 1
+  };
+  for (const invalid of [
+    { scope: 'nearby' },
+    { sensitivity: 'probably-ordinary' },
+    { reversible: undefined },
+    { authorized: 'true' },
+    { deterministic: undefined },
+    { locality: 'remote' },
+    { condition: 'unknown-condition' }
+  ]) assert.throws(() => decideConvergence({ ...safe, ...invalid }), /scope|sensitivity|boolean|locality|condition/i);
+  assert.equal(decideConvergence({ ...safe, deterministic: false }).reason, 'policy_required_approval');
+  assert.equal(decideConvergence({ ...safe, locality: 'external' }).reason, 'policy_required_approval');
+});
+
 test('BOOT-001: run initialization snapshots candidate configuration as isolated and non-authoritative', async () => {
   const repo = await mkdtemp(path.join(os.tmpdir(), 'zimster-convergence-bootstrap-'));
+  const acceptedDirectory = await mkdtemp(path.join(os.tmpdir(), 'zimster-accepted-policy-'));
   try {
     assert.equal(spawnSync('git', ['init', '-q'], { cwd: repo }).status, 0);
     await writeFile(path.join(repo, 'README.md'), 'fixture\n');
     spawnSync('git', ['add', 'README.md'], { cwd: repo });
     assert.equal(spawnSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'fixture'], { cwd: repo }).status, 0);
-    const result = spawnSync(process.execPath, [
+    const acceptedPolicy = path.join(acceptedDirectory, 'convergence.json');
+    const acceptedContents = `${JSON.stringify({
+      schema_version: 1,
+      autonomous_convergence: { enabled: true, limits }
+    }, null, 2)}\n`;
+    await writeFile(acceptedPolicy, acceptedContents);
+    const acceptedDigest = createHash('sha256').update(acceptedContents).digest('hex');
+    let result = spawnSync(process.execPath, [
       path.join(root, 'scripts/init-run.mjs'), '--profile', 'high-risk',
-      '--self-hosting-candidate', '0.6.0'
+      '--self-hosting-candidate', '0.6.0', '--convergence-config', 'candidate-policy.json'
+    ], { cwd: repo, encoding: 'utf8' });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /accepted-policy|candidate.*policy|self-host/i);
+    result = spawnSync(process.execPath, [
+      path.join(root, 'scripts/init-run.mjs'), '--profile', 'high-risk',
+      '--self-hosting-candidate', '0.6.0',
+      '--accepted-policy-config', acceptedPolicy,
+      '--accepted-policy-sha256', acceptedDigest
     ], { cwd: repo, encoding: 'utf8' });
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const runtime = spawnSync('git', ['rev-parse', '--path-format=absolute', '--git-path', 'zimster'], { cwd: repo, encoding: 'utf8' }).stdout.trim();
     const receipt = JSON.parse(await readFile(path.join(runtime, 'bootstrap.json'), 'utf8'));
-    assert.equal(receipt.governing_policy, 'frozen_checked_in_policy');
+    assert.equal(receipt.governing_policy, 'external_accepted_policy');
     assert.equal(receipt.candidate_rules_authoritative, false);
     assert.equal(receipt.candidate_test_scope, 'isolated_fixtures_and_package_homes');
+    assert.equal(receipt.accepted_policy.sha256, acceptedDigest);
+    assert.equal(receipt.accepted_policy.path.startsWith(`${repo}${path.sep}`), false);
+    const budget = JSON.parse(await readFile(path.join(runtime, 'budget.json'), 'utf8'));
+    assert.equal(budget.limits.complete_suite_executions, limits.complete_suite_executions);
     const convergence = spawnSync(process.execPath, [
       path.join(root, 'scripts/convergence.mjs'), 'decide',
       '--event', 'focused_test_failure', '--scope', 'in-scope',
-      '--sensitivity', 'ordinary', '--metric', 'correction_commits'
+      '--sensitivity', 'ordinary', '--metric', 'correction_commits',
+      '--reversible', 'true', '--authorized', 'true',
+      '--deterministic', 'true', '--locality', 'local'
     ], { cwd: repo, encoding: 'utf8' });
     assert.equal(convergence.status, 0, convergence.stderr || convergence.stdout);
     assert.equal(JSON.parse(convergence.stdout).outcome, 'continue');
     const decisions = (await readFile(path.join(runtime, 'convergence/decisions.jsonl'), 'utf8')).trim().split('\n');
     assert.equal(decisions.length, 1);
+    const decision = JSON.parse(decisions[0]);
+    assert.equal(decision.deterministic, true);
+    assert.equal(decision.locality, 'local');
+    assert.equal(decision.reversible, true);
+    assert.equal(decision.authorized, true);
   } finally {
     await rm(repo, { recursive: true, force: true });
+    await rm(acceptedDirectory, { recursive: true, force: true });
   }
 });

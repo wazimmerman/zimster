@@ -135,6 +135,14 @@ async function completionDecision() {
       }
     : evaluatedResult;
   const reviewFile = options.reviews ? await jsonFile('reviews') : { reviews: [] };
+  let hostSmokeReceipt = null;
+  try {
+    hostSmokeReceipt = options['host-smoke-receipt']
+      ? await jsonFile('host-smoke-receipt')
+      : JSON.parse(await readFile(path.join(await ensureRuntimeDirectory(root), 'host-smoke', 'latest.json'), 'utf8'));
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
   const profile = required(options, 'profile');
   const reviewPackage = profile === 'micro'
     ? null
@@ -174,6 +182,7 @@ async function completionDecision() {
     loadBearingReviewObligations: options['load-bearing-review-obligations']
       ? await jsonFile('load-bearing-review-obligations')
       : null,
+    hostSmokeReceipt,
     correctionPending: options['correction-pending'] === true
   });
   writeLine(JSON.stringify(result));

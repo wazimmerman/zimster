@@ -50,6 +50,8 @@ test('BETA-001 and BETA-003: six beta surfaces report capability status and unav
   const smoke = await read('scripts/host-smoke.mjs');
   assert.match(smoke, /BLOCKED_BY_ENVIRONMENT/);
   assert.match(smoke, /required_host_ids|all_required/i);
+  assert.equal(hosts.hosts.every(({ candidate }) => ['claude', 'codex', 'portable'].includes(candidate)), true);
+  assert.equal(hosts.hosts.every(({ proof_kind }) => proof_kind === 'exact_package_install_and_fresh_session_discovery'), true);
   for (const harness of ['CLAUDE', 'CODEX', 'CURSOR', 'KIMI', 'OPENCODE', 'PI']) {
     const guide = await read(`docs/${harness}.md`);
     assert.match(guide, /live[- ]verified|structurally validated|experimental|blocked/i, `${harness} lacks honest beta status`);

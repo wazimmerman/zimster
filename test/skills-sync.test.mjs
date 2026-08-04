@@ -188,6 +188,8 @@ test('skills synchronization preserves embedded provenance outside a Git checkou
   const { parent, repo } = await targetRepo();
   const portable = await mkdtemp(path.join(os.tmpdir(), 'zimster-portable-extract-'));
   const sourceCommit = '1234567890abcdef1234567890abcdef12345678';
+  const sourceTree = 'abcdef1234567890abcdef1234567890abcdef12';
+  const sourceDirtyTreeFingerprint = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
   const buildDate = '2026-07-27T12:34:56.000Z';
   try {
     await cp(path.join(root, 'scripts'), path.join(portable, 'scripts'), { recursive: true });
@@ -199,6 +201,8 @@ test('skills synchronization preserves embedded provenance outside a Git checkou
         schema_version: 1,
         semantic_version: (await json('package.json')).version,
         source_commit: sourceCommit,
+        source_tree: sourceTree,
+        source_dirty_tree_fingerprint: sourceDirtyTreeFingerprint,
         build_date: buildDate,
         build_id: `zimster-${(await json('package.json')).version}-${sourceCommit.slice(0, 12)}-portable`,
         package_target: 'portable'
@@ -214,6 +218,8 @@ test('skills synchronization preserves embedded provenance outside a Git checkou
       'utf8'
     ));
     assert.equal(metadata.source_commit, sourceCommit);
+    assert.equal(metadata.source_tree, sourceTree);
+    assert.equal(metadata.source_dirty_tree_fingerprint, sourceDirtyTreeFingerprint);
     assert.equal(metadata.build_date, buildDate);
     assert.equal(metadata.package_target, 'skills-only');
     assert.match(metadata.build_id, new RegExp(sourceCommit.slice(0, 12)));

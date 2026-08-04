@@ -12,6 +12,15 @@ const REQUIREMENT_STATES = Object.freeze([
   'blocked_by_requirement',
   'not_applicable'
 ]);
+const PUBLIC_BETA_HOST_IDS = Object.freeze(['codex', 'claude', 'cursor', 'kimi', 'opencode', 'pi']);
+const PUBLIC_BETA_CANDIDATE = Object.freeze({
+  codex: 'codex',
+  claude: 'claude',
+  cursor: 'portable',
+  kimi: 'portable',
+  opencode: 'portable',
+  pi: 'portable'
+});
 
 export const REVIEW_TYPES = Object.freeze([
   'self_review',
@@ -32,8 +41,54 @@ export const COMPLETION_STATES = Object.freeze({
   OWNER_VERIFIED_REVIEW_UNAVAILABLE: 'OWNER_VERIFIED_REVIEW_UNAVAILABLE',
   PARTIALLY_VERIFIED: 'PARTIALLY_VERIFIED',
   CANDIDATE_COMPLETE: 'CANDIDATE_COMPLETE',
-  BLOCKED_BY_MISSING_EVIDENCE: 'BLOCKED_BY_MISSING_EVIDENCE'
+  BLOCKED_BY_MISSING_EVIDENCE: 'BLOCKED_BY_MISSING_EVIDENCE',
+  BLOCKED_BY_ENVIRONMENT: 'BLOCKED_BY_ENVIRONMENT'
 });
+
+export function validateHostSmokeReceipt(receipt, { candidateHead, candidateTree }) {
+  if (!receipt || receipt.schema_version !== 2 || receipt.status !== 'passed' || receipt.all_required !== true) {
+    throw new Error('all-six host smoke receipt must be schema v2 and passed');
+  }
+  if (receipt.candidate_head !== candidateHead || receipt.candidate_tree !== candidateTree) {
+    throw new Error('host smoke receipt does not match the candidate head and tree');
+  }
+  if (receipt.dirty_tree_fingerprint !== CLEAN_DIRTY_TREE_FINGERPRINT) {
+    throw new Error('host smoke receipt was not produced from the clean candidate tree');
+  }
+  const required = [...new Set(receipt.required_host_ids || [])].sort();
+  if (JSON.stringify(required) !== JSON.stringify([...PUBLIC_BETA_HOST_IDS].sort())) {
+    throw new Error('host smoke receipt does not require exactly all six public-beta hosts');
+  }
+  if (!Array.isArray(receipt.hosts) || receipt.hosts.length !== PUBLIC_BETA_HOST_IDS.length) {
+    throw new Error('host smoke receipt requires one result for every public-beta host');
+  }
+  if (!receipt.artifact_digests || typeof receipt.artifact_digests !== 'object') {
+    throw new Error('host smoke receipt requires exact artifact digests');
+  }
+  const byId = new Map(receipt.hosts.map((host) => [host.id, host]));
+  for (const id of PUBLIC_BETA_HOST_IDS) {
+    const host = byId.get(id);
+    const candidate = PUBLIC_BETA_CANDIDATE[id];
+    const digest = receipt.artifact_digests[candidate];
+    if (
+      !host
+      || host.status !== 'passed'
+      || host.candidate !== candidate
+      || host.exact_package_install !== true
+      || host.fresh_session_discovery !== true
+      || host.source_commit !== candidateHead
+      || host.source_tree !== candidateTree
+      || !SHA256_PATTERN.test(digest || '')
+      || host.archive_sha256 !== digest
+    ) {
+      throw new Error(`host smoke proof for ${id} is missing or does not match the exact ${candidate} artifact digest`);
+    }
+  }
+  if (!receipt.generated_at || Number.isNaN(Date.parse(receipt.generated_at))) {
+    throw new Error('host smoke receipt requires a valid generation timestamp');
+  }
+  return receipt;
+}
 
 export function semanticContractDigest({ bindingRequirements, matrix }) {
   const bindings = Array.isArray(bindingRequirements) ? bindingRequirements : [];
@@ -506,6 +561,7 @@ export function evaluateCandidateCompletion({
   semanticContractSha256,
   requiredLenses = [],
   loadBearingReviewObligations = null,
+  hostSmokeReceipt = null,
   correctionPending = false
 }) {
   if (!['micro', 'standard', 'high-risk'].includes(profile)) {
@@ -526,6 +582,14 @@ export function evaluateCandidateCompletion({
       reasons: ['owner verification is incomplete']
     });
   }
+  if ((matrixResult?.counts?.blocked_by_environment || 0) > 0) {
+    return result(COMPLETION_STATES.BLOCKED_BY_ENVIRONMENT, {
+      allowedClaims: matrixResult?.allowed_claims || [],
+      reasons: matrixResult?.unverified_obligations?.length
+        ? matrixResult.unverified_obligations
+        : ['required environment proof is unavailable']
+    });
+  }
   if (!matrixResult?.valid) {
     const reasons = [
       ...(matrixResult?.issues || []),
@@ -539,6 +603,16 @@ export function evaluateCandidateCompletion({
     );
   }
   const allowedClaims = matrixResult.allowed_claims || [];
+  if ((matrixResult.binding_requirement_ids || []).includes('BETA-003')) {
+    try {
+      validateHostSmokeReceipt(hostSmokeReceipt, { candidateHead, candidateTree });
+    } catch (error) {
+      return result(COMPLETION_STATES.BLOCKED_BY_ENVIRONMENT, {
+        allowedClaims,
+        reasons: [`all-six exact-package fresh-session host smoke is unavailable: ${error.message}`]
+      });
+    }
+  }
   if (profile === 'micro') {
     if (!validMicroEligibility(
       microEligibility,

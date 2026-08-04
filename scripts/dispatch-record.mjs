@@ -10,6 +10,11 @@ import {
   proposalInputFingerprint,
   validateDelegationDecision
 } from './lib/model-routing.mjs';
+import {
+  commitDispatchClaim,
+  recoverProposalClaim,
+  reserveProposalForDispatch
+} from './lib/proposal-state.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
@@ -69,10 +74,6 @@ async function runtimeRows(runtime, ...segments) {
     if (error.code === 'ENOENT') return [];
     throw error;
   }
-}
-
-async function replaceRuntimeRows(runtime, records, ...segments) {
-  await writeFile(path.join(runtime, ...segments), records.map((row) => JSON.stringify(row)).join('\n') + (records.length ? '\n' : ''));
 }
 
 function jsonOption(name) {
@@ -140,7 +141,17 @@ async function main() {
     writeLine(JSON.stringify(row));
     return;
   }
-  if (action !== 'record') throw new Error('Usage: dispatch-record.mjs <init|record|update|list>');
+  if (action === 'recover') {
+    const runtime = await ensureRuntimeDirectory(root);
+    const result = await recoverProposalClaim(
+      runtime,
+      required(options, 'proposal-id'),
+      required(options, 'claim-id')
+    );
+    writeLine(JSON.stringify(result));
+    return;
+  }
+  if (action !== 'record') throw new Error('Usage: dispatch-record.mjs <init|record|update|recover|list>');
 
   if (options['delegation-id']) {
     const runtime = await ensureRuntimeDirectory(root);
@@ -223,6 +234,7 @@ async function main() {
       run_id: decision.run_id,
       delegation_id: decision.id,
       proposal_id: proposal.id,
+      proposal_claim_id: null,
       resolution_id: resolution.id,
       session_id: proposal.session_id,
       role,
@@ -255,12 +267,10 @@ async function main() {
       created_at: new Date().toISOString()
     };
     await init();
-    await appendFile(file, `${JSON.stringify(row)}\n`);
-    proposal.status = 'consumed';
-    proposal.consumed_by = row.id;
-    proposal.consumed_at = new Date().toISOString();
-    await replaceRuntimeRows(runtime, proposals, 'routing', 'proposals.jsonl');
-    writeLine(JSON.stringify(row));
+    const reservation = await reserveProposalForDispatch(runtime, proposal.id);
+    row.proposal_claim_id = reservation.claim.id;
+    const recorded = await commitDispatchClaim(runtime, reservation.claim.id, row);
+    writeLine(JSON.stringify(recorded));
     return;
   }
 
