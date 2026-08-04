@@ -22,6 +22,11 @@ Identify:
 - external systems, hardware, migrations, concurrency, or security risks;
 - evidence that can and cannot be produced in the current environment.
 
+If delegation is a design option, assess its material benefit independently
+from model routing. Record the bounded role and why inline ownership is less
+appropriate. Do not inspect price, mappings, or catalogs unless delegation is
+already selected.
+
 ## 2. Resolve only material ambiguity
 
 Ask a question only when different answers would produce meaningfully

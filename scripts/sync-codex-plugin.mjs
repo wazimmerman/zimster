@@ -18,6 +18,7 @@ const includes = [
   'scripts/capability-cache.mjs',
   'scripts/dispatch-record.mjs',
   'scripts/delegation-record.mjs', 'scripts/model-routing.mjs',
+  'scripts/adapter-config.mjs',
   'scripts/codex-cachebuster.mjs', 'scripts/doctor.mjs', 'scripts/evidence.mjs',
   'scripts/evaluate-execution-economy.mjs',
   'scripts/host-smoke.mjs', 'scripts/init-run.mjs',

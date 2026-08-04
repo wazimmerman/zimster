@@ -217,6 +217,11 @@ test('doctor exposes the shared capability vocabulary without warning on JSON ou
       assert.equal(allowed.has(state), true, `${harness} uses unknown capability state ${state}`);
     }
   }
+  assert.deepEqual(Object.keys(report.routing).sort(), [
+    'configuration_digest', 'layers', 'mapping_count', 'mode', 'policy', 'strict_cost'
+  ]);
+  assert.equal(Object.hasOwn(report.routing, 'mappings'), false, 'doctor must not reveal model mappings by default');
+  assert.match(report.routing.configuration_digest, /^[0-9a-f]{64}$/);
 });
 
 test('dispatch recorder stores abstract tier plus requested and effective model evidence', async () => {

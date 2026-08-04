@@ -91,6 +91,12 @@ a feature branch/worktree is required, slice commits are expected, or the user
 forbids commits. Delegated implementers commit only when their dispatch grants
 ownership in an isolated branch/worktree.
 
+Represent delegation and model routing as separate artifacts. Every planned
+delegation has a `selected` decision with rationale and inline assessment. Only
+a selected decision may carry an advisory capability-class/model proposal;
+execution must regenerate an authoritative proposal from dispatch-time inputs.
+Do not let a cheap mapping become a reason to delegate.
+
 Review packages must include `git status --short`, `git diff`,
 `git diff --cached`, and every untracked file through `change-snapshot` or
 direct reads.

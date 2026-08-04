@@ -39,7 +39,7 @@ export function loadZimsterBootstrap(file = skillPath): string {
     throw new Error(`ZIMSTER_PACKAGE_INVALID: missing required using-zimster skill at ${file}`);
   }
   const body = (raw.match(/^---\n[\s\S]*?\n---\n([\s\S]*)$/)?.[1] ?? raw).trim();
-  return `<ZIMSTER_BOOTSTRAP>\n${marker}\n\n${body}\n\n## Pi mapping\nUse native skills and read/write/edit/bash tools. Use an installed subagent extension only for bounded delegation; otherwise execute inline. Subagents must not spawn subagents.\n</ZIMSTER_BOOTSTRAP>`;
+  return `<ZIMSTER_BOOTSTRAP>\n${marker}\n\n${body}\n\n## Pi mapping\nUse native skills and read/write/edit/bash tools. Zimster ships no Pi subagent runtime, so execute owner-inline by default. An external extension may consume a selected proposal but is neither installed nor trusted by Zimster. Subagents must not spawn subagents.\n</ZIMSTER_BOOTSTRAP>`;
 }
 
 function containsMarker(message: unknown): boolean {

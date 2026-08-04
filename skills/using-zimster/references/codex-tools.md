@@ -14,14 +14,21 @@ repository. Normal run artifacts live under the target worktree's Git-local
 When multi-agent tools are available:
 
 - keep the root thread as persistent implementation owner;
-- choose the abstract tier in `config/model-routing.json`;
-- pass explicit `model` and `reasoning_effort` overrides when supported and
-  justified;
+- decide delegation usefulness before inspecting model mappings;
+- after selection, propose an abstract capability class and resolve current
+  configuration/catalog evidence at dispatch time;
+- prefer per-spawn `model` and `reasoning_effort`, then an explicitly generated
+  role config referenced by `[agents.<role>].config_file`, then inheritance;
 - record requested and effective values with the dispatch recorder;
 - use a named bounded task for exploration, review, or disjoint work;
 - resume the same reviewer for a correction recheck;
 - keep agent depth at one; subagents do not recruit agents;
 - close agents after their bounded responsibility.
+
+Treat `codex debug models` or app-server catalog output as session/version
+evidence, not durable policy. Never edit the active Codex user configuration;
+write optional snippets only to an explicit output. Strict-cost routing needs
+both enforceability and effective-model evidence.
 
 Pure reviewers should not receive shell tools. A test-capable reviewer gets one
 named command plus mandatory plugin-relative `review-integrity.mjs` capture and

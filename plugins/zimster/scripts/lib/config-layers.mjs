@@ -85,25 +85,46 @@ export async function loadConfigLayers({
   runPath = null,
   projectPath = null,
   userPath = null,
-  harnessNative = null
+  harnessNative = null,
+  harnessPath = null
 } = {}) {
   const candidates = [
-    { source: 'harness_native', value: harnessNative },
-    { source: 'user', value: await optionalJson(userPath, 'user') },
-    { source: 'git_local_project', value: await optionalJson(projectPath, 'project') },
-    { source: 'per_run', value: await optionalJson(runPath, 'per-run') },
+    { source: 'harness_native', value: harnessNative, path: harnessPath },
+    { source: 'user', value: await optionalJson(userPath, 'user'), path: userPath },
+    { source: 'git_local_project', value: await optionalJson(projectPath, 'project'), path: projectPath },
+    { source: 'per_run', value: await optionalJson(runPath, 'per-run'), path: runPath },
     { source: 'explicit_dispatch_override', value: explicitOverride }
   ];
   const layers = [];
+  const layerEvidence = [];
+  const mappingSources = {};
   let effective = {};
   for (const candidate of candidates) {
+    if (candidate.path) {
+      layerEvidence.push({
+        source: candidate.source,
+        path: candidate.path,
+        digest: candidate.value ? digestJson(candidate.value) : 'absent'
+      });
+    }
     if (!candidate.value) continue;
     effective = deepMerge(effective, candidate.value);
-    layers.push({ source: candidate.source, digest: digestJson(candidate.value) });
+    for (const capabilityClass of Object.keys(candidate.value.routing?.mappings || {})) {
+      mappingSources[capabilityClass] = candidate.source;
+    }
+    layers.push({
+      source: candidate.source,
+      ...(candidate.path ? { path: candidate.path } : {}),
+      digest: digestJson(candidate.value),
+      routing_keys: Object.keys(candidate.value.routing || {}).sort(),
+      has_mappings: Object.keys(candidate.value.routing?.mappings || {}).length > 0
+    });
   }
   return {
     precedence: [...CONFIG_PRECEDENCE],
     layers,
+    layer_evidence: layerEvidence,
+    mapping_sources: mappingSources,
     effective,
     digest: digestJson(effective),
     fallback: layers.length ? null : 'inherit'

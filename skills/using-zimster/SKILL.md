@@ -123,16 +123,21 @@ has explicitly opted into committed audit evidence. Do not modify tracked
 
 ## Delegation and model routing
 
-Use `config/model-routing.json` and record each dispatch with
-`scripts/dispatch-record.mjs`. Every dispatch names purpose, scope, abstract
-model tier, requested model/effort, turn limit, and output contract. Record the
-effective model and effort reported by the harness; use `unverified` when the
-harness does not expose them. Warn when a fast mechanical role silently
-inherits an expensive parent model.
+Use `scripts/delegation-record.mjs`: price and mappings never cause delegation,
+and `selected: false` forbids routing. A selected role
+records its inline alternative, ownership/tools, cone, stop, and owner proof.
+Only then use `scripts/model-routing.mjs` and `config/model-routing.json`.
+Plans advise; dispatch proposals are authoritative and single-use.
+Resolve override → run → project → user → harness → inherit, then record
+requested/effective values, evidence, fallbacks, and owner acceptance with
+`scripts/dispatch-record.mjs`. Classes are `economy`, `balanced`,
+`expert`, and `inherit`, without vendor defaults; unknown values are
+`unverified` and legacy tiers remain read aliases.
 
 Default limits:
 
 - maximum two parallel implementation agents;
+- model routing does not increase the default frequency of delegation;
 - subagents must not spawn subagents;
 - one initial review and one resumed recheck per reviewed seam;
 - one consolidated final correction wave.
@@ -180,12 +185,10 @@ for an available installed candidate test.
 
 ## Capability research and postmortem
 
-Consult the dated, source-linked capability cache for only the host in scope.
-Refresh it only for configured expiry, a changed local host version, an
-official-validator contradiction, a task that changes that integration, or an
-explicit user request for fresh research. Generate the deterministic
-postmortem at completion; keep observed, inferred, and unavailable metrics
-distinct, and never add incompatible token meters together.
+Consult the dated capability cache only for the host in scope. Refresh for
+expiry, changed host version/integration, validator contradiction, or explicit
+request. The postmortem keeps observed, inferred, and unavailable metrics
+distinct and never sums incompatible token meters.
 
 ## Harness adaptation
 
@@ -205,7 +208,6 @@ Read adjacent `references/build-metadata.json` for installed version, build,
 available source commit, and package target; never infer these from the target
 project's metadata or Git history.
 
-If a skills-only installation has no plugin-relative `scripts/`, continue
-without a warning while preserving Git safety, TDD, review scope, and fresh
-verification. Record receipts as unavailable and maintain required compact
-state manually. Report helper detail only in explicit diagnostics.
+If skills-only has no plugin-relative `scripts/`, continue without a warning
+while preserving safety, TDD, review, and verification. Mark helper receipts
+unavailable and maintain compact state manually.

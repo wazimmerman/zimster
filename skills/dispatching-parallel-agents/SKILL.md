@@ -32,20 +32,28 @@ integration, verification, and completion claims.
 
 ## Dispatch contract
 
-Every dispatch states:
+First record whether delegation is selected and why it materially improves the
+task. Also record why inline execution is less appropriate. An inexpensive or
+available model is never evidence that delegation is useful. If delegation is
+not selected, stop: no model proposal or dispatch is permitted.
+
+Every selected delegation states:
 
 - one outcome or question;
 - owned files or read-only boundary;
 - binding interfaces and constraints;
-- model tier and reasoning effort when the harness supports them;
+- dependency cone, tool restrictions, stop condition, and owner acceptance proof;
 - turn or time budget;
 - exact return format;
 - where detailed artifacts should be written;
 - prohibition on committing outside the assigned scope.
 
-Use the least expensive model likely to finish in few turns. Cheap models that
-require repeated retries or miss judgment-heavy defects are not economical.
-Record the requested and effective model separately when possible.
+Only then create a plan-time advisory or dispatch-time authoritative proposal
+using the harness-neutral `economy`, `balanced`, `expert`, or `inherit` class.
+Resolve optional user mappings and current capability/catalog evidence at
+dispatch time. Record requested and effective model/effort separately. A
+strict-cost request that cannot prove enforcement returns optional work to the
+owner or blocks required review; it never silently inherits.
 
 ## Integration
 
@@ -56,9 +64,12 @@ When agents return:
 3. integrate in dependency order;
 4. run interface and affected tests after composition;
 5. use one seam review if the combined work creates new risk.
+6. record persistent-owner acceptance or rejection with its proof.
 
 Do not trust an agent's “done” message as evidence. Do not create one fixer per
-finding; the owner consolidates integration corrections.
+finding; the owner consolidates integration corrections. Rejected delegated
+implementation returns to the owner and does not automatically recruit a
+replacement.
 
 ## Stop conditions
 

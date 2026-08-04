@@ -71,11 +71,19 @@ test('run postmortem aggregates observed execution economy without mixing token 
       }]
     });
     await jsonl(path.join(runtime, 'dispatches/dispatches.jsonl'), [{
+      schema_version: 2,
       id: 'dispatch-1',
+      run_id: 'current-run',
+      delegation_id: 'delegation-1',
+      proposal_id: 'proposal-1',
       role: 'reviewer',
       agent_id: 'reviewer-1',
+      requested_model: 'mapped-reviewer',
+      requested_effort: 'high',
       effective_model: 'gpt-5.6-sol',
       effective_effort: 'high',
+      fallback_trace: ['mapped'],
+      owner_acceptance: { status: 'accepted', proof: 'review proof' },
       created_at: '2026-07-28T00:05:00.000Z',
       completed_at: '2026-07-28T00:10:00.000Z'
     }, {
@@ -86,6 +94,33 @@ test('run postmortem aggregates observed execution economy without mixing token 
       effective_effort: 'old-effort',
       created_at: '2026-07-27T00:00:00.000Z',
       completed_at: '2026-07-27T00:10:00.000Z'
+    }]);
+    await jsonl(path.join(runtime, 'delegation/decisions.jsonl'), [{
+      id: 'delegation-inline', run_id: 'current-run', selected: false,
+      created_at: '2026-07-28T00:01:00.000Z'
+    }, {
+      id: 'delegation-1', run_id: 'current-run', selected: true,
+      created_at: '2026-07-28T00:02:00.000Z'
+    }]);
+    await jsonl(path.join(runtime, 'routing/proposals.jsonl'), [{
+      id: 'proposal-1', run_id: 'current-run', status: 'consumed',
+      phase: 'dispatch', authority: 'authoritative',
+      created_at: '2026-07-28T00:03:00.000Z'
+    }, {
+      id: 'cancelled-proposal', run_id: 'current-run', status: 'cancelled',
+      phase: 'dispatch', authority: 'authoritative',
+      created_at: '2026-07-28T00:04:00.000Z'
+    }]);
+    await jsonl(path.join(runtime, 'routing/resolutions.jsonl'), [{
+      id: 'resolution-1', run_id: 'current-run', proposal_id: 'proposal-1',
+      action: 'request', fallback_trace: ['mapped'],
+      requested_model: 'mapped-reviewer', requested_effort: 'high',
+      created_at: '2026-07-28T00:04:00.000Z'
+    }, {
+      id: 'resolution-2', run_id: 'current-run', proposal_id: 'cancelled-proposal',
+      action: 'cancel', fallback_trace: ['strict_cost_unenforceable'],
+      requested_model: 'none', requested_effort: 'none',
+      created_at: '2026-07-28T00:04:30.000Z'
     }]);
     await jsonl(path.join(runtime, 'events/events.jsonl'), [
       {
@@ -194,6 +229,13 @@ test('run postmortem aggregates observed execution economy without mixing token 
     assert.equal(report.metrics.complete_suite_executions.value, 1);
     assert.equal(report.metrics.verification_receipts.value, 1);
     assert.equal(report.metrics.reviews.value, 1);
+    assert.equal(report.metrics.delegation_decisions.selected, 1);
+    assert.equal(report.metrics.delegation_decisions.inline, 1);
+    assert.equal(report.metrics.routing.proposals, 2);
+    assert.equal(report.metrics.routing.cancelled_dispatches, 1);
+    assert.equal(report.metrics.routing.owner_accepted, 1);
+    assert.equal(report.metrics.routing.effective_mismatches, 1);
+    assert.deepEqual(report.metrics.routing.fallbacks, ['mapped', 'strict_cost_unenforceable']);
     assert.equal(report.metrics.corrections.value, 2);
     assert.equal(report.metrics.rechecks.value, 2);
     assert.equal(

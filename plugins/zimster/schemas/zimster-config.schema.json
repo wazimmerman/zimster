@@ -13,7 +13,36 @@
         "mode": { "enum": ["recommend", "map_only", "auto_within_policy", "inherit"] },
         "policy": { "enum": ["quality_first", "balanced", "cost_optimized"] },
         "strict_cost": { "type": "boolean" },
-        "mappings": { "type": "object" }
+        "role_classes": {
+          "type": "object",
+          "propertyNames": { "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,79}$" },
+          "additionalProperties": { "enum": ["economy", "balanced", "expert", "inherit"] }
+        },
+        "mappings": {
+          "type": "object",
+          "propertyNames": { "enum": ["economy", "balanced", "expert"] },
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["model"],
+              "properties": {
+                "model": { "type": "string", "minLength": 1, "pattern": "^[^\\r\\n\\u0000]+$" },
+                "effort": { "type": "string", "minLength": 1, "pattern": "^[^\\r\\n\\u0000]+$" },
+                "provider": { "type": "string", "minLength": 1, "pattern": "^[^\\r\\n\\u0000]+$" },
+                "quality_rank": { "type": "number", "minimum": 0 },
+                "balanced_rank": { "type": "number", "minimum": 0 },
+                "cost_rank": { "type": "number", "minimum": 0 },
+                "harnesses": { "type": "array", "items": { "type": "string" } },
+                "minimum_harness_version": { "type": "string" },
+                "required_capabilities": { "type": "array", "items": { "type": "string" } },
+                "availability": { "enum": ["declared_available"] },
+                "availability_source": { "type": "string", "minLength": 1 }
+              },
+              "additionalProperties": false
+            }
+          }
+        }
       },
       "additionalProperties": false
     },

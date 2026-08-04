@@ -22,7 +22,7 @@ function bootstrapContent() {
   if (bootstrapCache !== undefined) return bootstrapCache;
   assertZimsterPackage(packageRoot);
   const body = stripFrontmatter(fs.readFileSync(skillPath, 'utf8'));
-  bootstrapCache = `<ZIMSTER_BOOTSTRAP>\n${marker}\n\n${body}\n\n## OpenCode mapping\nUse skill for skills, todowrite for tracked work, task for bounded agents, read/apply_patch/bash/grep/glob/webfetch for repository work. Subagents must not spawn subagents.\n</ZIMSTER_BOOTSTRAP>`;
+  bootstrapCache = `<ZIMSTER_BOOTSTRAP>\n${marker}\n\n${body}\n\n## OpenCode mapping\nUse skill for skills, todowrite for tracked work, and task only after delegation is independently selected. Optional generated agents use provider/model-id; an omitted model inherits. Use current permission fields, not deprecated tool booleans. Subagents must not spawn subagents.\n</ZIMSTER_BOOTSTRAP>`;
   return bootstrapCache;
 }
 

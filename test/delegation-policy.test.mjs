@@ -141,15 +141,70 @@ test('DEL-001, ROUTE-001, ROUTE-005: dispatch v2 consumes one authoritative prop
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const proposal = JSON.parse(result.stdout.trim());
 
-    result = run(process.execPath, [routing, 'resolve', '--proposal-id', proposal.id], repo);
+    result = run(process.execPath, [
+      routing, 'resolve', '--proposal-id', proposal.id,
+      '--task-signature', '{"role":"bounded_implementer","risk":"standard"}',
+      '--harness', 'codex', '--harness-version', 'unverified',
+      '--capability-digest', 'unverified', '--catalog-digest', 'unverified'
+    ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const resolution = JSON.parse(result.stdout.trim());
     assert.equal(resolution.action, 'inherit');
+    const dispatchEvidence = [
+      '--task-signature', '{"role":"bounded_implementer","risk":"standard"}',
+      '--harness', 'codex', '--harness-version', 'unverified',
+      '--capability-digest', 'unverified', '--catalog-digest', 'unverified'
+    ];
+
+    const runtime = run('git', [
+      'rev-parse', '--path-format=absolute', '--git-path', 'zimster'
+    ], repo).stdout.trim();
+    const resolutionFile = path.join(runtime, 'routing/resolutions.jsonl');
+    await writeFile(resolutionFile, `${JSON.stringify({ ...resolution, action: 'cancel' })}\n`);
+    result = run(process.execPath, [
+      dispatch, 'record', '--role', 'bounded_implementer', '--purpose', 'must not launch',
+      '--capability-class', 'balanced', '--delegation-id', decision.id,
+      '--proposal-id', proposal.id, '--resolution-id', resolution.id, ...dispatchEvidence
+    ], repo);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /cancel|blocked|dispatchable/i);
+    await writeFile(resolutionFile, `${JSON.stringify(resolution)}\n`);
+
+    result = run(process.execPath, [
+      dispatch, 'record', '--role', 'different-role', '--purpose', 'must not launch',
+      '--capability-class', 'balanced', '--delegation-id', decision.id,
+      '--proposal-id', proposal.id, '--resolution-id', resolution.id, ...dispatchEvidence
+    ], repo);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /role.*delegation|mismatch/i);
+
+    await writeFile(path.join(runtime, 'config.json'), JSON.stringify({
+      schema_version: 1,
+      routing: { mode: 'inherit', policy: 'balanced', mappings: {} }
+    }));
+    result = run(process.execPath, [
+      dispatch, 'record', '--role', 'bounded_implementer', '--purpose', 'must not use stale config',
+      '--capability-class', 'balanced', '--delegation-id', decision.id,
+      '--proposal-id', proposal.id, '--resolution-id', resolution.id, ...dispatchEvidence
+    ], repo);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /configuration layer changed|routing inputs changed|stale/i);
+    await rm(path.join(runtime, 'config.json'));
+
+    await writeFile(path.join(repo, 'stale-after-resolution.txt'), 'stale\n');
+    result = run(process.execPath, [
+      dispatch, 'record', '--role', 'bounded_implementer', '--purpose', 'must not launch stale work',
+      '--capability-class', 'balanced', '--delegation-id', decision.id,
+      '--proposal-id', proposal.id, '--resolution-id', resolution.id, ...dispatchEvidence
+    ], repo);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /stale|fingerprint|tree|routing inputs changed/i);
+    await rm(path.join(repo, 'stale-after-resolution.txt'));
 
     result = run(process.execPath, [
       dispatch, 'record', '--role', 'bounded_implementer', '--purpose', 'edit path/a',
       '--capability-class', 'balanced', '--delegation-id', decision.id,
-      '--proposal-id', proposal.id, '--resolution-id', resolution.id, '--turn-limit', '12'
+      '--proposal-id', proposal.id, '--resolution-id', resolution.id, '--turn-limit', '12', ...dispatchEvidence
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const row = JSON.parse(result.stdout.trim());
@@ -162,10 +217,29 @@ test('DEL-001, ROUTE-001, ROUTE-005: dispatch v2 consumes one authoritative prop
     result = run(process.execPath, [
       dispatch, 'record', '--role', 'bounded_implementer', '--purpose', 'reuse proposal',
       '--capability-class', 'balanced', '--delegation-id', decision.id,
-      '--proposal-id', proposal.id, '--resolution-id', resolution.id
+      '--proposal-id', proposal.id, '--resolution-id', resolution.id, ...dispatchEvidence
     ], repo);
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /consumed|single-use/i);
+
+    result = run(process.execPath, [
+      dispatch, 'update', '--id', row.id, '--owner-acceptance', 'rejected',
+      '--acceptance-proof', 'owner inspection found an incomplete edit',
+      '--effective-model', 'reported-parent-model', '--effective-effort', 'high'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const rejected = JSON.parse(result.stdout.trim());
+    assert.equal(rejected.owner_acceptance.status, 'rejected');
+    assert.equal(rejected.owner_acceptance.proof, 'owner inspection found an incomplete edit');
+    assert.equal(rejected.effective_model, 'reported-parent-model');
+    assert.equal(rejected.routing_match, 'not_applicable');
+    result = run(process.execPath, [routing, 'observe', '--dispatch', row.id], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    result = run(process.execPath, [routing, 'observe', '--dispatch', row.id], repo);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /already.*observ|duplicate/i);
+    result = run(process.execPath, [dispatch, 'list'], repo);
+    assert.equal(result.stdout.trim().split('\n').length, 1, 'owner rejection must not automatically redispatch');
   } finally {
     await rm(repo, { recursive: true, force: true });
   }
@@ -184,6 +258,72 @@ test('COMPAT-001: legacy dispatch records remain readable with capability-class 
     assert.equal(legacy.capability_class, 'economy');
     assert.equal(legacy.delegation_id, 'legacy_unavailable');
     assert.equal(legacy.availability, 'legacy_unavailable');
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('ROUTE-004: per-run configuration is snapshotted and overlays rather than suppresses project mappings', async () => {
+  const repo = await tempRepo();
+  try {
+    const delegation = path.join(root, 'scripts/delegation-record.mjs');
+    const routing = path.join(root, 'scripts/model-routing.mjs');
+    let result = run(process.execPath, [
+      delegation, 'decide', '--selected', 'true',
+      '--reason', 'bounded read-only inventory', '--inline-assessment', 'isolation improves reviewability',
+      '--role', 'scout', '--ownership', 'src', '--tool-restrictions', 'no_write,no_nested_agents',
+      '--dependency-cone', 'src', '--stop-condition', 'inventory returned',
+      '--acceptance-proof', 'owner inspects inventory'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const decision = JSON.parse(result.stdout);
+    const runtime = run('git', [
+      'rev-parse', '--path-format=absolute', '--git-path', 'zimster'
+    ], repo).stdout.trim();
+    await writeFile(path.join(runtime, 'config.json'), JSON.stringify({
+      schema_version: 1,
+      routing: {
+        mode: 'inherit', policy: 'balanced',
+        mappings: { economy: [{
+          model: 'project-model', effort: 'low', cost_rank: 1,
+          availability: 'declared_available', availability_source: 'project owner'
+        }] }
+      }
+    }));
+    const runConfig = path.join(repo, 'run-config.json');
+    await writeFile(runConfig, JSON.stringify({
+      schema_version: 1,
+      routing: {
+        mode: 'map_only', policy: 'cost_optimized',
+        mappings: { expert: [{
+          model: 'run-expert', effort: 'high',
+          availability: 'declared_available', availability_source: 'run owner'
+        }] }
+      }
+    }));
+    result = run(process.execPath, [
+      routing, 'propose', '--phase', 'dispatch', '--delegation-id', decision.id,
+      '--capability-class', 'economy', '--reasoning-effort', 'low',
+      '--task-signature', '{"role":"scout","risk":"standard"}',
+      '--harness', 'codex', '--harness-version', '0.146.0', '--config', runConfig
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const proposal = JSON.parse(result.stdout);
+    assert.equal(proposal.mode, 'map_only');
+    assert.equal(proposal.concrete_model, 'project-model');
+    const snapshot = JSON.parse(await readFile(path.join(runtime, 'routing/run-config.json'), 'utf8'));
+    assert.equal(snapshot.routing.mode, 'map_only');
+
+    result = run(process.execPath, [
+      routing, 'resolve', '--proposal-id', proposal.id,
+      '--task-signature', '{"role":"scout","risk":"standard"}',
+      '--harness', 'codex', '--harness-version', '0.146.0',
+      '--capability-digest', 'unverified', '--catalog-digest', 'unverified'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const resolution = JSON.parse(result.stdout);
+    assert.equal(resolution.requested_model, 'project-model');
+    assert.equal(resolution.mapping_source, 'git_local_project');
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

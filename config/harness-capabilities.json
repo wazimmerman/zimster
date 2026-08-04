@@ -10,9 +10,9 @@
   ],
   "harnesses": {
     "codex": {
-      "checked_at": "2026-07-28T00:00:00.000Z",
+      "checked_at": "2026-08-04T00:00:00.000Z",
       "max_age_days": 90,
-      "local_host_version": "codex-cli 0.145.0",
+      "local_host_version": "codex-cli 0.146.0",
       "validator_status": "consistent",
       "sources": [
         {
@@ -20,15 +20,19 @@
           "url": "https://github.com/openai/codex/blob/main/codex-rs/skills/src/assets/samples/plugin-creator/references/plugin-json-spec.md"
         }
       ],
-      "verification": "blocked_by_host",
+      "verification": "candidate_smoke_pending",
       "capabilities": {
         "native_skill_loading": "unverified",
         "plugin_relative_helper_scripts": "native",
-        "named_custom_agents": "unavailable",
+        "named_custom_agents": "native",
         "read_only_tool_enforcement": "unavailable",
         "isolated_reviewer_worktrees": "inline_fallback",
-        "per_agent_model_selection": "unverified",
-        "per_agent_reasoning_effort": "unverified",
+        "per_agent_model_selection": "native",
+        "per_agent_reasoning_effort": "native",
+        "delegated_runtime": "native",
+        "model_routing_enforcement": "native",
+        "effective_model_reporting": "supported_with_constraints",
+        "dynamic_model_catalog": "supported_with_constraints",
         "turn_limits": "unverified",
         "agent_resume": "supported_with_constraints",
         "nested_agent_prohibition": "prompt_constrained",
@@ -36,7 +40,7 @@
       }
     },
     "claude": {
-      "checked_at": "2026-07-28T00:00:00.000Z",
+      "checked_at": "2026-08-04T00:00:00.000Z",
       "max_age_days": 90,
       "local_host_version": null,
       "validator_status": "not_run",
@@ -55,6 +59,10 @@
         "isolated_reviewer_worktrees": "native",
         "per_agent_model_selection": "native",
         "per_agent_reasoning_effort": "native",
+        "delegated_runtime": "native",
+        "model_routing_enforcement": "native",
+        "effective_model_reporting": "unverified",
+        "dynamic_model_catalog": "unverified",
         "turn_limits": "native",
         "agent_resume": "supported_with_constraints",
         "nested_agent_prohibition": "native",
@@ -62,7 +70,7 @@
       }
     },
     "cursor": {
-      "checked_at": "2026-07-28T00:00:00.000Z",
+      "checked_at": "2026-08-04T00:00:00.000Z",
       "max_age_days": 90,
       "local_host_version": null,
       "validator_status": "not_run",
@@ -81,6 +89,10 @@
         "isolated_reviewer_worktrees": "inline_fallback",
         "per_agent_model_selection": "unverified",
         "per_agent_reasoning_effort": "unavailable",
+        "delegated_runtime": "native",
+        "model_routing_enforcement": "supported_with_constraints",
+        "effective_model_reporting": "unverified",
+        "dynamic_model_catalog": "unverified",
         "turn_limits": "unverified",
         "agent_resume": "supported_with_constraints",
         "nested_agent_prohibition": "prompt_constrained",
@@ -88,7 +100,7 @@
       }
     },
     "kimi": {
-      "checked_at": "2026-07-28T00:00:00.000Z",
+      "checked_at": "2026-08-04T00:00:00.000Z",
       "max_age_days": 90,
       "local_host_version": null,
       "validator_status": "not_run",
@@ -107,6 +119,10 @@
         "isolated_reviewer_worktrees": "unverified",
         "per_agent_model_selection": "supported_with_constraints",
         "per_agent_reasoning_effort": "unverified",
+        "delegated_runtime": "supported_with_constraints",
+        "model_routing_enforcement": "supported_with_constraints",
+        "effective_model_reporting": "unverified",
+        "dynamic_model_catalog": "supported_with_constraints",
         "turn_limits": "unverified",
         "agent_resume": "supported_with_constraints",
         "nested_agent_prohibition": "prompt_constrained",
@@ -114,17 +130,17 @@
       }
     },
     "opencode": {
-      "checked_at": "2026-07-28T00:00:00.000Z",
+      "checked_at": "2026-08-04T00:00:00.000Z",
       "max_age_days": 90,
-      "local_host_version": "1.18.7",
-      "validator_status": "consistent",
+      "local_host_version": "1.18.9",
+      "validator_status": "version_changed_reverification_required",
       "sources": [
         {
           "title": "OpenCode plugins",
           "url": "https://opencode.ai/docs/plugins"
         }
       ],
-      "verification": "live_verified",
+      "verification": "candidate_smoke_pending",
       "capabilities": {
         "native_skill_loading": "native",
         "plugin_relative_helper_scripts": "supported_with_constraints",
@@ -133,6 +149,10 @@
         "isolated_reviewer_worktrees": "unavailable",
         "per_agent_model_selection": "native",
         "per_agent_reasoning_effort": "unverified",
+        "delegated_runtime": "native",
+        "model_routing_enforcement": "native",
+        "effective_model_reporting": "supported_with_constraints",
+        "dynamic_model_catalog": "native",
         "turn_limits": "native",
         "agent_resume": "supported_with_constraints",
         "nested_agent_prohibition": "prompt_constrained",
@@ -140,7 +160,7 @@
       }
     },
     "pi": {
-      "checked_at": "2026-07-28T00:00:00.000Z",
+      "checked_at": "2026-08-04T00:00:00.000Z",
       "max_age_days": 90,
       "local_host_version": null,
       "validator_status": "not_run",
@@ -159,6 +179,10 @@
         "isolated_reviewer_worktrees": "inline_fallback",
         "per_agent_model_selection": "unavailable",
         "per_agent_reasoning_effort": "unavailable",
+        "delegated_runtime": "unavailable",
+        "model_routing_enforcement": "unavailable",
+        "effective_model_reporting": "unverified",
+        "dynamic_model_catalog": "native",
         "turn_limits": "unavailable",
         "agent_resume": "supported_with_constraints",
         "nested_agent_prohibition": "prompt_constrained",

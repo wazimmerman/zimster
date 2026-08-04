@@ -32,7 +32,9 @@ exact-head semantic approval. Update the requirement-to-evidence matrix and
 review package for the corrected head before requesting the bounded recheck.
 
 Do not make one agent or commit per finding when one owner understands the
-shared cause.
+shared cause. Rejecting delegated implementation returns the correction to
+that owner; it does not automatically dispatch another implementer or alter
+routing policy.
 
 ## Pushback
 

@@ -26,6 +26,10 @@ work, unrelated user changes, staged files, unstaged files, and untracked
 files. Generate a `change-snapshot` or read every untracked file; `git diff`
 alone cannot establish readiness for brand-new files.
 
+For every dispatch v2 record, require a consumed authoritative proposal,
+requested/effective routing accounting, and persistent-owner acceptance. A
+pending or rejected delegated implementation cannot satisfy completion.
+
 A harness-managed detached checkout may require native branch/handoff controls.
 Report limitations instead of pretending push/PR capability.
 

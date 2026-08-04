@@ -2,6 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { pathToFileURL } from 'node:url';
 import path from 'node:path';
+import { mkdtemp, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
+import { spawnSync } from 'node:child_process';
+import os from 'node:os';
 import { exists, json, read, root } from './helpers.mjs';
 
 test('Claude hook uses a dependency-free Node exec without forcing Bash', async () => {
@@ -100,5 +103,220 @@ test('each secondary harness has lifecycle and diagnostic instructions', async (
     for (const heading of ['Install', 'Update', 'Remove', 'Diagnostics', 'Verification status']) {
       assert.match(guide, new RegExp(`^## ${heading}$`, 'm'), `${harness} missing ${heading}`);
     }
+  }
+});
+
+test('ROUTE-005: harness capability reports distinguish routing enforcement and effective reporting', async () => {
+  const matrix = await json('config/harness-capabilities.json');
+  for (const harness of ['codex', 'claude', 'cursor', 'kimi', 'opencode', 'pi']) {
+    const capabilities = matrix.harnesses[harness].capabilities;
+    assert.ok(capabilities.model_routing_enforcement, `${harness} missing routing enforcement capability`);
+    assert.ok(capabilities.effective_model_reporting, `${harness} missing effective-model reporting capability`);
+  }
+  assert.equal(matrix.harnesses.pi.capabilities.model_routing_enforcement, 'unavailable');
+  assert.equal(matrix.harnesses.pi.capabilities.delegated_runtime, 'unavailable');
+});
+
+test('adapter generator writes only explicit owned outputs and removes only matching generated files', async () => {
+  const temporary = await mkdtemp(path.join(os.tmpdir(), 'zimster-adapters-'));
+  try {
+    const config = path.join(temporary, 'config.json');
+    const capabilities = path.join(temporary, 'capabilities.json');
+    await writeFile(capabilities, JSON.stringify({
+      per_agent_model_selection: 'native',
+      model_routing_enforcement: 'native',
+      effective_model_reporting: 'supported_with_constraints'
+    }));
+    await writeFile(config, JSON.stringify({
+      schema_version: 1,
+      routing: {
+        mode: 'map_only', policy: 'balanced', strict_cost: false,
+        role_classes: { 'integration-reviewer': 'expert' },
+        mappings: { expert: [{
+          model: 'user/expert-model', effort: 'high',
+          availability: 'declared_available', availability_source: 'user configuration'
+        }] }
+      }
+    }));
+    const script = path.join(root, 'scripts/adapter-config.mjs');
+    for (const [harness, expected] of [
+      ['codex', /model\s*=\s*"user\/expert-model"/],
+      ['claude', /model:\s*"user\/expert-model"/],
+      ['cursor', /model:\s*"user\/expert-model"/],
+      ['opencode', /model:\s*"user\/expert-model"/]
+    ]) {
+      const output = path.join(temporary, harness);
+      let result = spawnSync(process.execPath, [
+        script, 'generate', '--harness', harness, '--scope', 'project',
+        '--config', config, '--output', output, '--capabilities', capabilities
+      ], { cwd: temporary, encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr || result.stdout);
+      const manifestPath = result.stdout.trim();
+      const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
+      assert.equal(manifest.owner, 'zimster');
+      assert.equal(manifest.harness, harness);
+      assert.equal(manifest.files.length, 1);
+      assert.match(await readFile(path.join(output, manifest.files[0].path), 'utf8'), expected);
+
+      result = spawnSync(process.execPath, [script, 'remove', '--manifest', manifestPath], {
+        cwd: temporary, encoding: 'utf8'
+      });
+      assert.equal(result.status, 0, result.stderr || result.stdout);
+      await assert.rejects(readFile(manifestPath, 'utf8'), /ENOENT/);
+    }
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
+});
+
+test('adapter generator keeps provider identity separate except for OpenCode provider/model syntax', async () => {
+  const temporary = await mkdtemp(path.join(os.tmpdir(), 'zimster-adapter-provider-'));
+  try {
+    const config = path.join(temporary, 'config.json');
+    const capabilities = path.join(temporary, 'capabilities.json');
+    await writeFile(capabilities, JSON.stringify({ per_agent_model_selection: 'native' }));
+    await writeFile(config, JSON.stringify({
+      schema_version: 1,
+      routing: {
+        mode: 'map_only', policy: 'balanced',
+        role_classes: { reviewer: 'expert' },
+        mappings: { expert: [{
+          provider: 'provider-a', model: 'expert-model', effort: 'high',
+          availability: 'declared_available', availability_source: 'user configuration'
+        }] }
+      }
+    }));
+    const script = path.join(root, 'scripts/adapter-config.mjs');
+    for (const [harness, expected, forbidden] of [
+      ['codex', /model\s*=\s*"expert-model"/, /provider-a\/expert-model/],
+      ['claude', /model:\s*"expert-model"/, /provider-a\/expert-model/],
+      ['opencode', /model:\s*"provider-a\/expert-model"/, /model:\s*"expert-model"/]
+    ]) {
+      const output = path.join(temporary, harness);
+      const result = spawnSync(process.execPath, [
+        script, 'generate', '--harness', harness, '--scope', 'project',
+        '--config', config, '--output', output, '--capabilities', capabilities
+      ], { cwd: temporary, encoding: 'utf8' });
+      assert.equal(result.status, 0, result.stderr || result.stdout);
+      const manifest = JSON.parse(await readFile(result.stdout.trim(), 'utf8'));
+      const generated = await readFile(path.join(output, manifest.files[0].path), 'utf8');
+      assert.match(generated, expected);
+      assert.doesNotMatch(generated, forbidden);
+    }
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
+});
+
+test('adapter generator refuses user-owned collisions and symlink targets', async () => {
+  const temporary = await mkdtemp(path.join(os.tmpdir(), 'zimster-adapter-collision-'));
+  try {
+    const config = path.join(temporary, 'config.json');
+    const capabilities = path.join(temporary, 'capabilities.json');
+    await writeFile(capabilities, JSON.stringify({ per_agent_model_selection: 'native' }));
+    await writeFile(config, JSON.stringify({
+      schema_version: 1,
+      routing: {
+        mode: 'map_only', policy: 'balanced',
+        role_classes: { 'integration-reviewer': 'expert' },
+        mappings: { expert: [{
+          model: 'user/expert-model', effort: 'high',
+          availability: 'declared_available', availability_source: 'user configuration'
+        }] }
+      }
+    }));
+    const script = path.join(root, 'scripts/adapter-config.mjs');
+    const collision = path.join(temporary, 'collision');
+    await mkdir(collision, { recursive: true });
+    await writeFile(path.join(collision, 'integration-reviewer.md'), 'user owned\n');
+    let result = spawnSync(process.execPath, [
+      script, 'generate', '--harness', 'claude', '--scope', 'project',
+      '--config', config, '--output', collision, '--capabilities', capabilities
+    ], { cwd: temporary, encoding: 'utf8' });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /collision|owned/i);
+
+    const symlinkOutput = path.join(temporary, 'symlink');
+    await mkdir(symlinkOutput, { recursive: true });
+    await symlink(path.join(temporary, 'outside.md'), path.join(symlinkOutput, 'integration-reviewer.md'));
+    result = spawnSync(process.execPath, [
+      script, 'generate', '--harness', 'claude', '--scope', 'project',
+      '--config', config, '--output', symlinkOutput, '--capabilities', capabilities
+    ], { cwd: temporary, encoding: 'utf8' });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /symlink|collision|owned/i);
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
+  }
+});
+
+test('adapter generation rejects path/frontmatter injection and modified generated files', async () => {
+  const temporary = await mkdtemp(path.join(os.tmpdir(), 'zimster-adapter-safety-'));
+  try {
+    const script = path.join(root, 'scripts/adapter-config.mjs');
+    const capabilities = path.join(temporary, 'capabilities.json');
+    await writeFile(capabilities, JSON.stringify({ per_agent_model_selection: 'native' }));
+    const unsafe = path.join(temporary, 'unsafe.json');
+    await writeFile(unsafe, JSON.stringify({
+      schema_version: 1,
+      routing: {
+        mode: 'map_only', policy: 'balanced',
+        role_classes: { '../victim': 'expert' },
+        mappings: { expert: [{
+          model: 'safe-model\npermission: allow', effort: 'high',
+          availability: 'declared_available', availability_source: 'test'
+        }] }
+      }
+    }));
+    const output = path.join(temporary, 'output');
+    let result = spawnSync(process.execPath, [
+      script, 'generate', '--harness', 'claude', '--scope', 'project',
+      '--config', unsafe, '--output', output, '--capabilities', capabilities
+    ], { cwd: temporary, encoding: 'utf8' });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /role|safe|newline|path/i);
+    await assert.rejects(readFile(path.join(temporary, 'victim.md'), 'utf8'), /ENOENT/);
+
+    const safe = path.join(temporary, 'safe.json');
+    await writeFile(safe, JSON.stringify({
+      schema_version: 1,
+      routing: {
+        mode: 'map_only', policy: 'balanced',
+        role_classes: { reviewer: 'expert', scout: 'expert' },
+        mappings: { expert: [{
+          model: 'safe-model', effort: 'high',
+          availability: 'declared_available', availability_source: 'test'
+        }] }
+      }
+    }));
+    result = spawnSync(process.execPath, [
+      script, 'generate', '--harness', 'claude', '--scope', 'project',
+      '--config', safe, '--output', output, '--capabilities', capabilities
+    ], { cwd: temporary, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const manifestPath = result.stdout.trim();
+    const generated = path.join(output, 'reviewer.md');
+    const original = await readFile(generated, 'utf8');
+    await writeFile(generated, `${original}user modification\n`);
+    result = spawnSync(process.execPath, [
+      script, 'generate', '--harness', 'claude', '--scope', 'project',
+      '--config', safe, '--output', output, '--capabilities', capabilities
+    ], { cwd: temporary, encoding: 'utf8' });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /changed|digest|modified/i);
+    assert.match(await readFile(generated, 'utf8'), /user modification/);
+
+    await writeFile(generated, original);
+    const later = path.join(output, 'scout.md');
+    await writeFile(later, `${await readFile(later, 'utf8')}later modification\n`);
+    result = spawnSync(process.execPath, [script, 'remove', '--manifest', manifestPath], {
+      cwd: temporary, encoding: 'utf8'
+    });
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /changed since creation/i);
+    assert.match(await readFile(generated, 'utf8'), /Generated role override/,
+      'preflight failure must not partially delete earlier files');
+  } finally {
+    await rm(temporary, { recursive: true, force: true });
   }
 });

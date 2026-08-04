@@ -2,9 +2,14 @@ import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { parseOptions, required, integerOption, writeError, writeLine } from './lib/cli.mjs';
-import { findRepoRoot } from './lib/git-state.mjs';
+import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory, migrateLegacyJsonlStore } from './lib/runtime.mjs';
-import { normalizeCapabilityClass, validateDelegationDecision } from './lib/model-routing.mjs';
+import { digestJson } from './lib/config-layers.mjs';
+import {
+  normalizeCapabilityClass,
+  proposalInputFingerprint,
+  validateDelegationDecision
+} from './lib/model-routing.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
@@ -70,6 +75,25 @@ async function replaceRuntimeRows(runtime, records, ...segments) {
   await writeFile(path.join(runtime, ...segments), records.map((row) => JSON.stringify(row)).join('\n') + (records.length ? '\n' : ''));
 }
 
+function jsonOption(name) {
+  const raw = required(options, name);
+  try { return JSON.parse(String(raw)); } catch { throw new Error(`--${name} must be valid JSON`); }
+}
+
+async function verifyConfigurationLayers(layers = []) {
+  for (const layer of layers) {
+    let currentDigest = 'absent';
+    try {
+      currentDigest = digestJson(JSON.parse(await readFile(layer.path, 'utf8')));
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw new Error(`routing configuration layer is unreadable or invalid: ${layer.source}`);
+    }
+    if (currentDigest !== layer.digest) {
+      throw new Error(`routing configuration layer changed after resolution: ${layer.source}`);
+    }
+  }
+}
+
 async function main() {
   if (action === 'init') {
     await init();
@@ -93,6 +117,23 @@ async function main() {
     if (options['effective-model']) row.effective_model = String(options['effective-model']);
     if (options['effective-effort']) row.effective_effort = String(options['effective-effort']);
     if (options['agent-id']) row.agent_id = String(options['agent-id']);
+    if (options['owner-acceptance']) {
+      if (row.schema_version !== 2) throw new Error('owner acceptance is available only for dispatch v2');
+      const status = String(options['owner-acceptance']);
+      if (!['accepted', 'rejected'].includes(status)) throw new Error('--owner-acceptance must be accepted or rejected');
+      const proof = required(options, 'acceptance-proof');
+      row.owner_acceptance = {
+        status,
+        proof,
+        accepted_at: status === 'accepted' ? new Date().toISOString() : null,
+        decided_at: new Date().toISOString()
+      };
+    }
+    if (row.schema_version === 2 && row.effective_model !== 'unverified') {
+      row.routing_match = row.requested_model === 'inherit'
+        ? 'not_applicable'
+        : row.requested_model === row.effective_model ? 'matched' : 'mismatch';
+    }
     row.completed_at = new Date().toISOString();
     addInheritanceWarning(row);
     await replaceRows(records);
@@ -118,8 +159,62 @@ async function main() {
     const resolutions = await runtimeRows(runtime, 'routing', 'resolutions.jsonl');
     const resolution = resolutions.find((item) => item.id === required(options, 'resolution-id'));
     if (!resolution || resolution.proposal_id !== proposal.id) throw new Error('authoritative routing resolution not found for proposal');
+    if (!['request', 'inherit'].includes(resolution.action)) {
+      throw new Error(`routing resolution action ${resolution.action} is not dispatchable`);
+    }
+    if (resolution.delegation_id !== decision.id || resolution.run_id !== decision.run_id || proposal.run_id !== decision.run_id) {
+      throw new Error('delegation, proposal, and resolution run linkage mismatch');
+    }
+    if (resolution.proposal_input_fingerprint !== proposal.input_fingerprint) {
+      throw new Error('routing resolution input fingerprint does not match the proposal');
+    }
+    const role = required(options, 'role');
+    if (role !== decision.role) throw new Error(`dispatch role mismatch: delegation selected ${decision.role}`);
+    if (proposal.task_signature?.role !== decision.role) {
+      throw new Error('proposal task signature role does not match the delegation role');
+    }
+    const currentInputs = {
+      delegationId: decision.id,
+      taskSignature: jsonOption('task-signature'),
+      gitFingerprint: (await captureGitState(root)).working_tree_hash,
+      configDigest: proposal.config_digest,
+      mappingDigest: proposal.mapping_digest,
+      harness: required(options, 'harness'),
+      harnessVersion: required(options, 'harness-version'),
+      capabilityDigest: required(options, 'capability-digest'),
+      catalogDigest: required(options, 'catalog-digest'),
+      explicitOverrideDigest: options['explicit-override-digest']
+        ? String(options['explicit-override-digest'])
+        : options.override ? digestJson(jsonOption('override')) : 'none'
+    };
+    if (proposalInputFingerprint(currentInputs) !== proposal.input_fingerprint
+      || digestJson(resolution.current_inputs) !== digestJson({
+        delegation_id: currentInputs.delegationId,
+        task_signature: currentInputs.taskSignature,
+        git_fingerprint: currentInputs.gitFingerprint,
+        config_digest: currentInputs.configDigest,
+        mapping_digest: currentInputs.mappingDigest,
+        harness: currentInputs.harness,
+        harness_version: currentInputs.harnessVersion,
+        capability_digest: currentInputs.capabilityDigest,
+        catalog_digest: currentInputs.catalogDigest,
+        explicit_override_digest: currentInputs.explicitOverrideDigest
+      })) {
+      throw new Error('routing inputs changed after authoritative resolution');
+    }
+    await verifyConfigurationLayers(resolution.configuration_layers);
     const capabilityClass = required(options, 'capability-class');
     if (!capabilityClasses.has(capabilityClass)) throw new Error('--capability-class must be economy, balanced, expert, or inherit');
+    const expectedClass = resolution.action === 'request'
+      ? resolution.selected_class
+      : proposal.capability_class;
+    if (capabilityClass !== expectedClass) {
+      throw new Error(`dispatch capability-class mismatch: resolution requires ${expectedClass}`);
+    }
+    const git = await captureGitState(root);
+    if (git.working_tree_hash !== proposal.git_fingerprint || resolution.git_fingerprint !== proposal.git_fingerprint) {
+      throw new Error('dispatch proposal is stale because the working-tree fingerprint changed');
+    }
     const row = {
       schema_version: 2,
       id: randomUUID(),
@@ -127,10 +222,11 @@ async function main() {
       delegation_id: decision.id,
       proposal_id: proposal.id,
       resolution_id: resolution.id,
-      role: required(options, 'role'),
+      role,
       purpose: required(options, 'purpose'),
       capability_class: capabilityClass,
       requested_model: resolution.requested_model,
+      requested_provider: resolution.requested_provider || null,
       requested_effort: resolution.requested_effort,
       effective_model: String(options['effective-model'] || 'unverified'),
       effective_effort: String(options['effective-effort'] || 'unverified'),
@@ -146,6 +242,11 @@ async function main() {
       turn_limit: integerOption(options, 'turn-limit', 12),
       commit_permission: String(options['commit-permission'] || 'none'),
       ownership: decision.ownership,
+      tool_restrictions: decision.tool_restrictions,
+      dependency_cone: decision.dependency_cone,
+      stop_condition: decision.stop_condition,
+      acceptance_proof: decision.acceptance_proof,
+      task_signature: proposal.task_signature,
       output_path: options.output ? String(options.output) : null,
       owner_acceptance: { status: 'pending', proof: null, accepted_at: null },
       created_at: new Date().toISOString()

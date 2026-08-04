@@ -14,6 +14,7 @@ const operationalScripts = [
   'scripts/capability-cache.mjs',
   'scripts/codex-cachebuster.mjs',
   'scripts/delegation-record.mjs', 'scripts/model-routing.mjs',
+  'scripts/adapter-config.mjs',
   'scripts/dispatch-record.mjs', 'scripts/doctor.mjs',
   'scripts/evidence.mjs', 'scripts/host-smoke.mjs',
   'scripts/evaluate-execution-economy.mjs',

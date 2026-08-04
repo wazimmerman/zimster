@@ -145,8 +145,8 @@ export async function validateClaudePlugin(root) {
   for (const tool of ['Write', 'Edit', 'NotebookEdit', 'Bash', 'Agent']) {
     if (!staticDenied.has(tool)) errors.push(`agents/integration-reviewer.md: must disallow ${tool}`);
   }
-  if (staticReviewer.model !== 'sonnet' || staticReviewer.effort !== 'high' || staticReviewer.maxTurns !== '24') {
-    errors.push('agents/integration-reviewer.md: expected sonnet, high effort, and maxTurns 24');
+  if (staticReviewer.model !== 'inherit' || staticReviewer.effort !== undefined || staticReviewer.maxTurns !== '24') {
+    errors.push('agents/integration-reviewer.md: expected portable model inheritance, inherited effort, and maxTurns 24');
   }
 
   const probe = agents['test-reviewer.md'] || {};
@@ -159,8 +159,8 @@ export async function validateClaudePlugin(root) {
     if (!probeDenied.has(tool)) errors.push(`agents/test-reviewer.md: must disallow ${tool}`);
   }
   if (probe.isolation !== 'worktree') errors.push('agents/test-reviewer.md: isolation must be worktree');
-  if (probe.model !== 'sonnet' || probe.effort !== 'high' || probe.maxTurns !== '24') {
-    errors.push('agents/test-reviewer.md: expected sonnet, high effort, and maxTurns 24');
+  if (probe.model !== 'inherit' || probe.effort !== undefined || probe.maxTurns !== '24') {
+    errors.push('agents/test-reviewer.md: expected portable model inheritance, inherited effort, and maxTurns 24');
   }
 
   for (const required of ['hooks/session-start.mjs', 'skills/using-zimster/SKILL.md']) {

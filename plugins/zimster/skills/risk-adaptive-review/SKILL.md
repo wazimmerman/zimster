@@ -107,6 +107,11 @@ worktree, including attachments and Git-local receipts. A shell-capable,
 prompt-constrained Codex reviewer always uses this guard. Reviewers never edit
 the owner's checkout or recruit agents.
 
+Record the risk-driven need for independent review before selecting its model.
+Strict-cost routing that cannot prove enforcement reports review unavailable
+and requests one policy exception; it never silently inherits or weakens the
+review obligation.
+
 ## Semantic review package
 
 Create one immutable semantic review package. It must provide paths and hashes

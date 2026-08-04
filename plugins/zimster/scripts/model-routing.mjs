@@ -1,13 +1,20 @@
 import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { parseOptions, required, writeError, writeLine } from './lib/cli.mjs';
 import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
-import { digestJson } from './lib/config-layers.mjs';
+import {
+  digestJson,
+  loadConfigLayers,
+  resolveProjectConfigPath,
+  resolveUserConfigPath
+} from './lib/config-layers.mjs';
 import {
   createModelProposal,
-  proposalInputs,
-  resolveProposal,
+  resolveRoutingProposal,
+  summarizeRoutingObservations,
+  validateDelegationDecision,
   validateRoutingConfig
 } from './lib/model-routing.mjs';
 
@@ -22,6 +29,11 @@ async function parseJsonFile(filePath) {
 function jsonOption(name, fallback = {}) {
   if (options[name] === undefined) return fallback;
   try { return JSON.parse(String(options[name])); } catch { throw new Error(`--${name} must be valid JSON`); }
+}
+
+function requiredJsonOption(name) {
+  required(options, name);
+  return jsonOption(name);
 }
 
 async function storage() {
@@ -53,6 +65,42 @@ async function decisionById(runtime, id) {
   return decision;
 }
 
+async function effectiveConfiguration(runtime) {
+  const harnessNative = options['harness-config']
+    ? await parseJsonFile(String(options['harness-config']))
+    : null;
+  const harnessPath = options['harness-config']
+    ? path.resolve(root, String(options['harness-config']))
+    : null;
+  const snapshotPath = path.join(runtime, 'routing', 'run-config.json');
+  if (options.config) {
+    const supplied = validateRoutingConfig(await parseJsonFile(String(options.config)));
+    await writeFile(snapshotPath, `${JSON.stringify(supplied, null, 2)}\n`);
+  }
+  const layers = await loadConfigLayers({
+    runPath: snapshotPath,
+    projectPath: resolveProjectConfigPath(root),
+    userPath: resolveUserConfigPath(),
+    harnessNative,
+    harnessPath
+  });
+  const effective = {
+    schema_version: 1,
+    routing: {
+      mode: 'inherit',
+      policy: 'balanced',
+      strict_cost: false,
+      mappings: {},
+      ...(layers.effective.routing || {})
+    },
+    ...(layers.effective.autonomous_convergence
+      ? { autonomous_convergence: layers.effective.autonomous_convergence }
+      : {})
+  };
+  validateRoutingConfig(effective);
+  return { config: effective, layers };
+}
+
 async function main() {
   if (action === 'validate-config') {
     const config = validateRoutingConfig(await parseJsonFile(required(options, 'config')));
@@ -69,21 +117,105 @@ async function main() {
     const proposals = await jsonl(files.proposals);
     const proposal = [...proposals].reverse().find((row) => row.id === proposalId);
     if (!proposal) throw new Error(`model proposal not found: ${proposalId}`);
+    const { config, layers } = await effectiveConfiguration(files.runtime);
+    const routing = config.routing || config;
+    const catalog = options.catalog ? await parseJsonFile(String(options.catalog)) : null;
+    const capabilityEvidence = options.capabilities ? await parseJsonFile(String(options.capabilities)) : {};
+    const explicitOverride = options.override ? requiredJsonOption('override') : null;
     const git = await captureGitState(root);
-    const resolution = resolveProposal(proposal, {
-      ...proposalInputs(proposal),
-      gitFingerprint: git.working_tree_hash
+    const currentInputs = {
+      delegationId: proposal.delegation_id,
+      taskSignature: requiredJsonOption('task-signature'),
+      gitFingerprint: git.working_tree_hash,
+      configDigest: digestJson(config),
+      mappingDigest: digestJson(routing.mappings || {}),
+      harness: required(options, 'harness'),
+      harnessVersion: required(options, 'harness-version'),
+      capabilityDigest: capabilityEvidence && Object.keys(capabilityEvidence).length
+        ? digestJson(capabilityEvidence) : required(options, 'capability-digest'),
+      catalogDigest: catalog ? digestJson(catalog) : required(options, 'catalog-digest'),
+      explicitOverrideDigest: explicitOverride ? digestJson(explicitOverride) : 'none'
+    };
+    const resolution = resolveRoutingProposal({
+      proposal,
+      currentInputs,
+      mappings: routing.mappings || {},
+      catalog,
+      mappingSource: options['mapping-source']
+        ? String(options['mapping-source'])
+        : layers.mapping_sources,
+      explicitOverride,
+      capabilityEvidence,
+      strictCost: options['strict-cost'] === true || routing.strict_cost === true,
+      enforcement: String(options.enforcement || 'unverified'),
+      effectiveReporting: String(options['effective-reporting'] || 'unverified'),
+      delegationRequirement: String(options['delegation-requirement'] || 'optional'),
+      configurationLayers: layers.layer_evidence
     });
     await appendFile(files.resolutions, `${JSON.stringify(resolution)}\n`);
     writeLine(JSON.stringify(resolution));
+    return;
+  }
+  if (action === 'observe') {
+    const dispatchId = required(options, 'dispatch');
+    const dispatches = await jsonl(path.join(files.runtime, 'dispatches', 'dispatches.jsonl'));
+    const dispatch = dispatches.find((row) => row.id === dispatchId);
+    if (!dispatch) throw new Error(`dispatch record not found: ${dispatchId}`);
+    if (dispatch.schema_version !== 2) throw new Error('routing observations require dispatch v2');
+    if (!['accepted', 'rejected'].includes(dispatch.owner_acceptance?.status)) {
+      throw new Error('owner acceptance must be recorded before observation');
+    }
+    const existingObservations = await jsonl(files.observations);
+    if (existingObservations.some((row) => row.dispatch_id === dispatchId)) {
+      throw new Error(`dispatch already has a routing observation: ${dispatchId}`);
+    }
+    const proposals = await jsonl(files.proposals);
+    const proposal = proposals.find((row) => row.id === dispatch.proposal_id);
+    if (!proposal) throw new Error(`proposal not found for dispatch: ${dispatch.proposal_id}`);
+    const signature = proposal.task_signature || {};
+    const observation = {
+      schema_version: 1,
+      id: randomUUID(),
+      run_id: dispatch.run_id,
+      dispatch_id: dispatch.id,
+      harness: proposal.harness,
+      harness_version_family: String(proposal.harness_version).split('.').slice(0, 2).join('.'),
+      role: dispatch.role,
+      risk: signature.risk || 'unverified',
+      capability_class: dispatch.capability_class,
+      task_traits: signature.traits || [],
+      proof_kind: signature.proof_kind || 'unverified',
+      requested_model: dispatch.requested_model,
+      requested_effort: dispatch.requested_effort,
+      effective_model: dispatch.effective_model,
+      effective_effort: dispatch.effective_effort,
+      owner_acceptance: dispatch.owner_acceptance.status,
+      evidence_references: dispatch.owner_acceptance.proof ? [dispatch.owner_acceptance.proof] : [],
+      observed_cost: options.cost ? Number(options.cost) : null,
+      observed_duration_ms: options['duration-ms'] ? Number(options['duration-ms']) : null,
+      created_at: new Date().toISOString()
+    };
+    await appendFile(files.observations, `${JSON.stringify(observation)}\n`);
+    writeLine(JSON.stringify(observation));
+    return;
+  }
+  if (action === 'summarize') {
+    const signature = jsonOption('task-signature');
+    const summary = summarizeRoutingObservations(await jsonl(files.observations), signature);
+    writeLine(JSON.stringify(summary));
     return;
   }
   if (action !== 'propose') {
     throw new Error('Usage: model-routing.mjs <validate-config|propose|resolve|observe|summarize|list>');
   }
   const delegation = await decisionById(files.runtime, required(options, 'delegation-id'));
-  const config = options.config ? validateRoutingConfig(await parseJsonFile(String(options.config))) : { routing: {} };
+  validateDelegationDecision(delegation);
+  if (!delegation.selected) throw new Error('delegation is not selected; model proposals are forbidden');
+  const { config } = await effectiveConfiguration(files.runtime);
   const routing = config.routing || config;
+  const catalog = options.catalog ? await parseJsonFile(String(options.catalog)) : null;
+  const capabilityEvidence = options.capabilities ? await parseJsonFile(String(options.capabilities)) : {};
+  const explicitOverride = options.override ? requiredJsonOption('override') : null;
   const git = await captureGitState(root);
   const proposal = createModelProposal({
     delegation,
@@ -98,10 +230,30 @@ async function main() {
     mappingDigest: digestJson(routing.mappings || {}),
     harness: String(options.harness || 'unverified'),
     harnessVersion: String(options['harness-version'] || 'unverified'),
-    capabilityDigest: String(options['capability-digest'] || 'unverified'),
-    catalogDigest: String(options['catalog-digest'] || 'unverified'),
+    capabilityDigest: String(options['capability-digest']
+      || (Object.keys(capabilityEvidence).length ? digestJson(capabilityEvidence) : 'unverified')),
+    catalogDigest: String(options['catalog-digest'] || (catalog ? digestJson(catalog) : 'unverified')),
+    explicitOverrideDigest: explicitOverride ? digestJson(explicitOverride) : 'none',
     supersedes: options.supersedes ? String(options.supersedes) : null
   });
+  if (proposal.mode !== 'inherit' && Object.keys(routing.mappings || {}).length) {
+    const resolvable = { ...proposal, phase: 'dispatch', authority: 'authoritative' };
+    const preview = resolveRoutingProposal({
+      proposal: resolvable,
+      mappings: routing.mappings || {},
+      catalog,
+      capabilityEvidence,
+      explicitOverride,
+      enforcement: String(options.enforcement || 'unverified'),
+      effectiveReporting: String(options['effective-reporting'] || 'unverified')
+    });
+    const recommendation = preview.recommendation || (preview.action === 'request'
+      ? { model: preview.requested_model, effort: preview.requested_effort }
+      : null);
+    proposal.concrete_model = recommendation?.model || null;
+    proposal.reasoning_effort = recommendation?.effort || proposal.reasoning_effort;
+    proposal.availability = recommendation ? 'available' : preview.availability;
+  }
   if (proposal.supersedes) {
     const proposals = await jsonl(files.proposals);
     const previous = proposals.find((row) => row.id === proposal.supersedes);

@@ -23,6 +23,11 @@ Before saying done, fixed, passing, ready, or safe:
 5. map evidence to the requirement;
 6. claim only the supported state.
 
+Delegated implementation evidence is incomplete until the persistent owner
+has inspected it, run the named acceptance proof, and recorded acceptance.
+Requested model settings are not proof of the effective model; report
+effective routing as `unverified` when the harness cannot expose it.
+
 ## Discover canonical commands first
 
 Prefer repository-declared commands in this order:

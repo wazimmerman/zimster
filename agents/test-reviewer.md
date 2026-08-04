@@ -3,8 +3,7 @@ name: zimster-test-reviewer
 description: Run one named focused verification experiment without changing repository state.
 tools: Read, Grep, Glob, Bash
 disallowedTools: Write, Edit, NotebookEdit, Agent
-model: sonnet
-effort: high
+model: inherit
 maxTurns: 24
 isolation: worktree
 ---

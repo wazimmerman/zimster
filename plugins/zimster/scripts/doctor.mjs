@@ -4,6 +4,12 @@ import os from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { capabilityMatrix } from './lib/capabilities.mjs';
 import { parseOptions, writeLine } from './lib/cli.mjs';
+import {
+  loadConfigLayers,
+  resolveProjectConfigPath,
+  resolveUserConfigPath
+} from './lib/config-layers.mjs';
+import { findRepoRoot } from './lib/git-state.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { options } = parseOptions(process.argv.slice(2));
@@ -68,6 +74,16 @@ const harnesses = Object.fromEntries(Object.entries(matrix.harnesses).map(([name
   name,
   { ...record, structural_status: structural[name] }
 ]));
+let routingLayers = { layers: [], effective: {}, digest: 'unavailable' };
+if (sourceCheckout) {
+  let projectPath = null;
+  try { projectPath = resolveProjectConfigPath(findRepoRoot(root)); } catch {}
+  routingLayers = await loadConfigLayers({
+    projectPath,
+    userPath: resolveUserConfigPath()
+  });
+}
+const routingConfig = routingLayers.effective.routing || {};
 const report = {
   schema_version: 1,
   zimster_version: version,
@@ -75,6 +91,18 @@ const report = {
   host: { platform: os.platform(), release: os.release(), arch: os.arch(), node: process.version },
   version_metadata: versionMetadata,
   codex_mirror: codexMirror,
+  routing: {
+    mode: routingConfig.mode || 'inherit',
+    policy: routingConfig.policy || 'balanced',
+    strict_cost: routingConfig.strict_cost === true,
+    configuration_digest: routingLayers.digest,
+    layers: routingLayers.layers.map(({ source, digest, routing_keys: routingKeys, has_mappings: hasMappings }) => ({
+      source, digest, routing_keys: routingKeys, has_mappings: hasMappings
+    })),
+    mapping_count: Object.values(routingConfig.mappings || {}).reduce(
+      (total, candidates) => total + (Array.isArray(candidates) ? candidates.length : 0), 0
+    )
+  },
   harnesses
 };
 
@@ -94,6 +122,7 @@ if (options.json === true) {
     '',
     `Version metadata: ${report.version_metadata.status}`,
     `Codex mirror: ${report.codex_mirror.status}`,
+    `Routing: ${report.routing.mode}/${report.routing.policy} mappings=${report.routing.mapping_count}`,
     'Structural and capability diagnostics are not live harness installation claims.'
   );
   writeLine(lines.join('\n'));

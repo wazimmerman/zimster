@@ -112,12 +112,15 @@ Limits:
 
 - maximum of two parallel implementation agents;
 - subagents must not spawn subagents;
-- every dispatch names purpose, ownership, model tier, requested model and
-  effort, turn limit, commit permission, output path, and acceptance proof;
-- create a dispatch record before launch and append the effective model and
-  effective effort afterward; use `unverified` when the harness cannot report
-  them;
-- the owner independently verifies returned work.
+- decide and record delegation usefulness before any model evaluation; price
+  and availability never create a delegation reason;
+- selected decisions name purpose, inline alternative, ownership, restrictions,
+  dependency cone, stop condition, and acceptance proof;
+- create a current authoritative proposal and resolution before launch, then
+  append requested model and effective model/effort to the dispatch record;
+  use `unverified` when needed;
+- the owner independently verifies returned work and records acceptance or
+  rejection; rejection returns the work inline without automatic redispatch.
 
 Pass artifact paths, not accumulated history or full diffs.
 

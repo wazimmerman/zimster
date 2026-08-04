@@ -23,7 +23,7 @@
     },
     {
       "type": "object",
-      "required": ["schema_version", "id", "run_id", "delegation_id", "proposal_id", "resolution_id", "role", "purpose", "capability_class", "requested_model", "requested_effort", "effective_model", "effective_effort", "availability", "enforcement", "effective_reporting", "resolution_mode", "mapping_source", "mapping_digest", "fallback_trace", "turn_limit", "owner_acceptance", "created_at"],
+      "required": ["schema_version", "id", "run_id", "delegation_id", "proposal_id", "resolution_id", "role", "purpose", "capability_class", "requested_model", "requested_provider", "requested_effort", "effective_model", "effective_effort", "availability", "enforcement", "effective_reporting", "resolution_mode", "mapping_source", "mapping_digest", "fallback_trace", "turn_limit", "owner_acceptance", "created_at"],
       "properties": {
         "schema_version": { "const": 2 },
         "id": { "type": "string", "minLength": 1 },
@@ -35,6 +35,7 @@
         "purpose": { "type": "string", "minLength": 1 },
         "capability_class": { "enum": ["economy", "balanced", "expert", "inherit"] },
         "requested_model": { "type": "string", "minLength": 1 },
+        "requested_provider": { "type": ["string", "null"] },
         "requested_effort": { "type": "string", "minLength": 1 },
         "effective_model": { "type": "string", "minLength": 1 },
         "effective_effort": { "type": "string", "minLength": 1 },
@@ -52,7 +53,8 @@
           "properties": {
             "status": { "enum": ["pending", "accepted", "rejected"] },
             "proof": { "type": ["string", "null"] },
-            "accepted_at": { "type": ["string", "null"] }
+            "accepted_at": { "type": ["string", "null"] },
+            "decided_at": { "type": "string" }
           },
           "additionalProperties": false
         },

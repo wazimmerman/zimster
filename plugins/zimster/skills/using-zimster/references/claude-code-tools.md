@@ -16,9 +16,12 @@ capturing its local integrity state. The root conversation separately captures
 and verifies the persistent owner's checkout around the dispatch. Use the
 static reviewer or owner-run proof for uncommitted changes.
 
-Configure a suitable model, effort, maximum turns, and restricted tools when
-supported. Record requested and effective model values. The root conversation
-remains implementation owner, and subagents cannot delegate further work.
+Plugin roles default to `model: inherit` and inherit effort for portability.
+Generate concrete project `.claude/agents/` or user agent overrides only to an
+explicit output with Zimster ownership markers and a removal manifest. Those
+host definitions intentionally outrank plugin definitions. Record requested
+and effective model values; do not treat the requested value as proof. The root
+conversation remains implementation owner, and subagents cannot delegate.
 
 Test a local checkout with Claude Code's plugin-directory development option
 and inspect hook output before marketplace publication.

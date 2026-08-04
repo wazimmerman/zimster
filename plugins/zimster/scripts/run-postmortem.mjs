@@ -74,6 +74,14 @@ const allDispatches = await optionalJsonl('dispatches/dispatches.jsonl');
 const dispatches = allDispatches?.filter((row) =>
   currentRunRow(row, ['created_at', 'completed_at'])
 ) ?? null;
+const allDelegationDecisions = await optionalJsonl('delegation/decisions.jsonl');
+const delegationDecisions = allDelegationDecisions?.filter((row) =>
+  currentRunRow(row, ['created_at'])
+) ?? null;
+const allProposals = await optionalJsonl('routing/proposals.jsonl');
+const proposals = allProposals?.filter((row) => currentRunRow(row, ['created_at'])) ?? null;
+const allResolutions = await optionalJsonl('routing/resolutions.jsonl');
+const resolutions = allResolutions?.filter((row) => currentRunRow(row, ['created_at'])) ?? null;
 const allLedger = await optionalJsonl('evidence/receipts.jsonl');
 const ledger = allLedger?.filter((row) =>
   currentRunRow(row, ['ended_at', 'started_at', 'recorded_at'])
@@ -117,6 +125,34 @@ const modelsAndEffort = dispatches === null
       model: row.effective_model || 'unverified',
       effort: row.effective_effort || 'unverified'
     }))
+  });
+
+const delegationMetric = delegationDecisions === null
+  ? unavailable('delegation decisions are absent')
+  : observed({
+    total: delegationDecisions.length,
+    selected: delegationDecisions.filter(({ selected }) => selected === true).length,
+    inline: delegationDecisions.filter(({ selected }) => selected === false).length
+  });
+
+const routingMetric = proposals === null && resolutions === null && dispatches === null
+  ? unavailable('routing proposals, resolutions, and dispatches are absent')
+  : observed({
+    proposals: proposals?.length || 0,
+    advisory_proposals: (proposals || []).filter(({ authority }) => authority === 'advisory').length,
+    authoritative_proposals: (proposals || []).filter(({ authority }) => authority === 'authoritative').length,
+    cancelled_dispatches: (resolutions || []).filter(({ action }) => action === 'cancel').length,
+    blocked_dispatches: (resolutions || []).filter(({ action }) => action === 'blocked').length,
+    owner_accepted: (dispatches || []).filter((row) => row.owner_acceptance?.status === 'accepted').length,
+    owner_rejected: (dispatches || []).filter((row) => row.owner_acceptance?.status === 'rejected').length,
+    effective_mismatches: (dispatches || []).filter((row) =>
+      row.requested_model
+      && !['inherit', 'none', 'unverified'].includes(row.requested_model)
+      && row.effective_model
+      && row.effective_model !== 'unverified'
+      && row.effective_model !== row.requested_model
+    ).length,
+    fallbacks: [...new Set((resolutions || []).flatMap(({ fallback_trace: trace }) => trace || []))].sort()
   });
 
 const tokenEvents = countEvents(events, 'token_meter');
@@ -260,6 +296,8 @@ const report = {
     identities: metric('identities', identities),
     starts_and_resumes: metric('starts_and_resumes', startsAndResumes),
     models_and_effort: metric('models_and_effort', modelsAndEffort),
+    delegation_decisions: metric('delegation_decisions', delegationMetric),
+    routing: metric('routing', routingMetric),
     tokens: metric('tokens', tokens),
     compactions: metric('compactions', usageMetric('context_compactions', 'execution budget is absent')),
     research_events: metric('research_events', research),

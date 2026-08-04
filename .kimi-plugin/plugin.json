@@ -20,7 +20,7 @@
   "sessionStart": {
     "skill": "using-zimster"
   },
-  "skillInstructions": "Kimi Code mapping for Zimster: use AskUserQuestion only when a decision truly requires user input; use TodoList for tracked work; use Agent with coder for bounded implementation or review, explore for read-only research, and plan for architecture. Keep dependent work sequential, do not permit subagents to create subagents, and use no more than two parallel implementation agents. Use native Skill, Read, Write, Edit, Bash, Grep, Glob, FetchURL, WebSearch, and MCP tools.",
+  "skillInstructions": "Kimi Code mapping for Zimster: decide whether delegation materially improves the task before model routing. Use Agent only for a selected bounded role; choose primary, a verified experimental secondary, or inheritance, never a vendor model ID. Use AskUserQuestion only when a decision truly requires user input and TodoList for tracked work. Keep dependent work sequential, do not permit subagents to create subagents, and use no more than two parallel implementation agents. Use native Skill, Read, Write, Edit, Bash, Grep, Glob, FetchURL, WebSearch, and MCP tools.",
   "interface": {
     "displayName": "Zimster",
     "shortDescription": "Proof-first development without orchestration bloat",

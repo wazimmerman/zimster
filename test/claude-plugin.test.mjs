@@ -67,8 +67,8 @@ test('Claude static reviewer is technically read/search-only with bounded judgme
   for (const tool of ['Write', 'Edit', 'NotebookEdit', 'Bash', 'Agent']) {
     assert.equal(values(metadata.disallowedTools).has(tool), true, `${tool} must be denied explicitly`);
   }
-  assert.equal(metadata.model, 'sonnet');
-  assert.equal(metadata.effort, 'high');
+  assert.equal(metadata.model, 'inherit');
+  assert.equal(metadata.effort, undefined);
   assert.equal(metadata.maxTurns, '24');
   for (const unsupported of ['permissionMode', 'hooks', 'mcpServers']) {
     assert.equal(metadata[unsupported], undefined);
@@ -82,8 +82,8 @@ test('Claude focused reviewer is bounded and isolated in a temporary worktree', 
   for (const tool of ['Write', 'Edit', 'NotebookEdit', 'Agent']) {
     assert.equal(values(metadata.disallowedTools).has(tool), true, `${tool} must be denied explicitly`);
   }
-  assert.equal(metadata.model, 'sonnet');
-  assert.equal(metadata.effort, 'high');
+  assert.equal(metadata.model, 'inherit');
+  assert.equal(metadata.effort, undefined);
   assert.equal(metadata.maxTurns, '24');
   assert.equal(metadata.isolation, 'worktree');
   assert.match(content, /named focused command|named command/i);
