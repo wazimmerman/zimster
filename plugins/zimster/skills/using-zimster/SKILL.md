@@ -157,6 +157,16 @@ waves, physical context compactions, research refreshes, and exposed token
 thresholds. A crossed limit requires a recorded invalidation or strategy
 change plus the named proof; it never silently removes required evidence.
 
+Use `scripts/convergence.mjs decide` for an ordinary deterministic failure.
+Continue without another user authorization only when the correction is
+in-scope, reversible, non-sensitive, authorized, and within its configured
+budget. Escalate only for contradiction, material scope expansion, a sensitive
+decision lacking authority, missing independent review, policy-required
+approval, or exhausted budget. Host permission prompts remain authoritative.
+The configurable limits cover correction commits, review rechecks per seam,
+final verification attempts, complete suites, duplicate commands, and context
+renewals. Legacy correction-wave and compaction names are read aliases.
+
 ## Logical ownership and phase checkpoints
 
 The logical owner is continuous even when the physical context is deliberately
@@ -201,6 +211,10 @@ Read only the matching reference:
 When subagents are unavailable, execute inline and state that independent
 review assurance was unavailable; do not relabel owner-inline work as
 `independent_review`.
+
+For self-hosting, freeze the accepted checked-in policy at run start. Candidate
+workflow rules are non-authoritative and run only in isolated fixtures or
+package homes until their seam review and acceptance evidence pass.
 
 ## Installed version and script-free mode
 

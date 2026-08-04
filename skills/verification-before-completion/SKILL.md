@@ -69,6 +69,11 @@ Reuse only valid focused evidence whose fingerprint and dependency cone remain
 unchanged. Report reusable duplicates rather than rerunning by habit. Final
 completion gates are always run fresh; `--reuse` never satisfies a final claim.
 A correction invalidates every proof whose dependency cone includes it.
+An ordinary deterministic verification failure continues autonomously within
+the final-verification budget when it is in-scope, reversible, non-sensitive,
+and authorized. Contradiction, material expansion, sensitive decisions without
+authority, missing review, policy-required approval, or exhaustion must stop
+and be reported explicitly.
 
 ## Verify the complete change
 

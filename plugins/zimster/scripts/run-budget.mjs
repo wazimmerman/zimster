@@ -1,4 +1,6 @@
 import { writeSync } from 'node:fs';
+import { readFile } from 'node:fs/promises';
+import path from 'node:path';
 import { parseOptions, integerOption, required } from './lib/cli.mjs';
 import { findRepoRoot } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
@@ -8,6 +10,7 @@ import {
   recordExecutionBudgetEvent,
   satisfyExecutionBudgetProof
 } from './lib/execution-budget.mjs';
+import { validateConvergenceConfig } from './lib/convergence.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
@@ -21,8 +24,12 @@ function emit(status, detail) {
 if (action === 'init') {
   const profile = normalizeBudgetProfile(required(options, 'profile'));
   const tokenThreshold = integerOption(options, 'token-threshold', null);
+  const convergence = options.config
+    ? validateConvergenceConfig(JSON.parse(await readFile(path.resolve(root, String(options.config)), 'utf8')))
+    : null;
   const { budgetFile, state } = await initializeExecutionBudget(runtime, profile, {
     tokenThreshold,
+    limits: convergence?.autonomous_convergence.limits,
     overwrite: options.force === true
   });
   emit('BUDGET_INITIALIZED', { profile, limits: state.limits, path: budgetFile });

@@ -12,4 +12,8 @@
 
 ## Budget
 
+Record the effective convergence configuration, remaining correction/recheck/
+verification/suite/duplicate/context budgets, and every autonomous continue or
+escalate decision. Candidate self-hosting rules remain isolated until accepted.
+
 ## Next action

@@ -122,6 +122,13 @@ test('run postmortem aggregates observed execution economy without mixing token 
       requested_model: 'none', requested_effort: 'none',
       created_at: '2026-07-28T00:04:30.000Z'
     }]);
+    await jsonl(path.join(runtime, 'convergence/decisions.jsonl'), [{
+      schema_version: 1, id: 'convergence-1', run_id: 'current-run',
+      event: 'focused_test_failure', outcome: 'continue',
+      reason: 'ordinary_deterministic_in_scope_failure', scope: 'in-scope',
+      sensitivity: 'ordinary', metric: 'correction_commits', used: 0, limit: 1,
+      created_at: '2026-07-28T00:04:45.000Z'
+    }]);
     await jsonl(path.join(runtime, 'events/events.jsonl'), [
       {
         event_type: 'run_started',
@@ -235,6 +242,7 @@ test('run postmortem aggregates observed execution economy without mixing token 
     assert.equal(report.metrics.routing.cancelled_dispatches, 1);
     assert.equal(report.metrics.routing.owner_accepted, 1);
     assert.equal(report.metrics.routing.effective_mismatches, 1);
+    assert.equal(report.metrics.convergence.continued, 1);
     assert.deepEqual(report.metrics.routing.fallbacks, ['mapped', 'strict_cost_unenforceable']);
     assert.equal(report.metrics.corrections.value, 2);
     assert.equal(report.metrics.rechecks.value, 2);

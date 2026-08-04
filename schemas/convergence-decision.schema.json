@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wazimmerman/zimster/schemas/convergence-decision.schema.json",
+  "title": "Zimster autonomous convergence decision",
+  "type": "object",
+  "required": ["schema_version", "id", "run_id", "event", "outcome", "reason", "scope", "sensitivity", "metric", "used", "limit", "created_at"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "id": { "type": "string", "minLength": 1 },
+    "run_id": { "type": "string", "minLength": 1 },
+    "event": { "type": "string", "minLength": 1 },
+    "outcome": { "enum": ["continue", "escalate", "budget_exhausted"] },
+    "reason": { "enum": ["ordinary_deterministic_in_scope_failure", "contradiction", "material_scope_expansion", "sensitive_decision_lacks_authority", "missing_independent_review", "policy_required_approval", "exhausted_budget"] },
+    "scope": { "enum": ["in-scope", "out-of-scope"] },
+    "sensitivity": { "enum": ["ordinary", "sensitive"] },
+    "metric": { "type": "string", "minLength": 1 },
+    "used": { "type": "integer", "minimum": 0 },
+    "limit": { "type": "integer", "minimum": 0 },
+    "created_at": { "type": "string", "minLength": 1 }
+  },
+  "additionalProperties": false
+}

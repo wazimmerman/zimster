@@ -48,6 +48,7 @@ const requiredFiles = [
   'scripts/delegation-record.mjs',
   'scripts/model-routing.mjs',
   'scripts/adapter-config.mjs',
+  'scripts/convergence.mjs',
   'scripts/init-run.mjs',
   'scripts/lib/execution-budget.mjs',
   'scripts/lib/zip-reader.mjs',
@@ -57,6 +58,7 @@ const requiredFiles = [
   'scripts/lib/evidence-validity.mjs',
   'scripts/lib/config-layers.mjs',
   'scripts/lib/model-routing.mjs',
+  'scripts/lib/convergence.mjs',
   'scripts/check-version.mjs',
   'scripts/checksums.mjs',
   'scripts/bump-version.mjs',
@@ -66,6 +68,7 @@ const requiredFiles = [
   'schemas/model-proposal.schema.json',
   'schemas/zimster-config.schema.json',
   'schemas/routing-observation.schema.json',
+  'schemas/convergence-decision.schema.json',
   'schemas/binding-requirements.schema.json',
   'schemas/requirement-matrix.schema.json',
   'schemas/semantic-review.schema.json',
@@ -77,6 +80,7 @@ const requiredFiles = [
   'templates/delegation-decision.json',
   'templates/model-proposal.json',
   'config/model-routing.json',
+  'config/convergence.json',
   'config/host-smoke.json',
   'plugins/zimster/.codex-plugin/plugin.json'
 ];

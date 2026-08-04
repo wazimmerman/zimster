@@ -7,6 +7,14 @@
     "mappings": {}
   },
   "autonomous_convergence": {
-    "enabled": false
+    "enabled": false,
+    "limits": {
+      "correction_commits": 1,
+      "review_rechecks_per_seam": 1,
+      "final_verification_attempts": 2,
+      "complete_suite_executions": 3,
+      "exact_duplicate_commands": 2,
+      "context_renewals": 2
+    }
   }
 }

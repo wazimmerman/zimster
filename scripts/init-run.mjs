@@ -6,6 +6,7 @@ import { findRepoRoot, gitValue } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory, resolveAuditPath } from './lib/runtime.mjs';
 import { harnessCapabilities } from './lib/capabilities.mjs';
 import { initializeExecutionBudget } from './lib/execution-budget.mjs';
+import { validateConvergenceConfig } from './lib/convergence.mjs';
 import { initializeRunState } from './lib/run-state.mjs';
 
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -31,6 +32,10 @@ const capabilityReceipt = {
   capabilities: harness ? await harnessCapabilities(harness) : null
 };
 const capabilitySection = `## Harness capability receipt\n\n\`\`\`json\n${JSON.stringify(capabilityReceipt, null, 2)}\n\`\`\``;
+const convergenceConfigPath = options['convergence-config']
+  ? path.resolve(repo, String(options['convergence-config']))
+  : path.join(scriptRoot, 'config', 'convergence.json');
+const convergenceConfig = validateConvergenceConfig(JSON.parse(await readFile(convergenceConfigPath, 'utf8')));
 
 function withCapabilityReceipt(contents) {
   const existing = /## Harness capability receipt\n\n```json\n[\s\S]*?\n```/;
@@ -82,7 +87,21 @@ if (!auditPath && normalizedProfile !== 'Micro') {
   });
   await initializeExecutionBudget(runtimeDirectory, normalizedProfile, {
     tokenThreshold: integerOption(options, 'token-threshold', null),
+    limits: convergenceConfig.autonomous_convergence.limits,
     overwrite: options.force === true
   });
+  await writeFile(
+    path.join(runtimeDirectory, 'convergence-config.json'),
+    `${JSON.stringify(convergenceConfig, null, 2)}\n`,
+    { flag: options.force === true ? 'w' : 'wx' }
+  );
+  if (options['self-hosting-candidate']) {
+    await writeFile(path.join(runtimeDirectory, 'bootstrap.json'), `${JSON.stringify({
+      schema_version: 1,
+      candidate_version: String(options['self-hosting-candidate']),
+      ...convergenceConfig.self_hosting,
+      created_at: new Date().toISOString()
+    }, null, 2)}\n`, { flag: options.force === true ? 'w' : 'wx' });
+  }
 }
 writeLine(target);

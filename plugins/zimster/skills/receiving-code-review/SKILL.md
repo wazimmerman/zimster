@@ -23,6 +23,8 @@ current wording.
 ## Valid findings
 
 Combine related Critical and Important findings into one correction wave.
+Ordinary accepted findings do not require separate user authorization for each
+deterministic local correction; use the configured correction-commit budget.
 Write or strengthen a failing proof where behavior is defective, then fix the
 underlying invariant. Run focused covering tests and affected integration
 checks.

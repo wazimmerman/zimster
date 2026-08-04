@@ -1,9 +1,11 @@
+import { readFileSync } from 'node:fs';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { captureGitState } from './git-state.mjs';
+import { CONVERGENCE_ALIASES, normalizeConvergenceMetric } from './convergence.mjs';
 
 const evidenceScript = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -11,15 +13,17 @@ const evidenceScript = path.resolve(
   'evidence.mjs'
 );
 
+const convergenceDefaults = JSON.parse(readFileSync(path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'config', 'convergence.json'
+), 'utf8')).autonomous_convergence.limits;
+
 export const DEFAULT_EXECUTION_LIMITS = Object.freeze({
-  complete_suite_executions: 3,
-  exact_duplicate_commands: 2,
-  review_rechecks_per_seam: 1,
-  final_correction_waves: 1,
+  ...convergenceDefaults,
   optional_deliberate_agents: 5,
   nesting_depth: 1,
-  context_compactions: 2,
-  research_refreshes: 1
+  research_refreshes: 1,
+  final_correction_waves: convergenceDefaults.correction_commits,
+  context_compactions: convergenceDefaults.context_renewals
 });
 
 export function normalizeBudgetProfile(value) {
@@ -30,16 +34,20 @@ export function normalizeBudgetProfile(value) {
   return profile === 'standard' ? 'standard' : 'high-risk';
 }
 
-export function createBudgetState(profile, { tokenThreshold = null } = {}) {
+export function createBudgetState(profile, { tokenThreshold = null, limits = {} } = {}) {
   if (tokenThreshold !== null && (!Number.isInteger(tokenThreshold) || tokenThreshold <= 0)) {
     throw new Error('--token-threshold must be a positive integer');
+  }
+  const effectiveLimits = { ...DEFAULT_EXECUTION_LIMITS, ...limits };
+  for (const [alias, canonical] of Object.entries(CONVERGENCE_ALIASES)) {
+    effectiveLimits[alias] = effectiveLimits[canonical];
   }
   const state = {
     schema_version: 1,
     profile: normalizeBudgetProfile(profile),
-    limits: { ...DEFAULT_EXECUTION_LIMITS },
+    limits: effectiveLimits,
     usage: Object.fromEntries(
-      Object.keys(DEFAULT_EXECUTION_LIMITS).map((metric) => [metric, 0])
+      Object.keys(effectiveLimits).map((metric) => [metric, 0])
     ),
     optional_agent_identities: [],
     scoped_usage: {},
@@ -231,6 +239,7 @@ export function applyExecutionBudgetEvent(state, {
   requiredProofCommand = null,
   recordedAt = new Date().toISOString()
 }) {
+  metric = normalizeConvergenceMetric(metric);
   if (!Object.hasOwn(state.limits, metric)) throw new Error(`unknown budget metric: ${metric}`);
   if (!Number.isInteger(amount) || amount <= 0) throw new Error('--amount must be a positive integer');
   if (metric === 'optional_deliberate_agents') {
@@ -291,6 +300,9 @@ export function applyExecutionBudgetEvent(state, {
   }
 
   state.usage[metric] = (state.usage[metric] || 0) + amount;
+  for (const [alias, canonical] of Object.entries(CONVERGENCE_ALIASES)) {
+    if (canonical === metric && Object.hasOwn(state.usage, alias)) state.usage[alias] = state.usage[metric];
+  }
   if (scoped) {
     state.scoped_usage[metric] ||= {};
     state.scoped_usage[metric][scope] = proposed;

@@ -1,0 +1,23 @@
+{
+  "schema_version": 1,
+  "autonomous_convergence": {
+    "enabled": true,
+    "limits": {
+      "correction_commits": 1,
+      "review_rechecks_per_seam": 1,
+      "final_verification_attempts": 2,
+      "complete_suite_executions": 3,
+      "exact_duplicate_commands": 2,
+      "context_renewals": 2
+    }
+  },
+  "legacy_aliases": {
+    "final_correction_waves": "correction_commits",
+    "context_compactions": "context_renewals"
+  },
+  "self_hosting": {
+    "governing_policy": "frozen_checked_in_policy",
+    "candidate_rules_authoritative": false,
+    "candidate_test_scope": "isolated_fixtures_and_package_homes"
+  }
+}

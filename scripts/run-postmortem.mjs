@@ -82,6 +82,8 @@ const allProposals = await optionalJsonl('routing/proposals.jsonl');
 const proposals = allProposals?.filter((row) => currentRunRow(row, ['created_at'])) ?? null;
 const allResolutions = await optionalJsonl('routing/resolutions.jsonl');
 const resolutions = allResolutions?.filter((row) => currentRunRow(row, ['created_at'])) ?? null;
+const allConvergenceDecisions = await optionalJsonl('convergence/decisions.jsonl');
+const convergenceDecisions = allConvergenceDecisions?.filter((row) => currentRunRow(row, ['created_at'])) ?? null;
 const allLedger = await optionalJsonl('evidence/receipts.jsonl');
 const ledger = allLedger?.filter((row) =>
   currentRunRow(row, ['ended_at', 'started_at', 'recorded_at'])
@@ -230,6 +232,9 @@ if (ledger === null) {
 const usageMetric = (name, unavailableReason) => budget
   ? observed({ value: budget.usage?.[name] ?? 0 })
   : unavailable(unavailableReason);
+const aliasedUsageMetric = (name, alias, unavailableReason) => budget
+  ? observed({ value: budget.usage?.[name] ?? budget.usage?.[alias] ?? 0 })
+  : unavailable(unavailableReason);
 const researchEvents = countEvents(events, 'research');
 const research = events !== null && researchEvents.length
   ? observed({ value: researchEvents.length })
@@ -254,6 +259,7 @@ if (!budget) {
   const exceededRows = Object.entries(budget.usage || {})
     .filter(([name, value]) =>
       name !== 'review_rechecks_per_seam'
+      && !['final_correction_waves', 'context_compactions'].includes(name)
       && Number.isFinite(budget.limits?.[name])
       && value > budget.limits[name]
     )
@@ -299,7 +305,7 @@ const report = {
     delegation_decisions: metric('delegation_decisions', delegationMetric),
     routing: metric('routing', routingMetric),
     tokens: metric('tokens', tokens),
-    compactions: metric('compactions', usageMetric('context_compactions', 'execution budget is absent')),
+    compactions: metric('compactions', aliasedUsageMetric('context_renewals', 'context_compactions', 'execution budget is absent')),
     research_events: metric('research_events', research),
     commands: metric('commands', commands),
     tests_by_evidence_class: metric('tests_by_evidence_class', testsByClass),
@@ -325,11 +331,22 @@ const report = {
     ),
     corrections: metric(
       'corrections',
-      usageMetric('final_correction_waves', 'execution budget is absent')
+      aliasedUsageMetric('correction_commits', 'final_correction_waves', 'execution budget is absent')
     ),
     rechecks: metric(
       'rechecks',
       usageMetric('review_rechecks_per_seam', 'execution budget is absent')
+    ),
+    convergence: metric(
+      'convergence',
+      convergenceDecisions === null
+        ? unavailable('convergence decisions are absent')
+        : observed({
+          value: convergenceDecisions.length,
+          continued: convergenceDecisions.filter(({ outcome }) => outcome === 'continue').length,
+          escalated: convergenceDecisions.filter(({ outcome }) => outcome !== 'continue').length,
+          reasons: [...new Set(convergenceDecisions.map(({ reason }) => reason))].sort()
+        })
     ),
     time_by_phase: metric('time_by_phase', timeByPhase),
     budget_compliance: metric('budget_compliance', budgetCompliance)

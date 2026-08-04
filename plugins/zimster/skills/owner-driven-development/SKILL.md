@@ -168,6 +168,17 @@ At about 60% of budget, report owner turns, agent starts, review waves, duplicat
 commands, and resident context. At about 80%, stop optional work and prioritize
 required proof.
 
+Within the approved dependency cone, autonomously correct ordinary,
+deterministic, reversible failures while the named convergence budget remains.
+Do not ask for repeated authorization after each local test, lint, build, or
+package-smoke failure. Stop only for contradiction, material expansion,
+sensitive choices without authority, missing independent review,
+policy-required approval, or exhausted budget, and record the decision.
+
+On self-hosting work, the accepted pre-change workflow governs the run.
+Unfinished candidate rules remain isolated test subjects until accepted; they
+cannot grant themselves authority.
+
 ## 9. Completion
 
 Supported states include `CODE_READY`, `INTEGRATION_VERIFIED`,

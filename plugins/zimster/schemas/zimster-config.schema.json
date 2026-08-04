@@ -46,7 +46,26 @@
       },
       "additionalProperties": false
     },
-    "autonomous_convergence": { "type": "object" }
+    "autonomous_convergence": {
+      "type": "object",
+      "required": ["enabled"],
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "limits": {
+          "type": "object",
+          "properties": {
+            "correction_commits": { "type": "integer", "minimum": 0 },
+            "review_rechecks_per_seam": { "type": "integer", "minimum": 0 },
+            "final_verification_attempts": { "type": "integer", "minimum": 0 },
+            "complete_suite_executions": { "type": "integer", "minimum": 0 },
+            "exact_duplicate_commands": { "type": "integer", "minimum": 0 },
+            "context_renewals": { "type": "integer", "minimum": 0 }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
   },
   "additionalProperties": false
 }
