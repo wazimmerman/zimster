@@ -37,7 +37,7 @@ the synchronized version.
 
 ## Verification status
 
-Structurally validated against the current Agent Skills and project-command
+Verification level: `STRUCTURALLY_VALIDATED`. Validated against the current Agent Skills and project-command
 documentation. A Cursor CLI/application was unavailable, so loading and UI
 behavior were not live-tested. Reviewer restrictions remain constrained by the
 tools and agent controls selected in Cursor; Zimster does not claim a

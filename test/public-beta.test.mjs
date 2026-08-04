@@ -42,20 +42,37 @@ test('BETA-002: consolidated beta documentation covers every installation lifecy
   assert.match(migration, /routing\.mode[\s\S]*inherit/i);
 });
 
-test('BETA-001 and BETA-003: six beta surfaces report capability status and unavailable live proof blocks completion', async () => {
+test('BETA-001 and BETA-003: six beta surfaces use claim-scoped states and channel-specific live coverage', async () => {
   const hosts = await json('config/host-smoke.json');
   assert.deepEqual(hosts.hosts.map(({ id }) => id).sort(), [
     'claude', 'codex', 'cursor', 'kimi', 'opencode', 'pi'
   ]);
-  const smoke = await read('scripts/host-smoke.mjs');
-  assert.match(smoke, /BLOCKED_BY_ENVIRONMENT/);
-  assert.match(smoke, /required_host_ids|all_required/i);
+  assert.equal(hosts.release_profiles.public_beta.minimum_live_verified_hosts, 1);
+  assert.deepEqual(hosts.release_profiles.public_beta.required_live_host_ids, []);
+  assert.equal(hosts.release_profiles.stable.minimum_live_verified_hosts, 6);
+  assert.deepEqual([...hosts.release_profiles.stable.required_live_host_ids].sort(), [
+    'claude', 'codex', 'cursor', 'kimi', 'opencode', 'pi'
+  ]);
+  const receiptSchema = await json('schemas/host-smoke-receipt.schema.json');
+  assert.deepEqual(receiptSchema.properties.hosts.items.properties.verification_state.enum, [
+    'LIVE_VERIFIED', 'INSTALLED_PACKAGE_VERIFIED', 'STRUCTURALLY_VALIDATED',
+    'BLOCKED_BY_AUTHENTICATION', 'UNAVAILABLE', 'UNSUPPORTED'
+  ]);
   assert.equal(hosts.hosts.every(({ candidate }) => ['claude', 'codex', 'portable'].includes(candidate)), true);
   assert.equal(hosts.hosts.every(({ proof_kind }) => proof_kind === 'exact_package_install_and_fresh_session_discovery'), true);
   for (const harness of ['CLAUDE', 'CODEX', 'CURSOR', 'KIMI', 'OPENCODE', 'PI']) {
     const guide = await read(`docs/${harness}.md`);
-    assert.match(guide, /live[- ]verified|structurally validated|experimental|blocked/i, `${harness} lacks honest beta status`);
+    assert.match(
+      guide,
+      /LIVE_VERIFIED|INSTALLED_PACKAGE_VERIFIED|STRUCTURALLY_VALIDATED|BLOCKED_BY_AUTHENTICATION|UNAVAILABLE|UNSUPPORTED/,
+      `${harness} lacks honest beta status`
+    );
   }
+  const readme = await read('README.md');
+  for (const phrase of [
+    'verification level', 'what was tested', 'what was not tested',
+    'installation availability', 'known limitations'
+  ]) assert.match(readme, new RegExp(phrase, 'i'));
 });
 
 test('BETA-002: privacy, diagnostics, contribution, and security contracts are public-beta ready', async () => {

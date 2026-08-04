@@ -27,8 +27,8 @@ build candidate packages
 → installed-package smoke in isolated homes
 → available live host discovery and smoke
 → immutable semantic review package
-→ final clean-context integration `independent_review`
-→ one correction wave and resumed recheck
+→ reserved exact-final-head clean-context integration `independent_review`
+→ bounded correction and another exact-head review only if required
 → final exact-tree verification
 → requirement/evidence candidate-completion gate
 ```
@@ -69,17 +69,23 @@ discovery, and any upstream blocker. When installed, live-smoke the other
 harnesses in temporary configuration directories; otherwise record structural
 validation as unexecuted live proof.
 
-For the 0.6.0 public beta, exact-package install and fresh-session discovery
-receipts are required for Codex, Claude Code, Cursor, Kimi Code, OpenCode, and
-Pi. `host-smoke.mjs` reports `BLOCKED_BY_ENVIRONMENT` and exits nonzero when any
-required host is absent or unconfigured. Structural validation, historical live
-proof, and an extracted archive smoke cannot satisfy this gate. Never emit
-`CANDIDATE_COMPLETE` until `all_required` is true and each host result records
-installation plus fresh-session discovery against an archive SHA-256 bound to
-the clean candidate head and tree through embedded build metadata. Host smoke
-also rejects overrides of isolated home/config variables. Semantic completion
-validates that receipt;
-an `executed` host-name list alone is insufficient.
+Every public harness gets an independent receipt state: `LIVE_VERIFIED`,
+`INSTALLED_PACKAGE_VERIFIED`, `STRUCTURALLY_VALIDATED`,
+`BLOCKED_BY_AUTHENTICATION`, `UNAVAILABLE`, or `UNSUPPORTED`. Each record names
+the candidate commit/tree and archive identity where applicable, observations,
+authentication/configuration availability, whether model-backed execution
+occurred, established and unestablished capabilities, public claims, timestamp,
+and expiry. Structural validation and installation never imply live or
+model-backed execution.
+
+For the 0.6.0 `public_beta` channel, at least one exact-package harness smoke
+must be `LIVE_VERIFIED`; every public claim must be no broader than its receipt;
+and all absent or unauthenticated hosts must be explicitly classified. OpenCode
+may satisfy that live floor. Missing optional hosts do not otherwise block the
+candidate. The `stable` profile is intentionally stronger and currently
+requires all six public harnesses to be `LIVE_VERIFIED`. Host smoke still rejects
+isolation-critical environment overrides and binds archive SHA-256 values to
+the clean candidate commit, tree, and dirty-tree fingerprint.
 
 ## Inspect artifacts
 
@@ -100,10 +106,12 @@ without staging merely for review. Run the reviewer integrity guard for any
 shell-capable probe. Commit documentation and release metadata with real
 release changes, never as a standalone approval-bookkeeping commit.
 
-A correction invalidates affected evidence and exact-head approval. Apply at
-most the bounded correction wave, refresh the matrix/package for the corrected
-head, and resume the same reviewer once. Do not label a release complete when
-the gate reports missing evidence or review unavailable.
+A correction invalidates affected evidence and prior-head approval. Correction
+commits and correction rechecks use their own budgets. The reserved final review
+cannot be consumed while the head is changing. If it finds a load-bearing
+defect, correct within budget, refresh the matrix/package, and require another
+independent review of the new exact head. A post-review mutation is never
+`CANDIDATE_COMPLETE`.
 
 The tag must exactly match `package.json`; CI reruns `npm run version:check`,
 `npm run check`, and `npm run checksums` before publishing artifacts.

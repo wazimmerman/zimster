@@ -183,6 +183,7 @@ async function completionDecision() {
       ? await jsonFile('load-bearing-review-obligations')
       : null,
     hostSmokeReceipt,
+    releaseChannel: options['release-channel'] ? String(options['release-channel']) : 'public_beta',
     correctionPending: options['correction-pending'] === true
   });
   writeLine(JSON.stringify(result));

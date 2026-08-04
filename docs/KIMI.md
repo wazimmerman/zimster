@@ -29,7 +29,7 @@ controls are quiet capability fallbacks.
 
 ## Verification status
 
-Structurally validated against the current Kimi plugin schema. The manifest uses
+Verification level: `STRUCTURALLY_VALIDATED`. Validated against the current Kimi plugin schema. The manifest uses
 only documented fields and exactly one `sessionStart.skill`. The Kimi CLI was
 unavailable, so managed installation, skill discovery, and session behavior
 were not live-tested.
@@ -37,4 +37,4 @@ were not live-tested.
 Routing maps only to Kimi's symbolic `primary`, verified experimental
 `secondary`, or inheritance. `secondary` is unavailable unless the active host
 reports that mode; vendor model IDs never enter the plugin manifest. This
-surface remains experimental and blocked from a live 0.6 beta claim here.
+surface remains experimental and is not included in the live 0.6 support claim.

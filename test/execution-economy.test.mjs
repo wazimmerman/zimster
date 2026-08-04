@@ -253,7 +253,7 @@ test('execution budget counts optional agent identities once and scopes review r
       ], repo);
       assert.equal(result.status, 0, result.stderr || result.stdout);
     }
-    for (const seam of ['runtime', 'release']) {
+    for (const seam of ['runtime', 'runtime', 'release']) {
       result = run(process.execPath, [
         budget, 'record', '--metric', 'review_rechecks_per_seam', '--scope', seam
       ], repo);
@@ -267,7 +267,7 @@ test('execution budget counts optional agent identities once and scopes review r
     const state = JSON.parse(await readFile(runtimePath(repo, 'budget.json'), 'utf8'));
     assert.deepEqual(state.optional_agent_identities, ['scout-1', 'reviewer-1']);
     assert.equal(state.usage.optional_deliberate_agents, 2);
-    assert.equal(state.scoped_usage.review_rechecks_per_seam.runtime, 1);
+    assert.equal(state.scoped_usage.review_rechecks_per_seam.runtime, 2);
     assert.equal(state.scoped_usage.review_rechecks_per_seam.release, 1);
   } finally {
     await rm(repo, { recursive: true, force: true });

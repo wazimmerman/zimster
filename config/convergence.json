@@ -3,8 +3,9 @@
   "autonomous_convergence": {
     "enabled": true,
     "limits": {
-      "correction_commits": 1,
-      "review_rechecks_per_seam": 1,
+      "correction_commits": 2,
+      "correction_rechecks": 2,
+      "final_integration_reviews": 2,
       "final_verification_attempts": 2,
       "complete_suite_executions": 3,
       "exact_duplicate_commands": 2,
@@ -13,7 +14,13 @@
   },
   "legacy_aliases": {
     "final_correction_waves": "correction_commits",
+    "review_rechecks_per_seam": "correction_rechecks",
     "context_compactions": "context_renewals"
+  },
+  "finalization": {
+    "reserved_exact_head_reviews": 1,
+    "additional_review_after_final_review_correction": 1,
+    "candidate_must_be_stable_before_consumption": true
   },
   "self_hosting": {
     "governing_policy": "frozen_checked_in_policy",

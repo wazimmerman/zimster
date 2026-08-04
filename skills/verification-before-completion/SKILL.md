@@ -132,6 +132,8 @@ evidence references and final integration review. Every eligibility or
 obligation reference must name evidence that explicitly supports the record's
 exact requirement ID and exact claim; a fresh receipt for another requirement
 or a narrower claim is rejected. Boolean self-attestations are rejected.
+Correction rechecks and reserved final-review accounting are separate; the
+reserved review applies only after the exact candidate head stops changing.
 Owner-inline review is `self_review`. Checkout
 integrity (`REVIEW_CHECKOUT_UNCHANGED` or `REVIEW_CHECKOUT_CHANGED`) never
 implies semantic approval.

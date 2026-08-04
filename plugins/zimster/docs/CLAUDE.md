@@ -2,7 +2,7 @@
 
 ## Verification status
 
-The Claude package is **structurally validated** against the primary plugin,
+Verification level: `STRUCTURALLY_VALIDATED`. The Claude package is validated against the primary plugin,
 hook, subagent, worktree, and marketplace documentation accessed on 2026-07-27.
 The Claude CLI is unavailable in the current development environment, so
 plugin loading, discovery, installation, resume, and compaction are not claimed

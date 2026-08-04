@@ -38,7 +38,7 @@ async function main() {
   const locality = required(options, 'locality');
   const condition = options.condition ? String(options.condition) : null;
   const enabled = config.autonomous_convergence.enabled;
-  const used = metric === 'review_rechecks_per_seam'
+  const used = metric === 'correction_rechecks'
     ? Number(budget.scoped_usage?.[metric]?.[String(options['budget-scope'] || 'default')] || 0)
     : Number(budget.usage?.[metric] || 0);
   const limit = Number(budget.limits?.[metric]);

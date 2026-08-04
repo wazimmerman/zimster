@@ -151,10 +151,13 @@ one complete finding batch
 → same reviewer performs one resumed recheck
 ```
 
-At final integration, use one consolidated correction wave. A remaining
-load-bearing defect after the recheck trips the circuit breaker: technically
-adjudicate, revise the design, diagnose, or report blocked. Do not keep spawning
-reviewers until one approves.
+Correction rechecks use their scoped budget. Reserve final integration review
+for the exact stable candidate head; a review of an earlier or subsequently
+mutated head cannot satisfy completion. If the reserved review finds a defect,
+use the configured finalization budget for one consolidated correction and a
+new exact-head review. A remaining load-bearing defect after the bounded cycle
+trips the circuit breaker: technically adjudicate, revise the design, diagnose,
+or report blocked. Do not keep spawning reviewers until one approves.
 
 ## 8. Evidence ladder and budget
 

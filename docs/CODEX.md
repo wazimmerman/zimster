@@ -1,12 +1,13 @@
 # Codex Installation, Updates, and Validation
 
-Status on 2026-07-27: the complete marketplace package was live-installed with
+Verification level for 0.6.0: `INSTALLED_PACKAGE_VERIFIED`. The complete marketplace package was live-installed with
 Codex CLI 0.145.0 in an isolated `CODEX_HOME`. Marketplace registration,
 installation, cache materialization, and the current official plugin validator
 all succeeded. A fresh `codex exec` session did not receive the installed
 `using-zimster` skill context. This is recorded as a host skill-discovery
 blocker, separate from package validity and installation success.
-The 0.6.0 fresh-session beta claim is therefore blocked pending new live proof.
+The 0.6.0 public claim is therefore limited to package installation and
+structural validity; fresh-session and model-backed execution are not claimed.
 
 Normal Zimster runs do not warn about this expected fallback. `npm run doctor`
 reports the detailed host/capability state.

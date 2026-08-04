@@ -31,7 +31,7 @@ availability never increases delegation frequency.
 - Vertical slices instead of horizontal microtask layers.
 - Deterministic Micro, Standard, and High-risk profiles.
 - Review at risky architectural seams rather than every heading.
-- One complete finding batch, one correction wave, and one resumed recheck.
+- Bounded correction/recheck accounting plus a separately reserved exact-final-head review.
 - At most two parallel implementers by default; no sub-subagents.
 - Explicit Git/commit disposition and complete untracked-file review.
 - Auditable requested/effective model records.
@@ -48,14 +48,19 @@ availability never increases delegation frequency.
 
 ## Supported harnesses
 
-| Harness | Status | Integration |
-|---|---|---|
-| Codex | Package/install verified; skill discovery blocked by host | Repo marketplace at `.agents/plugins/marketplace.json`, self-contained plugin at `plugins/zimster/` |
-| Claude Code | Structurally validated | Native skills, bounded agents, compact SessionStart bootstrap |
-| Cursor | Structurally validated | Agent Skills plus a project command; no invented plugin hook |
-| Kimi Code | Structurally validated | Native plugin skills and one `sessionStart.skill` |
-| OpenCode | Live config/skill discovery verified on 1.18.7 | Adapter registers skills and injects bootstrap once |
-| Pi | Structurally validated | Package extension registers skills and injects bootstrap once |
+The 0.6.0 public support matrix is claim-scoped. Verification level is one of
+`LIVE_VERIFIED`, `INSTALLED_PACKAGE_VERIFIED`, `STRUCTURALLY_VALIDATED`,
+`BLOCKED_BY_AUTHENTICATION`, `UNAVAILABLE`, or `UNSUPPORTED`; a lower level is
+never promoted to live or model-backed proof.
+
+| Harness | Verification level | What was tested | What was not tested | Installation availability | Known limitations |
+|---|---|---|---|---|---|
+| Codex | `INSTALLED_PACKAGE_VERIFIED` | Exact Codex archive installation, provenance, manifest, and pinned validator | Fresh-session skill discovery and model-backed execution | Marketplace/package installation available | Live support is not claimed from package installation alone |
+| Claude Code | `STRUCTURALLY_VALIDATED` | Package, marketplace manifest, skills, agents, hooks, and byte budget | CLI installation, fresh-session discovery, and model-backed execution | GitHub marketplace/package instructions available | CLI was unavailable in the release environment |
+| Cursor | `STRUCTURALLY_VALIDATED` | Portable Agent Skills and project-command structure | Application loading, UI behavior, and model-backed execution | Skills-only installation available | No invented repository plugin or SessionStart contract |
+| Kimi Code | `STRUCTURALLY_VALIDATED` | Native plugin manifest and one `sessionStart.skill` | Managed installation, fresh-session discovery, and model-backed execution | Native plugin installation instructions available | CLI was unavailable; secondary routing remains version-gated |
+| OpenCode | `LIVE_VERIFIED` | Exact portable archive, isolated installation, and fresh-session/config skill discovery | Model-backed task execution and v2-only behavior | Portable project-package installation available | The live receipt establishes discovery, not effective-model identity |
+| Pi | `STRUCTURALLY_VALIDATED` | Package declaration, extension structure, resource discovery fixture, and injection guard | CLI installation, package loading, and model-backed execution | Git/package installation instructions available | Zimster ships no Pi subagent runtime |
 
 The core skills are operating-system-neutral. Cursor, Kimi, OpenCode, and Pi
 support is maintained as portable adapter support; Codex and Claude Code are the
@@ -103,7 +108,8 @@ select profile and Git disposition
 → meaningful RED → minimal GREEN → REFACTOR
 → affected evidence
 → risk-triggered seam review
-→ one correction wave and one resumed recheck
+→ bounded correction rechecks without consuming the reserved final review
+→ reserved exact-final-head independent integration review
 → complete staged/unstaged/untracked review
 → fresh canonical final gates
 → requirement/evidence and semantic-review completion gate

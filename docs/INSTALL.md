@@ -4,6 +4,12 @@ Zimster 0.6.0 is a public beta. Use an isolated host home for the first install,
 run diagnostics, then start a fresh host session. Installation does not by
 itself prove skill discovery or model-routing enforcement.
 
+Installation availability is independent of verification level. Preserve the
+instructions below for structurally validated hosts: an unavailable CLI limits
+the support claim but does not erase a validated installation surface. The
+current per-harness matrix, including what was and was not tested and known
+limitations, is in the repository README and `doctor -- --json` output.
+
 ## Codex Git/custom marketplace
 
 Clone the repository, then register its marketplace and install the package:

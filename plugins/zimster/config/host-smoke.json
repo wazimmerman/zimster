@@ -1,36 +1,84 @@
 {
   "schema_version": 1,
-  "required_host_ids": ["codex", "claude", "cursor", "kimi", "opencode", "pi"],
+  "default_release_channel": "public_beta",
+  "max_age_days": 90,
+  "public_host_ids": ["codex", "claude", "cursor", "kimi", "opencode", "pi"],
+  "release_profiles": {
+    "public_beta": {
+      "minimum_live_verified_hosts": 1,
+      "required_live_host_ids": []
+    },
+    "stable": {
+      "minimum_live_verified_hosts": 6,
+      "required_live_host_ids": ["codex", "claude", "cursor", "kimi", "opencode", "pi"]
+    }
+  },
   "hosts": [
     {
       "id": "claude",
       "candidate": "claude",
       "proof_kind": "exact_package_install_and_fresh_session_discovery",
+      "fallback_verification_state": "STRUCTURALLY_VALIDATED",
+      "installation_available": true,
+      "capabilities_established": ["adapter_structure", "package_manifest"],
+      "public_claims": ["adapter_structure", "package_manifest"],
+      "structural_observations": ["Claude package, manifest, skills, agents, and hooks validate structurally"],
+      "capabilities_not_established": ["live_host_execution", "fresh_session_discovery"],
+      "known_limitations": ["Claude Code CLI and model-backed execution were unavailable in this environment"],
       "unavailable_reason": "Configure an isolated Claude Code smoke command when the CLI is available."
     },
     {
       "id": "codex",
       "candidate": "codex",
       "proof_kind": "exact_package_install_and_fresh_session_discovery",
+      "fallback_verification_state": "INSTALLED_PACKAGE_VERIFIED",
+      "installation_available": true,
+      "capabilities_established": ["package_installation", "package_manifest"],
+      "public_claims": ["package_installation", "package_manifest"],
+      "structural_observations": ["Codex exact package installation and pinned manifest validation passed"],
+      "capabilities_not_established": ["live_host_execution", "fresh_session_discovery"],
+      "known_limitations": ["Fresh-session Codex skill discovery and model-backed execution were unavailable"],
       "unavailable_reason": "Configure an isolated Codex smoke command when live host proof is required."
     },
     {
       "id": "cursor",
       "candidate": "portable",
       "proof_kind": "exact_package_install_and_fresh_session_discovery",
+      "fallback_verification_state": "STRUCTURALLY_VALIDATED",
+      "installation_available": true,
+      "capabilities_established": ["adapter_structure", "installation_surface"],
+      "public_claims": ["adapter_structure", "installation_surface"],
+      "structural_observations": ["Cursor command and Agent Skill surfaces validate structurally"],
+      "capabilities_not_established": ["live_host_execution", "fresh_session_discovery"],
+      "known_limitations": ["Cursor CLI and model-backed execution were unavailable"],
       "unavailable_reason": "Configure an isolated Cursor smoke command when the CLI is available."
     },
     {
       "id": "kimi",
       "candidate": "portable",
       "proof_kind": "exact_package_install_and_fresh_session_discovery",
+      "fallback_verification_state": "STRUCTURALLY_VALIDATED",
+      "installation_available": true,
+      "capabilities_established": ["adapter_structure", "installation_surface"],
+      "public_claims": ["adapter_structure", "installation_surface"],
+      "structural_observations": ["Kimi plugin manifest and skill surfaces validate structurally"],
+      "capabilities_not_established": ["live_host_execution", "fresh_session_discovery"],
+      "known_limitations": ["Kimi Code CLI and model-backed execution were unavailable"],
       "unavailable_reason": "Configure an isolated Kimi Code smoke command when the CLI is available."
     },
     {
       "id": "opencode",
       "candidate": "portable",
       "proof_kind": "exact_package_install_and_fresh_session_discovery",
+      "fallback_verification_state": "STRUCTURALLY_VALIDATED",
+      "installation_available": true,
+      "capabilities_established": ["adapter_structure", "installation_surface"],
+      "public_claims": ["adapter_structure", "installation_surface"],
+      "live_public_claims": ["package_installation", "fresh_session_discovery", "live_host_execution"],
+      "capabilities_not_established": ["model_backed_execution"],
+      "known_limitations": ["Live smoke establishes exact-package skill discovery, not model-backed task execution"],
       "command": "opencode",
+      "version_args": ["--version"],
       "args": [
         "debug",
         "skill"
@@ -42,6 +90,13 @@
       "id": "pi",
       "candidate": "portable",
       "proof_kind": "exact_package_install_and_fresh_session_discovery",
+      "fallback_verification_state": "STRUCTURALLY_VALIDATED",
+      "installation_available": true,
+      "capabilities_established": ["adapter_structure", "installation_surface"],
+      "public_claims": ["adapter_structure", "installation_surface"],
+      "structural_observations": ["Pi extension and Agent Skill surfaces validate structurally"],
+      "capabilities_not_established": ["live_host_execution", "fresh_session_discovery"],
+      "known_limitations": ["Pi CLI, subagent runtime, and model-backed execution were unavailable"],
       "unavailable_reason": "Configure an isolated Pi smoke command when the CLI is available."
     }
   ]

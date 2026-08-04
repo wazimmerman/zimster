@@ -20,9 +20,23 @@ const config = JSON.parse(await readFile(configFile, 'utf8'));
 if (config.schema_version !== 1 || !Array.isArray(config.hosts)) {
   throw new Error('host smoke config requires schema_version 1 and hosts');
 }
-const requiredHostIds = config.required_host_ids || config.hosts.map(({ id }) => id);
-if (!Array.isArray(requiredHostIds) || !requiredHostIds.length || requiredHostIds.some((id) => typeof id !== 'string' || !id)) {
-  throw new Error('host smoke config required_host_ids must be a non-empty string array');
+const publicHostIds = config.public_host_ids || config.required_host_ids || config.hosts.map(({ id }) => id);
+if (!Array.isArray(publicHostIds) || !publicHostIds.length || publicHostIds.some((id) => typeof id !== 'string' || !id)) {
+  throw new Error('host smoke config public_host_ids must be a non-empty string array');
+}
+const releaseChannel = String(options.channel || config.default_release_channel || 'public_beta');
+const releaseProfiles = config.release_profiles || {
+  public_beta: { minimum_live_verified_hosts: 1, required_live_host_ids: [] },
+  stable: { minimum_live_verified_hosts: publicHostIds.length, required_live_host_ids: publicHostIds }
+};
+const releasePolicy = releaseProfiles[releaseChannel];
+if (
+  !releasePolicy
+  || !Number.isInteger(releasePolicy.minimum_live_verified_hosts)
+  || releasePolicy.minimum_live_verified_hosts < 1
+  || !Array.isArray(releasePolicy.required_live_host_ids)
+) {
+  throw new Error(`host smoke release profile is invalid or unavailable: ${releaseChannel}`);
 }
 const temporary = await mkdtemp(path.join(os.tmpdir(), 'zimster-host-smoke-'));
 const dist = path.resolve(process.cwd(), String(options.dist || 'dist'));
@@ -49,6 +63,67 @@ const cleanFingerprint = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca49599
 const isolationEnvironment = new Set([
   'home', 'userprofile', 'xdg_config_home', 'xdg_cache_home', 'xdg_data_home', 'codex_home'
 ]);
+const verificationStates = new Set([
+  'LIVE_VERIFIED', 'INSTALLED_PACKAGE_VERIFIED', 'STRUCTURALLY_VALIDATED',
+  'BLOCKED_BY_AUTHENTICATION', 'UNAVAILABLE', 'UNSUPPORTED'
+]);
+
+function freshness(verifiedAt = new Date()) {
+  const maxAgeDays = Number.isInteger(config.max_age_days) ? config.max_age_days : 90;
+  return {
+    verified_at: verifiedAt.toISOString(),
+    expires_at: new Date(verifiedAt.getTime() + maxAgeDays * 86_400_000).toISOString()
+  };
+}
+
+function hostRecord(host, {
+  verificationState,
+  candidate = null,
+  hostVersion = null,
+  commandsOrObservations = [],
+  capabilitiesEstablished = [],
+  publicClaims = capabilitiesEstablished,
+  modelBackedExecution = false,
+  authenticationStatus = 'unavailable',
+  configurationStatus = 'unavailable',
+  knownLimitations = []
+}) {
+  const timestamp = freshness();
+  return {
+    id: host.id,
+    host_version: hostVersion,
+    candidate: host.candidate,
+    ...(candidate ? {
+      archive: candidate.archive,
+      archive_sha256: candidate.archiveSha256
+    } : {}),
+    candidate_commit: candidate?.metadata.source_commit || candidateHead,
+    candidate_tree: candidate?.metadata.source_tree || candidateTree,
+    verification_state: verificationState,
+    commands_or_observations: commandsOrObservations,
+    receipt_ids: [],
+    authentication: {
+      available: authenticationStatus === 'available',
+      status: authenticationStatus
+    },
+    configuration: {
+      available: configurationStatus === 'isolated' || configurationStatus === 'available',
+      status: configurationStatus
+    },
+    model_backed_execution: modelBackedExecution,
+    capabilities_established: capabilitiesEstablished,
+    capabilities_not_established: [...new Set([
+      ...(host.capabilities_not_established || []),
+      ...(!modelBackedExecution && !capabilitiesEstablished.includes('model_backed_execution')
+        ? ['model_backed_execution']
+        : [])
+    ])],
+    public_claims: publicClaims,
+    installation_available: host.installation_available !== false,
+    known_limitations: knownLimitations,
+    ...timestamp
+  };
+}
 
 async function candidateDirectory(host) {
   const suffix = `-${host.candidate}.zip`;
@@ -104,14 +179,42 @@ try {
     if (host.proof_kind !== 'exact_package_install_and_fresh_session_discovery') {
       throw new Error(`host ${host.id} requires exact-package install and fresh-session discovery proof`);
     }
+    const fallbackState = String(host.fallback_verification_state || 'UNAVAILABLE');
+    if (!verificationStates.has(fallbackState) || fallbackState === 'LIVE_VERIFIED') {
+      throw new Error(`host ${host.id} has an invalid non-live fallback verification state`);
+    }
+    const fallbackResult = async (reason) => {
+      let candidate = null;
+      let verificationState = fallbackState;
+      if (!['UNAVAILABLE', 'UNSUPPORTED', 'BLOCKED_BY_AUTHENTICATION'].includes(fallbackState)) {
+        try {
+          candidate = await candidateDirectory(host);
+        } catch (error) {
+          if (error?.code !== 'ENOENT') throw error;
+          verificationState = 'UNAVAILABLE';
+        }
+      }
+      const capabilities = verificationState === 'INSTALLED_PACKAGE_VERIFIED'
+        ? (host.capabilities_established || ['package_installation'])
+        : verificationState === 'STRUCTURALLY_VALIDATED'
+          ? (host.capabilities_established || ['adapter_structure'])
+          : [];
+      return hostRecord(host, {
+        verificationState,
+        candidate,
+        commandsOrObservations: host.structural_observations || [reason],
+        capabilitiesEstablished: capabilities,
+        publicClaims: verificationState === fallbackState ? (host.public_claims || capabilities) : [],
+        authenticationStatus: verificationState === 'BLOCKED_BY_AUTHENTICATION'
+          ? 'blocked'
+          : 'unavailable',
+        knownLimitations: host.known_limitations || [reason]
+      });
+    };
     if (!host.command) {
-      const result = {
-        id: host.id,
-        status: 'unavailable',
-        candidate: host.candidate,
-        reason: String(host.unavailable_reason || 'host smoke is not configured')
-      };
-      unavailable.push({ id: result.id, reason: result.reason });
+      const reason = String(host.unavailable_reason || 'host smoke is not configured');
+      const result = await fallbackResult(reason);
+      unavailable.push({ id: result.id, reason });
       hostResults.push(result);
       continue;
     }
@@ -131,13 +234,9 @@ try {
     const home = path.join(temporary, host.id);
     await mkdir(home, { recursive: true });
     if (!(await executableAvailable(host.command))) {
-      const unavailableResult = {
-        id: host.id,
-        status: 'unavailable',
-        candidate: host.candidate,
-        reason: String(host.unavailable_reason || `${host.command} is not installed`)
-      };
-      unavailable.push({ id: unavailableResult.id, reason: unavailableResult.reason });
+      const reason = String(host.unavailable_reason || `${host.command} is not installed`);
+      const unavailableResult = await fallbackResult(reason);
+      unavailable.push({ id: unavailableResult.id, reason });
       hostResults.push(unavailableResult);
       continue;
     }
@@ -158,13 +257,9 @@ try {
       }
     });
     if (result.error?.code === 'ENOENT') {
-      const unavailableResult = {
-        id: host.id,
-        status: 'unavailable',
-        candidate: host.candidate,
-        reason: String(host.unavailable_reason || `${host.command} is not installed`)
-      };
-      unavailable.push({ id: unavailableResult.id, reason: unavailableResult.reason });
+      const reason = String(host.unavailable_reason || `${host.command} is not installed`);
+      const unavailableResult = await fallbackResult(reason);
+      unavailable.push({ id: unavailableResult.id, reason });
       hostResults.push(unavailableResult);
       continue;
     }
@@ -176,7 +271,12 @@ try {
         action: String(result.stderr || result.stdout || 'host smoke failed')
           .trim().split('\n').filter(Boolean).at(-1)
       });
-      hostResults.push({ id: host.id, status: 'failed', candidate: host.candidate, archive_sha256: candidate.archiveSha256 });
+      hostResults.push(hostRecord(host, {
+        verificationState: 'UNAVAILABLE',
+        candidate,
+        commandsOrObservations: [[host.command, ...(host.args || [])].join(' ')],
+        knownLimitations: ['configured live smoke failed']
+      }));
       continue;
     }
     if (host.expected_output && !combinedOutput.includes(String(host.expected_output))) {
@@ -185,24 +285,59 @@ try {
         exit_code: 1,
         action: `expected output was not found: ${host.expected_output}`
       });
-      hostResults.push({ id: host.id, status: 'failed', candidate: host.candidate, archive_sha256: candidate.archiveSha256 });
+      hostResults.push(hostRecord(host, {
+        verificationState: 'UNAVAILABLE',
+        candidate,
+        commandsOrObservations: [[host.command, ...(host.args || [])].join(' ')],
+        knownLimitations: ['configured live smoke output did not establish discovery']
+      }));
       continue;
     }
     executed.push(host.id);
-    hostResults.push({
-      id: host.id,
-      status: 'passed',
-      candidate: host.candidate,
-      archive: candidate.archive,
-      archive_sha256: candidate.archiveSha256,
-      source_commit: candidate.metadata.source_commit,
-      source_tree: candidate.metadata.source_tree,
-      exact_package_install: true,
-      fresh_session_discovery: true
+    const modelBackedExecution = host.model_backed_execution === true;
+    const liveCapabilities = [
+      'package_installation', 'fresh_session_discovery', 'live_host_execution',
+      ...(modelBackedExecution ? ['model_backed_execution'] : [])
+    ];
+    let hostVersion = host.host_version || null;
+    if (Array.isArray(host.version_args)) {
+      const versionResult = spawnSync(String(host.command), host.version_args, {
+        encoding: 'utf8', shell: false, env: process.env
+      });
+      if (versionResult.status === 0) hostVersion = String(versionResult.stdout || '').trim() || hostVersion;
+    }
+    const liveRecord = hostRecord(host, {
+      verificationState: 'LIVE_VERIFIED',
+      candidate,
+      hostVersion,
+      commandsOrObservations: [[host.command, ...(host.args || [])].join(' ')],
+      capabilitiesEstablished: liveCapabilities,
+      publicClaims: host.live_public_claims || liveCapabilities,
+      modelBackedExecution,
+      authenticationStatus: host.authentication_available === false ? 'unavailable' : 'available',
+      configurationStatus: 'isolated',
+      knownLimitations: host.known_limitations || []
     });
+    liveRecord.exact_package_install = true;
+    liveRecord.fresh_session_discovery = true;
+    hostResults.push(liveRecord);
   }
-  let allRequired = requiredHostIds.every((id) => executed.includes(id));
-  if (allRequired && (
+  const liveVerifiedHostIds = hostResults
+    .filter(({ verification_state: state }) => state === 'LIVE_VERIFIED')
+    .map(({ id }) => id);
+  let policySatisfied = liveVerifiedHostIds.length >= releasePolicy.minimum_live_verified_hosts
+    && releasePolicy.required_live_host_ids.every((id) => liveVerifiedHostIds.includes(id));
+  const allClaimsBounded = hostResults.every((host) => {
+    const established = new Set(host.capabilities_established || []);
+    return (host.public_claims || []).every((claim) => established.has(claim))
+      && (!host.public_claims?.includes('live_host_execution') || host.verification_state === 'LIVE_VERIFIED')
+      && (!host.public_claims?.includes('model_backed_execution') || host.model_backed_execution === true);
+  });
+  if (!allClaimsBounded) {
+    failures.push({ id: 'claim-scope', exit_code: 1, action: 'a public harness claim exceeds its receipt evidence' });
+    policySatisfied = false;
+  }
+  if (policySatisfied && (
     !/^[0-9a-f]{40}$/.test(candidateHead || '')
     || !/^[0-9a-f]{40}$/.test(candidateTree || '')
     || dirtyTreeFingerprint !== 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
@@ -212,13 +347,16 @@ try {
       exit_code: 1,
       action: 'exact-package host smoke requires a clean immutable candidate head and tree'
     });
-    allRequired = false;
+    policySatisfied = false;
   }
   const summary = {
-    schema_version: 2,
-    status: failures.length ? 'failed' : allRequired ? 'passed' : 'BLOCKED_BY_ENVIRONMENT',
-    required_host_ids: requiredHostIds,
-    all_required: allRequired,
+    schema_version: 3,
+    status: failures.length ? 'failed' : policySatisfied ? 'passed' : 'BLOCKED_BY_ENVIRONMENT',
+    release_channel: releaseChannel,
+    policy: releasePolicy,
+    public_host_ids: publicHostIds,
+    all_claims_bounded: allClaimsBounded,
+    live_verified_host_ids: liveVerifiedHostIds,
     candidate_head: candidateHead,
     candidate_tree: candidateTree,
     dirty_tree_fingerprint: dirtyTreeFingerprint,
@@ -242,7 +380,7 @@ try {
   }
   writeLine(JSON.stringify(summary));
   if (failures.length) process.exitCode = 1;
-  else if (!allRequired) process.exitCode = 2;
+  else if (!policySatisfied) process.exitCode = 2;
 } finally {
   await rm(temporary, { recursive: true, force: true });
 }

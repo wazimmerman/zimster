@@ -546,7 +546,12 @@ test('complete Standard proof and exact independent approval reach candidate com
   });
 });
 
-test('BETA-003 completion requires all-six exact-package fresh-session proof bound to the candidate', () => {
+function hostVerificationReceipt({
+  liveHosts = ['opencode'],
+  stateByHost = {},
+  claimsByHost = {},
+  releaseChannel = 'public_beta'
+} = {}) {
   const required = ['codex', 'claude', 'cursor', 'kimi', 'opencode', 'pi'];
   const artifacts = {
     claude: '1'.repeat(64),
@@ -557,30 +562,65 @@ test('BETA-003 completion requires all-six exact-package fresh-session proof bou
     codex: 'codex', claude: 'claude', cursor: 'portable', kimi: 'portable',
     opencode: 'portable', pi: 'portable'
   };
-  const receipt = {
-    schema_version: 2,
+  return {
+    schema_version: 3,
     status: 'passed',
-    all_required: true,
+    release_channel: releaseChannel,
+    policy: releaseChannel === 'stable'
+      ? { minimum_live_verified_hosts: 6, required_live_host_ids: required }
+      : { minimum_live_verified_hosts: 1, required_live_host_ids: [] },
+    public_host_ids: required,
+    all_claims_bounded: true,
     candidate_head: SHA_B,
     candidate_tree: TREE,
     dirty_tree_fingerprint: CLEAN_FINGERPRINT,
-    required_host_ids: required,
     artifact_digests: artifacts,
-    hosts: required.map((id) => ({
-      id,
-      status: 'passed',
-      candidate: candidateByHost[id],
-      archive_sha256: artifacts[candidateByHost[id]],
-      source_commit: SHA_B,
-      source_tree: TREE,
-      exact_package_install: true,
-      fresh_session_discovery: true
-    })),
+    hosts: required.map((id) => {
+      const live = liveHosts.includes(id);
+      const verificationState = stateByHost[id]
+        || (live ? 'LIVE_VERIFIED' : 'STRUCTURALLY_VALIDATED');
+      const capabilitiesEstablished = live
+        ? ['package_installation', 'fresh_session_discovery', 'live_host_execution', 'model_backed_execution']
+        : verificationState === 'INSTALLED_PACKAGE_VERIFIED'
+          ? ['package_installation']
+          : verificationState === 'STRUCTURALLY_VALIDATED'
+            ? ['adapter_structure']
+            : [];
+      return {
+        id,
+        host_version: live ? 'fixture-1.0.0' : null,
+        candidate: candidateByHost[id],
+        archive: `zimster-0.6.0-${candidateByHost[id]}.zip`,
+        archive_sha256: artifacts[candidateByHost[id]],
+        candidate_commit: SHA_B,
+        candidate_tree: TREE,
+        verification_state: verificationState,
+        commands_or_observations: live ? ['fixture live smoke'] : ['package structure inspected'],
+        receipt_ids: [],
+        authentication: { available: live, status: live ? 'available' : 'unavailable' },
+        configuration: { available: live, status: live ? 'isolated' : 'unavailable' },
+        model_backed_execution: live,
+        capabilities_established: capabilitiesEstablished,
+        capabilities_not_established: live ? [] : ['model_backed_execution'],
+        public_claims: claimsByHost[id] || capabilitiesEstablished,
+        installation_available: true,
+        known_limitations: live ? [] : ['model-backed execution was not performed'],
+        verified_at: '2026-08-04T12:00:00.000Z',
+        expires_at: '2026-11-02T12:00:00.000Z'
+      };
+    }),
     generated_at: '2026-08-04T12:00:00.000Z'
   };
+}
+
+test('BETA-003 public beta accepts unavailable optional hosts with one exact-package live host', () => {
+  const receipt = hostVerificationReceipt({
+    stateByHost: { pi: 'UNAVAILABLE' }
+  });
   assert.deepEqual(validateHostSmokeReceipt(receipt, {
     candidateHead: SHA_B,
-    candidateTree: TREE
+    candidateTree: TREE,
+    releaseChannel: 'public_beta'
   }), receipt);
   const matrixResult = {
     ...COMPLETE_MATRIX,
@@ -599,14 +639,89 @@ test('BETA-003 completion requires all-six exact-package fresh-session proof bou
   };
   const blocked = evaluateCandidateCompletion(base);
   assert.equal(blocked.state, COMPLETION_STATES.BLOCKED_BY_ENVIRONMENT);
-  assert.match(blocked.reasons.join('\n'), /all-six|host smoke|fresh-session/i);
+  assert.match(blocked.reasons.join('\n'), /host verification|live host/i);
   assert.equal(evaluateCandidateCompletion({ ...base, hostSmokeReceipt: receipt }).state, COMPLETION_STATES.CANDIDATE_COMPLETE);
+});
+
+test('BETA-003 public beta requires one live host and bounds every public claim to receipt evidence', () => {
+  const noLive = hostVerificationReceipt({ liveHosts: [] });
+  assert.throws(() => validateHostSmokeReceipt(noLive, {
+    candidateHead: SHA_B,
+    candidateTree: TREE,
+    releaseChannel: 'public_beta'
+  }), /at least one|live/i);
+
+  const falseLiveClaim = hostVerificationReceipt({
+    claimsByHost: { claude: ['adapter_structure', 'model_backed_execution'] }
+  });
+  assert.throws(() => validateHostSmokeReceipt(falseLiveClaim, {
+    candidateHead: SHA_B,
+    candidateTree: TREE,
+    releaseChannel: 'public_beta'
+  }), /claim|model-backed|live/i);
+
+  const installedPretendsLive = hostVerificationReceipt({
+    stateByHost: { codex: 'INSTALLED_PACKAGE_VERIFIED' }
+  });
+  installedPretendsLive.hosts.find(({ id }) => id === 'codex').model_backed_execution = true;
+  assert.throws(() => validateHostSmokeReceipt(installedPretendsLive, {
+    candidateHead: SHA_B,
+    candidateTree: TREE,
+    releaseChannel: 'public_beta'
+  }), /installed|model-backed|live/i);
+
+  const structuralPretendsLive = hostVerificationReceipt();
+  structuralPretendsLive.hosts.find(({ id }) => id === 'cursor').verification_state = 'LIVE_VERIFIED';
+  assert.throws(() => validateHostSmokeReceipt(structuralPretendsLive, {
+    candidateHead: SHA_B,
+    candidateTree: TREE,
+    releaseChannel: 'public_beta'
+  }), /live|model-backed|fresh-session/i);
+});
+
+test('BETA-003 stable profile may require stronger live coverage than public beta', () => {
+  const betaCoverage = hostVerificationReceipt({ releaseChannel: 'stable' });
+  assert.throws(() => validateHostSmokeReceipt(betaCoverage, {
+    candidateHead: SHA_B,
+    candidateTree: TREE,
+    releaseChannel: 'stable'
+  }), /stable|required live|six/i);
+
+  const allLive = hostVerificationReceipt({
+    releaseChannel: 'stable',
+    liveHosts: ['codex', 'claude', 'cursor', 'kimi', 'opencode', 'pi']
+  });
+  assert.doesNotThrow(() => validateHostSmokeReceipt(allLive, {
+    candidateHead: SHA_B,
+    candidateTree: TREE,
+    releaseChannel: 'stable'
+  }));
+});
+
+test('BETA-003 host verification remains bound to exact archive provenance', () => {
+  const receipt = hostVerificationReceipt();
   assert.throws(() => validateHostSmokeReceipt({
     ...receipt,
     hosts: receipt.hosts.map((host) => host.id === 'pi'
       ? { ...host, archive_sha256: '4'.repeat(64) }
       : host)
-  }, { candidateHead: SHA_B, candidateTree: TREE }), /artifact|digest/i);
+  }, {
+    candidateHead: SHA_B,
+    candidateTree: TREE,
+    releaseChannel: 'public_beta'
+  }), /artifact|digest/i);
+});
+
+test('BETA-003 expired host evidence cannot satisfy the public-beta live floor', () => {
+  const receipt = hostVerificationReceipt();
+  const opencode = receipt.hosts.find(({ id }) => id === 'opencode');
+  opencode.verified_at = '2025-10-01T00:00:00.000Z';
+  opencode.expires_at = '2026-01-01T00:00:00.000Z';
+  assert.throws(() => validateHostSmokeReceipt(receipt, {
+    candidateHead: SHA_B,
+    candidateTree: TREE,
+    releaseChannel: 'public_beta'
+  }), /expired|fresh/i);
 });
 
 test('missing or stale matrix proof blocks candidate completion', () => {

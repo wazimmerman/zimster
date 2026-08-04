@@ -3,6 +3,7 @@
 ## 0.6.0 — 2026-08-04
 
 - Add adaptive delegation, policy-bounded model routing, autonomous convergence, and public-beta installation contracts
+- Scope public-beta support claims to per-harness receipts, require one exact-package live smoke, and reserve exact-final-head review separately from correction rechecks
 
 ## 0.5.0 — 2026-07-30
 

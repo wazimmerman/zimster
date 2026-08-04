@@ -158,7 +158,15 @@ test('verification profiles place installed-package smoke before immutable revie
   assert.ok(goalSteps.indexOf('package') < goalSteps.indexOf('installed-package-smoke'));
   assert.ok(goalSteps.indexOf('installed-package-smoke') < goalSteps.indexOf('review-package'));
   assert.ok(releaseSteps.includes('checksums'));
+  assert.ok(releaseSteps.indexOf('review-package') < releaseSteps.indexOf('semantic-completion'));
+  assert.ok(releaseSteps.indexOf('semantic-completion') < releaseSteps.indexOf('postmortem'));
   assert.equal(goalSteps.includes('checksums'), false);
+});
+
+test('release verification keeps the prose objective separate from binding requirement JSON', async () => {
+  const runner = await readFile(path.join(root, 'scripts/verify.mjs'), 'utf8');
+  assert.match(runner, /'--requirements', String\(options\['binding-requirements'\]\)/);
+  assert.match(runner, /'requirements', 'binding-requirements'/);
 });
 
 test('package exposes canonical goal and release verification entry points', async () => {

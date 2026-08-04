@@ -55,6 +55,8 @@ export async function buildMetadata(sourceRoot, packageTarget) {
     source_dirty_tree_fingerprint: sourceDirtyTreeFingerprint,
     build_date: commitDate,
     build_id: `zimster-${version}-${identity.slice(0, 12)}-${packageTarget}`,
-    package_target: packageTarget
+    package_target: packageTarget,
+    release_channel: 'public_beta',
+    support_policy: 'claim_scoped_host_receipts_v1'
   };
 }

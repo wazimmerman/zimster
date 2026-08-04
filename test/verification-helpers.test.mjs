@@ -115,7 +115,7 @@ test('secret scan reports worktree and archived credential material without prin
   }
 });
 
-test('configured host smoke runs in isolated homes and records unavailable hosts', async () => {
+test('configured host smoke passes public beta with one live host and classifies unavailable hosts independently', async () => {
   const repo = await tempRepo();
   const dist = path.join(repo, 'dist');
   try {
@@ -148,15 +148,19 @@ test('configured host smoke runs in isolated homes and records unavailable hosts
       '--candidate-head', 'a'.repeat(40), '--candidate-tree', 'b'.repeat(40),
       '--dirty-tree-fingerprint', CLEAN_FINGERPRINT
     ], repo);
-    assert.equal(result.status, 2, result.stderr || result.stdout);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(result.stderr, '');
     const summary = JSON.parse(result.stdout);
-    assert.equal(summary.status, 'BLOCKED_BY_ENVIRONMENT');
+    assert.equal(summary.status, 'passed');
+    assert.equal(summary.release_channel, 'public_beta');
     assert.deepEqual(summary.executed, ['available-host']);
     assert.deepEqual(summary.unavailable, [{
       id: 'missing-host',
       reason: 'CLI is not installed'
     }]);
+    assert.equal(summary.hosts.find(({ id }) => id === 'available-host').verification_state, 'LIVE_VERIFIED');
+    assert.equal(summary.hosts.find(({ id }) => id === 'missing-host').verification_state, 'UNAVAILABLE');
+    assert.equal(summary.hosts.find(({ id }) => id === 'missing-host').model_backed_execution, false);
 
     const unsafeConfig = path.join(repo, 'unsafe-host-smoke.json');
     await writeFile(unsafeConfig, `${JSON.stringify({
@@ -198,6 +202,7 @@ test('default host smoke records every unconfigured harness as unavailable witho
     assert.equal(result.status, 2, result.stderr || result.stdout);
     const summary = JSON.parse(result.stdout);
     assert.equal(summary.status, 'BLOCKED_BY_ENVIRONMENT');
+    assert.equal(summary.hosts.every(({ verification_state }) => verification_state === 'UNAVAILABLE'), true);
     assert.deepEqual(summary.executed, []);
     assert.deepEqual(
       summary.unavailable.map(({ id }) => id).sort(),
@@ -236,10 +241,12 @@ test('host smoke runs a configured command from the extracted exact candidate', 
     const summary = JSON.parse(result.stdout);
     assert.deepEqual(summary.executed, ['candidate-host']);
     assert.deepEqual(summary.failures, []);
+    assert.equal(summary.hosts[0].verification_state, 'LIVE_VERIFIED');
+    assert.equal(summary.hosts[0].model_backed_execution, false);
     assert.equal(summary.hosts[0].fresh_session_discovery, true);
     assert.match(summary.hosts[0].archive_sha256, /^[0-9a-f]{64}$/);
-    assert.equal(summary.hosts[0].source_commit, 'a'.repeat(40));
-    assert.equal(summary.hosts[0].source_tree, 'b'.repeat(40));
+    assert.equal(summary.hosts[0].candidate_commit, 'a'.repeat(40));
+    assert.equal(summary.hosts[0].candidate_tree, 'b'.repeat(40));
 
     const stale = run(process.execPath, [
       path.join(root, 'scripts/host-smoke.mjs'),

@@ -165,6 +165,10 @@ opportunistically or durably recorded; they do not create a loop.
 The persistent owner fixes the whole Critical/Important batch in one
 consolidated correction wave and runs focused covering proof. The same reviewer
 performs one resumed recheck over original findings and the fix range only.
+Correction/recheck accounting is separate from the reserved exact-final-head
+integration review. Do not consume that reserved review before the candidate
+stops changing. A defect found by the final review invalidates that head's
+approval and requires a new exact-head review within finalization budget.
 
 ## Circuit breaker
 

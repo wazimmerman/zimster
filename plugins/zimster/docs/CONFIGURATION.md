@@ -60,11 +60,20 @@ rewrite mappings, rank candidates, or mutate policy.
 
 ## Autonomous convergence
 
-`config/convergence.json` defines correction-commit, review-recheck,
-final-verification, complete-suite, duplicate-command, and context-renewal
-budgets. Existing installs can keep manual behavior with
+`config/convergence.json` defines correction-commit, correction-recheck,
+reserved exact-head integration-review, final-verification, complete-suite,
+duplicate-command, and context-renewal budgets. Correction rechecks are scoped
+separately and cannot consume `final_integration_reviews`. The reserved final
+review can be recorded only after the candidate head is stable; a defect found
+there may use the one additional configured exact-head review after correction.
+Existing installs can keep manual behavior with
 `autonomous_convergence.enabled=false`. Ordinary deterministic, reversible,
 in-scope failures continue within budget. Contradiction, material expansion,
 sensitive decisions lacking authority, missing review, required approval, or
 exhaustion escalates. Host permission and authorization prompts are never
 bypassed.
+
+Release channels are separate policy profiles. `public_beta` requires one
+exact-package `LIVE_VERIFIED` host plus bounded claims for every public harness.
+`stable` currently requires all six public harnesses to be `LIVE_VERIFIED`.
+Availability evidence never chooses a universal primary harness.

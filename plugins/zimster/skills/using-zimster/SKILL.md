@@ -134,7 +134,9 @@ Default limits:
 - model routing does not increase the default frequency of delegation;
 - subagents must not spawn subagents;
 - one initial review and one resumed recheck per reviewed seam;
-- one consolidated final correction wave.
+- correction commits/rechecks use their bounded accounting;
+- an exact-final-head integration review remains separately reserved until the
+  candidate stops changing.
 
 ## Cost controls
 
@@ -176,10 +178,12 @@ environment, exact argv, dependency cone, and inputs. Required fresh final
 gates are never reused.
 
 The release sequence is build candidate packages → installed-package smoke in
-isolated homes → available host discovery/smoke → immutable compact review
-package → final integration review → one correction/recheck → fresh exact-tree
-verification → candidate-completion gate. Source-only review cannot substitute
-for an available installed candidate test.
+isolated homes → claim-scoped host discovery/smoke → immutable compact review
+package → reserved final integration review of the exact final head → bounded correction and
+another exact-head review only if required → fresh exact-tree verification →
+candidate-completion gate. Correction rechecks never consume the reserved final
+review. Source-only review cannot substitute for an available installed
+candidate test.
 
 ## Capability research and postmortem
 

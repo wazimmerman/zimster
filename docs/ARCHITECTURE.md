@@ -164,6 +164,14 @@ Mutable receipt references, statuses, observations, and verification results
 remain separately validated so final proof can advance without invalidating an
 unchanged reviewed contract.
 
+Host evidence is independent per harness. Receipt states distinguish live,
+installed-package, structural, authentication-blocked, unavailable, and
+unsupported evidence, and separately record whether model-backed execution
+occurred. Public-beta completion requires one exact-package live host and
+claim-bounded records for all public harnesses; stable may require stronger
+coverage. Missing optional public-beta hosts narrow claims instead of becoming
+fabricated passes or a universal completion failure.
+
 Checkout integrity is orthogonal: `REVIEW_CHECKOUT_UNCHANGED`,
 `REVIEW_CHECKOUT_CHANGED`, and `REVIEW_CHECKOUT_UNVERIFIED` describe only the
 review checkout. Eligible Micro work may complete owner-only. Standard and
@@ -216,6 +224,8 @@ cleaning it.
 complete initial finding batch
 → owner fixes Critical/Important findings together
 → same reviewer performs one scoped resumed recheck
+→ reserve final integration review until the exact candidate head is stable
+→ require another exact-head review after any final-review correction
 → circuit breaker for load-bearing residuals
 ```
 

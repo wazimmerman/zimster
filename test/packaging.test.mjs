@@ -146,6 +146,8 @@ test('packaging is deterministic and emits Codex and Claude archives', async () 
     }
     const portableArchive = await bytes(firstOutputs[2]);
     assert.equal(portableArchive.includes(Buffer.from('"package_target": "portable"')), true);
+    assert.equal(portableArchive.includes(Buffer.from('"release_channel": "public_beta"')), true);
+    assert.equal(portableArchive.includes(Buffer.from('"support_policy": "claim_scoped_host_receipts_v1"')), true);
   } finally {
     await rm(first, { recursive: true, force: true });
     await rm(second, { recursive: true, force: true });

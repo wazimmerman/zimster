@@ -59,6 +59,7 @@ function countEvents(events, eventType) {
 }
 
 const budget = await optionalJson('budget.json');
+const hostVerification = await optionalJson('host-smoke/latest.json');
 const runState = await readRunState(runtime);
 const startedAt = runState ? Date.parse(runState.started_at) : null;
 function currentRunRow(row, timestampFields) {
@@ -155,6 +156,27 @@ const routingMetric = proposals === null && resolutions === null && dispatches =
       && row.effective_model !== row.requested_model
     ).length,
     fallbacks: [...new Set((resolutions || []).flatMap(({ fallback_trace: trace }) => trace || []))].sort()
+  });
+const supportMatrixMetric = hostVerification === null
+  ? unavailable('claim-scoped host verification receipt is absent')
+  : observed({
+    release_channel: hostVerification.release_channel,
+    status: hostVerification.status,
+    live_verified_host_ids: hostVerification.live_verified_host_ids || [],
+    all_claims_bounded: hostVerification.all_claims_bounded === true,
+    harnesses: Object.fromEntries((hostVerification.hosts || []).map((host) => [
+      host.id,
+      {
+        verification_level: host.verification_state,
+        tested: host.commands_or_observations,
+        not_tested: host.capabilities_not_established,
+        installation_available: host.installation_available,
+        known_limitations: host.known_limitations,
+        public_claims: host.public_claims,
+        model_backed_execution: host.model_backed_execution,
+        expires_at: host.expires_at
+      }
+    ]))
   });
 
 const tokenEvents = countEvents(events, 'token_meter');
@@ -258,20 +280,22 @@ if (!budget) {
 } else {
   const exceededRows = Object.entries(budget.usage || {})
     .filter(([name, value]) =>
-      name !== 'review_rechecks_per_seam'
-      && !['final_correction_waves', 'context_compactions'].includes(name)
+      name !== 'correction_rechecks'
+      && !['final_correction_waves', 'review_rechecks_per_seam', 'context_compactions'].includes(name)
       && Number.isFinite(budget.limits?.[name])
       && value > budget.limits[name]
     )
     .map(([metric]) => ({ metric, scope: null, label: metric }));
   for (const [scope, value] of Object.entries(
-    budget.scoped_usage?.review_rechecks_per_seam || {}
+    budget.scoped_usage?.correction_rechecks || budget.scoped_usage?.review_rechecks_per_seam || {}
   )) {
-    if (value > budget.limits.review_rechecks_per_seam) {
+    const correctionRecheckLimit = budget.limits.correction_rechecks
+      ?? budget.limits.review_rechecks_per_seam;
+    if (value > correctionRecheckLimit) {
       exceededRows.push({
-        metric: 'review_rechecks_per_seam',
+        metric: 'correction_rechecks',
         scope,
-        label: `review_rechecks_per_seam:${scope}`
+        label: `correction_rechecks:${scope}`
       });
     }
   }
@@ -304,6 +328,7 @@ const report = {
     models_and_effort: metric('models_and_effort', modelsAndEffort),
     delegation_decisions: metric('delegation_decisions', delegationMetric),
     routing: metric('routing', routingMetric),
+    support_matrix: metric('support_matrix', supportMatrixMetric),
     tokens: metric('tokens', tokens),
     compactions: metric('compactions', aliasedUsageMetric('context_renewals', 'context_compactions', 'execution budget is absent')),
     research_events: metric('research_events', research),
@@ -335,7 +360,11 @@ const report = {
     ),
     rechecks: metric(
       'rechecks',
-      usageMetric('review_rechecks_per_seam', 'execution budget is absent')
+      aliasedUsageMetric('correction_rechecks', 'review_rechecks_per_seam', 'execution budget is absent')
+    ),
+    final_integration_reviews: metric(
+      'final_integration_reviews',
+      usageMetric('final_integration_reviews', 'execution budget is absent')
     ),
     convergence: metric(
       'convergence',

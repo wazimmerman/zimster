@@ -93,6 +93,36 @@ if (sourceCheckout) {
     if (receiptPath) betaReceipt = JSON.parse(await readFile(receiptPath, 'utf8'));
   } catch {}
 }
+const receiptHosts = new Map((betaReceipt?.hosts || []).map((host) => [host.id, host]));
+const supportMatrix = Object.fromEntries(Object.keys(matrix.harnesses).map((name) => {
+  const receipt = receiptHosts.get(name);
+  const capability = matrix.harnesses[name];
+  return [name, receipt ? {
+    verification_level: receipt.verification_state,
+    tested: receipt.commands_or_observations,
+    not_tested: receipt.capabilities_not_established,
+    installation_available: receipt.installation_available,
+    known_limitations: receipt.known_limitations,
+    public_claims: receipt.public_claims,
+    model_backed_execution: receipt.model_backed_execution,
+    expires_at: receipt.expires_at
+  } : {
+    verification_level: capability.verification === 'structurally_validated'
+      ? 'STRUCTURALLY_VALIDATED'
+      : 'UNAVAILABLE',
+    tested: capability.verification === 'structurally_validated'
+      ? ['checked-in adapter structure']
+      : [],
+    not_tested: ['exact-package live host execution', 'model-backed execution'],
+    installation_available: structural[name] === 'ready',
+    known_limitations: ['no current exact-package host receipt'],
+    public_claims: capability.verification === 'structurally_validated'
+      ? ['adapter_structure']
+      : [],
+    model_backed_execution: false,
+    expires_at: null
+  }];
+}));
 const report = {
   schema_version: 1,
   zimster_version: version,
@@ -115,19 +145,26 @@ const report = {
   public_beta: betaReceipt
     ? {
       status: betaReceipt.status,
-      required_host_ids: betaReceipt.required_host_ids,
+      release_channel: betaReceipt.release_channel,
+      minimum_live_verified_hosts: betaReceipt.policy?.minimum_live_verified_hosts,
+      live_verified_host_ids: betaReceipt.live_verified_host_ids,
+      all_claims_bounded: betaReceipt.all_claims_bounded,
       executed: betaReceipt.executed,
       unavailable: betaReceipt.unavailable.map(({ id }) => id),
       generated_at: betaReceipt.generated_at
     }
     : {
       status: 'BLOCKED_BY_ENVIRONMENT',
-      required_host_ids: Object.keys(matrix.harnesses),
+      release_channel: 'public_beta',
+      minimum_live_verified_hosts: 1,
+      live_verified_host_ids: [],
+      all_claims_bounded: false,
       executed: [],
       unavailable: Object.keys(matrix.harnesses),
-      reason: 'no current all-six exact-package live smoke receipt'
+      reason: 'no current exact-package LIVE_VERIFIED host receipt'
     },
-  harnesses
+  harnesses,
+  support_matrix: supportMatrix
 };
 
 if (options.json === true) {
@@ -140,7 +177,8 @@ if (options.json === true) {
     ''
   ];
   for (const [name, record] of Object.entries(harnesses)) {
-    lines.push(`${name.padEnd(10)} ${record.verification.padEnd(24)} package=${record.structural_status}`);
+    const support = supportMatrix[name];
+    lines.push(`${name.padEnd(10)} ${support.verification_level.padEnd(30)} package=${record.structural_status} model_backed=${support.model_backed_execution}`);
   }
   lines.push(
     '',

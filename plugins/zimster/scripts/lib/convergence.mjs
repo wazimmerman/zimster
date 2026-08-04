@@ -2,7 +2,8 @@ import { randomUUID } from 'node:crypto';
 
 export const CONVERGENCE_METRICS = Object.freeze([
   'correction_commits',
-  'review_rechecks_per_seam',
+  'correction_rechecks',
+  'final_integration_reviews',
   'final_verification_attempts',
   'complete_suite_executions',
   'exact_duplicate_commands',
@@ -11,6 +12,7 @@ export const CONVERGENCE_METRICS = Object.freeze([
 
 export const CONVERGENCE_ALIASES = Object.freeze({
   final_correction_waves: 'correction_commits',
+  review_rechecks_per_seam: 'correction_rechecks',
   context_compactions: 'context_renewals'
 });
 const SCOPES = Object.freeze(['in-scope', 'out-of-scope']);

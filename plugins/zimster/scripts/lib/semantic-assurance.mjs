@@ -21,6 +21,14 @@ const PUBLIC_BETA_CANDIDATE = Object.freeze({
   opencode: 'portable',
   pi: 'portable'
 });
+const HOST_VERIFICATION_STATES = Object.freeze([
+  'LIVE_VERIFIED',
+  'INSTALLED_PACKAGE_VERIFIED',
+  'STRUCTURALLY_VALIDATED',
+  'BLOCKED_BY_AUTHENTICATION',
+  'UNAVAILABLE',
+  'UNSUPPORTED'
+]);
 
 export const REVIEW_TYPES = Object.freeze([
   'self_review',
@@ -45,9 +53,16 @@ export const COMPLETION_STATES = Object.freeze({
   BLOCKED_BY_ENVIRONMENT: 'BLOCKED_BY_ENVIRONMENT'
 });
 
-export function validateHostSmokeReceipt(receipt, { candidateHead, candidateTree }) {
-  if (!receipt || receipt.schema_version !== 2 || receipt.status !== 'passed' || receipt.all_required !== true) {
-    throw new Error('all-six host smoke receipt must be schema v2 and passed');
+export function validateHostSmokeReceipt(receipt, {
+  candidateHead,
+  candidateTree,
+  releaseChannel = 'public_beta'
+}) {
+  if (!receipt || receipt.schema_version !== 3 || receipt.status !== 'passed') {
+    throw new Error('host verification receipt must be schema v3 and passed');
+  }
+  if (!['public_beta', 'stable'].includes(releaseChannel) || receipt.release_channel !== releaseChannel) {
+    throw new Error('host verification receipt does not match the requested release channel');
   }
   if (receipt.candidate_head !== candidateHead || receipt.candidate_tree !== candidateTree) {
     throw new Error('host smoke receipt does not match the candidate head and tree');
@@ -55,12 +70,12 @@ export function validateHostSmokeReceipt(receipt, { candidateHead, candidateTree
   if (receipt.dirty_tree_fingerprint !== CLEAN_DIRTY_TREE_FINGERPRINT) {
     throw new Error('host smoke receipt was not produced from the clean candidate tree');
   }
-  const required = [...new Set(receipt.required_host_ids || [])].sort();
-  if (JSON.stringify(required) !== JSON.stringify([...PUBLIC_BETA_HOST_IDS].sort())) {
-    throw new Error('host smoke receipt does not require exactly all six public-beta hosts');
+  const publicHosts = [...new Set(receipt.public_host_ids || [])].sort();
+  if (JSON.stringify(publicHosts) !== JSON.stringify([...PUBLIC_BETA_HOST_IDS].sort())) {
+    throw new Error('host verification receipt must represent all six public harnesses');
   }
   if (!Array.isArray(receipt.hosts) || receipt.hosts.length !== PUBLIC_BETA_HOST_IDS.length) {
-    throw new Error('host smoke receipt requires one result for every public-beta host');
+    throw new Error('host verification receipt requires one result for every public harness');
   }
   if (!receipt.artifact_digests || typeof receipt.artifact_digests !== 'object') {
     throw new Error('host smoke receipt requires exact artifact digests');
@@ -70,19 +85,89 @@ export function validateHostSmokeReceipt(receipt, { candidateHead, candidateTree
     const host = byId.get(id);
     const candidate = PUBLIC_BETA_CANDIDATE[id];
     const digest = receipt.artifact_digests[candidate];
-    if (
-      !host
-      || host.status !== 'passed'
-      || host.candidate !== candidate
-      || host.exact_package_install !== true
-      || host.fresh_session_discovery !== true
-      || host.source_commit !== candidateHead
-      || host.source_tree !== candidateTree
-      || !SHA256_PATTERN.test(digest || '')
-      || host.archive_sha256 !== digest
-    ) {
-      throw new Error(`host smoke proof for ${id} is missing or does not match the exact ${candidate} artifact digest`);
+    if (!host || host.candidate !== candidate || !HOST_VERIFICATION_STATES.includes(host.verification_state)) {
+      throw new Error(`host verification record for ${id} is missing or has an unsupported state`);
     }
+    if (host.candidate_commit !== candidateHead || host.candidate_tree !== candidateTree) {
+      throw new Error(`host verification record for ${id} does not match the exact candidate commit and tree`);
+    }
+    if (host.archive_sha256 !== undefined && (
+      !SHA256_PATTERN.test(digest || '') || host.archive_sha256 !== digest
+    )) {
+      throw new Error(`host verification proof for ${id} does not match the exact ${candidate} artifact digest`);
+    }
+    for (const field of [
+      'commands_or_observations', 'receipt_ids', 'capabilities_established',
+      'capabilities_not_established', 'public_claims', 'known_limitations'
+    ]) {
+      if (!Array.isArray(host[field])) throw new Error(`host verification record for ${id} requires ${field}`);
+    }
+    if (typeof host.installation_available !== 'boolean' || typeof host.model_backed_execution !== 'boolean') {
+      throw new Error(`host verification record for ${id} requires installation and model-backed execution facts`);
+    }
+    if (!host.authentication || !host.configuration) {
+      throw new Error(`host verification record for ${id} requires authentication and configuration availability`);
+    }
+    if (
+      !host.verified_at || Number.isNaN(Date.parse(host.verified_at))
+      || !host.expires_at || Number.isNaN(Date.parse(host.expires_at))
+      || Date.parse(host.expires_at) <= Date.parse(host.verified_at)
+    ) {
+      throw new Error(`host verification record for ${id} requires valid freshness information`);
+    }
+    if (Date.parse(host.expires_at) <= Date.now()) {
+      throw new Error(`host verification record for ${id} is expired`);
+    }
+    const established = new Set(host.capabilities_established);
+    if (host.public_claims.some((claim) => !established.has(claim))) {
+      throw new Error(`public claim for ${id} is broader than its host receipt`);
+    }
+    if (
+      host.public_claims.includes('live_host_execution')
+      && host.verification_state !== 'LIVE_VERIFIED'
+    ) {
+      throw new Error(`live-support claim for ${id} lacks a LIVE_VERIFIED receipt`);
+    }
+    if (
+      (host.public_claims.includes('model_backed_execution') || host.model_backed_execution)
+      && host.verification_state !== 'LIVE_VERIFIED'
+    ) {
+      throw new Error(`${host.verification_state} for ${id} cannot imply model-backed execution`);
+    }
+    if (host.verification_state === 'LIVE_VERIFIED' && (
+      !established.has('live_host_execution')
+      || !established.has('fresh_session_discovery')
+      || !host.archive_sha256
+    )) {
+      throw new Error(`LIVE_VERIFIED host ${id} lacks exact-package live fresh-session evidence`);
+    }
+    if (
+      host.verification_state === 'INSTALLED_PACKAGE_VERIFIED'
+      && (!established.has('package_installation') || host.model_backed_execution)
+    ) {
+      throw new Error(`installed-package verification for ${id} cannot imply model-backed execution`);
+    }
+    if (host.verification_state === 'STRUCTURALLY_VALIDATED' && host.model_backed_execution) {
+      throw new Error(`structural validation for ${id} cannot imply live model-backed execution`);
+    }
+  }
+  if (receipt.all_claims_bounded !== true) {
+    throw new Error('every public harness claim must be bounded by its host receipt');
+  }
+  const liveIds = receipt.hosts
+    .filter(({ verification_state: state }) => state === 'LIVE_VERIFIED')
+    .map(({ id }) => id);
+  const minimumLive = receipt.policy?.minimum_live_verified_hosts;
+  const requiredLive = receipt.policy?.required_live_host_ids;
+  if (!Number.isInteger(minimumLive) || minimumLive < 1 || !Array.isArray(requiredLive)) {
+    throw new Error('release-channel host policy is malformed');
+  }
+  if (liveIds.length < minimumLive) {
+    throw new Error(`${releaseChannel} requires at least ${minimumLive} LIVE_VERIFIED host receipt(s)`);
+  }
+  const missingRequired = requiredLive.filter((id) => !liveIds.includes(id));
+  if (missingRequired.length) {
+    throw new Error(`${releaseChannel} required live host coverage is missing: ${missingRequired.join(', ')}`);
   }
   if (!receipt.generated_at || Number.isNaN(Date.parse(receipt.generated_at))) {
     throw new Error('host smoke receipt requires a valid generation timestamp');
@@ -562,6 +647,7 @@ export function evaluateCandidateCompletion({
   requiredLenses = [],
   loadBearingReviewObligations = null,
   hostSmokeReceipt = null,
+  releaseChannel = 'public_beta',
   correctionPending = false
 }) {
   if (!['micro', 'standard', 'high-risk'].includes(profile)) {
@@ -605,11 +691,11 @@ export function evaluateCandidateCompletion({
   const allowedClaims = matrixResult.allowed_claims || [];
   if ((matrixResult.binding_requirement_ids || []).includes('BETA-003')) {
     try {
-      validateHostSmokeReceipt(hostSmokeReceipt, { candidateHead, candidateTree });
+      validateHostSmokeReceipt(hostSmokeReceipt, { candidateHead, candidateTree, releaseChannel });
     } catch (error) {
       return result(COMPLETION_STATES.BLOCKED_BY_ENVIRONMENT, {
         allowedClaims,
-        reasons: [`all-six exact-package fresh-session host smoke is unavailable: ${error.message}`]
+        reasons: [`claim-scoped host verification lacks the required live host floor: ${error.message}`]
       });
     }
   }

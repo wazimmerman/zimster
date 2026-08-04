@@ -53,10 +53,12 @@ if (action === 'init') {
     requiredProofKind: options['required-proof-kind'] ? String(options['required-proof-kind']) : null,
     requiredProofScope: options['required-proof-scope'] ? String(options['required-proof-scope']) : null,
     requiredProofProfile: options['required-proof-profile'] ? String(options['required-proof-profile']) : null,
-    requiredProofCommand: options['required-proof-command'] ? String(options['required-proof-command']) : null
+    requiredProofCommand: options['required-proof-command'] ? String(options['required-proof-command']) : null,
+    candidateStable: options['candidate-stable'] === true || options['candidate-stable'] === 'true',
+    candidateHead: options['candidate-head'] ? String(options['candidate-head']) : null
   });
   emit(result.status, result.detail);
-  if (['BUDGET_CONSTRAINED', 'BUDGET_PROOF_REQUIRED'].includes(result.status)) {
+  if (['BUDGET_CONSTRAINED', 'BUDGET_PROOF_REQUIRED', 'FINAL_REVIEW_RESERVED'].includes(result.status)) {
     process.exitCode = 2;
   }
 } else if (action === 'prove') {

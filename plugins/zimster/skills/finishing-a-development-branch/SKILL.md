@@ -60,11 +60,12 @@ tests, and external/manual evidence. Re-read the mission line by line.
 For Standard/High-risk work, obtain one independent integration review over the
 complete committed range identified by immutable base and head SHAs, or a
 no-commit change snapshot. A shell-capable reviewer must use the before/after
-review-integrity guard. If Critical/Important findings exist:
+review-integrity guard. Reserve this review until the candidate stops changing;
+correction rechecks do not satisfy or consume it. If Critical/Important findings exist:
 
 - owner performs one consolidated correction wave;
 - run covering evidence;
-- same reviewer performs one resumed recheck;
+- the configured finalization budget supplies another exact-head review;
 - apply the circuit breaker to residual load-bearing findings.
 
 Do not fish for a different verdict with repeated broad reviews.

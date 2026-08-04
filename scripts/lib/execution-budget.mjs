@@ -237,6 +237,8 @@ export function applyExecutionBudgetEvent(state, {
   requiredProofScope = null,
   requiredProofProfile = null,
   requiredProofCommand = null,
+  candidateStable = null,
+  candidateHead = null,
   recordedAt = new Date().toISOString()
 }) {
   metric = normalizeConvergenceMetric(metric);
@@ -266,10 +268,22 @@ export function applyExecutionBudgetEvent(state, {
       };
     }
   }
-  if (metric === 'review_rechecks_per_seam' && !scope) {
-    throw new Error('--scope is required for review_rechecks_per_seam');
+  if (metric === 'correction_rechecks' && !scope) {
+    throw new Error('--scope is required for correction_rechecks');
   }
-  const scoped = metric === 'review_rechecks_per_seam';
+  if (metric === 'final_integration_reviews') {
+    if (candidateStable !== true) {
+      return {
+        changed: false,
+        status: 'FINAL_REVIEW_RESERVED',
+        detail: { metric, reason: 'candidate head is still changing' }
+      };
+    }
+    if (!/^[0-9a-f]{40}$/.test(candidateHead || '')) {
+      throw new Error('final integration review requires an immutable candidate head');
+    }
+  }
+  const scoped = metric === 'correction_rechecks';
   const current = scoped
     ? state.scoped_usage[metric]?.[scope] || 0
     : state.usage[metric] || 0;
@@ -315,6 +329,11 @@ export function applyExecutionBudgetEvent(state, {
   if (scoped) {
     state.scoped_usage[metric] ||= {};
     state.scoped_usage[metric][scope] = proposed;
+    for (const [alias, canonical] of Object.entries(CONVERGENCE_ALIASES)) {
+      if (canonical !== metric || !Object.hasOwn(state.limits, alias)) continue;
+      state.scoped_usage[alias] ||= {};
+      state.scoped_usage[alias][scope] = proposed;
+    }
   }
   if (agentId) state.optional_agent_identities.push(agentId);
   state.events.push({
@@ -324,7 +343,8 @@ export function applyExecutionBudgetEvent(state, {
     value: proposed,
     recorded_at: recordedAt,
     invalidation,
-    strategy_change: strategyChange
+    strategy_change: strategyChange,
+    candidate_head: metric === 'final_integration_reviews' ? candidateHead : null
   });
   if (proposed > limit) {
     state.overrides.push({

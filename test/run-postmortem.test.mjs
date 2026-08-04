@@ -256,7 +256,7 @@ test('run postmortem aggregates observed execution economy without mixing token 
     );
     assert.equal(Object.hasOwn(report.metrics.tokens, 'total'), false);
     assert.equal(report.metrics.budget_compliance.status, 'noncompliant');
-    assert.deepEqual(report.unavailable_metrics, ['research_events']);
+    assert.deepEqual(report.unavailable_metrics, ['research_events', 'support_matrix']);
   } finally {
     await rm(runtime, { recursive: true, force: true });
   }

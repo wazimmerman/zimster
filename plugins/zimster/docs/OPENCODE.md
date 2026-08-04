@@ -30,13 +30,14 @@ fallbacks.
 
 ## Verification status
 
-The dependency-free adapter is structurally validated and tested on Node 22. OpenCode
-`1.18.7` is available locally; the release smoke records the exact portions of
-configuration and skill discovery that this installed version can verify. The
-installed version predates the separately documented v2 plugin contract, so
-Zimster does not claim v2-only behavior or model-backed prompt execution.
+Verification level: `LIVE_VERIFIED`. The dependency-free adapter is validated
+on Node 22, and the exact 0.6.0 portable archive passed isolated OpenCode
+configuration and skill discovery. The receipt does not establish model-backed
+prompt execution, effective-model identity, or separately documented v2-only
+behavior.
 
 Optional generated agents use OpenCode's `provider/model-id` syntax. An omitted
 model inherits from the invoking primary agent, and `opencode models` is only
 session-scoped catalog evidence. Prefer current permission fields over
-deprecated tool booleans. Local 1.18.9 requires fresh exact-package proof.
+deprecated tool booleans. The exact host version and receipt freshness are
+reported by `doctor -- --json`.

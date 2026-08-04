@@ -49,7 +49,9 @@ const BUILTIN_PROFILES = Object.freeze({
       nodeStep('version-check', 'check-version.mjs'),
       nodeStep('package', 'package.mjs'),
       nodeStep('checksums', 'checksums.mjs'),
-      ...commonAfterPackage
+      ...commonAfterPackage,
+      nodeStep('semantic-completion', 'semantic-assurance.mjs'),
+      nodeStep('postmortem', 'run-postmortem.mjs')
     ]
   }
 });
@@ -93,6 +95,42 @@ async function selectedPlan() {
   if (!plan) throw new Error(`unknown verification profile: ${profile}`);
   if (profile === 'release' && options.tag) {
     plan.steps.find(({ id }) => id === 'version-check').args.push('--tag', String(options.tag));
+  }
+  if (profile === 'release' && action === 'run') {
+    const requiredSemanticOptions = [
+      'requirements', 'binding-requirements', 'matrix', 'reviews', 'review-package',
+      'load-bearing-review-obligations'
+    ];
+    const missing = requiredSemanticOptions.filter((name) => !options[name]);
+    if (missing.length || options['owner-verified'] !== true) {
+      throw new Error(
+        `release verification requires exact-head semantic inputs and --owner-verified: ${missing.join(', ') || 'owner verification'}`
+      );
+    }
+    const reviewStep = plan.steps.find(({ id }) => id === 'review-package');
+    const reviewOptions = [
+      'base', 'head', 'requirements', 'binding-requirements', 'matrix',
+      'lenses', 'risk-signals', 'intended-claims', 'unavailable-proof',
+      'requested-state', 'interfaces'
+    ];
+    for (const name of reviewOptions) {
+      if (options[name]) reviewStep.args.push(`--${name}`, String(options[name]));
+    }
+    const semanticStep = plan.steps.find(({ id }) => id === 'semantic-completion');
+    semanticStep.args.push(
+      'complete', '--profile', String(options['semantic-profile'] || 'high-risk'),
+      '--owner-verified',
+      '--requirements', String(options['binding-requirements']),
+      '--matrix', String(options.matrix),
+      '--reviews', String(options.reviews),
+      '--review-package', String(options['review-package']),
+      '--load-bearing-review-obligations', String(options['load-bearing-review-obligations']),
+      '--release-channel', String(options['release-channel'] || 'public_beta')
+    );
+    if (options.evidence) semanticStep.args.push('--evidence', String(options.evidence));
+    if (options['host-smoke-receipt']) {
+      semanticStep.args.push('--host-smoke-receipt', String(options['host-smoke-receipt']));
+    }
   }
   return validatePlan(plan);
 }
