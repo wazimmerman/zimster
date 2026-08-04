@@ -112,27 +112,21 @@ Keep the record compact: mission, profile/rationale, branch disposition,
 architecture, slice status, evidence IDs, dispatch records, risks, unavailable
 proof, and next action. Do not paste full logs or transcripts.
 
-Pass `--harness <codex|claude|cursor|kimi|opencode|pi>` so the run record
-contains the selected harness and its machine-readable capability states. When
-the harness cannot be identified, omit the option and leave the receipt
-explicitly unverified.
-
 Use `--audit-path <project-relative-documentation-path>` only when the project
 has explicitly opted into committed audit evidence. Do not modify tracked
 `.gitignore` merely for operational state.
 
 ## Delegation and model routing
 
-Use `scripts/delegation-record.mjs`: price and mappings never cause delegation,
-and `selected: false` forbids routing. A selected role
-records its inline alternative, ownership/tools, cone, stop, and owner proof.
-Only then use `scripts/model-routing.mjs` and `config/model-routing.json`.
-Plans advise; dispatch proposals are authoritative and single-use.
-Resolve override → run → project → user → harness → inherit, then record
-requested/effective values, evidence, fallbacks, and owner acceptance with
-`scripts/dispatch-record.mjs`. Classes are `economy`, `balanced`,
-`expert`, and `inherit`, without vendor defaults; unknown values are
-`unverified` and legacy tiers remain read aliases.
+Use `delegation-record.mjs` first: price/mappings never cause delegation and
+`selected: false` forbids routing. A selected role records its inline option,
+ownership/tools, cone, stop, and owner proof. Then `model-routing.mjs` may issue
+an advisory plan or authoritative dispatch proposal using
+`config/model-routing.json`. Resolve
+override → run → project → user → harness → inherit; record requested/effective
+values and owner acceptance with `scripts/dispatch-record.mjs`. Classes are
+economy, balanced, expert, and inherit
+without vendor defaults; unknown values stay `unverified` and old tiers alias.
 
 Default limits:
 
@@ -150,22 +144,16 @@ the largest consumers. At about 80%, stop optional delegation and polish,
 consolidate findings, and prioritize required proof. Never lower a required
 quality gate silently.
 
-For Standard and High-risk runs, initialize the machine-readable execution budget
-with durable state. Record complete-suite executions, duplicate
-commands, optional agent identities, nesting depth, review rechecks, correction
-waves, physical context compactions, research refreshes, and exposed token
-thresholds. A crossed limit requires a recorded invalidation or strategy
-change plus the named proof; it never silently removes required evidence.
+For Standard and High-risk runs, initialize the machine-readable execution
+budget. Record suites, duplicates, agent identities/depth, rechecks,
+corrections, context renewals, research, and exposed token thresholds. Crossing
+a limit needs a recorded strategy change/invalidation and named proof.
 
-Use `scripts/convergence.mjs decide` for an ordinary deterministic failure.
-Continue without another user authorization only when the correction is
-in-scope, reversible, non-sensitive, authorized, and within its configured
-budget. Escalate only for contradiction, material scope expansion, a sensitive
-decision lacking authority, missing independent review, policy-required
-approval, or exhausted budget. Host permission prompts remain authoritative.
-The configurable limits cover correction commits, review rechecks per seam,
-final verification attempts, complete suites, duplicate commands, and context
-renewals. Legacy correction-wave and compaction names are read aliases.
+Use `convergence.mjs decide` for ordinary deterministic failure. Continue
+without repeated authorization only in-scope, reversible, non-sensitive,
+authorized work within budget. Escalate only for contradiction, material
+expansion, sensitive authority gaps, missing review, required approval, or
+exhaustion. Host permission prompts remain authoritative.
 
 ## Logical ownership and phase checkpoints
 
@@ -212,9 +200,8 @@ When subagents are unavailable, execute inline and state that independent
 review assurance was unavailable; do not relabel owner-inline work as
 `independent_review`.
 
-For self-hosting, freeze the accepted checked-in policy at run start. Candidate
-workflow rules are non-authoritative and run only in isolated fixtures or
-package homes until their seam review and acceptance evidence pass.
+For self-hosting, freeze accepted policy; candidate rules stay non-authoritative
+and isolated until review and acceptance pass.
 
 ## Installed version and script-free mode
 

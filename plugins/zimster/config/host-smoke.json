@@ -1,5 +1,6 @@
 {
   "schema_version": 1,
+  "required_host_ids": ["codex", "claude", "cursor", "kimi", "opencode", "pi"],
   "hosts": [
     {
       "id": "claude",

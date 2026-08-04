@@ -59,6 +59,7 @@ export function normalizeCapabilityClass(value) {
 function normalizeProposalInputs(inputs) {
   return {
     delegation_id: inputs.delegation?.id || inputs.delegationId,
+    session_id: inputs.sessionId || inputs.session_id || null,
     task_signature: inputs.taskSignature || inputs.task_signature || {},
     git_fingerprint: inputs.gitFingerprint || inputs.git_fingerprint || 'unverified',
     config_digest: inputs.configDigest || inputs.config_digest || 'unverified',
@@ -86,11 +87,13 @@ export function createModelProposal({
   concreteModel = null,
   availability = 'unverified',
   supersedes = null,
+  sessionId = null,
   ...evidence
 }) {
   validateDelegationDecision(delegation);
   if (!delegation.selected) throw new Error('delegation is not selected; model proposals are forbidden');
   if (!['plan', 'dispatch'].includes(phase)) throw new Error('proposal phase must be plan or dispatch');
+  if (phase === 'dispatch') requiredString(sessionId, 'session_id');
   const capability = normalizeCapabilityClass(capabilityClass);
   if (!ROUTING_MODES.includes(mode)) throw new Error(`routing mode must be one of ${ROUTING_MODES.join(', ')}`);
   if (!ROUTING_POLICIES.includes(policy)) throw new Error(`routing policy must be one of ${ROUTING_POLICIES.join(', ')}`);
@@ -98,12 +101,13 @@ export function createModelProposal({
   if (!taskSignature || taskSignature.role !== delegation.role) {
     throw new Error(`proposal task signature role must match delegation role ${delegation.role}`);
   }
-  const input = normalizeProposalInputs({ delegation, taskSignature, ...evidence });
+  const input = normalizeProposalInputs({ delegation, taskSignature, sessionId, ...evidence });
   return {
     schema_version: 1,
     id: randomUUID(),
     delegation_id: delegation.id,
     run_id: delegation.run_id,
+    session_id: phase === 'dispatch' ? sessionId : null,
     phase,
     authority: phase === 'plan' ? 'advisory' : 'authoritative',
     capability_class: capability,
@@ -143,6 +147,7 @@ export function assertAuthoritativeProposal(proposal, currentInputs) {
 export function proposalInputs(proposal) {
   return {
     delegationId: proposal.delegation_id,
+    sessionId: proposal.session_id,
     taskSignature: proposal.task_signature,
     gitFingerprint: proposal.git_fingerprint,
     configDigest: proposal.config_digest,

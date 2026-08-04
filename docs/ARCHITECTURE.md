@@ -62,6 +62,10 @@ Dependency-free Node 22 tools turn important policy into inspectable state:
 - `run-postmortem.mjs` aggregates run-scoped observed/inferred/unavailable
   execution metrics;
 - `dispatch-record.mjs` records requested/effective model routing;
+- `delegation-record.mjs` records the delegation decision before routing;
+- `model-routing.mjs` creates proposals and resolves mappings and fallbacks;
+- `adapter-config.mjs` emits owned host overrides only to an explicit output;
+- `convergence.mjs` records bounded continue/escalate decisions;
 - `sync-codex-plugin.mjs` generates the Codex plugin mirror;
 - `validate-codex.mjs` checks the pinned official contract snapshot;
 - `validate-claude-plugin.mjs` checks the current documented Claude manifest,
@@ -169,12 +173,27 @@ approval. Micro and load-bearing proof references must support the exact named
 requirement ID and established claim. Missing review/proof yields an honest
 partial or blocked state, never `CANDIDATE_COMPLETE`.
 
-## Model-routing model
+## Delegation and model-routing model
 
-Roles map to abstract tiers (`fast`, `standard`, `expert`) rather than vendor
-model names. Each dispatch records requested model/effort and the effective
-values returned by the harness. `unverified` is explicit when the harness does
-not report them. A fast role inheriting the parent model produces a warning.
+Delegation selection is independent and precedes model evaluation. A false
+decision cannot create a proposal or dispatch. Selected decisions bind role,
+reason, inline alternative, ownership, tools, dependency cone, stop condition,
+and owner acceptance proof.
+
+Plans may carry advisory proposals; dispatch regenerates authoritative,
+single-use proposals from current inputs. Harness-neutral classes are
+`economy`, `balanced`, `expert`, and `inherit`; legacy `fast` and `standard`
+remain read aliases. Concrete model names exist only in optional configuration.
+Resolution records provenance, capability evidence, fallbacks, and requested
+versus effective values. Local outcome summaries never mutate policy.
+
+## Autonomous convergence
+
+Deterministic in-scope corrections continue without repeated authorization
+within configurable budgets. Contradiction, material expansion, sensitive
+authority gaps, missing review, required approval, and exhaustion are the only
+escalation reasons. Self-hosting freezes accepted policy until candidate rules
+are independently accepted.
 
 ## Agent topology and safety
 

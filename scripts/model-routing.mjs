@@ -20,7 +20,7 @@ import {
 
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
-const root = findRepoRoot(process.cwd());
+const root = action === 'validate-config' ? process.cwd() : findRepoRoot(process.cwd());
 
 async function parseJsonFile(filePath) {
   return JSON.parse(await readFile(path.resolve(root, filePath), 'utf8'));
@@ -125,6 +125,7 @@ async function main() {
     const git = await captureGitState(root);
     const currentInputs = {
       delegationId: proposal.delegation_id,
+      sessionId: required(options, 'session-id'),
       taskSignature: requiredJsonOption('task-signature'),
       gitFingerprint: git.working_tree_hash,
       configDigest: digestJson(config),
@@ -234,7 +235,8 @@ async function main() {
       || (Object.keys(capabilityEvidence).length ? digestJson(capabilityEvidence) : 'unverified')),
     catalogDigest: String(options['catalog-digest'] || (catalog ? digestJson(catalog) : 'unverified')),
     explicitOverrideDigest: explicitOverride ? digestJson(explicitOverride) : 'none',
-    supersedes: options.supersedes ? String(options.supersedes) : null
+    supersedes: options.supersedes ? String(options.supersedes) : null,
+    sessionId: options['session-id'] ? String(options['session-id']) : null
   });
   if (proposal.mode !== 'inherit' && Object.keys(routing.mappings || {}).length) {
     const resolvable = { ...proposal, phase: 'dispatch', authority: 'authoritative' };

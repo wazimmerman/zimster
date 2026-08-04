@@ -136,7 +136,8 @@ test('DEL-001, ROUTE-001, ROUTE-005: dispatch v2 consumes one authoritative prop
       routing, 'propose', '--phase', 'dispatch', '--delegation-id', decision.id,
       '--capability-class', 'balanced', '--reasoning-effort', 'medium',
       '--task-signature', '{"role":"bounded_implementer","risk":"standard"}',
-      '--mode', 'inherit', '--policy', 'balanced', '--harness', 'codex'
+      '--mode', 'inherit', '--policy', 'balanced', '--harness', 'codex',
+      '--session-id', 'session-1'
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const proposal = JSON.parse(result.stdout.trim());
@@ -145,7 +146,8 @@ test('DEL-001, ROUTE-001, ROUTE-005: dispatch v2 consumes one authoritative prop
       routing, 'resolve', '--proposal-id', proposal.id,
       '--task-signature', '{"role":"bounded_implementer","risk":"standard"}',
       '--harness', 'codex', '--harness-version', 'unverified',
-      '--capability-digest', 'unverified', '--catalog-digest', 'unverified'
+      '--capability-digest', 'unverified', '--catalog-digest', 'unverified',
+      '--session-id', 'session-1'
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const resolution = JSON.parse(result.stdout.trim());
@@ -153,7 +155,8 @@ test('DEL-001, ROUTE-001, ROUTE-005: dispatch v2 consumes one authoritative prop
     const dispatchEvidence = [
       '--task-signature', '{"role":"bounded_implementer","risk":"standard"}',
       '--harness', 'codex', '--harness-version', 'unverified',
-      '--capability-digest', 'unverified', '--catalog-digest', 'unverified'
+      '--capability-digest', 'unverified', '--catalog-digest', 'unverified',
+      '--session-id', 'session-1'
     ];
 
     const runtime = run('git', [
@@ -305,7 +308,8 @@ test('ROUTE-004: per-run configuration is snapshotted and overlays rather than s
       routing, 'propose', '--phase', 'dispatch', '--delegation-id', decision.id,
       '--capability-class', 'economy', '--reasoning-effort', 'low',
       '--task-signature', '{"role":"scout","risk":"standard"}',
-      '--harness', 'codex', '--harness-version', '0.146.0', '--config', runConfig
+      '--harness', 'codex', '--harness-version', '0.146.0', '--config', runConfig,
+      '--session-id', 'session-2'
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const proposal = JSON.parse(result.stdout);
@@ -318,7 +322,8 @@ test('ROUTE-004: per-run configuration is snapshotted and overlays rather than s
       routing, 'resolve', '--proposal-id', proposal.id,
       '--task-signature', '{"role":"scout","risk":"standard"}',
       '--harness', 'codex', '--harness-version', '0.146.0',
-      '--capability-digest', 'unverified', '--catalog-digest', 'unverified'
+      '--capability-digest', 'unverified', '--catalog-digest', 'unverified',
+      '--session-id', 'session-2'
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const resolution = JSON.parse(result.stdout);

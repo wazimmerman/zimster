@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.6.0 — 2026-08-04
+
+- Add adaptive delegation, policy-bounded model routing, autonomous convergence, and public-beta installation contracts
+
 ## 0.5.0 — 2026-07-30
 
 - Enforce semantic assurance and requirement-to-evidence completion gates

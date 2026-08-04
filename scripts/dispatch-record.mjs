@@ -175,6 +175,7 @@ async function main() {
     }
     const currentInputs = {
       delegationId: decision.id,
+      sessionId: required(options, 'session-id'),
       taskSignature: jsonOption('task-signature'),
       gitFingerprint: (await captureGitState(root)).working_tree_hash,
       configDigest: proposal.config_digest,
@@ -190,6 +191,7 @@ async function main() {
     if (proposalInputFingerprint(currentInputs) !== proposal.input_fingerprint
       || digestJson(resolution.current_inputs) !== digestJson({
         delegation_id: currentInputs.delegationId,
+        session_id: currentInputs.sessionId,
         task_signature: currentInputs.taskSignature,
         git_fingerprint: currentInputs.gitFingerprint,
         config_digest: currentInputs.configDigest,
@@ -222,6 +224,7 @@ async function main() {
       delegation_id: decision.id,
       proposal_id: proposal.id,
       resolution_id: resolution.id,
+      session_id: proposal.session_id,
       role,
       purpose: required(options, 'purpose'),
       capability_class: capabilityClass,

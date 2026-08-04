@@ -14,6 +14,11 @@ Run Zimster’s dependency-free contract check:
 npm run validate:claude
 ```
 
+The GitHub marketplace source is `wazimmerman/zimster`. Plugin agent defaults
+inherit model and effort. `adapter-config.mjs generate --harness claude` can
+stage same-name project `.claude/agents/` or user overrides only at an explicit
+output; the generated registry makes rollback/removal ownership-safe.
+
 When Claude Code is installed, also run its authoritative validator from the
 repository or extracted Claude archive:
 
@@ -75,7 +80,9 @@ hook does not write state or modify user configuration.
 
 - `zimster-integration-reviewer` exposes only `Read`, `Grep`, and `Glob`;
   `Write`, `Edit`, `NotebookEdit`, `Bash`, and nested `Agent` delegation are
-  explicitly denied. It uses `sonnet`, high effort, and at most 24 turns.
+  explicitly denied. Its portable plugin definition uses `model: inherit`,
+  omits effort, and allows at most 24 turns. Explicitly generated project/user
+  definitions may select a mapped model and effort.
 - `zimster-test-reviewer` exposes read/search plus Bash for one named probe.
   Claude runs it with `isolation: worktree`; write/edit and nested delegation
   are explicitly denied. Its assignment must name the command, artifact or

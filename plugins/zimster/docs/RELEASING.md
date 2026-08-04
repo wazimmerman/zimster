@@ -69,6 +69,13 @@ discovery, and any upstream blocker. When installed, live-smoke the other
 harnesses in temporary configuration directories; otherwise record structural
 validation as unexecuted live proof.
 
+For the 0.6.0 public beta, exact-package install and fresh-session discovery
+receipts are required for Codex, Claude Code, Cursor, Kimi Code, OpenCode, and
+Pi. `host-smoke.mjs` reports `BLOCKED_BY_ENVIRONMENT` and exits nonzero when any
+required host is absent or unconfigured. Structural validation, historical live
+proof, and an extracted archive smoke cannot satisfy this gate. Never emit
+`CANDIDATE_COMPLETE` until `all_required` is true for the exact candidate.
+
 ## Inspect artifacts
 
 - Confirm the Claude, Codex, and portable ZIPs exist.

@@ -42,3 +42,9 @@ The package declaration and TypeScript extension are structurally validated.
 The extension factory, resource discovery, and duplicate-injection guard run in
 a dependency-free Node 22 smoke fixture. The Pi CLI was unavailable, so package
 installation and a model-backed session were not live-tested.
+
+Zimster ships no Pi subagent runtime, so the owner executes inline by default.
+`pi --list-models` may supply catalog evidence for external extensions, but
+Zimster neither installs nor trusts them. Independent review is unavailable
+unless the active Pi setup supplies a qualifying separate context; the 0.6 live
+beta claim is therefore blocked in this environment.

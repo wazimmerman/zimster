@@ -9,7 +9,7 @@ import {
   resolveProjectConfigPath,
   resolveUserConfigPath
 } from './lib/config-layers.mjs';
-import { findRepoRoot } from './lib/git-state.mjs';
+import { findRepoRoot, gitValue } from './lib/git-state.mjs';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { options } = parseOptions(process.argv.slice(2));
@@ -84,6 +84,15 @@ if (sourceCheckout) {
   });
 }
 const routingConfig = routingLayers.effective.routing || {};
+let betaReceipt = null;
+if (sourceCheckout) {
+  try {
+    const receiptPath = gitValue([
+      'rev-parse', '--path-format=absolute', '--git-path', 'zimster/host-smoke/latest.json'
+    ], findRepoRoot(root), null);
+    if (receiptPath) betaReceipt = JSON.parse(await readFile(receiptPath, 'utf8'));
+  } catch {}
+}
 const report = {
   schema_version: 1,
   zimster_version: version,
@@ -103,6 +112,21 @@ const report = {
       (total, candidates) => total + (Array.isArray(candidates) ? candidates.length : 0), 0
     )
   },
+  public_beta: betaReceipt
+    ? {
+      status: betaReceipt.status,
+      required_host_ids: betaReceipt.required_host_ids,
+      executed: betaReceipt.executed,
+      unavailable: betaReceipt.unavailable.map(({ id }) => id),
+      generated_at: betaReceipt.generated_at
+    }
+    : {
+      status: 'BLOCKED_BY_ENVIRONMENT',
+      required_host_ids: Object.keys(matrix.harnesses),
+      executed: [],
+      unavailable: Object.keys(matrix.harnesses),
+      reason: 'no current all-six exact-package live smoke receipt'
+    },
   harnesses
 };
 

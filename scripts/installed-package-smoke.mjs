@@ -75,10 +75,26 @@ try {
       if (!payload.hookSpecificOutput?.additionalContext?.includes('# Using Zimster')) {
         throw new Error('Claude installed hook did not load using-zimster');
       }
-    } else {
-      const packageRoot = target === 'codex'
-        ? path.join(extracted, 'plugins', 'zimster')
-        : extracted;
+    }
+    const packageRoot = target === 'codex'
+      ? path.join(extracted, 'plugins', 'zimster')
+      : extracted;
+    JSON.parse(execute(
+      path.join(packageRoot, 'scripts', 'model-routing.mjs'),
+      ['validate-config', '--config', path.join(packageRoot, 'templates', 'zimster-config.json')],
+      packageRoot,
+      isolatedEnvironment(home)
+    ));
+    for (const contract of [
+      'schemas/delegation-decision.schema.json',
+      'schemas/model-proposal.schema.json',
+      'schemas/routing-observation.schema.json',
+      'schemas/convergence-decision.schema.json',
+      'docs/INSTALL.md',
+      'docs/CONFIGURATION.md',
+      'docs/MIGRATING-0.5.0.md'
+    ]) await readFile(path.join(packageRoot, contract));
+    if (target !== 'claude') {
       JSON.parse(execute(
         path.join(packageRoot, 'scripts', 'doctor.mjs'),
         ['--json'],

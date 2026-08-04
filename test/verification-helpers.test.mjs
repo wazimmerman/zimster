@@ -118,10 +118,10 @@ test('configured host smoke runs in isolated homes and records unavailable hosts
     const result = run(process.execPath, [
       path.join(root, 'scripts/host-smoke.mjs'), '--config', config
     ], repo);
-    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(result.status, 2, result.stderr || result.stdout);
     assert.equal(result.stderr, '');
     const summary = JSON.parse(result.stdout);
-    assert.equal(summary.status, 'passed');
+    assert.equal(summary.status, 'BLOCKED_BY_ENVIRONMENT');
     assert.deepEqual(summary.executed, ['available-host']);
     assert.deepEqual(summary.unavailable, [{
       id: 'missing-host',
@@ -148,9 +148,9 @@ test('default host smoke records every unconfigured harness as unavailable witho
       encoding: 'utf8',
       env
     });
-    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(result.status, 2, result.stderr || result.stdout);
     const summary = JSON.parse(result.stdout);
-    assert.equal(summary.status, 'passed');
+    assert.equal(summary.status, 'BLOCKED_BY_ENVIRONMENT');
     assert.deepEqual(summary.executed, []);
     assert.deepEqual(
       summary.unavailable.map(({ id }) => id).sort(),

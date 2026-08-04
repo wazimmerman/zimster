@@ -11,6 +11,8 @@ const includes = [
   '.codex-plugin', 'skills', 'agents', 'templates', 'assets', 'config', 'schemas',
   'docs/ARCHITECTURE.md', 'docs/CLAUDE.md', 'docs/CODEX.md', 'docs/CURSOR.md',
   'docs/DIAGNOSTICS.md', 'docs/EVALUATION.md', 'docs/evaluations', 'docs/KIMI.md',
+  'docs/INSTALL.md', 'docs/CONFIGURATION.md', 'docs/KNOWN_LIMITATIONS.md',
+  'docs/MIGRATING-0.5.0.md',
   'docs/OPENCODE.md', 'docs/OPERATIONS.md', 'docs/PI.md', 'docs/PORTING.md',
   'docs/RELEASING.md', 'docs/RESEARCH.md', 'docs/ROADMAP.md', 'docs/plans',
   'docs/SKILLS_ONLY.md', 'docs/UPSTREAM.md',

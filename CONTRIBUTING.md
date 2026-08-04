@@ -10,6 +10,12 @@
 8. Record adapted material in `docs/UPSTREAM.md` and preserve its license.
 9. Include paired evaluation evidence for claims of lower cost, faster runs, or
    better quality.
+10. For public adapter changes, add isolated exact-package installation and
+    fresh-session discovery fixtures; report unavailable hosts as blocked.
+
+Pull requests should state stable requirement IDs, affected harnesses,
+configuration/migration impact, verification evidence, and unavailable live
+beta claims.
 
 Use `npm run version:bump -- <version> --note "summary"` for releases. The
 release tag must match all manifests and the changelog. Follow the full

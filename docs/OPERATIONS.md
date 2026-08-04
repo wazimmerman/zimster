@@ -36,6 +36,24 @@ At a coherent slice boundary, create a bounded checkpoint with
 physical context uses `phase-checkpoint.mjs resume`; logical ownership remains
 with the same root owner.
 
+Pass `--convergence-config <path>` to snapshot validated limits. A self-hosting
+candidate also passes `--self-hosting-candidate <version>`; its bootstrap
+receipt keeps candidate policy non-authoritative.
+
+## Delegation, routing, and convergence
+
+Record delegation first with `delegation-record.mjs decide`. Only a selected
+decision may reach `model-routing.mjs propose`. Regenerate a dispatch-phase
+proposal and resolve it with current task, Git, configuration, harness,
+capability, catalog, and override evidence immediately before a v2 dispatch.
+The dispatch command revalidates those inputs and consumes the proposal once.
+After delegated implementation, the owner records acceptance only after proof.
+
+Use `convergence.mjs decide --event <kind> --scope in-scope --sensitivity
+ordinary --metric <budget>` after an ordinary deterministic failure. A
+`continue` record replaces repeated authorization; escalation or exhaustion
+stops the autonomous path.
+
 ## Deterministic verification
 
 ```text
@@ -153,7 +171,7 @@ requires zero counts; `tests_executed` requires positive, internally consistent
 counts. An agent should supply exact counts rather than infer them from a zero
 exit code.
 
-## Dispatch records
+## Legacy dispatch records
 
 ```text
 node <zimster>/scripts/dispatch-record.mjs record \
@@ -172,6 +190,8 @@ node <zimster>/scripts/dispatch-record.mjs update \
 ```
 
 A fast role that actually used the parent model is marked with a warning.
+This v1 interface remains for 0.5 compatibility. New work uses delegation,
+proposal, resolution, and v2 dispatch IDs described in `CONFIGURATION.md`.
 
 ## Requirement matrix and candidate completion
 

@@ -6,6 +6,8 @@ import { fileURLToPath } from 'node:url';
 import { parseOptions, writeLine } from './lib/cli.mjs';
 import { executableAvailable } from './lib/path-identity.mjs';
 import { archivePathProblem, readStoredZip } from './lib/zip-reader.mjs';
+import { findRepoRoot } from './lib/git-state.mjs';
+import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { options } = parseOptions(process.argv.slice(2));
@@ -16,6 +18,10 @@ const configFile = path.resolve(
 const config = JSON.parse(await readFile(configFile, 'utf8'));
 if (config.schema_version !== 1 || !Array.isArray(config.hosts)) {
   throw new Error('host smoke config requires schema_version 1 and hosts');
+}
+const requiredHostIds = config.required_host_ids || config.hosts.map(({ id }) => id);
+if (!Array.isArray(requiredHostIds) || !requiredHostIds.length || requiredHostIds.some((id) => typeof id !== 'string' || !id)) {
+  throw new Error('host smoke config required_host_ids must be a non-empty string array');
 }
 const temporary = await mkdtemp(path.join(os.tmpdir(), 'zimster-host-smoke-'));
 const dist = path.resolve(process.cwd(), String(options.dist || 'dist'));
@@ -106,15 +112,31 @@ try {
     }
     executed.push(host.id);
   }
+  const allRequired = requiredHostIds.every((id) => executed.includes(id));
   const summary = {
     schema_version: 1,
-    status: failures.length ? 'failed' : 'passed',
+    status: failures.length ? 'failed' : allRequired ? 'passed' : 'BLOCKED_BY_ENVIRONMENT',
+    required_host_ids: requiredHostIds,
+    all_required: allRequired,
     executed,
     unavailable,
-    failures
+    failures,
+    generated_at: new Date().toISOString()
   };
+  let receipt = options.receipt ? path.resolve(process.cwd(), String(options.receipt)) : null;
+  if (!receipt && !options.config) {
+    try {
+      receipt = path.join(await ensureRuntimeDirectory(findRepoRoot(process.cwd())), 'host-smoke', 'latest.json');
+    } catch {}
+  }
+  if (receipt) {
+    await mkdir(path.dirname(receipt), { recursive: true });
+    await writeFile(receipt, `${JSON.stringify(summary, null, 2)}\n`);
+    summary.receipt = receipt;
+  }
   writeLine(JSON.stringify(summary));
   if (failures.length) process.exitCode = 1;
+  else if (!allRequired) process.exitCode = 2;
 } finally {
   await rm(temporary, { recursive: true, force: true });
 }

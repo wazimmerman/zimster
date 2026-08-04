@@ -42,3 +42,8 @@ documentation. A Cursor CLI/application was unavailable, so loading and UI
 behavior were not live-tested. Reviewer restrictions remain constrained by the
 tools and agent controls selected in Cursor; Zimster does not claim a
 plugin-enforced read-only reviewer or isolated worktree.
+
+Concrete custom-agent model generation is public-beta and
+`supported_with_constraints`: it is enabled only when the installed version
+reports compatible fields. Otherwise routing inherits and effective model state
+is `unverified`. Skills-only remains the installation source of truth.

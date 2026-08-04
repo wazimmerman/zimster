@@ -6,9 +6,19 @@ installation, cache materialization, and the current official plugin validator
 all succeeded. A fresh `codex exec` session did not receive the installed
 `using-zimster` skill context. This is recorded as a host skill-discovery
 blocker, separate from package validity and installation success.
+The 0.6.0 fresh-session beta claim is therefore blocked pending new live proof.
 
 Normal Zimster runs do not warn about this expected fallback. `npm run doctor`
 reports the detailed host/capability state.
+
+## Adaptive routing
+
+After delegation is independently selected, prefer an explicit per-spawn model
+and reasoning effort. If unavailable, generate a role config to an explicit
+staging path and reference it from `[agents.<role>].config_file`; otherwise
+inherit. Catalog output is session-scoped evidence. Strict cost requires both
+enforcement and effective-model reporting; Zimster never edits active Codex
+user configuration.
 
 ## Validate the complete package
 

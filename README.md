@@ -1,13 +1,18 @@
 # Zimster
 
-Zimster is a proof-first, owner-driven software-development workflow for capable
+Version 0.6.0 (public beta).
+
+Zimster 0.6.0 is a public-beta, proof-first, owner-driven
+software-development workflow for capable
 coding agents. It retains the parts of disciplined agentic development that
 earn their cost—RED-GREEN-REFACTOR, systematic debugging, isolated Git work,
 independent review, and evidence before completion—while removing
 plan-task-driven agent multiplication.
 
 The default is one persistent implementation owner working in coherent vertical
-slices. Delegation is optional, bounded, model-aware, and selected by risk.
+slices. Delegation is optional and bounded. Zimster decides whether delegation
+materially improves the task before considering model routing, so cheaper model
+availability never increases delegation frequency.
 
 ## What Zimster retains from Superpowers
 
@@ -30,6 +35,9 @@ slices. Delegation is optional, bounded, model-aware, and selected by risk.
 - At most two parallel implementers by default; no sub-subagents.
 - Explicit Git/commit disposition and complete untracked-file review.
 - Auditable requested/effective model records.
+- Harness-neutral economy, balanced, expert, and inherit proposals with
+  optional user mappings and policy-bounded fallbacks.
+- Bounded autonomous convergence for ordinary deterministic local failures.
 - Local evidence receipts that detect stale and duplicate commands.
 - Stable-ID requirement-to-evidence matrices and proof-bounded acceptance
   claims.
@@ -146,6 +154,10 @@ node <zimster-root>/scripts/dispatch-record.mjs record ...
   effort, warning when a fast role inherits the parent model.
 
 See `docs/OPERATIONS.md` for the full policy and command reference.
+See `docs/INSTALL.md` for Codex, Claude Code, and skills-only installation,
+update, rollback, and uninstall; `docs/CONFIGURATION.md` for routing and
+convergence; `docs/KNOWN_LIMITATIONS.md` for beta constraints; and
+`docs/MIGRATING-0.5.0.md` for compatibility guidance.
 See `docs/CODEX.md` for complete package validation, isolated installation,
 cachebuster updates, reinstall, removal, and live skill-discovery status.
 Harness-specific installation, update, removal, diagnostics, and verification

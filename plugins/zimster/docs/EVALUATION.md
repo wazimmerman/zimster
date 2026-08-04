@@ -1,7 +1,7 @@
 # Evaluation Strategy
 
 Zimster's efficiency and quality claims must be established experimentally.
-Version 0.5.0 does not claim to beat Superpowers without comparative evidence.
+Version 0.6.0 does not claim to beat Superpowers without comparative evidence.
 
 The historical 0.3.0 hardening measurements and the mechanisms they motivated
 are recorded in `docs/evaluations/v0.3.0-hardening-postmortem.md`.
@@ -82,6 +82,10 @@ Add explicit hold-outs for:
 - convention-heavy framework defaults or shared adapter/provider control flow
   bypass the specialized path;
 - a correction reuses the prior evidence or exact-head approval.
+- a cheap mapping causes delegation that the independent decision rejected;
+- a stale proposal survives changed task, mapping, catalog, or capability data;
+- autonomous convergence crosses scope, sensitivity, review, or budget bounds;
+- local routing observations mutate policy or candidate order.
 
 Run `node scripts/evaluate-execution-economy.mjs` for the deterministic local
 fixture. It demonstrates duplicate-command reuse, budget warning behavior,

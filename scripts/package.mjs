@@ -38,9 +38,15 @@ const operationalScripts = [
   'scripts/lib/evidence-validity.mjs',
   'scripts/lib/zip-reader.mjs', 'scripts/lib/zip.mjs'
 ];
+const publicContracts = [
+  'schemas/delegation-decision.schema.json', 'schemas/model-proposal.schema.json',
+  'schemas/routing-observation.schema.json', 'schemas/convergence-decision.schema.json',
+  'docs/INSTALL.md', 'docs/CONFIGURATION.md', 'docs/KNOWN_LIMITATIONS.md',
+  'docs/MIGRATING-0.5.0.md'
+];
 const common = [
   'skills', 'agents', 'templates', 'assets', 'docs', 'config', 'schemas',
-  ...operationalScripts,
+  ...operationalScripts, ...publicContracts,
   'LICENSE', 'README.md', 'THIRD_PARTY_NOTICES.md', 'PRIVACY.md', 'TERMS.md',
   'SUPPORT.md', 'CHANGELOG.md'
 ]

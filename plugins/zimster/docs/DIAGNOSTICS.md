@@ -22,6 +22,10 @@ Codex-mirror state, structural package status, harness verification status, and
 each capability classification. It writes no warning output on a healthy
 package.
 
+Concrete model mapping values are hidden and not revealed by default. The
+routing section reports only mode, policy, strict-cost state, layer digests,
+source names, and candidate counts; this is intentional privacy redaction.
+
 Verification failures print a compact `failed_step` and action while preserving
 complete stdout/stderr under the Git-local verification log directory. Inspect
 that referenced log rather than rerunning the entire profile. Use

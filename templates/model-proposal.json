@@ -3,6 +3,7 @@
   "id": "proposal-001",
   "delegation_id": "delegation-001",
   "run_id": "run-001",
+  "session_id": null,
   "phase": "plan",
   "authority": "advisory",
   "capability_class": "balanced",

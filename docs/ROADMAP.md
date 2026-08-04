@@ -15,6 +15,20 @@
 - Enforced Claude reviewer roles and honest Cursor, Kimi, OpenCode, and Pi
   adapter validation.
 
+## Completed in 0.5 — Semantic assurance
+
+- Stable requirement IDs, exact-tree evidence, immutable review packages, and
+  deterministic candidate-completion decisions.
+
+## Public beta in 0.6
+
+- Delegation separated from policy-bounded model routing.
+- Optional mappings, truthful requested/effective accounting, and removable
+  adapter overrides.
+- Bounded autonomous convergence and frozen self-hosting bootstrap policy.
+- Consolidated installation, lifecycle, privacy, limitations, and migration
+  guidance. All-six live host proof remains a release blocker.
+
 ## Next — Evaluation campaign
 
 - Port Superpowers go-fractals and planted-defect scenarios where licensing and

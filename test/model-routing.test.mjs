@@ -47,7 +47,8 @@ test('ROUTE-001 and ROUTE-005: plan proposals are advisory and dispatch proposal
     harness: 'codex',
     harnessVersion: '0.146.0',
     capabilityDigest: 'cap-a',
-    catalogDigest: 'catalog-a'
+    catalogDigest: 'catalog-a',
+    sessionId: 'session-1'
   };
   const plan = createModelProposal({ ...common, phase: 'plan' });
   assert.equal(plan.authority, 'advisory');
@@ -136,10 +137,18 @@ test('DEL-003 and ROUTE-001: proposal task role must match the selected bounded 
   assert.throws(() => createModelProposal({
     delegation: selected,
     phase: 'dispatch',
+    sessionId: 'session-1',
     capabilityClass: 'balanced',
     reasoningEffort: 'medium',
     taskSignature: { role: 'different-role', risk: 'standard' }
   }), /task.*role|delegation.*role|mismatch/i);
+});
+
+test('ROUTE-005: dispatch proposals require a physical session binding', () => {
+  assert.throws(() => createModelProposal({
+    delegation: selected, phase: 'dispatch', capabilityClass: 'balanced',
+    reasoningEffort: 'medium', taskSignature: { role: selected.role }
+  }), /session/i);
 });
 
 function dispatchProposal(overrides = {}) {
@@ -158,6 +167,7 @@ function dispatchProposal(overrides = {}) {
     harnessVersion: '0.146',
     capabilityDigest: 'cap-a',
     catalogDigest: 'catalog-a',
+    sessionId: 'session-1',
     ...overrides
   });
 }
