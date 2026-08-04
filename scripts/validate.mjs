@@ -92,22 +92,28 @@ for (const relative of [
   'docs/DIAGNOSTICS.md', 'docs/EVALUATION.md', 'docs/OPERATIONS.md',
   'docs/RELEASING.md', 'docs/RESEARCH.md', 'docs/SKILLS_ONLY.md',
   'docs/UPSTREAM.md',
-  'scripts/evidence.mjs', 'scripts/change-snapshot.mjs', 'scripts/dispatch-record.mjs',
+  'scripts/evidence.mjs', 'scripts/change-snapshot.mjs', 'scripts/delegation-record.mjs',
+  'scripts/model-routing.mjs', 'scripts/dispatch-record.mjs',
   'scripts/verify.mjs', 'scripts/archive-safety.mjs', 'scripts/secret-scan.mjs',
   'scripts/installed-package-smoke.mjs', 'scripts/host-smoke.mjs',
   'scripts/review-package.mjs', 'scripts/capability-cache.mjs',
   'scripts/semantic-assurance.mjs', 'scripts/lib/semantic-assurance.mjs',
-  'scripts/lib/evidence-validity.mjs',
+  'scripts/lib/evidence-validity.mjs', 'scripts/lib/config-layers.mjs',
+  'scripts/lib/model-routing.mjs',
   'scripts/run-postmortem.mjs', 'scripts/evaluate-execution-economy.mjs',
   'docs/evaluations/v0.3.0-hardening-postmortem.md',
   'scripts/check-version.mjs', 'scripts/bump-version.mjs', 'scripts/checksums.mjs', 'config/model-routing.json',
   'config/host-smoke.json',
   'schemas/evidence.schema.json', 'schemas/dispatch.schema.json',
+  'schemas/delegation-decision.schema.json', 'schemas/model-proposal.schema.json',
+  'schemas/zimster-config.schema.json',
   'schemas/binding-requirements.schema.json',
   'schemas/requirement-matrix.schema.json',
   'schemas/semantic-review.schema.json', 'schemas/review-records.schema.json',
   'schemas/completion-decision.schema.json',
-  'templates/binding-requirements.json', 'templates/requirement-matrix.json'
+  'templates/binding-requirements.json', 'templates/requirement-matrix.json',
+  'templates/zimster-config.json', 'templates/delegation-decision.json',
+  'templates/model-proposal.json'
 ]) {
   try { if (!(await stat(path.join(root, relative))).isFile()) errors.push(`${relative}: not a file`); }
   catch { errors.push(`${relative}: missing`); }

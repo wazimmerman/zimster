@@ -1,0 +1,12 @@
+{
+  "schema_version": 1,
+  "routing": {
+    "mode": "inherit",
+    "policy": "balanced",
+    "strict_cost": false,
+    "mappings": {}
+  },
+  "autonomous_convergence": {
+    "enabled": false
+  }
+}

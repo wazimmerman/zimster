@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wazimmerman/zimster/schemas/delegation-decision.schema.json",
+  "title": "Zimster delegation decision",
+  "type": "object",
+  "required": ["schema_version", "id", "run_id", "selected", "reason", "inline_assessment", "created_at"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "id": { "type": "string", "minLength": 1 },
+    "run_id": { "type": "string", "minLength": 1 },
+    "selected": { "type": "boolean" },
+    "reason": { "type": "string", "minLength": 1 },
+    "inline_assessment": { "type": "string", "minLength": 1 },
+    "role": { "type": "string", "minLength": 1 },
+    "ownership": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "tool_restrictions": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "dependency_cone": { "type": "array", "minItems": 1, "items": { "type": "string", "minLength": 1 } },
+    "stop_condition": { "type": "string", "minLength": 1 },
+    "acceptance_proof": { "type": "string", "minLength": 1 },
+    "created_at": { "type": "string", "format": "date-time" }
+  },
+  "allOf": [{
+    "if": { "properties": { "selected": { "const": true } }, "required": ["selected"] },
+    "then": { "required": ["role", "ownership", "tool_restrictions", "dependency_cone", "stop_condition", "acceptance_proof"] },
+    "else": { "not": { "anyOf": [
+      { "required": ["role"] }, { "required": ["ownership"] }, { "required": ["tool_restrictions"] },
+      { "required": ["dependency_cone"] }, { "required": ["stop_condition"] }, { "required": ["acceptance_proof"] }
+    ] } }
+  }],
+  "additionalProperties": false
+}

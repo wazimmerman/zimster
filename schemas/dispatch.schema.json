@@ -2,88 +2,63 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://github.com/wazimmerman/zimster/schemas/dispatch.schema.json",
   "title": "Zimster subagent dispatch record",
-  "type": "object",
-  "required": [
-    "schema_version",
-    "id",
-    "role",
-    "purpose",
-    "tier",
-    "requested_model",
-    "requested_effort",
-    "effective_model",
-    "effective_effort",
-    "turn_limit",
-    "created_at"
-  ],
-  "properties": {
-    "schema_version": {
-      "const": 1
+  "oneOf": [
+    {
+      "type": "object",
+      "required": ["schema_version", "id", "role", "purpose", "tier", "requested_model", "requested_effort", "effective_model", "effective_effort", "turn_limit", "created_at"],
+      "properties": {
+        "schema_version": { "const": 1 },
+        "id": { "type": "string", "minLength": 1 },
+        "role": { "type": "string", "minLength": 1 },
+        "purpose": { "type": "string", "minLength": 1 },
+        "tier": { "enum": ["fast", "standard", "expert"] },
+        "requested_model": { "type": "string", "minLength": 1 },
+        "requested_effort": { "type": "string", "minLength": 1 },
+        "effective_model": { "type": "string", "minLength": 1 },
+        "effective_effort": { "type": "string", "minLength": 1 },
+        "turn_limit": { "type": "integer", "minimum": 1 },
+        "created_at": { "type": "string" }
+      },
+      "additionalProperties": true
     },
-    "id": {
-      "type": "string",
-      "minLength": 1
-    },
-    "role": {
-      "type": "string",
-      "minLength": 1
-    },
-    "purpose": {
-      "type": "string",
-      "minLength": 1
-    },
-    "tier": {
-      "enum": [
-        "fast",
-        "standard",
-        "expert"
-      ]
-    },
-    "requested_model": {
-      "type": "string",
-      "minLength": 1
-    },
-    "requested_effort": {
-      "type": "string",
-      "minLength": 1
-    },
-    "effective_model": {
-      "type": "string",
-      "minLength": 1
-    },
-    "effective_effort": {
-      "type": "string",
-      "minLength": 1
-    },
-    "turn_limit": {
-      "type": "integer",
-      "minimum": 1
-    },
-    "created_at": {
-      "type": "string"
-    },
-    "commit_permission": {
-      "enum": [
-        "none",
-        "dedicated-branch",
-        "owner-approved"
-      ]
-    },
-    "ownership": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "completed_at": {
-      "type": [
-        "string",
-        "null"
-      ]
-    },
-    "warning": {
-      "type": "string"
+    {
+      "type": "object",
+      "required": ["schema_version", "id", "run_id", "delegation_id", "proposal_id", "resolution_id", "role", "purpose", "capability_class", "requested_model", "requested_effort", "effective_model", "effective_effort", "availability", "enforcement", "effective_reporting", "resolution_mode", "mapping_source", "mapping_digest", "fallback_trace", "turn_limit", "owner_acceptance", "created_at"],
+      "properties": {
+        "schema_version": { "const": 2 },
+        "id": { "type": "string", "minLength": 1 },
+        "run_id": { "type": "string", "minLength": 1 },
+        "delegation_id": { "type": "string", "minLength": 1 },
+        "proposal_id": { "type": "string", "minLength": 1 },
+        "resolution_id": { "type": "string", "minLength": 1 },
+        "role": { "type": "string", "minLength": 1 },
+        "purpose": { "type": "string", "minLength": 1 },
+        "capability_class": { "enum": ["economy", "balanced", "expert", "inherit"] },
+        "requested_model": { "type": "string", "minLength": 1 },
+        "requested_effort": { "type": "string", "minLength": 1 },
+        "effective_model": { "type": "string", "minLength": 1 },
+        "effective_effort": { "type": "string", "minLength": 1 },
+        "availability": { "type": "string", "minLength": 1 },
+        "enforcement": { "type": "string", "minLength": 1 },
+        "effective_reporting": { "type": "string", "minLength": 1 },
+        "resolution_mode": { "enum": ["recommend", "map_only", "auto_within_policy", "inherit"] },
+        "mapping_source": { "type": "string", "minLength": 1 },
+        "mapping_digest": { "type": "string", "minLength": 1 },
+        "fallback_trace": { "type": "array", "items": { "type": "string" } },
+        "turn_limit": { "type": "integer", "minimum": 1 },
+        "owner_acceptance": {
+          "type": "object",
+          "required": ["status", "proof", "accepted_at"],
+          "properties": {
+            "status": { "enum": ["pending", "accepted", "rejected"] },
+            "proof": { "type": ["string", "null"] },
+            "accepted_at": { "type": ["string", "null"] }
+          },
+          "additionalProperties": false
+        },
+        "created_at": { "type": "string" }
+      },
+      "additionalProperties": true
     }
-  },
-  "additionalProperties": true
+  ]
 }

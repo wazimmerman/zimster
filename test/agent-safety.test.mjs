@@ -38,10 +38,14 @@ test('integration reviewer falsifies claims and separates semantic and checkout 
 
 test('model routing is explicit and auditable', async () => {
   const routing = JSON.parse(await read('config/model-routing.json'));
-  assert.deepEqual(Object.keys(routing.tiers), ['fast', 'standard', 'expert']);
+  assert.deepEqual(Object.keys(routing.capability_classes), ['economy', 'balanced', 'expert', 'inherit']);
+  assert.deepEqual(routing.legacy_aliases, { fast: 'economy', standard: 'balanced', expert: 'expert' });
+  assert.equal(routing.default_mode, 'inherit');
   for (const role of ['scout', 'integration-reviewer', 'test-reviewer', 'diagnostician']) {
     assert.ok(routing.roles[role], `missing routing for ${role}`);
   }
+  assert.equal(JSON.stringify(routing).includes('gpt-'), false);
+  assert.equal(JSON.stringify(routing).includes('claude-'), false);
   const owner = await read('skills/owner-driven-development/SKILL.md');
   assert.match(owner, /requested model.*effective model|effective model.*requested model/is);
   assert.match(owner, /dispatch record/i);

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { parseOptions, required, integerOption, writeError, writeLine } from './lib/cli.mjs';
 import { findRepoRoot } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory, migrateLegacyJsonlStore } from './lib/runtime.mjs';
+import { normalizeCapabilityClass, validateDelegationDecision } from './lib/model-routing.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
@@ -11,6 +12,7 @@ const root = findRepoRoot(process.cwd());
 let directory;
 let file;
 const tiers = new Set(['fast', 'standard', 'expert']);
+const capabilityClasses = new Set(['economy', 'balanced', 'expert', 'inherit']);
 
 async function init() {
   const runtime = await ensureRuntimeDirectory(root);
@@ -39,6 +41,35 @@ function addInheritanceWarning(row) {
   return row;
 }
 
+function normalizeLegacy(row) {
+  if (row.schema_version !== 1) return row;
+  return {
+    ...row,
+    capability_class: normalizeCapabilityClass(row.tier),
+    delegation_id: 'legacy_unavailable',
+    proposal_id: 'legacy_unavailable',
+    resolution_id: 'legacy_unavailable',
+    availability: 'legacy_unavailable',
+    enforcement: 'legacy_unavailable',
+    fallback_trace: ['legacy_unavailable'],
+    owner_acceptance: { status: 'legacy_unavailable' }
+  };
+}
+
+async function runtimeRows(runtime, ...segments) {
+  try {
+    return (await readFile(path.join(runtime, ...segments), 'utf8'))
+      .split('\n').filter(Boolean).map((line) => JSON.parse(line));
+  } catch (error) {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  }
+}
+
+async function replaceRuntimeRows(runtime, records, ...segments) {
+  await writeFile(path.join(runtime, ...segments), records.map((row) => JSON.stringify(row)).join('\n') + (records.length ? '\n' : ''));
+}
+
 async function main() {
   if (action === 'init') {
     await init();
@@ -47,7 +78,11 @@ async function main() {
   }
   if (action === 'list') {
     await init();
-    process.stdout.write(await readFile(file, 'utf8'));
+    if (options.normalized === true) {
+      for (const row of await rows()) writeLine(JSON.stringify(normalizeLegacy(row)));
+    } else {
+      process.stdout.write(await readFile(file, 'utf8'));
+    }
     return;
   }
   if (action === 'update') {
@@ -65,6 +100,65 @@ async function main() {
     return;
   }
   if (action !== 'record') throw new Error('Usage: dispatch-record.mjs <init|record|update|list>');
+
+  if (options['delegation-id']) {
+    const runtime = await ensureRuntimeDirectory(root);
+    const decisions = await runtimeRows(runtime, 'delegation', 'decisions.jsonl');
+    const decision = decisions.find((item) => item.id === String(options['delegation-id']));
+    if (!decision) throw new Error(`delegation decision not found: ${options['delegation-id']}`);
+    validateDelegationDecision(decision);
+    if (!decision.selected) throw new Error('dispatch forbidden because delegation is not selected');
+    const proposals = await runtimeRows(runtime, 'routing', 'proposals.jsonl');
+    const proposal = proposals.find((item) => item.id === required(options, 'proposal-id'));
+    if (!proposal) throw new Error(`model proposal not found: ${options['proposal-id']}`);
+    if (proposal.phase !== 'dispatch' || proposal.authority !== 'authoritative') throw new Error('dispatch requires an authoritative dispatch proposal');
+    if (proposal.status !== 'active') throw new Error(`proposal is ${proposal.status}; proposals are single-use`);
+    if (proposal.superseded_by) throw new Error('proposal is superseded');
+    if (proposal.delegation_id !== decision.id) throw new Error('proposal does not belong to the delegation decision');
+    const resolutions = await runtimeRows(runtime, 'routing', 'resolutions.jsonl');
+    const resolution = resolutions.find((item) => item.id === required(options, 'resolution-id'));
+    if (!resolution || resolution.proposal_id !== proposal.id) throw new Error('authoritative routing resolution not found for proposal');
+    const capabilityClass = required(options, 'capability-class');
+    if (!capabilityClasses.has(capabilityClass)) throw new Error('--capability-class must be economy, balanced, expert, or inherit');
+    const row = {
+      schema_version: 2,
+      id: randomUUID(),
+      run_id: decision.run_id,
+      delegation_id: decision.id,
+      proposal_id: proposal.id,
+      resolution_id: resolution.id,
+      role: required(options, 'role'),
+      purpose: required(options, 'purpose'),
+      capability_class: capabilityClass,
+      requested_model: resolution.requested_model,
+      requested_effort: resolution.requested_effort,
+      effective_model: String(options['effective-model'] || 'unverified'),
+      effective_effort: String(options['effective-effort'] || 'unverified'),
+      availability: resolution.availability,
+      enforcement: resolution.enforcement,
+      effective_reporting: resolution.effective_reporting,
+      resolution_mode: resolution.mode,
+      mapping_source: resolution.mapping_source,
+      mapping_digest: resolution.mapping_digest,
+      fallback_trace: resolution.fallback_trace,
+      parent_model: options['parent-model'] ? String(options['parent-model']) : null,
+      agent_id: options['agent-id'] ? String(options['agent-id']) : null,
+      turn_limit: integerOption(options, 'turn-limit', 12),
+      commit_permission: String(options['commit-permission'] || 'none'),
+      ownership: decision.ownership,
+      output_path: options.output ? String(options.output) : null,
+      owner_acceptance: { status: 'pending', proof: null, accepted_at: null },
+      created_at: new Date().toISOString()
+    };
+    await init();
+    await appendFile(file, `${JSON.stringify(row)}\n`);
+    proposal.status = 'consumed';
+    proposal.consumed_by = row.id;
+    proposal.consumed_at = new Date().toISOString();
+    await replaceRuntimeRows(runtime, proposals, 'routing', 'proposals.jsonl');
+    writeLine(JSON.stringify(row));
+    return;
+  }
 
   const tier = required(options, 'tier');
   if (!tiers.has(tier)) throw new Error('--tier must be fast, standard, or expert');

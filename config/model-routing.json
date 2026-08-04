@@ -1,23 +1,40 @@
 {
-  "tiers": {
-    "fast": {
+  "schema_version": 2,
+  "default_mode": "inherit",
+  "default_policy": "balanced",
+  "capability_classes": {
+    "economy": {
       "use_for": ["bounded discovery", "mechanical inventory", "small scoped recheck"],
-      "reasoning_effort": "low-to-medium",
-      "warning": "Do not inherit an expert parent model silently for mechanical work."
+      "reasoning_effort": "low-to-medium"
     },
-    "standard": {
+    "balanced": {
       "use_for": ["bounded implementation", "ordinary debugging", "test-capable review"],
       "reasoning_effort": "medium-to-high"
     },
     "expert": {
       "use_for": ["architecture", "security", "concurrency", "destructive migration", "final integration review"],
       "reasoning_effort": "high-to-maximum"
+    },
+    "inherit": {
+      "use_for": ["portable defaults", "unmapped or unsupported routing"],
+      "reasoning_effort": "inherit"
     }
   },
+  "legacy_aliases": {
+    "fast": "economy",
+    "standard": "balanced",
+    "expert": "expert"
+  },
   "roles": {
-    "scout": { "tier": "fast", "turn_limit": 12 },
-    "integration-reviewer": { "tier": "expert", "turn_limit": 24 },
-    "test-reviewer": { "tier": "standard", "turn_limit": 24 },
-    "diagnostician": { "tier": "expert", "turn_limit": 24 }
+    "scout": { "capability_class": "economy", "turn_limit": 12 },
+    "integration-reviewer": { "capability_class": "expert", "turn_limit": 24 },
+    "test-reviewer": { "capability_class": "balanced", "turn_limit": 24 },
+    "diagnostician": { "capability_class": "expert", "turn_limit": 24 },
+    "bounded_implementer": { "capability_class": "balanced", "turn_limit": 24 }
+  },
+  "algorithms": {
+    "candidate_ties": "declaration_order",
+    "maximum_class_escalations": 1,
+    "unmapped_fallback": "inherit"
   }
 }

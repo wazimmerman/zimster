@@ -1,0 +1,9 @@
+{
+  "schema_version": 1,
+  "id": "delegation-001",
+  "run_id": "run-001",
+  "selected": false,
+  "reason": "persistent owner retains the coherent implementation slice",
+  "inline_assessment": "delegation does not materially improve this task",
+  "created_at": "2026-08-04T00:00:00.000Z"
+}

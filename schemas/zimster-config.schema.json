@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wazimmerman/zimster/schemas/zimster-config.schema.json",
+  "title": "Zimster configuration",
+  "type": "object",
+  "required": ["schema_version", "routing"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "routing": {
+      "type": "object",
+      "required": ["mode", "policy"],
+      "properties": {
+        "mode": { "enum": ["recommend", "map_only", "auto_within_policy", "inherit"] },
+        "policy": { "enum": ["quality_first", "balanced", "cost_optimized"] },
+        "strict_cost": { "type": "boolean" },
+        "mappings": { "type": "object" }
+      },
+      "additionalProperties": false
+    },
+    "autonomous_convergence": { "type": "object" }
+  },
+  "additionalProperties": false
+}
