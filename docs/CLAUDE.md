@@ -2,11 +2,12 @@
 
 ## Verification status
 
-Verification level: `STRUCTURALLY_VALIDATED`. The Claude package is validated against the primary plugin,
-hook, subagent, worktree, and marketplace documentation accessed on 2026-07-27.
-The Claude CLI is unavailable in the current development environment, so
-plugin loading, discovery, installation, resume, and compaction are not claimed
-as live verified.
+Verification level: Structurally validated (`STRUCTURALLY_VALIDATED`). This
+establishes the package manifest, hook, subagent, worktree, and marketplace
+structure against primary documentation accessed on 2026-07-27. It does not
+establish authenticated host verification, live model-backed execution, or
+full runtime verification. The Claude CLI is unavailable here, so plugin
+loading, discovery, installation, resume, and compaction are not live verified.
 
 Run Zimster’s dependency-free contract check:
 

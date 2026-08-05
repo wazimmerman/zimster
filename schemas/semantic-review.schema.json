@@ -58,7 +58,19 @@
         "self_review_only"
       ]
     },
-    "findings": {"type": "array", "items": {"type": "object"}},
+    "findings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["severity", "summary"],
+        "properties": {
+          "severity": {"enum": ["Critical", "Important", "Minor"]},
+          "summary": {"type": "string", "minLength": 1},
+          "count": {"type": "integer", "minimum": 1}
+        },
+        "additionalProperties": false
+      }
+    },
     "unverified_obligations": {
       "type": "array",
       "items": {"type": "string", "minLength": 1}

@@ -115,12 +115,40 @@ test('approved clean-context independent review satisfies the exact Standard can
 });
 
 test('an approved review cannot carry load-bearing findings or unresolved obligations', () => {
-  assert.throws(() => validateReviewRecord(review({
-    findings: [{ severity: 'Critical', summary: 'completion gate bypass' }]
-  })), /approved.*finding|contradict/i);
+  for (const severity of ['Critical', 'Important']) {
+    assert.throws(() => validateReviewRecord(review({
+      findings: [{ severity, summary: 'completion gate bypass' }]
+    })), /approved.*finding|contradict/i);
+  }
   assert.throws(() => validateReviewRecord(review({
     unverified_obligations: ['Exact-head verification remains unresolved.']
   })), /approved.*obligation|contradict/i);
+});
+
+test('review finding severity is canonical and fails closed before approval', () => {
+  for (const severity of ['critical', 'IMPORTANT', 'ImPoRtAnT', 'unknown', '', null, {}, []]) {
+    assert.throws(() => validateReviewRecord(review({
+      findings: [{ severity, summary: 'must not be ignored' }]
+    })), /finding.*severity|severity.*Critical.*Important.*Minor/i);
+  }
+  assert.throws(() => validateReviewRecord(review({
+    findings: [{ severity: 'Minor', summary: '' }]
+  })), /finding.*summary/i);
+  assert.throws(() => validateReviewRecord(review({
+    findings: [{ severity: 'Minor', summary: 'valid content', ambiguous: true }]
+  })), /finding.*unsupported|unsupported.*finding/i);
+
+  assert.doesNotThrow(() => validateReviewRecord(review({
+    findings: [{ severity: 'Minor', summary: 'non-load-bearing observation' }]
+  })));
+  assert.doesNotThrow(() => validateReviewRecord(review({
+    verdict: 'needs_correction',
+    findings: [{
+      severity: 'Important',
+      count: 4,
+      summary: 'Canonical historical schema-v1 finding remains readable.'
+    }]
+  })));
 });
 
 test('checkout integrity never substitutes for semantic approval', () => {

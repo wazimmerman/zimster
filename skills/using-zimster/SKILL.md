@@ -5,9 +5,8 @@ description: Select the smallest Zimster workflow and risk profile that material
 
 # Using Zimster
 
-One capable agent normally owns coherent implementation with disciplined
-planning, RED-GREEN-REFACTOR, debugging, independent review, worktree
-isolation, and evidence-based completion.
+One capable agent normally owns planning, implementation, RED-GREEN-REFACTOR,
+debugging, independent review, worktree isolation, and evidence-based completion.
 
 <SUBAGENT-STOP>
 A subagent follows its bounded assignment and named skill. It does not restart
@@ -16,8 +15,7 @@ the full workflow or recruit more agents.
 
 ## Select the smallest workflow
 
-Do not load every skill, create a plan, or dispatch an agent merely because the
-mechanism exists.
+Load skills, plan, or dispatch only when the mechanism materially helps.
 
 | Situation | Load |
 |---|---|
@@ -38,25 +36,24 @@ Always report the selected profile and its risk rationale before implementation.
 
 ### Micro
 
-Use Micro only when all dimensions are Low and all of these are true:
+Use Micro only when every dimension is Low and all of these are true:
 
 - one coherent vertical slice;
 - local blast radius;
 - no public compatibility contract;
-- no meaningful concurrency, security, destructive data, external service,
-  native OS, or hardware boundary;
+- no meaningful concurrency, security, destructive-data, external-service,
+  native-OS, or hardware boundary;
 - deterministic automated proof;
-- no independent review is required.
+- no independent review.
 
 The owner implements, runs focused/affected proofs, and performs fresh final
 verification.
 
 ### Standard
 
-Use Standard when the change is subsystem-sized, crosses components, or has
-one or more Medium dimensions but no High dimension or hard trigger. The owner
-implements vertical slices and obtains one seam or integration review where the
-medium risk concentrates.
+Use Standard for subsystem or cross-component work with Medium dimensions but
+no High dimension or hard trigger. The owner implements vertical slices and
+reviews the concentrated seam or integration.
 
 ### High risk
 
@@ -107,8 +104,8 @@ reported by `git rev-parse --git-path zimster/run.md`, outside product history:
 - the work may span compaction;
 - a prior session or interrupted run is being resumed.
 
-A Micro task may omit durable state only when none of those conditions apply.
-Keep the record compact: mission, profile/rationale, branch disposition,
+A Micro task may omit state only when none apply. Keep the record compact:
+mission, profile/rationale, branch disposition,
 architecture, slice status, evidence IDs, dispatch records, risks, unavailable
 proof, and next action. Do not paste full logs or transcripts.
 
@@ -140,11 +137,10 @@ Default limits:
 
 ## Cost controls
 
-Use focused tests during iteration, affected suites at slice boundaries, and
-full required gates once on final code. At about 60% of a stated budget, report
-the largest consumers. At about 80%, stop optional delegation and polish,
-consolidate findings, and prioritize required proof. Never lower a required
-quality gate silently.
+Use focused tests while iterating, affected suites at slice boundaries, and
+full required gates once. Around 60% of a stated budget, report its largest
+consumers. Around 80%, stop optional work and prioritize required proof.
+Never lower a required quality gate silently.
 
 Initialize the machine-readable execution budget for Standard and High-risk
 runs. Record suites, duplicates, agent identities/depth, rechecks,
@@ -159,9 +155,9 @@ exhaustion. Host permission prompts remain authoritative.
 
 ## Logical ownership and phase checkpoints
 
-The logical owner is continuous even when the physical context is deliberately
-renewed. At each coherent vertical-slice boundary, create a phase checkpoint
-containing only the mission digest, hard invariants, architecture, slice
+The logical owner is continuous across renewed physical contexts. At each
+vertical-slice boundary, checkpoint only the mission digest, hard invariants,
+architecture, slice
 commits, valid receipt references, findings, unavailable evidence, exact next
 slice/dependency cone, and budget position. Full objectives, passing logs,
 diffs, and transcripts remain outside the checkpoint. On continuation, resume
@@ -169,9 +165,8 @@ from that checkpoint and reload only the next dependency cone.
 
 ## Deterministic verification and evidence reuse
 
-Once available, use `npm run goal:verify` for goal gates and
-`npm run release:verify` for release gates instead of issuing their constituent
-commands separately. Keep full logs in Git-local artifacts and return the
+Use `npm run goal:verify` and `npm run release:verify` once available instead of
+their constituent commands. Keep full logs in Git-local artifacts and return the
 compact receipt summary to the active context. Before repeating a broad
 command, check for a valid receipt keyed to the current tree, dirty state,
 environment, exact argv, dependency cone, and inputs. Required fresh final
@@ -187,7 +182,7 @@ candidate test.
 
 ## Capability research and postmortem
 
-Consult the dated capability cache only for the host in scope. Refresh for
+Consult the dated capability cache only for the in-scope host. Refresh for
 expiry, changed host version/integration, validator contradiction, or explicit
 request. The postmortem keeps observed, inferred, and unavailable metrics
 distinct and never sums incompatible token meters.

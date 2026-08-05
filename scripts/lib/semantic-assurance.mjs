@@ -36,6 +36,8 @@ const RELEASE_HOST_POLICIES = Object.freeze({
     required_live_host_ids: PUBLIC_BETA_HOST_IDS
   })
 });
+const REVIEW_FINDING_SEVERITIES = Object.freeze(['Critical', 'Important', 'Minor']);
+const REVIEW_FINDING_FIELDS = Object.freeze(['severity', 'summary', 'count']);
 
 export const REVIEW_TYPES = Object.freeze([
   'self_review',
@@ -220,6 +222,27 @@ function requireString(record, field) {
   }
 }
 
+function validateReviewFinding(finding, index) {
+  if (!finding || typeof finding !== 'object' || Array.isArray(finding)) {
+    throw new Error(`review finding ${index} must be an object`);
+  }
+  const unsupportedFields = Object.keys(finding)
+    .filter((field) => !REVIEW_FINDING_FIELDS.includes(field));
+  if (unsupportedFields.length) {
+    throw new Error(`review finding ${index} has unsupported fields: ${unsupportedFields.join(', ')}`);
+  }
+  if (!REVIEW_FINDING_SEVERITIES.includes(finding.severity)) {
+    throw new Error(`review finding ${index} severity must be Critical, Important, or Minor`);
+  }
+  if (typeof finding.summary !== 'string' || !finding.summary.trim()) {
+    throw new Error(`review finding ${index} requires summary`);
+  }
+  if (finding.count !== undefined && (!Number.isInteger(finding.count) || finding.count < 1)) {
+    throw new Error(`review finding ${index} count must be a positive integer`);
+  }
+  return finding;
+}
+
 export function validateReviewRecord(record) {
   if (!record || typeof record !== 'object' || Array.isArray(record)) {
     throw new Error('review record must be an object');
@@ -263,8 +286,9 @@ export function validateReviewRecord(record) {
   if (!['approved', 'needs_correction', 'blocked_by_missing_evidence', 'self_review_only'].includes(record.verdict)) {
     throw new Error('review record has an unsupported verdict');
   }
+  const validatedFindings = record.findings.map(validateReviewFinding);
   if (record.verdict === 'approved') {
-    const loadBearingFindings = record.findings.filter(({ severity }) =>
+    const loadBearingFindings = validatedFindings.filter(({ severity }) =>
       ['Critical', 'Important'].includes(severity)
     );
     if (loadBearingFindings.length) {
