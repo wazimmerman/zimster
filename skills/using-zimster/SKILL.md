@@ -15,7 +15,7 @@ the full workflow or recruit more agents.
 
 ## Select the smallest workflow
 
-Load skills, plan, or dispatch only when the mechanism materially helps.
+Do not load every skill; plan or dispatch only when it materially helps.
 
 | Situation | Load |
 |---|---|
@@ -36,9 +36,9 @@ Always report the selected profile and its risk rationale before implementation.
 
 ### Micro
 
-Use Micro only when every dimension is Low and all of these are true:
+Use Micro only when all dimensions are Low and all of these are true:
 
-- one coherent vertical slice;
+- single coherent slice;
 - local blast radius;
 - no public compatibility contract;
 - no meaningful concurrency, security, destructive-data, external-service,
