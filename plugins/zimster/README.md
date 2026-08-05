@@ -1,286 +1,240 @@
-# Zimster
+<p align="center">
+  <img
+    src="assets/zimster-logo.png"
+    alt="Zimster"
+    width="720"
+  >
+</p>
 
-Version 0.6.0 (public beta).
+<p align="center">
+  <strong>Proof-first development without orchestration bloat.</strong>
+</p>
 
-Zimster 0.6.0 is a public-beta, proof-first, owner-driven
-software-development workflow for capable
-coding agents. It retains the parts of disciplined agentic development that
-earn their cost—RED-GREEN-REFACTOR, systematic debugging, isolated Git work,
-independent review, and evidence before completion—while removing
-plan-task-driven agent multiplication.
+<p align="center">
+  <a href="docs/INSTALL.md">Install</a>
+  ·
+  <a href="docs/CONFIGURATION.md">Configure</a>
+  ·
+  <a href="https://github.com/wazimmerman/zimster/releases">Releases</a>
+  ·
+  <a href="docs/ARCHITECTURE.md">Documentation</a>
+  ·
+  <a href="https://github.com/wazimmerman/zimster/issues">Report an issue</a>
+</p>
 
-The default is one persistent implementation owner working in coherent vertical
-slices. Delegation is optional and bounded. Zimster decides whether delegation
-materially improves the task before considering model routing, so cheaper model
-availability never increases delegation frequency.
+<p align="center">
+  <a href="https://github.com/wazimmerman/zimster/releases/tag/v0.6.0"><img alt="Current public-beta release: v0.6.0" src="https://img.shields.io/badge/public_beta-v0.6.0-5b8def"></a>
+  <a href="https://github.com/wazimmerman/zimster/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/wazimmerman/zimster/actions/workflows/ci.yml/badge.svg"></a>
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-2ea44f"></a>
+</p>
 
-## What Zimster retains from Superpowers
+## What Zimster is
 
-- RED-GREEN-REFACTOR with meaningful, behavior-specific RED evidence.
-- Reproduction-first systematic debugging and regression proof.
-- Explicit design/planning for consequential choices.
-- Git branch/worktree isolation.
-- Independent review and technical review adjudication.
-- Fresh evidence before completion claims.
-- Durable progress state for work that may span contexts.
-- Cross-harness adapters and deterministic packaging patterns.
+Zimster is a proof-first software-development workflow for capable coding
+agents. It is built for developers and engineering teams that want one
+persistent implementation owner, meaningful RED-GREEN-REFACTOR, selective
+delegation, risk-focused review, and fresh evidence behind every completion
+claim—without making multi-agent orchestration the default.
 
-## What Zimster changes
+## Why developers use it
 
-- One persistent owner instead of a fresh implementer per plan task.
-- Vertical slices instead of horizontal microtask layers.
-- Deterministic Micro, Standard, and High-risk profiles.
-- Review at risky architectural seams rather than every heading.
-- Bounded correction/recheck accounting plus a separately reserved exact-final-head review.
-- At most two parallel implementers by default; no sub-subagents.
-- Explicit Git/commit disposition and complete untracked-file review.
-- Auditable requested/effective model records.
-- Harness-neutral economy, balanced, expert, and inherit proposals with
-  optional user mappings and policy-bounded fallbacks.
-- Bounded autonomous convergence for ordinary deterministic local failures.
-- Local evidence receipts that detect stale and duplicate commands.
-- Stable-ID requirement-to-evidence matrices and proof-bounded acceptance
-  claims.
-- Explicit `self_review` versus clean-context `independent_review`.
-- Separate semantic verdict and reviewer-checkout integrity statuses.
-- Honest states for code, integration, services, hardware, requirements, and
-  human acceptance.
+- **Coherent ownership:** one persistent owner carries context across design,
+  implementation, correction, and verification.
+- **Behavior-specific TDD:** tests demonstrate that each load-bearing behavior
+  can fail before implementation makes it pass.
+- **Bounded delegation:** separate workers are used only for tasks where the
+  expected benefit justifies the coordination cost.
+- **Risk-adaptive review:** independent review concentrates on architectural
+  seams and integration points where defects would matter most.
+- **Evidence-backed completion:** fresh, scoped proof supports each requirement
+  and prevents stale results from becoming completion claims.
+- **Honest unavailable-proof states:** blocked environments, missing services,
+  and unavailable reviewers narrow the claim instead of being treated as
+  success.
+- **Deliberate model selection:** routing begins only after delegation has
+  already been justified.
+- **Bounded autonomous correction:** ordinary deterministic failures are fixed
+  within an explicit convergence budget without unnecessary interruption.
+
+## Quick start
+
+### Codex
+
+Clone the repository, register it as a Git/custom marketplace, and install the
+plugin:
+
+```text
+git clone https://github.com/wazimmerman/zimster.git
+codex plugin marketplace add /absolute/path/to/zimster
+codex plugin add zimster@zimster --json
+```
+
+This is the current public Codex installation path; Zimster does not claim an
+official OpenAI Plugin Directory listing. See the
+[installation guide](docs/INSTALL.md) for isolated validation, updates,
+rollback, and uninstall.
+
+### Claude Code
+
+Add the GitHub repository as a marketplace and install its plugin:
+
+```text
+claude plugin marketplace add wazimmerman/zimster
+claude plugin install zimster@zimster
+```
+
+This uses Zimster's GitHub marketplace and does not claim an official Claude
+marketplace listing.
+
+### Skills only
+
+Portable skills can be synchronized from a checkout or extracted archive when
+a host-specific plugin is not appropriate. Follow the
+[skills-only installation instructions](docs/INSTALL.md)
+for the supported command and limitations.
+
+## How the workflow works
+
+```text
+classify risk and Git disposition
+→ design only when meaningful choices exist
+→ plan coherent vertical slices
+→ persistent owner implements with RED-GREEN-REFACTOR
+→ delegate only when it materially helps
+→ verify affected behavior
+→ review risky seams
+→ correct within bounded convergence rules
+→ independently review the exact final head
+→ map requirements to evidence
+→ make only supported completion claims
+```
+
+The workflow scales its planning, review, and proof requirements with the risk
+of the change while keeping implementation ownership continuous.
+
+## Model-aware delegation
+
+Zimster first decides whether delegation is useful. The availability of a
+cheaper model never causes delegation; only a selected, bounded task receives a
+model proposal. Proposals remain separate from user mappings so recommendations
+cannot silently become routing policy.
+
+Routing can use recommendation (`recommend`), mapping-only (`map_only`),
+automatic-within-policy (`auto_within_policy`), or inherited (`inherit`)
+behavior. Abstract capability classes—`economy`, `balanced`, `expert`, and
+`inherit`—describe task needs rather than hardcoded vendor models. The
+persistent owner verifies delegated implementation, and Zimster reports routing
+enforcement and the effective model only when the harness exposes that evidence.
+
+See [configuration](docs/CONFIGURATION.md) for mappings, precedence, fallback
+rules, and convergence controls.
+
+## Workflow profiles
+
+| Profile | Selected when | Independent review | Expected proof |
+|---|---|---|---|
+| **Micro** | One local, deterministic, low-risk slice; every risk dimension is Low | Not required when every Micro condition is satisfied | Fresh owner verification of the focused and affected behavior |
+| **Standard** | Medium-risk subsystem or multi-component work with no High-risk trigger | Required at the concentrated seam or integration point | Focused and affected proof tied to the exact candidate |
+| **High risk** | Security, public compatibility, concurrency ownership, destructive migration, native boundaries, unstable services, broad architecture, or another hard trigger | Load-bearing review plus exact-final-head independent review | Stronger integration proof for every load-bearing obligation |
 
 ## Supported harnesses
 
-The 0.6.0 public support matrix is claim-scoped. Verification level is one of
-`LIVE_VERIFIED`, `INSTALLED_PACKAGE_VERIFIED`, `STRUCTURALLY_VALIDATED`,
-`BLOCKED_BY_AUTHENTICATION`, `UNAVAILABLE`, or `UNSUPPORTED`; a lower level is
-never promoted to live or model-backed proof.
+Zimster 0.6.0 uses claim-scoped support levels. Installation availability and
+structural validation do not imply live, model-backed execution.
 
-| Harness | Verification level | What was tested | What was not tested | Installation availability | Known limitations |
-|---|---|---|---|---|---|
-| Codex | `INSTALLED_PACKAGE_VERIFIED` | Exact Codex archive installation, provenance, manifest, and pinned validator | Fresh-session skill discovery and model-backed execution | Marketplace/package installation available | Live support is not claimed from package installation alone |
-| Claude Code | `STRUCTURALLY_VALIDATED` | Package, marketplace manifest, skills, agents, hooks, and byte budget | CLI installation, fresh-session discovery, and model-backed execution | GitHub marketplace/package instructions available | CLI was unavailable in the release environment |
-| Cursor | `STRUCTURALLY_VALIDATED` | Portable Agent Skills and project-command structure | Application loading, UI behavior, and model-backed execution | Skills-only installation available | No invented repository plugin or SessionStart contract |
-| Kimi Code | `STRUCTURALLY_VALIDATED` | Native plugin manifest and one `sessionStart.skill` | Managed installation, fresh-session discovery, and model-backed execution | Native plugin installation instructions available | CLI was unavailable; secondary routing remains version-gated |
-| OpenCode | `LIVE_VERIFIED` | Exact portable archive, isolated installation, and fresh-session/config skill discovery | Model-backed task execution and v2-only behavior | Portable project-package installation available | The live receipt establishes discovery, not effective-model identity |
-| Pi | `STRUCTURALLY_VALIDATED` | Package declaration, extension structure, resource discovery fixture, and injection guard | CLI installation, package loading, and model-backed execution | Git/package installation instructions available | Zimster ships no Pi subagent runtime |
+| Harness | Current verification level | Installation path | Principal limitation |
+|---|---|---|---|
+| Codex | `INSTALLED_PACKAGE_VERIFIED` | Git/custom marketplace package | Archive installation, provenance, manifest, and validation passed; fresh-session skill discovery and model-backed execution remain unverified |
+| Claude Code | `STRUCTURALLY_VALIDATED` | GitHub marketplace package | Package structure is validated; CLI installation, discovery, and model-backed execution were unavailable in the release environment |
+| Cursor | `STRUCTURALLY_VALIDATED` | Portable skills-only installation | Loading, UI behavior, and model-backed execution were not live-tested |
+| Kimi Code | `STRUCTURALLY_VALIDATED` | Native plugin installation | Managed installation and fresh-session execution were not live-tested; secondary routing remains version-gated |
+| OpenCode | `LIVE_VERIFIED` | Portable project package | Exact-package installation and fresh-session skill discovery passed; model-backed task execution and effective-model identity remain unverified |
+| Pi | `STRUCTURALLY_VALIDATED` | Git/package installation | Package loading and model-backed execution were not live-tested; Zimster ships no Pi subagent runtime |
 
-The core skills are operating-system-neutral. Cursor, Kimi, OpenCode, and Pi
-support is maintained as portable adapter support; Codex and Claude Code are the
-primary compatibility targets.
+The vocabulary is intentionally narrow:
 
-## Codex packaging
+- `LIVE_VERIFIED` — the named live behavior was observed on the current host.
+- `INSTALLED_PACKAGE_VERIFIED` — exact-package installation and package
+  integrity passed, without implying model-backed execution.
+- `STRUCTURALLY_VALIDATED` — the package or adapter conforms to validated
+  structure, without a live-support claim.
+- `BLOCKED_BY_AUTHENTICATION` — the live check reached an authentication
+  boundary that prevented proof.
+- `UNAVAILABLE` — the required host or capability was not present.
+- `UNSUPPORTED` — Zimster does not provide the claimed integration.
 
-The repository follows the current Codex repo/team marketplace shape:
+For the complete evidence matrix—what was tested, what was not tested,
+installation availability, and known limitations—see the harness guides in
+[the documentation](#documentation) and run `npm run doctor -- --json` from a
+checkout or package.
 
-```text
-.agents/plugins/marketplace.json
-plugins/zimster/
-├── .codex-plugin/plugin.json
-├── skills/
-├── scripts/
-├── config/
-├── schemas/
-└── ...
-```
+## Verification and trust
 
-The Codex manifest omits Claude-only hook fields. `plugins/zimster/` is generated
-from canonical source with `npm run sync:codex`; CI rejects drift with
-`npm run sync:codex:check` and validates the result against a pinned local port
-of the official Codex plugin-creator contract.
+Zimster keeps owner `self_review`, reviewer checkout integrity, independent
+semantic approval, and candidate completion separate. No single status stands
+in for the others.
 
-The Codex ZIP is a repository marketplace package containing both
-`.agents/plugins/marketplace.json` and `plugins/zimster/`.
+- Stable requirement IDs feed a requirement-to-evidence matrix with explicit
+  claim and evidence scope.
+- Evidence receipts bind commands to the relevant tree and dependency cone,
+  allowing stale results to be detected.
+- Exact-head review covers committed ranges plus staged, unstaged, and untracked
+  files.
+- Package layout, archives, and checksums are validated deterministically.
+- Partial, unavailable, and environment-blocked states remain visible instead
+  of being promoted to readiness.
 
-## Claude Code packaging
+The detailed assurance state machine and operational controls are documented in
+[Architecture](docs/ARCHITECTURE.md) and [Operations](docs/OPERATIONS.md).
 
-The Claude archive contains `.claude-plugin/`, `skills/`, `agents/`, `hooks/`,
-and the operational helpers. For local development, point Claude Code's plugin
-development option at the extracted archive or repository, then invoke the
-`using-zimster` skill. Exact validation, isolated installation, update,
-reviewer enforcement, and removal commands are in
-[`docs/CLAUDE.md`](docs/CLAUDE.md).
+## Documentation
 
-## Main workflow
-
-```text
-select profile and Git disposition
-→ mission/design only when choices matter
-→ concise vertical-slice plan
-→ persistent implementation owner
-→ meaningful RED → minimal GREEN → REFACTOR
-→ affected evidence
-→ risk-triggered seam review
-→ bounded correction rechecks without consuming the reserved final review
-→ reserved exact-final-head independent integration review
-→ complete staged/unstaged/untracked review
-→ fresh canonical final gates
-→ requirement/evidence and semantic-review completion gate
-→ explicit branch/commit handoff
-```
-
-## Risk profiles
-
-- **Micro:** all risk dimensions Low, one local slice, no public contract or
-  hard trigger, deterministic proof, no independent review required.
-- **Standard:** one or more Medium dimensions or subsystem/multi-component work,
-  with one review at the concentrated seam.
-- **High risk:** any High dimension or hard trigger such as auth, destructive
-  migration, concurrency ownership, public compatibility, native hardware/OS,
-  unstable service, or live-only evidence.
-
-Every run reports the selected profile and rationale.
-
-## Operational controls
-
-Zimster ships local, dependency-free Node tools. Resolve them from the installed
-Zimster plugin root rather than assuming they exist in the target repository.
-Normal operational state lives under the target worktree's Git administrative
-path and does not appear in the product tree.
-
-```text
-node <zimster-root>/scripts/init-run.mjs --profile standard --reason "two slices"
-node <zimster-root>/scripts/project-commands.mjs <target-repo>
-node <zimster-root>/scripts/change-snapshot.mjs
-node <zimster-root>/scripts/evidence.mjs run --kind test --scope focused -- <command>
-node <zimster-root>/scripts/semantic-assurance.mjs matrix ...
-node <zimster-root>/scripts/semantic-assurance.mjs complete ...
-node <zimster-root>/scripts/dispatch-record.mjs record ...
-```
-
-- `init-run.mjs` creates durable state when deterministic triggers apply.
-- `project-commands.mjs` inventories repository instructions, package scripts,
-  task runners, and CI commands before an agent invents flags.
-- `change-snapshot.mjs` includes committed-range, staged, unstaged, and untracked
-  content without altering the index.
-- `evidence.mjs` binds results to the working-tree fingerprint, command, cwd,
-  environment, test discovery, counts, dependency cone, requirement IDs, and
-  established/excluded claims.
-- `semantic-assurance.mjs` validates complete stable-ID matrix coverage,
-  candidate-tree evidence and claim scope, then gates candidate completion on
-  the selected profile's semantic review.
-- `dispatch-record.mjs` requires selected-delegation, authoritative-proposal,
-  and resolution IDs for new v2 dispatches; historical v1 tier records remain
-  readable and updateable.
-
-See `docs/OPERATIONS.md` for the full policy and command reference.
-See `docs/INSTALL.md` for Codex, Claude Code, and skills-only installation,
-update, rollback, and uninstall; `docs/CONFIGURATION.md` for routing and
-convergence; `docs/KNOWN_LIMITATIONS.md` for beta constraints; and
-`docs/MIGRATING-0.5.0.md` for compatibility guidance.
-See `docs/CODEX.md` for complete package validation, isolated installation,
-cachebuster updates, reinstall, removal, and live skill-discovery status.
-Harness-specific installation, update, removal, diagnostics, and verification
-status are documented in `docs/CLAUDE.md`, `docs/CURSOR.md`, `docs/KIMI.md`,
-`docs/OPENCODE.md`, and `docs/PI.md`.
-See `docs/DIAGNOSTICS.md` for quiet-fallback versus actionable-error semantics,
-`docs/SKILLS_ONLY.md` for script-free synchronization, and
-`docs/RELEASING.md` for the release checklist.
-
-## Git lifecycle
-
-| Context | Default behavior |
+| Topic | Guide |
 |---|---|
-| Disposable/test repository explicitly intended for direct work | Default branch permitted; no automatic commit unless requested |
-| Existing project on default branch | Stop or create a feature branch/worktree before implementation |
-| Existing feature branch/worktree | Commit at verified vertical-slice boundaries |
-| User says “do not commit” | Leave work uncommitted and report staged, unstaged, and untracked disposition |
-| Delegated implementer | Commit only in an isolated branch/worktree with explicit commit permission |
+| Installation and lifecycle | [Install](docs/INSTALL.md) |
+| Routing and convergence | [Configuration](docs/CONFIGURATION.md) |
+| Current constraints | [Known limitations](docs/KNOWN_LIMITATIONS.md) |
+| System design | [Architecture](docs/ARCHITECTURE.md) |
+| Commands and evidence | [Operations](docs/OPERATIONS.md) |
+| Quality and economics | [Evaluation](docs/EVALUATION.md) |
+| Harness research | [Research](docs/RESEARCH.md) |
+| Planned work | [Roadmap](docs/ROADMAP.md) |
+| User support | [Support](SUPPORT.md) |
+| Data handling | [Privacy](PRIVACY.md) |
+| Terms | [Terms](TERMS.md) |
+| Licensing provenance | [Third-party notices](THIRD_PARTY_NOTICES.md) |
 
-The finishing workflow always reports branch, commits, staged files, unstaged
-files, untracked files, reviewed scope, and whether work remains uncommitted.
+Harness-specific installation and evidence details are available for
+[Codex](docs/CODEX.md), [Claude Code](docs/CLAUDE.md),
+[Cursor](docs/CURSOR.md), [Kimi Code](docs/KIMI.md),
+[OpenCode](docs/OPENCODE.md), and [Pi](docs/PI.md).
 
-## TDD falsifiability
+## Public-beta status and known limitations
 
-For a multi-behavior new module, one `ERR_MODULE_NOT_FOUND` failure proves only
-that the module is absent. Zimster requires incremental behavior REDs, a
-purposefully incomplete stub, or targeted mutation checks for each load-bearing
-invariant. This does not require one commit per test; it requires proof that the
-tests can detect the defects they claim to protect.
+Version 0.6.0 is a public beta. The core workflow is usable, while evidence
+levels differ by harness and live model-backed testing has not been completed
+for every integration. Review the [known limitations](docs/KNOWN_LIMITATIONS.md)
+before adoption.
 
-## Verification semantics
+Reproducible issue reports should include the Zimster version, harness version,
+selected workflow profile, and relevant `doctor` or postmortem output.
 
-Zimster prefers repository-declared commands from instructions, package
-scripts, task runners, and CI. It distinguishes:
+## Contributing, support, and security
 
-- command failure before test discovery;
-- successful command with zero tests;
-- baseline with zero tests;
-- focused, affected, integration, and full project gates;
-- external, hardware, and human observations.
+Contributions are welcome through the
+[contribution guide](https://github.com/wazimmerman/zimster/blob/main/CONTRIBUTING.md).
+Use [Support](SUPPORT.md) for help, the
+[issue tracker](https://github.com/wazimmerman/zimster/issues) for reproducible
+defects, and the
+[security policy](https://github.com/wazimmerman/zimster/blob/main/SECURITY.md)
+for private vulnerability-reporting instructions.
 
-Final gates are always fresh. Valid focused evidence may be reused only while
-its fingerprint and dependency cone remain current.
+## License and acknowledgments
 
-Checkout integrity, evidence validity, self-review, and semantic approval are
-different facts. Owner-inline inspection is `self_review`.
-`REVIEW_CHECKOUT_UNCHANGED` proves no reviewer-visible mutation, not approval.
-Eligible Micro work may complete owner-only; Standard and High-risk work
-require approved clean-context `independent_review` for the exact candidate
-head. Review-unavailable work remains explicitly partial. Only a complete
-requirement-to-evidence matrix and profile-appropriate review can emit
-`CANDIDATE_COMPLETE`.
+Zimster is available under the [MIT License](LICENSE).
 
-## Local development
-
-```text
-npm install
-npm run doctor
-npm run check
-```
-
-Node 22 or newer is required for maintenance tools. The project has no runtime
-dependencies.
-
-Useful maintenance commands:
-
-```text
-npm run sync:codex
-npm run assurance -- matrix ...
-npm run assurance -- complete ...
-npm run validate:codex
-npm run codex:cachebuster -- /path/to/staging/plugins/zimster
-npm run version:check
-npm run version:bump -- <next-version> --note "Release summary"
-npm run package
-npm run checksums
-```
-
-A release tag is rejected unless it matches every manifest, lockfile, Claude
-marketplace entry, Codex mirror, and current changelog heading.
-
-## Repository layout
-
-```text
-skills/                 harness-neutral workflow skills
-agents/                 bounded reviewer/scout/diagnostician roles
-plugins/zimster/         generated self-contained Codex plugin
-.agents/plugins/         Codex repo marketplace
-.codex-plugin/           canonical Codex manifest source
-.claude-plugin/          Claude manifest and development marketplace
-.cursor/                 Cursor project command
-.kimi-plugin/            Kimi manifest/tool mapping
-.opencode/               OpenCode adapter
-.pi/                     Pi extension
-hooks/                   Claude compact bootstrap
-scripts/                 operational, validation, version, packaging tools
-config/                  abstract model routing policy
-schemas/                 evidence, requirement, review, and completion schemas
-vendor/                  pinned Codex contract snapshot and license
-```
-
-## Licensing and provenance
-
-Zimster is MIT-licensed. Selected code and workflow language are adapted from
-Superpowers 6.2.0 under MIT. The local Codex plugin-contract validator is a
-compact JavaScript port pinned to official OpenAI Codex source under
-Apache-2.0. See `THIRD_PARTY_NOTICES.md` and `docs/UPSTREAM.md`.
-
-## Project status
-
-Version 0.5.0 adds semantic assurance: explicit review types, stable-ID
-requirements, evidence/claim scope, semantic review packages, risk-triggered
-framework and shared-control-flow lenses, and deterministic candidate
-completion. It retains execution-economy controls, cross-harness packaging,
-and quiet fallback contracts.
-
-Live installation in every harness and comparative
-Zimster-versus-Superpowers economics remain evaluation work, not claimed
-results. See `docs/EVALUATION.md`.
+Zimster builds on proven ideas from Superpowers and other agentic development
+workflows while using its own owner-driven, risk-adaptive execution model. See
+[Upstream provenance](docs/UPSTREAM.md), [Research](docs/RESEARCH.md), and
+[Third-party notices](THIRD_PARTY_NOTICES.md) for attribution and licensing
+details.
