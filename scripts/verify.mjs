@@ -80,6 +80,21 @@ function validatePlan(plan) {
     ) {
       throw new Error('verification steps require a safe id, command, and string args');
     }
+    if (step.expected_stderr !== undefined) {
+      if (
+        typeof step.expected_stderr !== 'string'
+        || step.expected_stderr.length > 512
+        || !step.expected_stderr.startsWith('^')
+        || !step.expected_stderr.endsWith('$')
+      ) {
+        throw new Error('expected_stderr must be an anchored pattern of at most 512 characters');
+      }
+      try {
+        new RegExp(step.expected_stderr);
+      } catch {
+        throw new Error('expected_stderr must be a valid regular expression');
+      }
+    }
     if (ids.has(step.id)) throw new Error(`duplicate verification step id: ${step.id}`);
     ids.add(step.id);
   }
@@ -117,6 +132,7 @@ async function selectedPlan() {
       if (options[name]) reviewStep.args.push(`--${name}`, String(options[name]));
     }
     const semanticStep = plan.steps.find(({ id }) => id === 'semantic-completion');
+    semanticStep.expected_stderr = '^CANDIDATE_COMPLETE review=[A-Za-z0-9._/-]+ claims=[0-9]+\\n?$';
     semanticStep.args.push(
       'complete', '--profile', String(options['semantic-profile'] || 'high-risk'),
       '--owner-verified',
@@ -224,7 +240,11 @@ async function runPlan(plan) {
     const log = logText(step, result);
     const logPath = path.join(logDirectory, `${step.id}.log`);
     await writeFile(logPath, log);
-    const unexpectedStderr = (result.status ?? 1) === 0 && String(result.stderr || '').trim() !== '';
+    const stderr = String(result.stderr || '');
+    const expectedStderr = step.expected_stderr
+      ? new RegExp(step.expected_stderr).test(stderr)
+      : false;
+    const unexpectedStderr = (result.status ?? 1) === 0 && stderr.trim() !== '' && !expectedStderr;
     if (unexpectedStderr) warnings += 1;
     const failed = (result.status ?? 1) !== 0 || unexpectedStderr;
     const reason = unexpectedStderr

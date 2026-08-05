@@ -147,6 +147,43 @@ test('verification runner rejects warnings from otherwise successful steps', asy
   }
 });
 
+test('verification runner accepts only an explicitly matched informational stderr line', async () => {
+  const repo = await tempRepo();
+  try {
+    const planFile = path.join(repo, 'plan.json');
+    const plan = {
+      schema_version: 1,
+      profile: 'fixture',
+      steps: [{
+        id: 'semantic-completion',
+        command: process.execPath,
+        args: ['-e', "import { writeSync } from 'node:fs'; writeSync(process.stderr.fd, process.argv[1]);", 'CANDIDATE_COMPLETE review=review-001 claims=19\n'],
+        expected_stderr: '^CANDIDATE_COMPLETE review=[A-Za-z0-9._/-]+ claims=[0-9]+\\n?$'
+      }]
+    };
+    await writeFile(planFile, `${JSON.stringify(plan)}\n`);
+
+    let result = run(process.execPath, [
+      path.join(root, 'scripts/verify.mjs'), 'run', '--plan', planFile
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    let summary = JSON.parse(result.stdout);
+    assert.equal(summary.status, 'passed');
+    assert.equal(summary.warnings, 0);
+
+    plan.steps[0].args[2] = 'CANDIDATE_COMPLETE review=review-001 claims=19\nwarning: bypass\n';
+    await writeFile(planFile, `${JSON.stringify(plan)}\n`);
+    result = run(process.execPath, [
+      path.join(root, 'scripts/verify.mjs'), 'run', '--plan', planFile
+    ], repo);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    summary = JSON.parse(result.stdout);
+    assert.equal(summary.steps[0].reason, 'unexpected_stderr');
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
 test('verification profiles place installed-package smoke before immutable review packaging', () => {
   const runner = path.join(root, 'scripts/verify.mjs');
   const goal = run(process.execPath, [runner, 'describe', '--profile', 'goal'], root);
