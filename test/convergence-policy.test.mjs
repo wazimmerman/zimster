@@ -5,6 +5,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
   decideConvergence,
   validateConvergenceConfig
@@ -192,5 +193,54 @@ test('BOOT-001: run initialization snapshots candidate configuration as isolated
   } finally {
     await rm(repo, { recursive: true, force: true });
     await rm(acceptedDirectory, { recursive: true, force: true });
+  }
+});
+
+test('BOOT-001: convergence preserves module resource identity under Windows path semantics', async () => {
+  const repo = await mkdtemp(path.join(os.tmpdir(), 'zimster-convergence-windows-path-'));
+  const loaderDirectory = await mkdtemp(path.join(os.tmpdir(), 'zimster-convergence-loader-'));
+  try {
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: repo }).status, 0);
+    await writeFile(path.join(repo, 'README.md'), 'fixture\n');
+    spawnSync('git', ['add', 'README.md'], { cwd: repo });
+    assert.equal(spawnSync('git', [
+      '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid',
+      'commit', '-qm', 'fixture'
+    ], { cwd: repo }).status, 0);
+    const initialized = spawnSync(process.execPath, [
+      path.join(root, 'scripts/init-run.mjs'), '--profile', 'high-risk'
+    ], { cwd: repo, encoding: 'utf8' });
+    assert.ifError(initialized.error);
+    assert.equal(initialized.status, 0, initialized.stderr || initialized.stdout);
+
+    const convergenceUrl = pathToFileURL(path.join(root, 'scripts/convergence.mjs')).href;
+    const loader = path.join(loaderDirectory, 'windows-path-loader.mjs');
+    await writeFile(loader, `
+const target = ${JSON.stringify(convergenceUrl)};
+const source = \`import posix from 'node:path/posix';
+import win32 from 'node:path/win32';
+export default { ...posix, dirname: win32.dirname, resolve: win32.resolve };\`;
+const hybrid = \`data:text/javascript,\${encodeURIComponent(source)}\`;
+export async function resolve(specifier, context, nextResolve) {
+  if (specifier === 'node:path' && context.parentURL === target) {
+    return { url: hybrid, shortCircuit: true };
+  }
+  return nextResolve(specifier, context);
+}
+`);
+    const result = spawnSync(process.execPath, [
+      '--no-warnings', '--experimental-loader', pathToFileURL(loader).href,
+      path.join(root, 'scripts/convergence.mjs'), 'decide',
+      '--event', 'focused_test_failure', '--scope', 'in-scope',
+      '--sensitivity', 'ordinary', '--metric', 'correction_commits',
+      '--reversible', 'true', '--authorized', 'true',
+      '--deterministic', 'true', '--locality', 'local'
+    ], { cwd: repo, encoding: 'utf8' });
+    assert.ifError(result.error);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(JSON.parse(result.stdout).outcome, 'continue');
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+    await rm(loaderDirectory, { recursive: true, force: true });
   }
 });

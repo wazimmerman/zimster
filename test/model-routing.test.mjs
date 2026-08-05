@@ -1,8 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { spawnSync } from 'node:child_process';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import {
   digestJson,
   loadConfigLayers,
@@ -96,6 +98,53 @@ test('ROUTE-004: native user configuration paths are deterministic across operat
   assert.equal(resolveUserConfigPath({
     platform: 'win32', env: { APPDATA: 'C:\\Users\\test\\AppData\\Roaming' }, home: 'C:\\Users\\test'
   }), path.win32.join('C:\\Users\\test\\AppData\\Roaming', 'Zimster', 'config.json'));
+  assert.equal(resolveUserConfigPath({
+    platform: 'win32', env: {}, home: 'C:\\Users\\test'
+  }), 'C:\\Users\\test\\AppData\\Roaming\\Zimster\\config.json');
+});
+
+test('ROUTE-004: simulated target paths do not inherit Windows host semantics', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'zimster-routing-platform-'));
+  try {
+    const moduleUrl = pathToFileURL(path.join(root, 'scripts/lib/config-layers.mjs')).href;
+    const loader = path.join(directory, 'windows-path-loader.mjs');
+    const probe = path.join(directory, 'probe.mjs');
+    await writeFile(loader, `
+const target = ${JSON.stringify(moduleUrl)};
+export async function resolve(specifier, context, nextResolve) {
+  if (specifier === 'node:path' && context.parentURL === target) {
+    return { url: 'node:path/win32', shortCircuit: true };
+  }
+  return nextResolve(specifier, context);
+}
+`);
+    await writeFile(probe, `
+import { resolveUserConfigPath } from ${JSON.stringify(moduleUrl)};
+console.log(JSON.stringify({
+  linux: resolveUserConfigPath({
+    platform: 'linux', env: { XDG_CONFIG_HOME: '/xdg' }, home: '/home/test'
+  }),
+  darwin: resolveUserConfigPath({
+    platform: 'darwin', env: {}, home: '/Users/test'
+  }),
+  win32: resolveUserConfigPath({
+    platform: 'win32', env: {}, home: 'C:\\\\Users\\\\test'
+  })
+}));
+`);
+    const result = spawnSync(process.execPath, [
+      '--no-warnings', '--experimental-loader', pathToFileURL(loader).href, probe
+    ], { encoding: 'utf8' });
+    assert.ifError(result.error);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.deepEqual(JSON.parse(result.stdout), {
+      linux: '/xdg/zimster/config.json',
+      darwin: '/Users/test/Library/Application Support/Zimster/config.json',
+      win32: 'C:\\Users\\test\\AppData\\Roaming\\Zimster\\config.json'
+    });
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test('ROUTE-004: configuration precedence is override, run, project, user, harness, inherit', async () => {

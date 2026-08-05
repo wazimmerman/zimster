@@ -48,9 +48,13 @@ export function resolveUserConfigPath({
     return path.win32.join(appData, 'Zimster', 'config.json');
   }
   if (platform === 'darwin') {
-    return path.join(home, 'Library', 'Application Support', 'Zimster', 'config.json');
+    return path.posix.join(home, 'Library', 'Application Support', 'Zimster', 'config.json');
   }
-  return path.join(env.XDG_CONFIG_HOME || path.join(home, '.config'), 'zimster', 'config.json');
+  return path.posix.join(
+    env.XDG_CONFIG_HOME || path.posix.join(home, '.config'),
+    'zimster',
+    'config.json'
+  );
 }
 
 export function resolveProjectConfigPath(repoRoot) {

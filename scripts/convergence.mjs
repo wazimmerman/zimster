@@ -1,5 +1,6 @@
 import { appendFile, mkdir, readFile } from 'node:fs/promises';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseOptions, required, writeError, writeLine } from './lib/cli.mjs';
 import { findRepoRoot } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
@@ -26,7 +27,7 @@ async function main() {
   const runtime = await ensureRuntimeDirectory(root);
   const configPath = options.config
     ? path.resolve(root, String(options.config))
-    : path.resolve(path.dirname(new URL(import.meta.url).pathname), '..', 'config', 'convergence.json');
+    : fileURLToPath(new URL('../config/convergence.json', import.meta.url));
   const config = validateConvergenceConfig(JSON.parse(await readFile(configPath, 'utf8')));
   const budget = JSON.parse(await readFile(path.join(runtime, 'budget.json'), 'utf8'));
   const metric = normalizeConvergenceMetric(required(options, 'metric'));
