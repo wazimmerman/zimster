@@ -13,7 +13,8 @@ import {
   holmAdjust,
   prepareTaskOverlay,
   redactEvidenceTree,
-  recordFromPierResult
+  recordFromPierResult,
+  selectPierTrialResult
 } from '../benchmarks/lib/pilot.mjs';
 import { root } from './helpers.mjs';
 
@@ -71,6 +72,16 @@ test('evidence bundling redacts authentication paths and tokens in nested logs',
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test('Pier import selects the nested trial result instead of the job summary', () => {
+  assert.equal(selectPierTrialResult([
+    { relative: 'result.json', absolute: '/jobs/run/result.json' },
+    { relative: 'task__trial/result.json', absolute: '/jobs/run/task__trial/result.json' }
+  ]), '/jobs/run/task__trial/result.json');
+  assert.throws(() => selectPierTrialResult([
+    { relative: 'result.json', absolute: '/jobs/run/result.json' }
+  ]), /one Pier trial result/);
 });
 
 test('pilot scheduler emits excluded calibration and complete counterbalanced campaigns', async () => {

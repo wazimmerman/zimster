@@ -46,6 +46,12 @@ export async function redactEvidenceTree(directory) {
   }
 }
 
+export function selectPierTrialResult(files) {
+  const matches = files.filter(({ relative }) => relative !== 'result.json' && relative.endsWith('/result.json'));
+  assert(matches.length === 1, `Expected one Pier trial result; found ${matches.length}.`);
+  return matches[0].absolute;
+}
+
 export function assertPilotSafety({
   loginStatus,
   codexVersion,

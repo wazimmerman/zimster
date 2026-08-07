@@ -15,6 +15,7 @@ import {
   redactEvidenceTree,
   redactSensitiveText,
   recordFromPierResult,
+  selectPierTrialResult,
   sha256,
   validateManifest
 } from '../benchmarks/lib/pilot.mjs';
@@ -129,9 +130,7 @@ async function contentAddressBundle(jobDirectory, bundleRoot) {
 
 async function findResult(directory) {
   const files = await filesUnder(directory);
-  const matches = files.filter(({ relative }) => relative.endsWith('/result.json') || relative === 'result.json');
-  if (matches.length !== 1) fail(`Expected one Pier result.json in ${directory}; found ${matches.length}.`);
-  return matches[0].absolute;
+  return selectPierTrialResult(files);
 }
 
 async function enrichWithTrajectory(result, jobDirectory) {
