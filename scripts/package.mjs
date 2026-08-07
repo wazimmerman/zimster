@@ -24,6 +24,7 @@ const operationalScripts = [
   'scripts/phase-checkpoint.mjs',
   'scripts/plan-conformance.mjs',
   'scripts/project-commands.mjs', 'scripts/run-budget.mjs',
+  'scripts/release-evidence.mjs',
   'scripts/review-integrity.mjs', 'scripts/review-package.mjs',
   'scripts/semantic-assurance.mjs',
   'scripts/run-postmortem.mjs',
@@ -40,6 +41,7 @@ const operationalScripts = [
   'scripts/lib/semantic-assurance.mjs',
   'scripts/lib/evidence-validity.mjs',
   'scripts/lib/tar.mjs',
+  'scripts/lib/tar-reader.mjs',
   'scripts/lib/zip-reader.mjs', 'scripts/lib/zip.mjs'
 ];
 const publicContracts = [

@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zimster.dev/schemas/release-evidence.schema.json",
+  "type": "object",
+  "required": ["schema_version", "version", "tag", "channel", "commit", "tree", "standards_lock_sha256", "semantic_review_sha256", "host_matrix_sha256", "verification_sha256", "artifacts"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "tag": { "type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$" },
+    "channel": { "enum": ["public_beta", "stable"] },
+    "commit": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "tree": { "type": "string", "pattern": "^[0-9a-f]{40}$" },
+    "standards_lock_sha256": { "$ref": "#/$defs/sha256" },
+    "semantic_review_sha256": { "$ref": "#/$defs/sha256" },
+    "host_matrix_sha256": { "$ref": "#/$defs/sha256" },
+    "verification_sha256": { "$ref": "#/$defs/sha256" },
+    "artifacts": {
+      "type": "array", "minItems": 5, "maxItems": 5,
+      "items": {
+        "type": "object", "required": ["name", "sha256", "size"],
+        "properties": {
+          "name": { "type": "string", "pattern": "^zimster-" },
+          "sha256": { "$ref": "#/$defs/sha256" },
+          "size": { "type": "integer", "minimum": 1 }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "$defs": { "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } },
+  "additionalProperties": false
+}

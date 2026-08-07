@@ -32,6 +32,7 @@
     "version:bump": "node scripts/bump-version.mjs",
     "package": "node scripts/package.mjs",
     "checksums": "node scripts/checksums.mjs",
+    "release:evidence": "node scripts/release-evidence.mjs",
     "capability:status": "node scripts/capability-cache.mjs status",
     "postmortem": "node scripts/run-postmortem.mjs",
     "evaluate:economy": "node scripts/evaluate-execution-economy.mjs",

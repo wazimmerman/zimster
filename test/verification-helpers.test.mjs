@@ -74,7 +74,7 @@ test('exact candidate archives pass safety and installed-package smoke', async (
       path.join(root, 'scripts/archive-safety.mjs'), '--dist', directory
     ], root);
     assert.equal(result.status, 0, result.stderr || result.stdout);
-    assert.equal(JSON.parse(result.stdout).archives, 3);
+    assert.equal(JSON.parse(result.stdout).archives, 5);
 
     result = run(process.execPath, [
       path.join(root, 'scripts/installed-package-smoke.mjs'), '--dist', directory
@@ -83,7 +83,7 @@ test('exact candidate archives pass safety and installed-package smoke', async (
     assert.equal(result.stderr, '');
     const summary = JSON.parse(result.stdout);
     assert.equal(summary.status, 'passed');
-    assert.deepEqual(summary.targets.map(({ target }) => target), ['claude', 'codex', 'portable']);
+    assert.deepEqual(summary.targets.map(({ target }) => target), ['claude', 'codex', 'openai', 'portable', 'npm']);
     assert.equal(summary.targets.every(({ status }) => status === 'passed'), true);
   } finally {
     await rm(directory, { recursive: true, force: true });

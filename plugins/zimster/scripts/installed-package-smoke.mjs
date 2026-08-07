@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { parseOptions, writeLine } from './lib/cli.mjs';
 import { archivePathProblem, readStoredZip } from './lib/zip-reader.mjs';
+import { readTarGzip } from './lib/tar-reader.mjs';
 
 const { options } = parseOptions(process.argv.slice(2));
 const dist = path.resolve(process.cwd(), String(options.dist || 'dist'));
@@ -52,9 +53,9 @@ function execute(file, args, cwd, env) {
 
 try {
   const archives = (await readdir(dist))
-    .filter((name) => /^zimster-.*-(claude|codex|portable)\.zip$/.test(name))
+    .filter((name) => /^zimster-.*-(claude|codex|openai|portable)\.zip$/.test(name))
     .sort();
-  for (const target of ['claude', 'codex', 'portable']) {
+  for (const target of ['claude', 'codex', 'openai', 'portable']) {
     const name = archives.find((candidate) => candidate.endsWith(`-${target}.zip`));
     if (!name) throw new Error(`missing exact ${target} candidate archive`);
     const archive = path.join(dist, name);
@@ -79,42 +80,61 @@ try {
     const packageRoot = target === 'codex'
       ? path.join(extracted, 'plugins', 'zimster')
       : extracted;
-    JSON.parse(execute(
-      path.join(packageRoot, 'scripts', 'model-routing.mjs'),
-      ['validate-config', '--config', path.join(packageRoot, 'templates', 'zimster-config.json')],
-      packageRoot,
-      isolatedEnvironment(home)
-    ));
-    for (const contract of [
-      'schemas/delegation-decision.schema.json',
-      'schemas/model-proposal.schema.json',
-      'schemas/routing-observation.schema.json',
-      'schemas/convergence-decision.schema.json',
-      'schemas/host-smoke-receipt.schema.json',
-      'docs/INSTALL.md',
-      'docs/CONFIGURATION.md',
-      'docs/MIGRATING-0.5.0.md'
-    ]) await readFile(path.join(packageRoot, contract));
-    if (target !== 'claude') {
+    if (target === 'claude' || target === 'codex') {
+      JSON.parse(execute(
+        path.join(packageRoot, 'scripts', 'model-routing.mjs'),
+        ['validate-config', '--config', path.join(packageRoot, 'templates', 'zimster-config.json')],
+        packageRoot,
+        isolatedEnvironment(home)
+      ));
+      for (const contract of [
+        'schemas/delegation-decision.schema.json',
+        'schemas/model-proposal.schema.json',
+        'schemas/routing-observation.schema.json',
+        'schemas/convergence-decision.schema.json',
+        'schemas/host-smoke-receipt.schema.json',
+        'docs/INSTALL.md',
+        'docs/CONFIGURATION.md',
+        'docs/MIGRATING-0.5.0.md'
+      ]) await readFile(path.join(packageRoot, contract));
+    }
+    if (target === 'codex') {
       JSON.parse(execute(
         path.join(packageRoot, 'scripts', 'doctor.mjs'),
         ['--json'],
         packageRoot,
         isolatedEnvironment(home)
       ));
-      if (target === 'portable') {
-        const metadata = JSON.parse(await readFile(
-          path.join(packageRoot, 'skills', 'using-zimster', 'references', 'build-metadata.json'),
-          'utf8'
-        ));
-        if (metadata.package_target !== 'portable') {
-          throw new Error('portable build metadata does not identify the exact candidate');
-        }
+    }
+    if (target === 'openai' || target === 'portable') {
+      await readFile(path.join(packageRoot, target === 'openai' ? '.codex-plugin/plugin.json' : 'plugin.json'));
+      await readFile(path.join(packageRoot, 'skills', 'using-zimster', 'SKILL.md'));
+      const metadata = JSON.parse(await readFile(
+        path.join(packageRoot, 'skills', 'using-zimster', 'references', 'build-metadata.json'),
+        'utf8'
+      ));
+      if (metadata.package_target !== target) {
+        throw new Error(`${target} build metadata does not identify the exact candidate`);
       }
     }
     const hash = createHash('sha256').update(await readFile(archive)).digest('hex');
     targets.push({ target, status: 'passed', archive: name, sha256: hash });
   }
+  const npmName = (await readdir(dist)).find((name) => /^zimster-.*\.tgz$/.test(name));
+  if (!npmName) throw new Error('missing exact npm candidate archive');
+  const npmArchive = path.join(dist, npmName);
+  const npmEntries = await readTarGzip(npmArchive);
+  const npmNames = new Set(npmEntries.map(({ name }) => name));
+  for (const required of ['package/package.json', 'package/plugin.json', 'package/skills/using-zimster/SKILL.md']) {
+    if (!npmNames.has(required)) throw new Error(`npm candidate is missing ${required}`);
+  }
+  if ([...npmNames].some((name) => name.startsWith('package/plugins/zimster/'))) {
+    throw new Error('npm candidate contains the generated Codex mirror');
+  }
+  targets.push({
+    target: 'npm', status: 'passed', archive: npmName,
+    sha256: createHash('sha256').update(await readFile(npmArchive)).digest('hex')
+  });
   writeLine(JSON.stringify({ schema_version: 1, status: 'passed', targets }));
 } catch (error) {
   writeLine(JSON.stringify({
