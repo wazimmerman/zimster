@@ -6,6 +6,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createPackages } from '../scripts/package.mjs';
 import { createZip } from '../scripts/lib/zip.mjs';
+import { createTarGzip } from '../scripts/lib/tar.mjs';
 import { root } from './helpers.mjs';
 
 const CLEAN_FINGERPRINT = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
@@ -99,6 +100,9 @@ test('secret scan reports worktree and archived credential material without prin
     await createZip(path.join(directory, 'candidate.zip'), [
       ['credential.txt', { data: Buffer.from(`${secret}\nredacted\n`), mode: 0o644 }]
     ]);
+    await createTarGzip(path.join(directory, 'candidate.tgz'), [
+      ['credential.txt', { data: Buffer.from(`${secret}\nredacted\n`), mode: 0o644 }]
+    ]);
     const result = run(process.execPath, [
       path.join(root, 'scripts/secret-scan.mjs'), '--root', repo, '--dist', directory
     ], repo);
@@ -107,8 +111,10 @@ test('secret scan reports worktree and archived credential material without prin
     assert.doesNotMatch(result.stdout, /redacted/);
     const summary = JSON.parse(result.stdout);
     assert.equal(summary.status, 'failed');
+    assert.equal(summary.archives, 2);
     assert.equal(summary.findings.some(({ source }) => source === 'worktree'), true);
     assert.equal(summary.findings.some(({ source }) => source === 'archive'), true);
+    assert.equal(summary.findings.some(({ file }) => file.startsWith('candidate.tgz:')), true);
   } finally {
     await rm(repo, { recursive: true, force: true });
     await rm(directory, { recursive: true, force: true });

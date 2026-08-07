@@ -3,6 +3,7 @@ import path from 'node:path';
 import { parseOptions, writeLine } from './lib/cli.mjs';
 import { runGit } from './lib/git-state.mjs';
 import { readStoredZip } from './lib/zip-reader.mjs';
+import { readTarGzip } from './lib/tar-reader.mjs';
 
 const PATTERNS = Object.freeze([
   ['private_key', /-----BEGIN\s+(?:RSA\s+|EC\s+|OPENSSH\s+)?PRIVATE KEY-----/],
@@ -36,9 +37,12 @@ for (const relative of worktreeFiles) {
 
 let archives = 0;
 if (dist) {
-  for (const name of (await readdir(dist)).filter((entry) => entry.endsWith('.zip')).sort()) {
+  for (const name of (await readdir(dist)).filter((entry) => /\.(?:zip|tgz)$/.test(entry)).sort()) {
     archives += 1;
-    for (const entry of await readStoredZip(path.join(dist, name))) {
+    const entries = name.endsWith('.tgz')
+      ? await readTarGzip(path.join(dist, name))
+      : await readStoredZip(path.join(dist, name));
+    for (const entry of entries) {
       inspect('archive', `${name}:${entry.name}`, entry.data);
     }
   }
