@@ -7,6 +7,8 @@ test('documents reused Superpowers code and preserves its MIT notice', async () 
   assert.match(notices, /Superpowers/i);
   assert.match(notices, /Copyright \(c\) 2025 Jesse Vincent/);
   assert.match(notices, /MIT License/);
+  assert.doesNotMatch(notices, /docs\/RESEARCH\.md/);
+  assert.match(notices, /preserved in Git history/i);
   const upstream = await read('docs/UPSTREAM.md');
   assert.match(upstream, /v6\.2\.0/);
   assert.match(upstream, /hooks\/session-start\.mjs/);

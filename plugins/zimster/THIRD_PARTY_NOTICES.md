@@ -62,6 +62,7 @@ The Agent Skills validation rules derive from the specification at commit
 
 OpenSpec, GitHub Spec Kit, Agent OS, BMAD, Ralph, GSD, Ruflo, metaswarm,
 Smithers, Microsoft Conductor, Trellis, and Task Master informed comparative
-research in `docs/RESEARCH.md`. No code from those projects is included. Task
-Master code is specifically excluded because its current Commons Clause
-restricts competing products.
+research preserved in Git history. No code from those projects is included.
+Task Master code is specifically excluded because its current Commons Clause
+restricts competing products. Current public capability conclusions are in
+`docs/COMPATIBILITY.md`.
