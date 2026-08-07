@@ -194,7 +194,7 @@ Read only the matching reference:
 
 - Codex: `references/codex-tools.md`
 - Claude Code: `references/claude-code-tools.md`
-- Cursor/Kimi/OpenCode/Pi: `references/other-harnesses.md`
+- Grok/Cursor/Kimi/OpenCode/Pi: `references/other-harnesses.md`
 
 When subagents are unavailable, execute inline and state that independent
 review assurance was unavailable; do not relabel owner-inline work as
@@ -209,6 +209,6 @@ Read adjacent `references/build-metadata.json` for version, build, source
 commit/tree and cleanliness, and package target; never infer these from the
 target project's metadata or Git history.
 
-Skills-only installs with no `<zimster>/scripts/` package root continue quietly
-while preserving safety, TDD, review, and verification. Mark helper receipts
-unavailable and maintain compact state manually.
+Without scripts, continue quietly: preserve safety, TDD, review, and
+verification; mark helper receipts unavailable and maintain compact state
+manually. Do not warn.

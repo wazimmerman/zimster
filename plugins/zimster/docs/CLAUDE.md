@@ -38,7 +38,7 @@ Restart after updates. The manifest version is part of Claude's cache identity.
 startup, resume, clear, and compact. It emits the `using-zimster` bootstrap and
 does not write project or user state.
 
-The integration reviewer is read/search-only. The test reviewer adds bounded
+The `integration-reviewer` is read/search-only. The `test-reviewer` adds bounded
 shell access and worktree isolation for one named probe. These declarations and
 their validators are verified structurally; this release does not claim that a
 model-backed session proved every effective restriction.

@@ -150,7 +150,7 @@ test('Claude SessionStart covers startup resume clear and compact with one compa
     assert.match(context, /observed, inferred, and unavailable metrics\s+distinct/);
     assert.match(context, /Read only the matching reference/);
     assert.match(context, /references\/build-metadata\.json/);
-    assert.match(context, /no `<zimster>\/scripts\/` package root continue quietly/);
+    assert.match(context, /Without scripts, continue quietly/);
     const bytes = assertSessionStartOutputSize(result.stdout);
     assert.ok(
       bytes <= SESSION_START_OUTPUT_TARGET_BYTES,
@@ -218,7 +218,6 @@ test('Claude guide documents local validation, lifecycle, restrictions, and hone
   const guide = await read('docs/CLAUDE.md');
   for (const pattern of [
     /claude plugin validate/,
-    /--plugin-dir/,
     /marketplace add/,
     /plugin install/,
     /plugin marketplace update/,
@@ -226,8 +225,9 @@ test('Claude guide documents local validation, lifecycle, restrictions, and hone
     /SessionStart/,
     /integration-reviewer/,
     /test-reviewer/,
-    /structurally validated/i,
-    /CLI.*unavailable|unavailable.*CLI/is
+    /2\.1\.224/,
+    /12 skills, 4 agents, and 1 SessionStart hook/,
+    /model-backed.*not|not.*model-backed/is
   ]) {
     assert.match(guide, pattern);
   }
