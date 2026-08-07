@@ -10,6 +10,7 @@ import {
   assertPilotSafety,
   buildCampaign,
   buildPierArgs,
+  countDirectoryEntries,
   prepareTaskOverlay,
   recordFromPierResult,
   sha256,
@@ -88,7 +89,7 @@ async function validateSources(deepswe, pier, lock) {
   if (await gitHead(deepswe) !== lock.deepswe.commit) fail('DeepSWE checkout does not match the lock commit.');
   if (await gitHead(pier) !== lock.pier.commit) fail('Pier checkout does not match the lock commit.');
   const taskEntries = await readdir(path.join(deepswe, 'tasks'), { withFileTypes: true });
-  const count = taskEntries.filter(({ isDirectory }) => isDirectory()).length;
+  const count = countDirectoryEntries(taskEntries);
   if (count !== lock.deepswe.task_count) fail(`DeepSWE task count mismatch: expected ${lock.deepswe.task_count}, received ${count}.`);
 }
 
@@ -314,6 +315,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  process.stderr.write(`benchmark-codex: ${redact(error.message)}\n`);
+  process.stderr.write(`benchmark-codex: ${redact(error.stack ?? error.message)}\n`);
   process.exitCode = 1;
 });

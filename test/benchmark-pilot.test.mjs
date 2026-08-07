@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
@@ -9,6 +9,7 @@ import {
   buildPierArgs,
   buildCampaign,
   completedPairedRecords,
+  countDirectoryEntries,
   holmAdjust,
   prepareTaskOverlay,
   recordFromPierResult
@@ -29,6 +30,18 @@ test('benchmark lock pins DeepSWE, Pier, Codex, model, and reasoning', async () 
   assert.equal(lock.codex.model, 'gpt-5.6-sol');
   assert.equal(lock.codex.reasoning_effort, 'high');
   assert.equal(lock.deepswe.task_count, 113);
+});
+
+test('pinned source validation counts directory entries without detaching Dirent methods', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'zimster-directory-count-'));
+  try {
+    await mkdir(path.join(directory, 'first'));
+    await mkdir(path.join(directory, 'second'));
+    await writeFile(path.join(directory, 'not-a-directory'), 'fixture\n');
+    assert.equal(countDirectoryEntries(await readdir(directory, { withFileTypes: true })), 2);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
 });
 
 test('pilot scheduler emits excluded calibration and complete counterbalanced campaigns', async () => {

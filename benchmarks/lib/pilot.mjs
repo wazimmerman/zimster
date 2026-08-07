@@ -16,6 +16,10 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+export function countDirectoryEntries(entries) {
+  return entries.filter((entry) => entry.isDirectory()).length;
+}
+
 export function assertPilotSafety({
   loginStatus,
   codexVersion,
