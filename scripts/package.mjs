@@ -2,6 +2,7 @@ import { readFile, rm, mkdir, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { collectFiles, createZip } from './lib/zip.mjs';
+import { createTarGzip } from './lib/tar.mjs';
 import { syncCodexPlugin } from './sync-codex-plugin.mjs';
 import { versionRecords } from './lib/version-files.mjs';
 import { buildMetadata } from './lib/build-metadata.mjs';
@@ -36,6 +37,7 @@ const operationalScripts = [
   'scripts/lib/run-state.mjs',
   'scripts/lib/semantic-assurance.mjs',
   'scripts/lib/evidence-validity.mjs',
+  'scripts/lib/tar.mjs',
   'scripts/lib/zip-reader.mjs', 'scripts/lib/zip.mjs'
 ];
 const publicContracts = [
@@ -63,13 +65,14 @@ export async function createPackages(outputDirectory = path.join(root, 'dist')) 
   const { version } = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
   await mkdir(outputDirectory, { recursive: true });
   for (const entry of await readdir(outputDirectory)) {
-    if (/^zimster-.*\.zip$/.test(entry)) await rm(path.join(outputDirectory, entry), { force: true });
+    if (/^zimster-.*(?:\.zip|\.tgz)$/.test(entry)) await rm(path.join(outputDirectory, entry), { force: true });
   }
 
   const definitions = [
     ['claude', ['.claude-plugin', 'hooks', ...common]],
     ['codex', ['.agents', 'plugins/zimster', 'README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md']],
-    ['portable', ['.agents', '.claude-plugin', '.codex-plugin', '.cursor', '.kimi-plugin', '.opencode', '.pi', 'plugins/zimster', 'hooks', 'scripts', 'vendor', 'package.json', 'package-lock.json', ...common]]
+    ['openai', ['.codex-plugin', 'skills', 'assets', 'LICENSE', 'README.md', 'THIRD_PARTY_NOTICES.md', 'PRIVACY.md', 'TERMS.md', 'SUPPORT.md']],
+    ['portable', ['plugin.json', 'skills', 'LICENSE', 'README.md', 'THIRD_PARTY_NOTICES.md', 'PRIVACY.md', 'TERMS.md', 'SUPPORT.md', 'docs/SKILLS_ONLY.md']]
   ];
 
   const outputs = [];
@@ -85,6 +88,20 @@ export async function createPackages(outputDirectory = path.join(root, 'dist')) 
     await createZip(output, entries);
     outputs.push(output);
   }
+  const packageJson = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+  const npmIncludes = [];
+  for (const include of packageJson.files) {
+    if (include === 'docs/*.md') {
+      for (const entry of await readdir(path.join(root, 'docs'))) {
+        if (entry.endsWith('.md') && entry !== 'Zimster-v0.1-Design-Blueprint.md') npmIncludes.push(`docs/${entry}`);
+      }
+    } else npmIncludes.push(include);
+  }
+  npmIncludes.push('package.json');
+  const npmEntries = await collectFiles(root, npmIncludes, exclusions);
+  const npmOutput = path.join(outputDirectory, `zimster-${version}.tgz`);
+  await createTarGzip(npmOutput, npmEntries);
+  outputs.push(npmOutput);
   return outputs;
 }
 

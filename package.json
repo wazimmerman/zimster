@@ -45,13 +45,14 @@
     "code-review",
     "workflow",
     "agentic-development",
-    "token-efficiency"
+    "token-efficiency",
+    "pi-package"
   ],
   "repository": {
     "type": "git",
     "url": "https://github.com/wazimmerman/zimster.git"
   },
-  "homepage": "https://github.com/wazimmerman/zimster",
+  "homepage": "https://zimster.dev",
   "bugs": {
     "url": "https://github.com/wazimmerman/zimster/issues"
   },
@@ -64,7 +65,7 @@
     ".opencode",
     ".pi",
     "assets",
-    "docs",
+    "docs/*.md",
     "hooks",
     "scripts",
     "skills",
@@ -78,12 +79,13 @@
     "SUPPORT.md",
     "CHANGELOG.md",
     "AGENTS.md",
-    "plugins",
+    "plugin.json",
     "config",
     "schemas",
     "vendor"
   ],
   "pi": {
+    "image": "./assets/zimster-plugin-icon.png",
     "extensions": [
       "./.pi/extensions/zimster.ts"
     ],

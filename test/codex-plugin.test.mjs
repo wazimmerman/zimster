@@ -16,6 +16,12 @@ test('Codex manifest follows the accepted ingestion shape', async () => {
   assert.ok(Array.isArray(manifest.interface.defaultPrompt));
   assert.ok(manifest.interface.defaultPrompt.length > 0 && manifest.interface.defaultPrompt.length <= 3);
   assert.ok(manifest.interface.defaultPrompt.every((prompt) => typeof prompt === 'string' && prompt.length <= 128));
+  assert.ok(manifest.interface.shortDescription.length <= 30);
+  assert.equal(manifest.homepage, 'https://zimster.dev');
+  assert.equal(manifest.interface.websiteURL, 'https://zimster.dev');
+  assert.equal(manifest.interface.supportURL, 'https://zimster.dev/support');
+  assert.equal(Object.hasOwn(manifest.interface, 'screenshots'), false);
+  assert.equal(manifest.interface.brandColor, '#8A4B00');
 });
 
 test('repo marketplace points at a local plugins/zimster directory', async () => {

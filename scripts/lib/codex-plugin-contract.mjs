@@ -6,7 +6,7 @@ const HEX = /^#[0-9A-F]{6}$/i;
 const INTERFACE_ALLOWED = new Set([
   'displayName', 'shortDescription', 'longDescription', 'developerName',
   'category', 'capabilities', 'websiteURL', 'privacyPolicyURL',
-  'termsOfServiceURL', 'brandColor', 'composerIcon', 'logo', 'logoDark',
+  'termsOfServiceURL', 'supportURL', 'brandColor', 'composerIcon', 'logo', 'logoDark',
   'screenshots', 'defaultPrompt', 'default_prompt'
 ]);
 const AUTHOR_ALLOWED = new Set(['name', 'email', 'url']);
@@ -157,7 +157,7 @@ export async function validateCodexPlugin(pluginRoot, contract) {
     if (!validDefaultPrompt(interfaceBlock.defaultPrompt) && !validDefaultPrompt(interfaceBlock.default_prompt)) {
       errors.push('plugin.json interface.defaultPrompt or default_prompt is required');
     }
-    for (const field of ['websiteURL', 'privacyPolicyURL', 'termsOfServiceURL']) {
+    for (const field of ['websiteURL', 'privacyPolicyURL', 'termsOfServiceURL', 'supportURL']) {
       validateHttps(interfaceBlock[field], `plugin.json interface.${field}`, errors);
     }
     if (interfaceBlock.brandColor !== undefined && (!nonEmpty(interfaceBlock.brandColor) || !HEX.test(interfaceBlock.brandColor))) {

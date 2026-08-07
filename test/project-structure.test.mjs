@@ -11,6 +11,7 @@ const requiredFiles = [
   '.agents/plugins/marketplace.json',
   '.opencode/plugins/zimster.js',
   '.pi/extensions/zimster.ts',
+  '.pi/delegation.ts',
   'hooks/hooks.json',
   'hooks/session-start.mjs',
   'LICENSE',
@@ -86,6 +87,7 @@ const requiredFiles = [
   'templates/model-proposal.json',
   'config/model-routing.json',
   'config/standards-lock.json',
+  'config/pi-delegation.json',
   'config/convergence.json',
   'config/host-smoke.json',
   'plugins/zimster/.codex-plugin/plugin.json'

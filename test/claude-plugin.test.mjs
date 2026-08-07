@@ -150,7 +150,7 @@ test('Claude SessionStart covers startup resume clear and compact with one compa
     assert.match(context, /observed, inferred, and unavailable metrics\s+distinct/);
     assert.match(context, /Read only the matching reference/);
     assert.match(context, /references\/build-metadata\.json/);
-    assert.match(context, /no plugin-relative `scripts\/`[\s\S]*without a warning/);
+    assert.match(context, /no `<zimster>\/scripts\/` package root continue quietly/);
     const bytes = assertSessionStartOutputSize(result.stdout);
     assert.ok(
       bytes <= SESSION_START_OUTPUT_TARGET_BYTES,

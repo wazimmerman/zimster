@@ -4,6 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 export const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
 export const manifestFiles = [
+  'plugin.json',
   '.codex-plugin/plugin.json',
   '.claude-plugin/plugin.json',
   '.kimi-plugin/plugin.json'

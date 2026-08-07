@@ -6,7 +6,7 @@
     "name": "Zimster Contributors",
     "url": "https://github.com/wazimmerman/zimster"
   },
-  "homepage": "https://github.com/wazimmerman/zimster",
+  "homepage": "https://zimster.dev",
   "repository": "https://github.com/wazimmerman/zimster",
   "license": "MIT",
   "keywords": [
@@ -21,7 +21,7 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Zimster",
-    "shortDescription": "Proof-first development without orchestration bloat",
+    "shortDescription": "Proof-first agent workflow",
     "longDescription": "Plan coherent vertical slices, use RED-GREEN-REFACTOR, delegate only when it pays, review risky seams, and finish with fresh evidence.",
     "developerName": "Zimster Contributors",
     "category": "Developer Tools",
@@ -33,12 +33,12 @@
     "defaultPrompt": [
       "Use Zimster’s proof-first workflow for this change."
     ],
-    "websiteURL": "https://github.com/wazimmerman/zimster",
+    "websiteURL": "https://zimster.dev",
+    "supportURL": "https://zimster.dev/support",
     "privacyPolicyURL": "https://github.com/wazimmerman/zimster/blob/main/PRIVACY.md",
     "termsOfServiceURL": "https://github.com/wazimmerman/zimster/blob/main/TERMS.md",
-    "brandColor": "#F59E0B",
+    "brandColor": "#8A4B00",
     "composerIcon": "./assets/zimster-plugin-icon.png",
-    "screenshots": [],
     "logo": "./assets/zimster-plugin-icon.png"
   }
 }

@@ -92,9 +92,8 @@ readiness. Only the deterministic completion gate may emit `CANDIDATE_COMPLETE`.
 
 ## Durable state trigger
 
-Create durable state with `<zimster>/scripts/init-run.mjs`, resolved from the
-installed package root rather than the target repository, when any
-condition is true. By default it writes to the worktree-safe Git-local path
+Create durable state with installed-package `<zimster>/scripts/init-run.mjs`
+when any condition is true. By default it writes to the Git-local path
 reported by `git rev-parse --git-path zimster/run.md`, outside product history:
 
 - more than one vertical slice;
@@ -122,8 +121,8 @@ ownership/tools, cone, stop, and owner proof. Then `model-routing.mjs` may issue
 an advisory plan or authoritative dispatch proposal using
 `config/model-routing.json`. Resolve
 override → run → project → user → harness → inherit; record requested/effective
-values and owner acceptance with `<zimster>/scripts/dispatch-record.mjs`. If the
-helper is unavailable, record the same fields manually. Classes are
+values and owner acceptance with `<zimster>/scripts/dispatch-record.mjs`; record
+the same fields manually when unavailable. Classes are
 economy, balanced, expert, and inherit
 without vendor defaults; unknown values stay `unverified` and old tiers alias.
 
@@ -210,7 +209,6 @@ Read adjacent `references/build-metadata.json` for version, build, source
 commit/tree and cleanliness, and package target; never infer these from the
 target project's metadata or Git history.
 
-If a skills-only installation has no `<zimster>/scripts/` package root,
-continue without a warning
+Skills-only installs with no `<zimster>/scripts/` package root continue quietly
 while preserving safety, TDD, review, and verification. Mark helper receipts
 unavailable and maintain compact state manually.

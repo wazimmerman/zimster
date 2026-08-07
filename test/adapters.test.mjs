@@ -72,8 +72,12 @@ test('OpenCode adapter registers skills and injects the bootstrap once', async (
 
 test('Pi package declares one skill-loading surface and the adapter injects once', async () => {
   const pkg = await json('package.json');
+  assert.ok(pkg.keywords.includes('pi-package'));
   assert.deepEqual(pkg.pi.extensions, ['./.pi/extensions/zimster.ts']);
   assert.deepEqual(pkg.pi.skills, ['./skills']);
+  assert.equal(pkg.pi.image, './assets/zimster-plugin-icon.png');
+  assert.equal(pkg.homepage, 'https://zimster.dev');
+  assert.ok(!pkg.files.includes('plugins'));
 
   const module = await import(`${pathToFileURL(path.join(root, '.pi/extensions/zimster.ts')).href}?test=${Date.now()}`);
   assert.throws(
@@ -90,6 +94,26 @@ test('Pi package declares one skill-loading surface and the adapter injects once
   const messages = twice?.messages ?? once.messages;
   const text = JSON.stringify(messages);
   assert.equal(text.match(/zimster:using-zimster bootstrap for pi/g)?.length, 1);
+});
+
+test('Pi optional delegation uses a pinned, depth-zero capability boundary with inline fallback', async () => {
+  const contract = await json('config/pi-delegation.json');
+  assert.equal(contract.protocol, 'zimster.pi-delegation.v1');
+  assert.deepEqual(contract.methods, ['probe', 'launch', 'status', 'cancel', 'collect']);
+  assert.equal(contract.transport.package, 'pi-subagents');
+  assert.equal(contract.transport.version, '0.42.1');
+  assert.equal(contract.max_parallel_implementers, 2);
+  assert.equal(contract.max_subagent_depth, 0);
+
+  const module = await import(`${pathToFileURL(path.join(root, '.pi/delegation.ts')).href}?test=${Date.now()}`);
+  const capability = module.createPiDelegationCapability();
+  assert.deepEqual(await capability.probe(), {
+    available: false,
+    protocol: 'zimster.pi-delegation.v1',
+    reason: 'optional_transport_unavailable'
+  });
+  assert.equal((await capability.launch({ role: 'scout', depth: 0 })).status, 'inline_required');
+  await assert.rejects(capability.launch({ role: 'scout', depth: 1 }), /depth/i);
 });
 
 test('secondary adapter validator accepts the documented package', async () => {
