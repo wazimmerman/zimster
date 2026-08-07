@@ -95,6 +95,13 @@ commit normal run state or change tracked `.gitignore` for it.
 If the helper is unavailable in a skills-only installation, create the same
 compact record manually at `git rev-parse --git-path zimster/run.md`.
 
+Classify indexed context as `current_truth`, `proposed_delta`,
+`accepted_decision`, or `unresolved_proposal`. Human approval is required before
+promoting a proposal into durable knowledge. Run
+`<zimster>/scripts/plan-conformance.mjs` at every verified slice boundary and
+again before release; use an equivalent manual requirement audit when the helper
+is unavailable.
+
 ## 4. Keep one owner
 
 The owner normally edits tightly coupled components. Preserve context across

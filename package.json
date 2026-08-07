@@ -22,6 +22,8 @@
     "evidence": "node scripts/evidence.mjs",
     "dispatch": "node scripts/dispatch-record.mjs",
     "run:init": "node scripts/init-run.mjs",
+    "context:index": "node scripts/context-index.mjs",
+    "plan:conformance": "node scripts/plan-conformance.mjs",
     "sync:codex": "node scripts/sync-codex-plugin.mjs",
     "sync:codex:check": "node scripts/sync-codex-plugin.mjs --check",
     "sync-skills": "node scripts/sync-skills.mjs",

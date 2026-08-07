@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zimster.dev/schemas/work-journal.schema.json",
+  "type": "object",
+  "required": ["schema_version", "id", "root_actor_id", "started_at", "starting_head", "plan", "decisions", "slice_commits", "evidence", "verifications", "unresolved_risks"],
+  "properties": {
+    "schema_version": { "const": 2 },
+    "id": { "type": "string", "format": "uuid" },
+    "root_actor_id": { "type": "string", "minLength": 1 },
+    "started_at": { "type": "string", "format": "date-time" },
+    "starting_head": { "type": ["string", "null"] },
+    "plan": {
+      "type": "object",
+      "required": ["id", "source"],
+      "properties": { "id": { "type": "string", "minLength": 1 }, "source": { "type": "string", "minLength": 1 } },
+      "additionalProperties": false
+    },
+    "decisions": { "type": "array" },
+    "slice_commits": { "type": "array" },
+    "evidence": { "type": "array" },
+    "verifications": { "type": "array" },
+    "unresolved_risks": { "type": "array" }
+  },
+  "additionalProperties": false
+}

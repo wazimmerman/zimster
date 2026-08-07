@@ -120,6 +120,16 @@ test('bootstrap policy enforces execution economy and phase-bounded ownership', 
   assert.match(bootstrap, /postmortem/i);
 });
 
+test('registered work separates evidence states and gates knowledge promotion and conformance', async () => {
+  const owner = await read('skills/owner-driven-development/SKILL.md');
+  for (const state of ['current_truth', 'proposed_delta', 'accepted_decision', 'unresolved_proposal']) {
+    assert.match(owner, new RegExp(state));
+  }
+  assert.match(owner, /human approval[\s\S]*durable knowledge|durable knowledge[\s\S]*human approval/i);
+  assert.match(owner, /plan-conformance[\s\S]*slice boundar|slice boundar[\s\S]*plan-conformance/i);
+  assert.match(owner, /before release/i);
+});
+
 test('completion states include requirement blockers', async () => {
   const verification = await read('skills/verification-before-completion/SKILL.md');
   const owner = await read('skills/owner-driven-development/SKILL.md');

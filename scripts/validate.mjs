@@ -115,6 +115,7 @@ for (const relative of [
   'scripts/evidence.mjs', 'scripts/change-snapshot.mjs', 'scripts/delegation-record.mjs',
   'scripts/model-routing.mjs', 'scripts/dispatch-record.mjs',
   'scripts/adapter-config.mjs',
+  'scripts/context-index.mjs', 'scripts/plan-conformance.mjs',
   'scripts/convergence.mjs',
   'scripts/verify.mjs', 'scripts/archive-safety.mjs', 'scripts/secret-scan.mjs',
   'scripts/installed-package-smoke.mjs', 'scripts/host-smoke.mjs',
@@ -137,9 +138,10 @@ for (const relative of [
   'schemas/requirement-matrix.schema.json',
   'schemas/semantic-review.schema.json', 'schemas/review-records.schema.json',
   'schemas/completion-decision.schema.json',
+  'schemas/context-index.schema.json', 'schemas/work-journal.schema.json',
   'templates/binding-requirements.json', 'templates/requirement-matrix.json',
   'templates/zimster-config.json', 'templates/delegation-decision.json',
-  'templates/model-proposal.json'
+  'templates/model-proposal.json', 'templates/context-index.json'
 ]) {
   try { if (!(await stat(path.join(root, relative))).isFile()) errors.push(`${relative}: not a file`); }
   catch { errors.push(`${relative}: missing`); }

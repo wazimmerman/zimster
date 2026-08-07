@@ -111,6 +111,8 @@ try {
 if (!auditPath && normalizedProfile !== 'Micro') {
   await initializeRunState(runtimeDirectory, {
     startingHead: head,
+    planId: String(options['plan-id'] || 'unregistered-plan'),
+    planSource: String(options['plan-source'] || 'user-approved request'),
     overwrite: options.force === true
   });
   await initializeExecutionBudget(runtimeDirectory, normalizedProfile, {

@@ -46,6 +46,7 @@ const BUILTIN_PROFILES = Object.freeze({
     complete_suite: true,
     steps: [
       ...commonBeforePackage,
+      nodeStep('plan-conformance', 'plan-conformance.mjs'),
       nodeStep('version-check', 'check-version.mjs'),
       nodeStep('package', 'package.mjs'),
       nodeStep('checksums', 'checksums.mjs'),
@@ -123,6 +124,12 @@ async function selectedPlan() {
       );
     }
     const reviewStep = plan.steps.find(({ id }) => id === 'review-package');
+    const conformanceStep = plan.steps.find(({ id }) => id === 'plan-conformance');
+    conformanceStep.args.push(
+      '--phase', 'release',
+      '--requirements', String(options['binding-requirements']),
+      '--matrix', String(options.matrix)
+    );
     const reviewOptions = [
       'base', 'head', 'requirements', 'binding-requirements', 'matrix',
       'lenses', 'risk-signals', 'intended-claims', 'unavailable-proof',

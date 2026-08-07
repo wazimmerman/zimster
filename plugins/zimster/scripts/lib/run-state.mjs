@@ -29,14 +29,22 @@ export async function appendRunEvent(runtime, event) {
 export async function initializeRunState(runtime, {
   rootActorId = 'root',
   startingHead = null,
+  planId = 'unregistered-plan',
+  planSource = 'user-approved request',
   overwrite = false
 } = {}) {
   const state = {
-    schema_version: 1,
+    schema_version: 2,
     id: randomUUID(),
     root_actor_id: rootActorId,
     started_at: new Date().toISOString(),
-    starting_head: startingHead
+    starting_head: startingHead,
+    plan: { id: planId, source: planSource },
+    decisions: [],
+    slice_commits: [],
+    evidence: [],
+    verifications: [],
+    unresolved_risks: []
   };
   await mkdir(runtime, { recursive: true });
   await writeFile(
