@@ -61,6 +61,6 @@ test('current release docs use the synchronized package version and honest evalu
   const readme = await read('README.md');
   const evaluation = await read('docs/EVALUATION.md');
   assert.match(readme, new RegExp(`Version ${pkg.version.replaceAll('.', '\\.')}`));
-  assert.match(evaluation, new RegExp(`Version ${pkg.version.replaceAll('.', '\\.')}`));
-  assert.match(evaluation, /does not claim to beat Superpowers/);
+  assert.match(evaluation, /Primary v0\.7\.0 pilot/);
+  assert.match(evaluation, /paired risk difference/);
 });

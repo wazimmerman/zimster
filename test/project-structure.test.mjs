@@ -26,7 +26,8 @@ const requiredFiles = [
   'docs/CONFIGURATION.md',
   'docs/KNOWN_LIMITATIONS.md',
   'docs/MIGRATING-0.5.0.md',
-  'docs/RESEARCH.md',
+  'docs/COMPATIBILITY.md',
+  'docs/GROK.md',
   'docs/RELEASING.md',
   'docs/SKILLS_ONLY.md',
   'docs/UPSTREAM.md',
@@ -43,7 +44,6 @@ const requiredFiles = [
   'scripts/capability-cache.mjs',
   'scripts/run-postmortem.mjs',
   'scripts/evaluate-execution-economy.mjs',
-  'docs/evaluations/v0.3.0-hardening-postmortem.md',
   'scripts/sync-codex-plugin.mjs',
   'scripts/validate-codex.mjs',
   'scripts/change-snapshot.mjs',
@@ -110,6 +110,16 @@ test('ships the public plugin structure', async () => {
   for (const file of requiredFiles) {
     assert.equal(await exists(file), true, `missing ${file}`);
   }
+});
+
+test('release tree excludes obsolete planning and research scratchpads', async () => {
+  for (const file of [
+    'docs/RESEARCH.md',
+    'docs/Zimster-v0.1-Design-Blueprint.md',
+    'docs/evaluations/v0.3.0-hardening-postmortem.md',
+    'docs/plans/2026-08-04-zimster-v0.6.0.md',
+    'docs/zimster/plans/2026-07-27-zimster-v0.1.md'
+  ]) assert.equal(await exists(file), false, `obsolete release-tree material remains: ${file}`);
 });
 
 test('all primary manifests agree on name and version', async () => {

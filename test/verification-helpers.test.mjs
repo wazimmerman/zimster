@@ -206,7 +206,7 @@ test('default host smoke records every unconfigured harness as unavailable witho
     assert.deepEqual(summary.executed, []);
     assert.deepEqual(
       summary.unavailable.map(({ id }) => id).sort(),
-      ['claude', 'codex', 'cursor', 'kimi', 'opencode', 'pi']
+      ['claude', 'codex', 'grok', 'kimi', 'opencode', 'pi']
     );
     await assert.rejects(readFile(path.join(checkout, 'dist')), /ENOENT|EISDIR/);
   } finally {

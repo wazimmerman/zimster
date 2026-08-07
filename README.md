@@ -144,12 +144,12 @@ structural validation do not imply live, model-backed execution.
 
 | Harness | Current verification level | Installation path | Principal limitation |
 |---|---|---|---|
-| Codex | `INSTALLED_PACKAGE_VERIFIED` | Git/custom marketplace package | Archive installation, provenance, manifest, and validation passed; fresh-session skill discovery and model-backed execution remain unverified |
-| Claude Code | `STRUCTURALLY_VALIDATED` | GitHub marketplace package | Package structure is validated; CLI installation, discovery, and model-backed execution were unavailable in the release environment |
-| Cursor | `STRUCTURALLY_VALIDATED` | Portable skills-only installation | Loading, UI behavior, and model-backed execution were not live-tested |
-| Kimi Code | `STRUCTURALLY_VALIDATED` | Native plugin installation | Managed installation and fresh-session execution were not live-tested; secondary routing remains version-gated |
-| OpenCode | `LIVE_VERIFIED` | Portable project package | Exact-package installation and fresh-session skill discovery passed; model-backed task execution and effective-model identity remain unverified |
-| Pi | `STRUCTURALLY_VALIDATED` | Git/package installation | Package loading and model-backed execution were not live-tested; Zimster ships no Pi subagent runtime |
+| Codex 0.146.1 | `INSTALLED_PACKAGE_VERIFIED` | Full Codex ZIP or Git/custom marketplace | Isolated registration and installation passed; model-backed task execution is evaluated separately |
+| Claude Code 2.1.224 | `LIVE_VERIFIED` | Full Claude ZIP or GitHub marketplace | Isolated installation and inventory exposed 12 skills, 4 agents, and the SessionStart hook; model-backed execution was not run |
+| Grok 1.0.0 | `LIVE_VERIFIED` | Portable Agent Plugin ZIP | The root manifest installed and all 12 skills were discovered; no separate `.grok` overlay was needed |
+| Kimi Code | `UNAVAILABLE` | Primary npm package or copied skills | The CLI was absent, so only the documented adapter structure was validated |
+| OpenCode 1.18.13 | `LIVE_VERIFIED` | Primary npm package or copied skills | Exact npm-package skill discovery passed; model-backed execution was not run |
+| Pi 0.84.1 | `INSTALLED_PACKAGE_VERIFIED` | Primary npm package | Isolated package installation passed; optional delegation remains disabled by default |
 
 The vocabulary is intentionally narrow:
 
@@ -197,7 +197,7 @@ The detailed assurance state machine and operational controls are documented in
 | System design | [Architecture](docs/ARCHITECTURE.md) |
 | Commands and evidence | [Operations](docs/OPERATIONS.md) |
 | Quality and economics | [Evaluation](docs/EVALUATION.md) |
-| Harness research | [Research](docs/RESEARCH.md) |
+| Tested host capabilities | [Compatibility](docs/COMPATIBILITY.md) |
 | Planned work | [Roadmap](docs/ROADMAP.md) |
 | User support | [Support](SUPPORT.md) |
 | Data handling | [Privacy](PRIVACY.md) |
@@ -206,8 +206,10 @@ The detailed assurance state machine and operational controls are documented in
 
 Harness-specific installation and evidence details are available for
 [Codex](docs/CODEX.md), [Claude Code](docs/CLAUDE.md),
-[Cursor](docs/CURSOR.md), [Kimi Code](docs/KIMI.md),
+[Grok](docs/GROK.md), [Kimi Code](docs/KIMI.md),
 [OpenCode](docs/OPENCODE.md), and [Pi](docs/PI.md).
+The retained [Cursor adapter](docs/CURSOR.md) is an ancillary skills-only
+surface and is not one of the v0.7.0 release-authorization hosts.
 
 ## Public-beta status and known limitations
 
@@ -237,6 +239,6 @@ Zimster is available under the [MIT License](LICENSE).
 
 Zimster builds on proven ideas from Superpowers and other agentic development
 workflows while using its own owner-driven, risk-adaptive execution model. See
-[Upstream provenance](docs/UPSTREAM.md), [Research](docs/RESEARCH.md), and
+[Upstream provenance](docs/UPSTREAM.md), [Compatibility](docs/COMPATIBILITY.md), and
 [Third-party notices](THIRD_PARTY_NOTICES.md) for attribution and licensing
 details.

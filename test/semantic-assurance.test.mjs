@@ -589,15 +589,16 @@ function hostVerificationReceipt({
   claimsByHost = {},
   releaseChannel = 'public_beta'
 } = {}) {
-  const required = ['codex', 'claude', 'cursor', 'kimi', 'opencode', 'pi'];
+  const required = ['codex', 'claude', 'grok', 'kimi', 'opencode', 'pi'];
   const artifacts = {
     claude: '1'.repeat(64),
     codex: '2'.repeat(64),
-    portable: '3'.repeat(64)
+    portable: '3'.repeat(64),
+    npm: '4'.repeat(64)
   };
   const candidateByHost = {
-    codex: 'codex', claude: 'claude', cursor: 'portable', kimi: 'portable',
-    opencode: 'portable', pi: 'portable'
+    codex: 'codex', claude: 'claude', grok: 'portable', kimi: 'npm',
+    opencode: 'npm', pi: 'npm'
   };
   return {
     schema_version: 3,
@@ -627,7 +628,9 @@ function hostVerificationReceipt({
         id,
         host_version: live ? 'fixture-1.0.0' : null,
         candidate: candidateByHost[id],
-        archive: `zimster-0.6.0-${candidateByHost[id]}.zip`,
+        archive: candidateByHost[id] === 'npm'
+          ? 'zimster-0.7.0.tgz'
+          : `zimster-0.7.0-${candidateByHost[id]}.zip`,
         archive_sha256: artifacts[candidateByHost[id]],
         candidate_commit: SHA_B,
         candidate_tree: TREE,
@@ -708,7 +711,7 @@ test('BETA-003 public beta requires one live host and bounds every public claim 
   }), /installed|model-backed|live/i);
 
   const structuralPretendsLive = hostVerificationReceipt();
-  structuralPretendsLive.hosts.find(({ id }) => id === 'cursor').verification_state = 'LIVE_VERIFIED';
+  structuralPretendsLive.hosts.find(({ id }) => id === 'grok').verification_state = 'LIVE_VERIFIED';
   assert.throws(() => validateHostSmokeReceipt(structuralPretendsLive, {
     candidateHead: SHA_B,
     candidateTree: TREE,
@@ -726,7 +729,7 @@ test('BETA-003 stable profile may require stronger live coverage than public bet
 
   const allLive = hostVerificationReceipt({
     releaseChannel: 'stable',
-    liveHosts: ['codex', 'claude', 'cursor', 'kimi', 'opencode', 'pi']
+    liveHosts: ['codex', 'claude', 'grok', 'kimi', 'opencode', 'pi']
   });
   assert.doesNotThrow(() => validateHostSmokeReceipt(allLive, {
     candidateHead: SHA_B,
@@ -749,7 +752,7 @@ test('BETA-003 host verification remains bound to exact archive provenance', () 
   assert.throws(() => validateHostSmokeReceipt({
     ...receipt,
     hosts: receipt.hosts.map((host) => host.id === 'pi'
-      ? { ...host, archive_sha256: '4'.repeat(64) }
+      ? { ...host, archive_sha256: '9'.repeat(64) }
       : host)
   }, {
     candidateHead: SHA_B,

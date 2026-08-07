@@ -110,7 +110,7 @@ for (const relative of [
   'docs/DIAGNOSTICS.md', 'docs/EVALUATION.md', 'docs/OPERATIONS.md',
   'docs/INSTALL.md', 'docs/CONFIGURATION.md', 'docs/KNOWN_LIMITATIONS.md',
   'docs/MIGRATING-0.5.0.md',
-  'docs/RELEASING.md', 'docs/RESEARCH.md', 'docs/SKILLS_ONLY.md',
+  'docs/RELEASING.md', 'docs/COMPATIBILITY.md', 'docs/GROK.md', 'docs/SKILLS_ONLY.md',
   'docs/UPSTREAM.md',
   'scripts/evidence.mjs', 'scripts/change-snapshot.mjs', 'scripts/delegation-record.mjs',
   'scripts/model-routing.mjs', 'scripts/dispatch-record.mjs',

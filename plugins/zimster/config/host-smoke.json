@@ -2,102 +2,85 @@
   "schema_version": 1,
   "default_release_channel": "public_beta",
   "max_age_days": 90,
-  "public_host_ids": ["codex", "claude", "cursor", "kimi", "opencode", "pi"],
+  "public_host_ids": ["codex", "claude", "grok", "kimi", "opencode", "pi"],
   "release_profiles": {
-    "public_beta": {
-      "minimum_live_verified_hosts": 1,
-      "required_live_host_ids": []
-    },
-    "stable": {
-      "minimum_live_verified_hosts": 6,
-      "required_live_host_ids": ["codex", "claude", "cursor", "kimi", "opencode", "pi"]
-    }
+    "public_beta": {"minimum_live_verified_hosts": 1, "required_live_host_ids": []},
+    "stable": {"minimum_live_verified_hosts": 6, "required_live_host_ids": ["codex", "claude", "grok", "kimi", "opencode", "pi"]}
   },
   "hosts": [
     {
-      "id": "claude",
-      "candidate": "claude",
-      "proof_kind": "exact_package_install_and_fresh_session_discovery",
-      "fallback_verification_state": "STRUCTURALLY_VALIDATED",
-      "installation_available": true,
+      "id": "claude", "candidate": "claude", "proof_kind": "exact_package_capability",
+      "fallback_verification_state": "STRUCTURALLY_VALIDATED", "installation_available": true,
       "capabilities_established": ["adapter_structure", "package_manifest"],
       "public_claims": ["adapter_structure", "package_manifest"],
       "structural_observations": ["Claude package, manifest, skills, agents, and hooks validate structurally"],
-      "capabilities_not_established": ["live_host_execution", "fresh_session_discovery"],
-      "known_limitations": ["Claude Code CLI and model-backed execution were unavailable in this environment"],
-      "unavailable_reason": "Configure an isolated Claude Code smoke command when the CLI is available."
+      "live_capabilities_established": ["adapter_structure", "package_manifest", "live_host_execution"],
+      "live_public_claims": ["adapter_structure", "package_manifest"],
+      "capabilities_not_established": ["model_backed_execution", "fresh_session_discovery"],
+      "known_limitations": ["Automated smoke validates the exact Claude package; isolated install inventory is documented separately"],
+      "success_verification_state": "STRUCTURALLY_VALIDATED",
+      "command": "claude", "version_args": ["--version"], "args": ["plugin", "validate", "."],
+      "expected_output": "Validation passed", "unavailable_reason": "Claude Code CLI is not installed."
     },
     {
-      "id": "codex",
-      "candidate": "codex",
-      "proof_kind": "exact_package_install_and_fresh_session_discovery",
-      "fallback_verification_state": "INSTALLED_PACKAGE_VERIFIED",
-      "installation_available": true,
+      "id": "codex", "candidate": "codex", "proof_kind": "exact_package_capability",
+      "fallback_verification_state": "INSTALLED_PACKAGE_VERIFIED", "installation_available": true,
       "capabilities_established": ["package_installation", "package_manifest"],
       "public_claims": ["package_installation", "package_manifest"],
       "structural_observations": ["Codex exact package installation and pinned manifest validation passed"],
-      "capabilities_not_established": ["live_host_execution", "fresh_session_discovery"],
-      "known_limitations": ["Fresh-session Codex skill discovery and model-backed execution were unavailable"],
-      "unavailable_reason": "Configure an isolated Codex smoke command when live host proof is required."
+      "capabilities_not_established": ["model_backed_execution", "fresh_session_discovery"],
+      "known_limitations": ["Model-backed task execution belongs to the controlled evaluation protocol"],
+      "unavailable_reason": "Codex package installation evidence is recorded by installed-package smoke."
     },
     {
-      "id": "cursor",
-      "candidate": "portable",
-      "proof_kind": "exact_package_install_and_fresh_session_discovery",
-      "fallback_verification_state": "STRUCTURALLY_VALIDATED",
-      "installation_available": true,
-      "capabilities_established": ["adapter_structure", "installation_surface"],
-      "public_claims": ["adapter_structure", "installation_surface"],
-      "structural_observations": ["Cursor command and Agent Skill surfaces validate structurally"],
-      "capabilities_not_established": ["live_host_execution", "fresh_session_discovery"],
-      "known_limitations": ["Cursor CLI and model-backed execution were unavailable"],
-      "unavailable_reason": "Configure an isolated Cursor smoke command when the CLI is available."
+      "id": "grok", "candidate": "portable", "proof_kind": "exact_package_capability",
+      "fallback_verification_state": "STRUCTURALLY_VALIDATED", "installation_available": true,
+      "capabilities_established": ["adapter_structure", "package_manifest"],
+      "public_claims": ["adapter_structure", "package_manifest"],
+      "structural_observations": ["The Agent Plugins 1.0.0 root manifest and all portable skills validate structurally"],
+      "live_capabilities_established": ["adapter_structure", "package_manifest", "live_host_execution"],
+      "live_public_claims": ["adapter_structure", "package_manifest"],
+      "capabilities_not_established": ["model_backed_execution", "fresh_session_discovery"],
+      "known_limitations": ["Automated smoke validates the exact portable package; isolated install discovery is documented separately"],
+      "success_verification_state": "STRUCTURALLY_VALIDATED",
+      "command": "grok", "version_args": ["--version"], "args": ["plugin", "validate", "."],
+      "expected_output": "Plugin manifest is valid", "unavailable_reason": "Grok CLI is not installed."
     },
     {
-      "id": "kimi",
-      "candidate": "portable",
-      "proof_kind": "exact_package_install_and_fresh_session_discovery",
-      "fallback_verification_state": "STRUCTURALLY_VALIDATED",
-      "installation_available": true,
+      "id": "kimi", "candidate": "npm", "proof_kind": "exact_package_capability",
+      "fallback_verification_state": "STRUCTURALLY_VALIDATED", "installation_available": true,
       "capabilities_established": ["adapter_structure", "installation_surface"],
       "public_claims": ["adapter_structure", "installation_surface"],
-      "structural_observations": ["Kimi plugin manifest and skill surfaces validate structurally"],
-      "capabilities_not_established": ["live_host_execution", "fresh_session_discovery"],
-      "known_limitations": ["Kimi Code CLI and model-backed execution were unavailable"],
-      "unavailable_reason": "Configure an isolated Kimi Code smoke command when the CLI is available."
+      "structural_observations": ["The exact npm package contains Kimi plugin and Agent Skill surfaces"],
+      "capabilities_not_established": ["live_host_execution", "fresh_session_discovery", "model_backed_execution"],
+      "known_limitations": ["Kimi Code CLI was unavailable in the release environment"],
+      "unavailable_reason": "Kimi Code CLI is not installed."
     },
     {
-      "id": "opencode",
-      "candidate": "portable",
-      "proof_kind": "exact_package_install_and_fresh_session_discovery",
-      "fallback_verification_state": "STRUCTURALLY_VALIDATED",
-      "installation_available": true,
+      "id": "opencode", "candidate": "npm", "proof_kind": "exact_package_capability",
+      "fallback_verification_state": "STRUCTURALLY_VALIDATED", "installation_available": true,
       "capabilities_established": ["adapter_structure", "installation_surface"],
       "public_claims": ["adapter_structure", "installation_surface"],
-      "live_public_claims": ["package_installation", "fresh_session_discovery", "live_host_execution"],
+      "live_capabilities_established": ["exact_package_skill_discovery", "fresh_session_discovery", "live_host_execution"],
+      "live_public_claims": ["exact_package_skill_discovery", "fresh_session_discovery"],
       "capabilities_not_established": ["model_backed_execution"],
-      "known_limitations": ["Live smoke establishes exact-package skill discovery, not model-backed task execution"],
-      "command": "opencode",
-      "version_args": ["--version"],
-      "args": [
-        "debug",
-        "skill"
-      ],
-      "expected_output": "using-zimster",
-      "unavailable_reason": "OpenCode CLI is not installed."
+      "known_limitations": ["Live smoke establishes exact npm-package skill discovery, not model-backed task execution"],
+      "command": "opencode", "version_args": ["--version"], "args": ["debug", "skill"],
+      "env": {"OPENCODE_DISABLE_AUTOUPDATE": "1", "OPENCODE_DISABLE_MODELS_FETCH": "1", "OPENCODE_DISABLE_LSP_DOWNLOAD": "1"},
+      "expected_output": "using-zimster", "unavailable_reason": "OpenCode CLI is not installed."
     },
     {
-      "id": "pi",
-      "candidate": "portable",
-      "proof_kind": "exact_package_install_and_fresh_session_discovery",
-      "fallback_verification_state": "STRUCTURALLY_VALIDATED",
-      "installation_available": true,
+      "id": "pi", "candidate": "npm", "proof_kind": "exact_package_capability",
+      "fallback_verification_state": "STRUCTURALLY_VALIDATED", "installation_available": true,
       "capabilities_established": ["adapter_structure", "installation_surface"],
       "public_claims": ["adapter_structure", "installation_surface"],
-      "structural_observations": ["Pi extension and Agent Skill surfaces validate structurally"],
-      "capabilities_not_established": ["live_host_execution", "fresh_session_discovery"],
-      "known_limitations": ["Pi CLI, subagent runtime, and model-backed execution were unavailable"],
-      "unavailable_reason": "Configure an isolated Pi smoke command when the CLI is available."
+      "live_capabilities_established": ["package_installation", "live_host_execution"],
+      "live_public_claims": ["package_installation"],
+      "capabilities_not_established": ["fresh_session_discovery", "model_backed_execution", "optional_delegation"],
+      "known_limitations": ["The smoke installs the exact npm package; model-backed execution and optional delegation are not exercised"],
+      "success_verification_state": "INSTALLED_PACKAGE_VERIFIED",
+      "command": "pi", "version_args": ["--version"], "args": ["install", "."],
+      "expected_output": "Installed", "unavailable_reason": "Pi CLI is not installed."
     }
   ]
 }

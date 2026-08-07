@@ -98,12 +98,18 @@ export async function createPackages(outputDirectory = path.join(root, 'dist')) 
   for (const include of packageJson.files) {
     if (include === 'docs/*.md') {
       for (const entry of await readdir(path.join(root, 'docs'))) {
-        if (entry.endsWith('.md') && entry !== 'Zimster-v0.1-Design-Blueprint.md') npmIncludes.push(`docs/${entry}`);
+        if (entry.endsWith('.md')) npmIncludes.push(`docs/${entry}`);
       }
     } else npmIncludes.push(include);
   }
   npmIncludes.push('package.json');
   const npmEntries = await collectFiles(root, npmIncludes, exclusions);
+  const npmMetadata = Buffer.from(`${JSON.stringify(await buildMetadata(root, 'npm'), null, 2)}\n`);
+  for (const entry of npmEntries) {
+    if (entry[0].endsWith('skills/using-zimster/references/build-metadata.json')) {
+      entry[1] = { data: npmMetadata, mode: 0o644 };
+    }
+  }
   const npmOutput = path.join(outputDirectory, `zimster-${version}.tgz`);
   await createTarGzip(npmOutput, npmEntries);
   outputs.push(npmOutput);

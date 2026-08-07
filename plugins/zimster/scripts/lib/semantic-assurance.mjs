@@ -12,14 +12,14 @@ const REQUIREMENT_STATES = Object.freeze([
   'blocked_by_requirement',
   'not_applicable'
 ]);
-const PUBLIC_BETA_HOST_IDS = Object.freeze(['codex', 'claude', 'cursor', 'kimi', 'opencode', 'pi']);
+const PUBLIC_BETA_HOST_IDS = Object.freeze(['codex', 'claude', 'grok', 'kimi', 'opencode', 'pi']);
 const PUBLIC_BETA_CANDIDATE = Object.freeze({
   codex: 'codex',
   claude: 'claude',
-  cursor: 'portable',
-  kimi: 'portable',
-  opencode: 'portable',
-  pi: 'portable'
+  grok: 'portable',
+  kimi: 'npm',
+  opencode: 'npm',
+  pi: 'npm'
 });
 const HOST_VERIFICATION_STATES = Object.freeze([
   'LIVE_VERIFIED',

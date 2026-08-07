@@ -55,6 +55,6 @@ The weekly Superpowers audit treats a new upstream release as a review signal,
 not an automatic merge. Codex contract snapshots should likewise be refreshed
 only after comparing official creator/validator source, updating provenance,
 observing RED against the old contract, and validating the new package layout.
-Cursor, Kimi Code, OpenCode, Pi, and Claude contract decisions and access dates
-are recorded in `RESEARCH.md`; their primary documentation must be rechecked
-before adding or retaining fields.
+Codex, Claude Code, Grok, Kimi Code, OpenCode, and Pi capability evidence is
+recorded in `COMPATIBILITY.md`. Primary host documentation and live CLI behavior
+must be rechecked before adding or retaining fields.

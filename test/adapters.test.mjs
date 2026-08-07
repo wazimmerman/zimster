@@ -132,7 +132,7 @@ test('each secondary harness has lifecycle and diagnostic instructions', async (
 
 test('ROUTE-005: harness capability reports distinguish routing enforcement and effective reporting', async () => {
   const matrix = await json('config/harness-capabilities.json');
-  for (const harness of ['codex', 'claude', 'cursor', 'kimi', 'opencode', 'pi']) {
+  for (const harness of ['codex', 'claude', 'grok', 'cursor', 'kimi', 'opencode', 'pi']) {
     const capabilities = matrix.harnesses[harness].capabilities;
     assert.ok(capabilities.model_routing_enforcement, `${harness} missing routing enforcement capability`);
     assert.ok(capabilities.effective_model_reporting, `${harness} missing effective-model reporting capability`);

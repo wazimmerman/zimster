@@ -59,6 +59,7 @@ async function allPresent(...relatives) {
 const structural = sourceCheckout ? {
   codex: await present('plugins/zimster/.codex-plugin/plugin.json'),
   claude: await present('.claude-plugin/plugin.json'),
+  grok: await present('plugin.json'),
   cursor: await present('.cursor/commands/using-zimster.md'),
   kimi: await present('.kimi-plugin/plugin.json'),
   opencode: await allPresent('.opencode/plugins/zimster.js', 'skills/using-zimster/SKILL.md'),
@@ -66,6 +67,7 @@ const structural = sourceCheckout ? {
 } : {
   codex: codexPackage ? 'ready' : 'not_packaged',
   claude: await present('.claude-plugin/plugin.json'),
+  grok: await present('plugin.json'),
   cursor: 'not_packaged',
   kimi: await present('.kimi-plugin/plugin.json'),
   opencode: 'not_packaged',

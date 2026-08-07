@@ -32,7 +32,7 @@
         "properties": {
           "id": {"type": "string", "minLength": 1},
           "host_version": {"type": ["string", "null"]},
-          "candidate": {"enum": ["claude", "codex", "portable"]},
+          "candidate": {"enum": ["claude", "codex", "npm", "portable"]},
           "archive": {"type": "string", "minLength": 1},
           "archive_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
           "candidate_commit": {"type": ["string", "null"]},

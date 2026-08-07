@@ -1,107 +1,54 @@
-# Codex Installation, Updates, and Validation
+# Codex
 
-Verification level for 0.6.0: `INSTALLED_PACKAGE_VERIFIED`. The complete marketplace package was live-installed with
-Codex CLI 0.145.0 in an isolated `CODEX_HOME`. Marketplace registration,
-installation, cache materialization, and the current official plugin validator
-all succeeded. A fresh `codex exec` session did not receive the installed
-`using-zimster` skill context. This is recorded as a host skill-discovery
-blocker, separate from package validity and installation success.
-The 0.6.0 public claim is therefore limited to package installation and
-structural validity; fresh-session and model-backed execution are not claimed.
+Verification level for Zimster 0.7.0: `INSTALLED_PACKAGE_VERIFIED` on Codex CLI
+0.146.1. Isolated marketplace registration and installation reported version
+0.7.0 and the expected installed path. The generated mirror and listing
+contracts pass deterministic validation. A fresh isolated model-backed prompt
+against the 0.7.0 archive has not yet been scored.
 
-Normal Zimster runs do not warn about this expected fallback. `npm run doctor`
-reports the detailed host/capability state.
+## Install and inspect
 
-## Adaptive routing
+Use the full Codex zip or repository marketplace. Keep every command on the
+same temporary `CODEX_HOME`:
 
-After delegation is independently selected, prefer an explicit per-spawn model
-and reasoning effort. If unavailable, generate a role config to an explicit
-staging path and reference it from `[agents.<role>].config_file`; otherwise
-inherit. Catalog output is session-scoped evidence. Strict cost requires both
-enforcement and effective-model reporting; Zimster never edits active Codex
-user configuration.
+```text
+codex plugin marketplace add /absolute/path/to/zimster --json
+codex plugin add zimster@zimster --json
+codex plugin list
+```
 
-## Validate the complete package
+The marketplace resolves `.agents/plugins/marketplace.json` to
+`plugins/zimster`. Never hand-edit that package: change canonical sources and
+run `npm run sync:codex`.
 
-From the repository root:
+## Validate
 
 ```text
 npm run sync:codex:check
 npm run validate:codex
-python3 <codex-plugin-creator>/scripts/validate_plugin.py plugins/zimster
 npm run package
 ```
 
-`validate:codex` uses the pinned JavaScript contract derived from OpenAI's
-official validator. The direct Python command is the authoritative live
-validator when the current Codex plugin-creator skill is installed.
+The JavaScript validator uses the pinned official Codex contract. When the
+current official Python validator is available, run it against
+`plugins/zimster` as an additional live check.
 
-## Isolated local installation
-
-Create a temporary Codex home using the native temporary-directory facility on
-your operating system, then set `CODEX_HOME` only for the smoke-test process.
-Do not point the smoke at your normal Codex home.
-
-```text
-codex plugin marketplace add /absolute/path/to/zimster
-codex plugin list
-codex plugin add zimster@zimster --json
-```
-
-All three commands must run with the same isolated `CODEX_HOME`. Validate the
-`installedPath` returned by the JSON install result, not merely the canonical
-source directory. A complete smoke distinguishes:
-
-1. package validation;
-2. marketplace registration;
-3. plugin installation and cache materialization;
-4. fresh-session skill discovery.
-
-Failure at step 4 does not retroactively invalidate steps 1–3.
-
-## Local update and reinstall
-
-Codex caches plugins by version. Prepare an isolated marketplace copy, then
-replace the cachebuster on that copy:
-
-```text
-npm run codex:cachebuster -- /path/to/staging/plugins/zimster
-codex plugin add zimster@zimster --json
-```
-
-The helper preserves the semantic release version and writes exactly one
-`+codex.<cachebuster>` suffix. Re-running it replaces the suffix instead of
-stacking suffixes. Start a new Codex task after reinstall so skills and tools
-are discovered from the new cache entry.
-
-## Public marketplace installation and updates
-
-For a cloned Zimster marketplace:
-
-```text
-codex plugin marketplace add /absolute/path/to/zimster
-codex plugin add zimster@zimster
-```
-
-For a configured Git marketplace, refresh it with:
+## Update and remove
 
 ```text
 codex plugin marketplace upgrade zimster
-codex plugin add zimster@zimster
-```
-
-The repository marketplace path is
-`.agents/plugins/marketplace.json`; its local entry resolves to
-`./plugins/zimster` relative to the marketplace root. The installable package
-is never the repository root.
-
-## Removal and diagnostics
-
-```text
+codex plugin add zimster@zimster --json
 codex plugin remove zimster@zimster
 codex plugin marketplace remove zimster
-npm run doctor
 ```
 
-Removal commands mutate the selected `CODEX_HOME`; verify that an isolated or
-intended user home is selected before running them.
+Codex caches plugins by version. For unreleased local iteration only,
+`npm run codex:cachebuster -- /path/to/staging/plugins/zimster` replaces one
+cachebuster suffix without changing the release version.
+
+## Capability mapping
+
+Codex supplies native Agent Skills, explicit per-run model/reasoning settings,
+and optional agents. Requested and effective model identity remain separate
+evidence. Zimster never edits active user configuration and never treats
+installation as proof of model-backed behavior.

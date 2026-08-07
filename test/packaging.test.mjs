@@ -74,7 +74,9 @@ test('packaging is deterministic and emits the five public channel artifacts', a
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/evaluate-execution-economy.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/benchmark-codex.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/benchmarks/lock/deepswe-v1.1.json')), true);
-    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/docs/evaluations/v0.3.0-hardening-postmortem.md')), true);
+    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/docs/COMPATIBILITY.md')), true);
+    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/docs/plans/')), false);
+    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/docs/Zimster-v0.1-Design-Blueprint.md')), false);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/zip-reader.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/run-state.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/config/host-smoke.json')), true);
@@ -171,6 +173,12 @@ test('packaging is deterministic and emits the five public channel artifacts', a
     assert.match(listing.stdout, /package\/skills\/using-zimster\/SKILL\.md/);
     assert.doesNotMatch(listing.stdout, /package\/plugins\/zimster/);
     assert.doesNotMatch(listing.stdout, /package\/docs\/plans\//);
+    const npmMetadata = spawnSync('tar', [
+      '-xOf', npmArtifact,
+      'package/skills/using-zimster/references/build-metadata.json'
+    ], { cwd: root, encoding: 'utf8' });
+    assert.equal(npmMetadata.status, 0, npmMetadata.stderr);
+    assert.equal(JSON.parse(npmMetadata.stdout).package_target, 'npm');
   } finally {
     await rm(first, { recursive: true, force: true });
     await rm(second, { recursive: true, force: true });
