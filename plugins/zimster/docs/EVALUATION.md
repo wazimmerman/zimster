@@ -1,117 +1,125 @@
-# Evaluation Strategy
+# Evaluation protocol
 
-Zimster's efficiency and quality claims must be established experimentally.
-Version 0.7.0 does not claim to beat Superpowers without comparative evidence.
+Zimster performance claims require reproducible comparative evidence. Local
+mechanism tests prove that a workflow feature behaves as designed; they do not
+prove that Zimster improves coding-agent outcomes. Null and negative results are
+publishable results.
 
-The historical 0.3.0 hardening measurements and the mechanisms they motivated
-are recorded in `docs/evaluations/v0.3.0-hardening-postmortem.md`.
+## Primary v0.7.0 pilot
 
-## Comparison arms
+The first campaign uses [DeepSWE v1.1](https://github.com/datacurve-ai/deep-swe)
+through [Pier](https://github.com/datacurve-ai/pier). DeepSWE supplies the task
+images and deterministic verifiers. Pier is benchmark infrastructure, not a
+model provider. The source revisions, 113-task population, Codex version, model,
+and reasoning level are frozen in `benchmarks/lock/deepswe-v1.1.json`.
 
-Use paired runs on identical repository revisions/tasks:
+Both conditions use locally installed Codex CLI `0.146.1`, `gpt-5.6-sol`, high
+reasoning, one concurrent trial, no retry, identical task images, identical
+timeouts, and the owner's ChatGPT subscription authentication:
 
-1. frontier model with no workflow instructions;
-2. placebo process prompt of comparable shape but no mechanism;
-3. current Superpowers release;
-4. Zimster Micro or Standard as appropriate;
-5. Zimster High-risk for hard-trigger scenarios.
+- `control`: task-repository instructions with no Zimster plugin or skills;
+- `treatment`: the canonical `skills/` tree embedded read-only in the task
+  image and discovered through Codex's Agent Skills directory.
 
-No-framework and placebo floors distinguish real mechanisms from authoritative
-process-shaped prose.
+The harness rejects API-key authentication, provider/base-URL overrides, a
+different Codex version, or a run without an explicit operator assertion that
+automatic credit top-up is disabled. It never installs or selects an alternate
+model provider. Authentication material remains outside the task repository and
+is uploaded by Pier only to the trial's temporary Codex home.
 
-## Scenario portfolio
+Task selection was frozen before scoring by ranking all task IDs with SHA-256
+using the public seed in `benchmarks/manifests/codex-pro-pilot.json`. The first
+ranked task is calibration-only. Conditions alternate first position across
+paired blocks.
 
-Include small misleading bug fixes, ordinary multi-file features, async state
-authority, concurrency/cancellation/resource ownership, migration/rollback,
-authorization/secrets, frontend accessibility/stale responses, native
-OS/hardware with gated proof, and long runs with compaction pressure.
+Campaign sizes are:
 
-Use hidden acceptance tests or blind artifact review where possible. Run at
-least five paired repetitions per stable scenario and more for high variance.
+- calibration: one excluded task per condition;
+- minimum interpretable pilot: 6 tasks × 2 conditions × 2 repeats = 24 runs;
+- preferred pilot: 8 tasks × 2 conditions × 3 repeats = 48 runs.
 
-## Quality metrics
+Only complete, scorable control/treatment pairs enter comparative analysis. If
+included usage ends, the harness attempts to finish the active pair, checkpoints
+the campaign, and stops before starting another. A pair in which either result
+lacks deterministic verifier output is excluded, never imputed as comparative
+evidence.
 
-- hidden acceptance pass rate;
-- Critical/Important defects after completion;
-- mission/scope compliance;
-- behavior-specific RED and mutation falsifiability;
-- cross-component lifecycle defects;
-- unreviewed staged, unstaged, or untracked content;
-- unsupported/fabricated evidence claims;
-- canonical-command and test-discovery reporting accuracy;
-- maintainability and unnecessary scope;
-- reviewer false negatives/positives;
-- requirement versus environment blocker accuracy.
-- requirement-matrix coverage and broad-claim rejection accuracy;
-- `self_review`/`independent_review` classification and semantic-review false
-  approval rate;
-- checkout-integrity versus semantic-verdict confusion rate.
+## Outcomes and scoring
 
-## Efficiency metrics
+The primary outcome is the DeepSWE deterministic verifier pass indicator. The
+primary effect is the treatment-minus-control paired risk difference. Confidence
+intervals use a seeded nonparametric cluster bootstrap that resamples task IDs
+and retains all repeats within a sampled task.
 
-- total/input/output/cached tokens;
-- wall-clock duration;
-- root/subagent turns;
-- agent starts, resumes, nested spawns;
-- requested versus effective model tier;
-- review/correction waves;
-- tool calls and duplicate commands;
-- focused, affected, subsystem, and full-gate invocations;
-- valid evidence reuses and stale-evidence rejections;
-- resident context over time;
-- time to first integrated passing slice;
-- stage at which each defect appears.
+Secondary outcomes are successful completion, wall-clock duration, agent turns,
+input/cached/output tokens when Codex exposes them, tool calls, retries, and
+failure class. Efficiency is reported twice:
 
-## Operational-control evaluations
+1. unconditionally across all runs, including failures;
+2. conditional on successful completion.
 
-Add explicit hold-outs for:
+Secondary hypothesis families use Holm correction. A mixed-effects or GEE model
+is complementary analysis, not a replacement for the paired estimate; it is run
+only when the campaign contains enough independent task clusters for a stable
+fit. No model judge assigns the primary score. Human adjudication is limited to
+documented verifier or harness ambiguity and must not rewrite deterministic test
+results.
 
-- Codex ingestion rejects unsupported manifest fields;
-- repo marketplace resolves only `plugins/zimster/`;
-- implementation files remain untracked at review time;
-- seven behavioral tests initially fail only at import;
-- repository defines a canonical test script but an agent invents bad flags;
-- a fast scout inherits the expensive parent model;
-- a reviewer with shell access mutates the checkout;
-- an evidence receipt is reused after a working-tree change;
-- a release tag disagrees with package/plugin versions.
-- owner-inline self-review attempts to satisfy a Standard/High-risk gate;
-- an unchanged review checkout is treated as semantic approval;
-- a matrix omits a binding requirement or references stale/wrong-tree proof;
-- a narrow default harness is used to claim all custom configurations;
-- convention-heavy framework defaults or shared adapter/provider control flow
-  bypass the specialized path;
-- a correction reuses the prior evidence or exact-head approval.
-- a cheap mapping causes delegation that the independent decision rejected;
-- a stale proposal survives changed task, mapping, catalog, or capability data;
-- autonomous convergence crosses scope, sensitivity, review, or budget bounds;
-- local routing observations mutate policy or candidate order.
+## Evidence and privacy
 
-Run `node scripts/evaluate-execution-economy.mjs` for the deterministic local
-fixture. It demonstrates duplicate-command reuse, budget warning behavior,
-checkpoint resumption, and compact verification output without a costly live
-goal. It is a mechanism test, not comparative performance evidence.
+Raw Pier jobs, Codex trajectories, runner logs, and patches are kept outside the
+tracked tree under `.git/zimster/benchmarks/`. Each job becomes a
+content-addressed `sha256/<digest>` bundle with a file inventory. Public evidence
+contains the frozen manifest and lock hashes, run-level bundle hashes,
+exclusions, failure classes, and analysis output—not credentials, account
+identifiers, authentication paths, or tokens.
 
-## Initial release gates
+The visible plan-window state is recorded categorically and without account
+identifiers before a campaign. Never purchase credits or enable top-up on behalf
+of the campaign. Resume only after the included-usage window resets.
 
-Against the current Superpowers baseline:
+## Reproduction
 
-- no increase in Critical defects;
-- non-inferior hidden acceptance;
-- zero false service/hardware/human claims;
-- zero unreviewed implementation files;
-- median tokens ≤50% of baseline;
-- median elapsed time ≤60% of baseline;
-- P95 specialist identities ≤8;
-- zero unapproved nested agents;
-- ≤1 resumed recheck per seam unless strategy changes at the circuit breaker.
+Check the fixed schedule without using model allowance:
 
-Targets remain hypotheses until confidence intervals support them. Publish
-negative and null results.
+```sh
+npm run benchmark:plan -- --campaign minimum
+```
 
-## Atmosvox-derived benchmark
+Run the safety preflight after manually confirming auto top-up is disabled in
+the account UI. Use a categorical plan-window description:
 
-A reduced native-audio fixture should retain decoder/writer lifecycle,
-cancellation, generation authority, hotplug, exact parameters, and unavailable
-hardware. Compare when seam defects are discovered, not only whether a final
-suite eventually passes.
+```sh
+npm run benchmark:preflight -- \
+  --confirm-auto-top-up-disabled \
+  --plan-window-state included-usage-available-identifiers-omitted
+```
+
+Check out the exact DeepSWE and Pier commits from the lock, then run calibration:
+
+```sh
+npm run benchmark:run -- \
+  --campaign calibration \
+  --deepswe /absolute/path/to/deep-swe \
+  --pier /absolute/path/to/pier \
+  --confirm-auto-top-up-disabled \
+  --plan-window-state included-usage-available-identifiers-omitted
+```
+
+Use `--resume` to continue the same campaign. Use `--max-pairs 1` for a bounded
+smoke. Analyze any exported JSON Lines record file with:
+
+```sh
+npm run benchmark:analyze -- --records /absolute/path/to/records.jsonl
+```
+
+The deterministic implementation and fixtures are in `benchmarks/lib/pilot.mjs`
+and `test/benchmark-pilot.test.mjs`.
+
+## Later diagnostics
+
+SWE-Interact, SWE Atlas, and Terminal-Bench 2.1 are later diagnostic suites.
+SWE-bench Verified is not a headline benchmark for this release. Superpowers and
+GSD comparisons require the same Codex authentication and run contract. Any
+API-billed, external-provider, contamination-sensitive, or paid-judge campaign
+requires a separate approval and a distinct label.

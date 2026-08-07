@@ -1,0 +1,22 @@
+{
+  "schema_version": 1,
+  "deepswe": {
+    "name": "DeepSWE",
+    "version": "1.1",
+    "repository": "https://github.com/datacurve-ai/deep-swe.git",
+    "commit": "435ee89ec2f2e2289f33b0da4f992f0b7b7266b9",
+    "task_count": 113,
+    "format": "harbor"
+  },
+  "pier": {
+    "repository": "https://github.com/datacurve-ai/pier.git",
+    "commit": "0daf53d3599e58c4506cf0bcff5e12c77dc282d2"
+  },
+  "codex": {
+    "version": "0.146.1",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "authentication": "chatgpt_subscription",
+    "max_concurrency": 1
+  }
+}

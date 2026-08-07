@@ -8,7 +8,7 @@ import { directInvocation } from './lib/path-identity.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const target = path.join(root, 'plugins', 'zimster');
 const includes = [
-  '.codex-plugin', 'skills', 'agents', 'templates', 'assets', 'config', 'schemas',
+  '.codex-plugin', 'skills', 'agents', 'templates', 'assets', 'benchmarks', 'config', 'schemas',
   'docs/ARCHITECTURE.md', 'docs/CLAUDE.md', 'docs/CODEX.md', 'docs/CURSOR.md',
   'docs/DIAGNOSTICS.md', 'docs/EVALUATION.md', 'docs/evaluations', 'docs/KIMI.md',
   'docs/INSTALL.md', 'docs/CONFIGURATION.md', 'docs/KNOWN_LIMITATIONS.md',
@@ -19,6 +19,7 @@ const includes = [
   'scripts/archive-safety.mjs', 'scripts/change-snapshot.mjs',
   'scripts/capability-cache.mjs',
   'scripts/context-index.mjs',
+  'scripts/benchmark-codex.mjs',
   'scripts/dispatch-record.mjs',
   'scripts/delegation-record.mjs', 'scripts/model-routing.mjs',
   'scripts/adapter-config.mjs', 'scripts/convergence.mjs',

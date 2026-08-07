@@ -15,6 +15,7 @@ const operationalScripts = [
   'scripts/capability-cache.mjs',
   'scripts/codex-cachebuster.mjs',
   'scripts/context-index.mjs',
+  'scripts/benchmark-codex.mjs',
   'scripts/delegation-record.mjs', 'scripts/model-routing.mjs',
   'scripts/adapter-config.mjs', 'scripts/convergence.mjs',
   'scripts/dispatch-record.mjs', 'scripts/doctor.mjs',
@@ -52,7 +53,7 @@ const publicContracts = [
   'docs/MIGRATING-0.5.0.md'
 ];
 const common = [
-  'skills', 'agents', 'templates', 'assets', 'docs', 'config', 'schemas',
+  'skills', 'agents', 'templates', 'assets', 'benchmarks', 'docs', 'config', 'schemas',
   ...operationalScripts, ...publicContracts,
   'LICENSE', 'README.md', 'THIRD_PARTY_NOTICES.md', 'PRIVACY.md', 'TERMS.md',
   'SUPPORT.md', 'CHANGELOG.md'

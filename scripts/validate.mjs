@@ -116,6 +116,7 @@ for (const relative of [
   'scripts/model-routing.mjs', 'scripts/dispatch-record.mjs',
   'scripts/adapter-config.mjs',
   'scripts/context-index.mjs', 'scripts/plan-conformance.mjs',
+  'scripts/benchmark-codex.mjs',
   'scripts/release-evidence.mjs',
   'scripts/convergence.mjs',
   'scripts/verify.mjs', 'scripts/archive-safety.mjs', 'scripts/secret-scan.mjs',
@@ -142,6 +143,10 @@ for (const relative of [
   'schemas/completion-decision.schema.json',
   'schemas/context-index.schema.json', 'schemas/work-journal.schema.json',
   'schemas/release-evidence.schema.json',
+  'schemas/benchmark-result.schema.json',
+  'benchmarks/lock/deepswe-v1.1.json',
+  'benchmarks/manifests/codex-pro-pilot.json',
+  'benchmarks/lib/pilot.mjs',
   'templates/binding-requirements.json', 'templates/requirement-matrix.json',
   'templates/zimster-config.json', 'templates/delegation-decision.json',
   'templates/model-proposal.json', 'templates/context-index.json'
