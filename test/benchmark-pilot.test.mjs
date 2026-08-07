@@ -12,6 +12,7 @@ import {
   countDirectoryEntries,
   holmAdjust,
   prepareTaskOverlay,
+  redactEvidenceTree,
   recordFromPierResult
 } from '../benchmarks/lib/pilot.mjs';
 import { root } from './helpers.mjs';
@@ -39,6 +40,34 @@ test('pinned source validation counts directory entries without detaching Dirent
     await mkdir(path.join(directory, 'second'));
     await writeFile(path.join(directory, 'not-a-directory'), 'fixture\n');
     assert.equal(countDirectoryEntries(await readdir(directory, { withFileTypes: true })), 2);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('evidence bundling redacts authentication paths and tokens in nested logs', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'zimster-evidence-redaction-'));
+  try {
+    await mkdir(path.join(directory, 'nested'));
+    const log = path.join(directory, 'nested', 'job.log');
+    const session = path.join(directory, 'nested', 'session.jsonl');
+    await writeFile(log, [
+      'Codex auth: using auth.json from /home/operator/.codex/auth.json',
+      'access_token: secret-value',
+      'request sk-example-secret',
+      'task-specific benchmark text must remain unchanged'
+    ].join('\n'));
+    await writeFile(session, `${JSON.stringify({ access_token: 'secret-value', event: 'kept' })}\n`);
+    await redactEvidenceTree(directory);
+    const redacted = await readFile(log, 'utf8');
+    assert.doesNotMatch(redacted, /operator|secret-value|sk-example-secret/);
+    assert.match(redacted, /\[REDACTED_AUTH_PATH\]/);
+    assert.match(redacted, /access_token: \[REDACTED\]/);
+    assert.match(redacted, /\[REDACTED_TOKEN\]/);
+    assert.match(redacted, /task-specific benchmark text must remain unchanged/);
+    assert.deepEqual(JSON.parse((await readFile(session, 'utf8')).trim()), {
+      access_token: '[REDACTED]', event: 'kept'
+    });
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
