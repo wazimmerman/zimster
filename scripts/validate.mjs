@@ -129,7 +129,6 @@ for (const relative of [
   'scripts/lib/proposal-state.mjs',
   'scripts/lib/convergence.mjs',
   'scripts/run-postmortem.mjs', 'scripts/evaluate-execution-economy.mjs',
-  'docs/evaluations/v0.3.0-hardening-postmortem.md',
   'scripts/check-version.mjs', 'scripts/bump-version.mjs', 'scripts/checksums.mjs', 'config/model-routing.json',
   'config/host-smoke.json', 'config/standards-lock.json', 'config/pi-delegation.json',
   'schemas/evidence.schema.json', 'schemas/dispatch.schema.json',
