@@ -37,7 +37,8 @@ Prefer repository-declared commands in this order:
 3. Makefile, task runner, or project scripts;
 4. CI workflow commands.
 
-Use `scripts/project-commands.mjs` as an inventory aid. Prefer `npm test` over an
+Use `<zimster>/scripts/project-commands.mjs`, resolved from the installed package
+root, as an inventory aid when available. Prefer `npm test` over an
 invented `node --test` command when the repository defines it. Invent direct
 commands or flags only when canonical commands cannot establish the required
 proof; state why and how the direct command differs.
@@ -61,7 +62,7 @@ successful full-suite executions.
 
 ## Evidence receipts and reuse
 
-Record commands with `scripts/evidence.mjs`. A receipt binds command, working
+Record commands with `<zimster>/scripts/evidence.mjs` when available. A receipt binds command, working
 -tree fingerprint, Git head/tree, cwd, environment, exit code, test discovery,
 counts, scope, and timestamps.
 
@@ -85,7 +86,7 @@ git diff
 git diff --cached
 ```
 
-Use `scripts/change-snapshot.mjs` to include all untracked files without
+Use `<zimster>/scripts/change-snapshot.mjs` to include all untracked files without
 modifying the index, or read every untracked file directly. `git diff` alone is
 not a complete review when new files exist.
 

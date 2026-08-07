@@ -53,7 +53,8 @@ git diff
 git diff --cached
 ```
 
-Generate `scripts/change-snapshot.mjs --output <path>` so staged, unstaged, and
+Generate `<zimster>/scripts/change-snapshot.mjs --output <path>`, resolved from
+the installed package root, so staged, unstaged, and
 untracked files are represented without modifying the index. As a manual
 fallback, use `git add -N <untracked paths>` followed by `git diff`, or read
 every untracked file directly. Restore no index state by guessing; record what

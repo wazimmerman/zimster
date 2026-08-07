@@ -1,0 +1,20 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "zimster",
+  "version": "0.7.0",
+  "description": "A proof-first, owner-driven development workflow for capable coding agents.",
+  "author": {
+    "name": "Zimster Contributors",
+    "email": "support@zimster.dev",
+    "url": "https://zimster.dev"
+  },
+  "homepage": "https://zimster.dev",
+  "repository": "https://github.com/wazimmerman/zimster",
+  "license": "MIT",
+  "keywords": [
+    "agent-skills",
+    "code-review",
+    "tdd",
+    "workflow"
+  ]
+}

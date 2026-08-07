@@ -1,7 +1,7 @@
 # Evaluation Strategy
 
 Zimster's efficiency and quality claims must be established experimentally.
-Version 0.6.0 does not claim to beat Superpowers without comparative evidence.
+Version 0.7.0 does not claim to beat Superpowers without comparative evidence.
 
 The historical 0.3.0 hardening measurements and the mechanisms they motivated
 are recorded in `docs/evaluations/v0.3.0-hardening-postmortem.md`.

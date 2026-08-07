@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { exists, json } from './helpers.mjs';
 
 const requiredFiles = [
+  'plugin.json',
   '.codex-plugin/plugin.json',
   '.claude-plugin/plugin.json',
   '.cursor/commands/using-zimster.md',
@@ -84,6 +85,7 @@ const requiredFiles = [
   'templates/delegation-decision.json',
   'templates/model-proposal.json',
   'config/model-routing.json',
+  'config/standards-lock.json',
   'config/convergence.json',
   'config/host-smoke.json',
   'plugins/zimster/.codex-plugin/plugin.json'

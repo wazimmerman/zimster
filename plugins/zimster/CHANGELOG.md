@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.0 — 2026-08-07
+
+- Adopt portable Agent Plugin standards, reproducible marketplace artifacts, registered workflow controls, and a Codex evaluation pilot.
+
 ## 0.6.0 — 2026-08-04
 
 - Add adaptive delegation, policy-bounded model routing, autonomous convergence, and public-beta installation contracts

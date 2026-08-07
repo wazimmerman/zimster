@@ -74,7 +74,8 @@ inventing commit SHAs.
 
 ## 3. Durable state
 
-Create durable state through plugin-relative `scripts/init-run.mjs` when any
+Create durable state through `<zimster>/scripts/init-run.mjs`, resolved from the
+installed package root rather than the target repository, when any
 condition is true. Normal state belongs at the worktree-safe Git-local path
 from `git rev-parse --git-path zimster/run.md`, not in product history:
 
@@ -91,6 +92,8 @@ slice, evidence receipt IDs, requested/effective model records, open findings,
 unavailable proof, and next action. Keep detailed logs in artifact files.
 An audit document inside the project is opt-in through `--audit-path`; do not
 commit normal run state or change tracked `.gitignore` for it.
+If the helper is unavailable in a skills-only installation, create the same
+compact record manually at `git rev-parse --git-path zimster/run.md`.
 
 ## 4. Keep one owner
 

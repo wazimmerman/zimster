@@ -1,6 +1,6 @@
 {
   "name": "zimster",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "description": "A proof-first, owner-driven development workflow for capable coding agents.",
   "type": "module",
   "private": false,

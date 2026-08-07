@@ -139,7 +139,7 @@ rules, and convergence controls.
 
 ## Supported harnesses
 
-Zimster 0.6.0 uses claim-scoped support levels. Installation availability and
+Version 0.7.0 uses claim-scoped support levels. Installation availability and
 structural validation do not imply live, model-backed execution.
 
 | Harness | Current verification level | Installation path | Principal limitation |
@@ -211,7 +211,9 @@ Harness-specific installation and evidence details are available for
 
 ## Public-beta status and known limitations
 
-Version 0.6.0 is a public beta. The core workflow is usable, while evidence
+Version 0.7.0 is a release candidate. The latest published release remains
+0.6.0 until the signed release authorization succeeds. The core workflow is
+usable, while evidence
 levels differ by harness and live model-backed testing has not been completed
 for every integration. Review the [known limitations](docs/KNOWN_LIMITATIONS.md)
 before adoption.
