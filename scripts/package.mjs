@@ -58,7 +58,7 @@ const common = [
   'LICENSE', 'README.md', 'THIRD_PARTY_NOTICES.md', 'PRIVACY.md', 'TERMS.md',
   'SUPPORT.md', 'CHANGELOG.md'
 ]
-const exclusions = ['dist', '.git', 'node_modules', '.zimster'];
+const exclusions = ['dist', '.git', 'node_modules', '.zimster', '.opencode/.gitignore'];
 
 export async function createPackages(outputDirectory = path.join(root, 'dist')) {
   const versionRows = await versionRecords();

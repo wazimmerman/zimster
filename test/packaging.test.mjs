@@ -173,6 +173,7 @@ test('packaging is deterministic and emits the five public channel artifacts', a
     assert.match(listing.stdout, /package\/skills\/using-zimster\/SKILL\.md/);
     assert.doesNotMatch(listing.stdout, /package\/plugins\/zimster/);
     assert.doesNotMatch(listing.stdout, /package\/docs\/plans\//);
+    assert.doesNotMatch(listing.stdout, /package\/\.opencode\/\.gitignore/);
     const npmMetadata = spawnSync('tar', [
       '-xOf', npmArtifact,
       'package/skills/using-zimster/references/build-metadata.json'
