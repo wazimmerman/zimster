@@ -19,6 +19,7 @@ import {
 import { root } from './helpers.mjs';
 
 const manifestPath = path.join(root, 'benchmarks/manifests/codex-pro-pilot.json');
+const resultPath = path.join(root, 'benchmarks/results/codex-pro-pilot-minimum.json');
 
 async function manifest() {
   return JSON.parse(await readFile(manifestPath, 'utf8'));
@@ -32,6 +33,25 @@ test('benchmark lock pins DeepSWE, Pier, Codex, model, and reasoning', async () 
   assert.equal(lock.codex.model, 'gpt-5.6-sol');
   assert.equal(lock.codex.reasoning_effort, 'high');
   assert.equal(lock.deepswe.task_count, 113);
+});
+
+test('minimum pilot publishes complete paired evidence without account identifiers', async () => {
+  const raw = await readFile(resultPath, 'utf8');
+  const result = JSON.parse(raw);
+
+  assert.equal(result.schema_version, 1);
+  assert.equal(result.campaign, 'minimum');
+  assert.equal(result.scored_runs, 24);
+  assert.equal(result.complete_pairs, 12);
+  assert.deepEqual(result.incomplete_pairs, []);
+  assert.equal(result.raw_bundle_sha256.length, 24);
+  assert.equal(new Set(result.raw_bundle_sha256.map(({ run_id }) => run_id)).size, 24);
+  assert.equal(result.primary.outcome, 'benchmark_test_pass');
+  assert.equal(result.primary.control_pass_rate, 0.75);
+  assert.equal(result.primary.treatment_pass_rate, 5 / 6);
+  assert.equal(result.primary.paired_risk_difference, 1 / 12);
+  assert.equal(result.retries, 0);
+  assert.doesNotMatch(raw, /account|email|auth\.json|access_token|refresh_token|id_token|sk-[A-Za-z0-9_-]{12,}/i);
 });
 
 test('pinned source validation counts directory entries without detaching Dirent methods', async () => {

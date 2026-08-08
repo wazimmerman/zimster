@@ -15,8 +15,10 @@ Zimster 0.7.0 is a release candidate, not a stable 1.0 compatibility guarantee.
   vendor-model table and safely inherits when evidence is insufficient.
 - Optional Pi delegation depends on a separately installed, pinned transport;
   the normal fallback is owner-inline execution.
-- The Codex/DeepSWE pilot protocol is implemented, but comparative claims require
-  complete scorable pairs and must report null or negative results.
+- The minimum Codex/DeepSWE pilot completed 12 pairs. Its positive point
+  estimates are not definitive: the pass-rate confidence interval includes
+  zero and Holm-adjusted secondary comparisons are not significant. The
+  preferred 48-run campaign remains future work.
 - Public marketplace or registry approval is outside the repository's control.
 
 Run `npm run doctor -- --json`, consult `COMPATIBILITY.md`, and bind any broader

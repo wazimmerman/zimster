@@ -145,6 +145,7 @@ for (const relative of [
   'schemas/benchmark-result.schema.json',
   'benchmarks/lock/deepswe-v1.1.json',
   'benchmarks/manifests/codex-pro-pilot.json',
+  'benchmarks/results/codex-pro-pilot-minimum.json',
   'benchmarks/lib/pilot.mjs',
   'templates/binding-requirements.json', 'templates/requirement-matrix.json',
   'templates/zimster-config.json', 'templates/delegation-decision.json',

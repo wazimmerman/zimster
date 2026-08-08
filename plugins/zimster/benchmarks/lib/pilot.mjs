@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { cp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { cp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 const REQUIRED_CODEX_VERSION = '0.146.1';
@@ -14,6 +14,42 @@ const FORBIDDEN_PROVIDER_ENV = [
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+export function countDirectoryEntries(entries) {
+  return entries.filter((entry) => entry.isDirectory()).length;
+}
+
+export function redactSensitiveText(value) {
+  return String(value)
+    .replace(/\bsk-[A-Za-z0-9_-]{12,}/g, '[REDACTED_TOKEN]')
+    .replace(/("(?:access_token|refresh_token|id_token)"\s*:\s*)"(?:\\.|[^"\\])*"/gi, '$1"[REDACTED]"')
+    .replace(/(\b(?:access_token|refresh_token|id_token)\b\s*[:=]\s*)[^\s,;}]+/gi, '$1[REDACTED]')
+    .replace(/\/[^\s"']*\.codex\/auth\.json/g, '[REDACTED_AUTH_PATH]');
+}
+
+const REDACTABLE_EVIDENCE_EXTENSIONS = new Set([
+  '.diff', '.json', '.jsonl', '.log', '.md', '.patch', '.toml', '.txt', '.yaml', '.yml'
+]);
+
+export async function redactEvidenceTree(directory) {
+  for (const entry of await readdir(directory, { withFileTypes: true })) {
+    const absolute = path.join(directory, entry.name);
+    if (entry.isDirectory()) {
+      await redactEvidenceTree(absolute);
+      continue;
+    }
+    if (!entry.isFile() || !REDACTABLE_EVIDENCE_EXTENSIONS.has(path.extname(entry.name).toLowerCase())) continue;
+    const original = await readFile(absolute, 'utf8');
+    const redacted = redactSensitiveText(original);
+    if (redacted !== original) await writeFile(absolute, redacted);
+  }
+}
+
+export function selectPierTrialResult(files) {
+  const matches = files.filter(({ relative }) => relative !== 'result.json' && relative.endsWith('/result.json'));
+  assert(matches.length === 1, `Expected one Pier trial result; found ${matches.length}.`);
+  return matches[0].absolute;
 }
 
 export function assertPilotSafety({

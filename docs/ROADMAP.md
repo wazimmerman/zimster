@@ -28,7 +28,8 @@ is required; universal registry availability is not a tag gate.
 
 ## After 0.7.0
 
-- Complete or extend the paired DeepSWE campaign after subscription resets.
+- Extend the completed 24-run minimum DeepSWE pilot to the preferred 48-run
+  campaign when a complete additional campaign is practical.
 - Add SWE-Interact, SWE Atlas, and Terminal-Bench 2.1 as diagnostics where they
   answer a concrete failure mode.
 - Compare Superpowers and GSD under the identical Codex run contract.

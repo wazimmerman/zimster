@@ -38,6 +38,28 @@ Campaign sizes are:
 - minimum interpretable pilot: 6 tasks × 2 conditions × 2 repeats = 24 runs;
 - preferred pilot: 8 tasks × 2 conditions × 3 repeats = 48 runs.
 
+## v0.7.0 minimum-pilot result
+
+The minimum campaign completed on 2026-08-07 with 12 complete pairs, 24
+scored runs, no incomplete pairs, and no retries. The treatment passed 10 of 12
+runs (83.33%) and control passed 9 of 12 (75%), for a paired risk difference of
++8.33 percentage points and a seeded task-cluster bootstrap 95% confidence
+interval of 0 to 25 percentage points.
+
+Treatment averaged 914.701 seconds versus 1,031.920 seconds for control, 64.75
+turns versus 73.75, and 29,128.7 output tokens versus 32,430.8. These are
+descriptive pilot estimates: all Holm-adjusted secondary p-values are 1, and
+the complementary task-clustered GEE treatment odds ratio is 1.667 (p=0.388).
+The result therefore does not establish a definitive quality or efficiency
+gain.
+
+The calibration pair passed in both conditions and was excluded as planned.
+The tracked public result at
+`benchmarks/results/codex-pro-pilot-minimum.json` contains the exact run
+contract, calibration evidence, analysis/manifest/lock hashes, all 24 raw
+content-addressed bundle hashes, exclusions, and the bounded conclusion. Raw
+traces remain outside Git.
+
 Only complete, scorable control/treatment pairs enter comparative analysis. If
 included usage ends, the harness attempts to finish the active pair, checkpoints
 the campaign, and stops before starting another. A pair in which either result

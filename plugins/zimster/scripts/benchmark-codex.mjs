@@ -10,8 +10,12 @@ import {
   assertPilotSafety,
   buildCampaign,
   buildPierArgs,
+  countDirectoryEntries,
   prepareTaskOverlay,
+  redactEvidenceTree,
+  redactSensitiveText,
   recordFromPierResult,
+  selectPierTrialResult,
   sha256,
   validateManifest
 } from '../benchmarks/lib/pilot.mjs';
@@ -88,15 +92,8 @@ async function validateSources(deepswe, pier, lock) {
   if (await gitHead(deepswe) !== lock.deepswe.commit) fail('DeepSWE checkout does not match the lock commit.');
   if (await gitHead(pier) !== lock.pier.commit) fail('Pier checkout does not match the lock commit.');
   const taskEntries = await readdir(path.join(deepswe, 'tasks'), { withFileTypes: true });
-  const count = taskEntries.filter(({ isDirectory }) => isDirectory()).length;
+  const count = countDirectoryEntries(taskEntries);
   if (count !== lock.deepswe.task_count) fail(`DeepSWE task count mismatch: expected ${lock.deepswe.task_count}, received ${count}.`);
-}
-
-function redact(value) {
-  return String(value)
-    .replace(/sk-[A-Za-z0-9_-]+/g, '[REDACTED_TOKEN]')
-    .replace(/("?(?:access_token|refresh_token|id_token)"?\s*[:=]\s*)\S+/gi, '$1[REDACTED]')
-    .replace(/\/[^\s"']*\.codex\/auth\.json/g, '[REDACTED_AUTH_PATH]');
 }
 
 async function filesUnder(directory, base = directory) {
@@ -110,6 +107,7 @@ async function filesUnder(directory, base = directory) {
 }
 
 async function contentAddressBundle(jobDirectory, bundleRoot) {
+  await redactEvidenceTree(jobDirectory);
   const files = (await filesUnder(jobDirectory)).toSorted((a, b) => a.relative.localeCompare(b.relative));
   const inventory = [];
   for (const file of files) {
@@ -132,9 +130,7 @@ async function contentAddressBundle(jobDirectory, bundleRoot) {
 
 async function findResult(directory) {
   const files = await filesUnder(directory);
-  const matches = files.filter(({ relative }) => relative.endsWith('/result.json') || relative === 'result.json');
-  if (matches.length !== 1) fail(`Expected one Pier result.json in ${directory}; found ${matches.length}.`);
-  return matches[0].absolute;
+  return selectPierTrialResult(files);
 }
 
 async function enrichWithTrajectory(result, jobDirectory) {
@@ -232,7 +228,7 @@ async function runCampaign(options) {
         timeout: 7_800_000,
         maxBuffer: 50 * 1024 * 1024
       });
-      const combinedOutput = redact(`${execution.stdout ?? ''}\n${execution.stderr ?? ''}`);
+      const combinedOutput = redactSensitiveText(`${execution.stdout ?? ''}\n${execution.stderr ?? ''}`);
       if (usageLimitSeen(combinedOutput)) stopAfterPair = true;
 
       const jobDirectory = path.join(jobsDir, scheduledRun.run_id);
@@ -256,7 +252,7 @@ async function runCampaign(options) {
           finished_at: new Date().toISOString(),
           runner_exit_code: execution.status,
           failure_class: usageLimitSeen(combinedOutput) ? 'included_usage_limit' : 'harness_failure',
-          failure_message: redact(error.message)
+          failure_message: redactSensitiveText(error.message)
         };
         record.raw_bundle_sha256 = await contentAddressBundle(jobDirectory, path.join(stateDir, 'bundles'));
       }
@@ -314,6 +310,6 @@ async function main() {
 }
 
 main().catch((error) => {
-  process.stderr.write(`benchmark-codex: ${redact(error.message)}\n`);
+  process.stderr.write(`benchmark-codex: ${redactSensitiveText(error.stack ?? error.message)}\n`);
   process.exitCode = 1;
 });

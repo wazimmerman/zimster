@@ -91,6 +91,7 @@ const requiredFiles = [
   'schemas/benchmark-result.schema.json',
   'benchmarks/lock/deepswe-v1.1.json',
   'benchmarks/manifests/codex-pro-pilot.json',
+  'benchmarks/results/codex-pro-pilot-minimum.json',
   'release/baselines/v0.6.0.json',
   'templates/binding-requirements.json',
   'templates/requirement-matrix.json',
