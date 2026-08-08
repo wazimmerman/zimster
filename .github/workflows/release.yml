@@ -22,6 +22,19 @@ jobs:
           node-version: 22
           cache: npm
           registry-url: https://registry.npmjs.org
+      - name: Establish trusted release signer
+        env:
+          RELEASE_SIGNER_FINGERPRINT: ${{ vars.RELEASE_SIGNER_FINGERPRINT }}
+          GNUPGHOME: ${{ runner.temp }}/zimster-release-gnupg
+        run: |
+          test -n "$RELEASE_SIGNER_FINGERPRINT"
+          mkdir -p "$GNUPGHOME"
+          chmod 700 "$GNUPGHOME"
+          node .github/scripts/release-signing-key.mjs \
+            --key .github/release-keys/william-zimmerman.asc \
+            --trusted-fingerprint "$RELEASE_SIGNER_FINGERPRINT" \
+            --gnupg-home "$GNUPGHOME"
+          echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
       - run: npm ci
       - name: Verify signed tag and exact target
         env:
@@ -33,17 +46,19 @@ jobs:
       - run: npm run check
       - run: npm run version:check -- --tag "$GITHUB_REF_NAME"
       - name: Verify signed release authorization and artifact digests
+        id: authorization
         env:
           RELEASE_SIGNER_FINGERPRINT: ${{ vars.RELEASE_SIGNER_FINGERPRINT }}
-        run: >-
-          npm run release:evidence -- verify-tag
-          --tag "$GITHUB_REF_NAME"
-          --trusted-fingerprint "$RELEASE_SIGNER_FINGERPRINT"
-          --standards-lock config/standards-lock.json
-          --semantic-review release/evidence/semantic-review.json
-          --host-matrix release/evidence/host-matrix.json
-          --verification release/evidence/verification.json
-          --dist dist
+        run: |
+          npm run release:evidence -- verify-tag \
+            --tag "$GITHUB_REF_NAME" \
+            --trusted-fingerprint "$RELEASE_SIGNER_FINGERPRINT" \
+            --standards-lock config/standards-lock.json \
+            --semantic-review release/evidence/semantic-review.json \
+            --host-matrix release/evidence/host-matrix.json \
+            --verification release/evidence/verification.json \
+            --dist dist \
+            --github-output "$GITHUB_OUTPUT"
       - run: npm run checksums
       - name: Attest release artifacts
         uses: actions/attest-build-provenance@v3
@@ -51,6 +66,39 @@ jobs:
           subject-path: |
             dist/*.zip
             dist/*.tgz
+      - name: Prepare draft GitHub release
+        id: github_release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TITLE: ${{ steps.authorization.outputs.release_title }}
+          RELEASE_PRERELEASE: ${{ steps.authorization.outputs.release_prerelease }}
+        run: |
+          RELEASE_ID="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
+            --jq '.[] | select(.tag_name == env.GITHUB_REF_NAME) | .id')"
+          case "$RELEASE_ID" in
+            *$'\n'*) echo "duplicate GitHub releases for exact target tag" >&2; exit 1 ;;
+          esac
+          if test -n "$RELEASE_ID"; then
+            IS_DRAFT="$(gh api "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" --jq .draft)"
+            if test "$IS_DRAFT" = "true"; then
+              gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+                -f name="$RELEASE_TITLE" \
+                -F draft=true \
+                -F prerelease="$RELEASE_PRERELEASE" \
+                -f make_latest=false >/dev/null
+            fi
+          else
+            RELEASE_ID="$(gh api --method POST "repos/$GITHUB_REPOSITORY/releases" \
+              -f tag_name="$GITHUB_REF_NAME" \
+              -f name="$RELEASE_TITLE" \
+              -F draft=true \
+              -F prerelease="$RELEASE_PRERELEASE" \
+              -f make_latest=false \
+              -F generate_release_notes=true \
+              --jq .id)"
+          fi
+          test -n "$RELEASE_ID"
+          echo "release_id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
       - name: Publish npm package idempotently
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
@@ -64,13 +112,17 @@ jobs:
           else
             npm publish "$ARTIFACT" --access public --provenance
           fi
-      - name: Create or update draft GitHub release
+      - name: Expose authorized GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
+          RELEASE_ID: ${{ steps.github_release.outputs.release_id }}
+          RELEASE_TITLE: ${{ steps.authorization.outputs.release_title }}
+          RELEASE_PRERELEASE: ${{ steps.authorization.outputs.release_prerelease }}
+          RELEASE_LATEST: ${{ steps.authorization.outputs.release_latest }}
         run: |
-          if gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
-            gh release upload "$GITHUB_REF_NAME" dist/*.zip dist/*.tgz dist/*SHA256SUMS.txt --clobber
-          else
-            gh release create "$GITHUB_REF_NAME" --draft --verify-tag --generate-notes dist/*.zip dist/*.tgz dist/*SHA256SUMS.txt
-          fi
-          gh release edit "$GITHUB_REF_NAME" --draft=false
+          gh release upload "$GITHUB_REF_NAME" dist/*.zip dist/*.tgz dist/*SHA256SUMS.txt --clobber
+          gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
+            -f name="$RELEASE_TITLE" \
+            -F draft=false \
+            -F prerelease="$RELEASE_PRERELEASE" \
+            -f make_latest="$RELEASE_LATEST" >/dev/null

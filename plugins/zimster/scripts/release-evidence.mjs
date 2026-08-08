@@ -1,10 +1,14 @@
 import { createHash } from 'node:crypto';
-import { readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { appendFile, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { parseOptions, required, writeLine } from './lib/cli.mjs';
 import { findRepoRoot } from './lib/git-state.mjs';
-import { parseReleaseEvidenceRefContents } from './lib/release-evidence.mjs';
+import {
+  githubReleaseState,
+  normalizeReleaseSignerFingerprint,
+  parseReleaseEvidenceTagPayload
+} from './lib/release-evidence.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
@@ -96,20 +100,46 @@ if (action === 'create') {
 } else if (action === 'verify-tag') {
   const root = findRepoRoot(process.cwd());
   const tag = required(options, 'tag');
-  const fingerprint = required(options, 'trusted-fingerprint').toUpperCase().replaceAll(' ', '');
+  const fingerprint = normalizeReleaseSignerFingerprint(required(options, 'trusted-fingerprint'));
   const signature = spawnSync('git', ['verify-tag', '--raw', tag], { cwd: root, encoding: 'utf8' });
   if (signature.status !== 0) throw new Error(`tag signature verification failed: ${signature.stderr || signature.stdout}`);
   const validFingerprint = `${signature.stderr}\n${signature.stdout}`.match(/VALIDSIG\s+([0-9A-F]{40,64})/i)?.[1]?.toUpperCase();
   if (!validFingerprint || validFingerprint !== fingerprint) throw new Error('tag signer fingerprint is not the configured release signer');
   const commit = spawnSync('git', ['rev-list', '-n', '1', tag], { cwd: root, encoding: 'utf8' }).stdout.trim();
   const tree = spawnSync('git', ['rev-parse', `${tag}^{tree}`], { cwd: root, encoding: 'utf8' }).stdout.trim();
-  const contents = spawnSync('git', ['for-each-ref', `refs/tags/${tag}`, '--format=%(contents)'], { cwd: root, encoding: 'utf8' }).stdout;
-  const evidence = parseReleaseEvidenceRefContents(contents);
+  const contents = spawnSync('git', ['for-each-ref', `refs/tags/${tag}`, '--format=%(contents)'], { cwd: root, encoding: 'utf8' });
+  const detachedSignature = spawnSync('git', ['for-each-ref', `refs/tags/${tag}`, '--format=%(contents:signature)'], { cwd: root, encoding: 'utf8' });
+  if (contents.status !== 0 || detachedSignature.status !== 0) {
+    throw new Error(`signed tag content inspection failed: ${contents.stderr || detachedSignature.stderr}`);
+  }
+  if (!detachedSignature.stdout.includes('-----BEGIN PGP SIGNATURE-----') || !contents.stdout.endsWith(detachedSignature.stdout)) {
+    throw new Error('signed tag contents do not end with exactly one detached OpenPGP signature');
+  }
+  const evidence = parseReleaseEvidenceTagPayload(contents.stdout.slice(0, -detachedSignature.stdout.length));
   options['expected-tag'] = tag;
   options['expected-commit'] = commit;
   options['expected-tree'] = tree;
   await verifyEvidence(evidence);
-  writeLine(JSON.stringify({ status: 'SIGNED_RELEASE_AUTHORIZATION_VERIFIED', tag, commit, tree, signer: validFingerprint }));
+  const githubRelease = githubReleaseState(evidence);
+  if (options['github-output']) {
+    const output = path.resolve(process.cwd(), String(options['github-output']));
+    await appendFile(output, [
+      `release_channel=${githubRelease.channel}`,
+      `release_title=${githubRelease.title}`,
+      `release_prerelease=${githubRelease.prerelease}`,
+      `release_latest=${githubRelease.latest}`,
+      ''
+    ].join('\n'));
+  }
+  writeLine(JSON.stringify({
+    status: 'SIGNED_RELEASE_AUTHORIZATION_VERIFIED',
+    tag,
+    commit,
+    tree,
+    signer: validFingerprint,
+    channel: evidence.channel,
+    github_release: githubRelease
+  }));
 } else {
   throw new Error('Usage: release-evidence.mjs <create|verify|verify-tag> [options]');
 }

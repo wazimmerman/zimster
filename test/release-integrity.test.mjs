@@ -18,8 +18,48 @@ test('release workflow rejects tags that disagree with plugin metadata', async (
   assert.match(workflow, /attest-build-provenance/);
   assert.match(workflow, /environment:\s*release/);
   assert.match(workflow, /npm publish/);
-  assert.match(workflow, /gh release.*--draft/);
+  assert.match(workflow, /gh api --method POST[\s\S]*-F draft=true/);
   assert.doesNotMatch(workflow, /semantic-assurance\.mjs.*complete/);
+});
+
+test('release workflow establishes the configured public-key trust anchor before both tag checks', async () => {
+  const workflow = await read('.github/workflows/release.yml');
+  const keySetup = workflow.indexOf('.github/scripts/release-signing-key.mjs');
+  const verifyTag = workflow.indexOf('git verify-tag "$GITHUB_REF_NAME"');
+  const evidenceVerify = workflow.indexOf('release:evidence -- verify-tag');
+  assert.notEqual(keySetup, -1);
+  assert.notEqual(verifyTag, -1);
+  assert.notEqual(evidenceVerify, -1);
+  assert.ok(keySetup < verifyTag);
+  assert.ok(verifyTag < evidenceVerify);
+  assert.match(workflow, /\.github\/release-keys\/william-zimmerman\.asc/);
+  assert.match(workflow, /RELEASE_SIGNER_FINGERPRINT:\s*\$\{\{ vars\.RELEASE_SIGNER_FINGERPRINT \}\}/);
+  assert.match(workflow, /GNUPGHOME:\s*\$\{\{ runner\.temp \}\}/);
+  assert.match(workflow, /--trusted-fingerprint\s+"\$RELEASE_SIGNER_FINGERPRINT"/);
+  assert.match(workflow, /release:evidence[\s\S]*verify-tag[\s\S]*--trusted-fingerprint/);
+});
+
+test('release workflow publishes npm before exposing an explicitly channel-bound GitHub release', async () => {
+  const workflow = await read('.github/workflows/release.yml');
+  const authorization = workflow.indexOf('--github-output "$GITHUB_OUTPUT"');
+  const draft = workflow.indexOf('Prepare draft GitHub release');
+  const npmPublish = workflow.indexOf('Publish npm package idempotently');
+  const expose = workflow.indexOf('Expose authorized GitHub release');
+  assert.ok(authorization !== -1 && draft !== -1 && npmPublish !== -1 && expose !== -1);
+  assert.ok(authorization < draft);
+  assert.ok(draft < npmPublish);
+  assert.ok(npmPublish < expose);
+  assert.match(workflow, /steps\.authorization\.outputs\.release_prerelease/);
+  assert.match(workflow, /steps\.authorization\.outputs\.release_latest/);
+  assert.match(workflow, /steps\.authorization\.outputs\.release_title/);
+  assert.match(workflow, /releases\?per_page=100/);
+  assert.match(workflow, /select\(\.tag_name == env\.GITHUB_REF_NAME\)/);
+  assert.match(workflow, /duplicate GitHub releases for exact target tag/);
+  assert.match(workflow, /gh api --method POST[\s\S]*-f tag_name="\$GITHUB_REF_NAME"/);
+  assert.match(workflow, /releases\/\$RELEASE_ID/);
+  assert.match(workflow, /-F prerelease="\$RELEASE_PRERELEASE"/);
+  assert.match(workflow, /-f make_latest="\$RELEASE_LATEST"/);
+  assert.doesNotMatch(workflow, /releases\/latest|gh release view\s*>/);
 });
 
 test('version bump synchronizes manifests, lockfile, changelog, and Codex mirror', async () => {

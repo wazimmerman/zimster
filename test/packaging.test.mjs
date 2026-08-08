@@ -47,6 +47,15 @@ test('packaging is deterministic and emits the five public channel artifacts', a
     }
 
     const byName = new Map(firstOutputs.map((entry) => [path.basename(entry), entry]));
+    for (const [name, file] of byName) {
+      if (name.endsWith('.zip')) {
+        assert.equal(
+          (await bytes(file)).includes(Buffer.from('.github/release-keys/william-zimmerman.asc')),
+          false,
+          `${name} includes the repository release-verification key`
+        );
+      }
+    }
     const codexArchive = await bytes(byName.get(`zimster-${version}-codex.zip`));
     for (const skill of ['using-zimster', 'owner-driven-development', 'test-driven-development', 'risk-adaptive-review']) {
       assert.equal(
@@ -174,6 +183,7 @@ test('packaging is deterministic and emits the five public channel artifacts', a
     assert.doesNotMatch(listing.stdout, /package\/plugins\/zimster/);
     assert.doesNotMatch(listing.stdout, /package\/docs\/plans\//);
     assert.doesNotMatch(listing.stdout, /package\/\.opencode\/\.gitignore/);
+    assert.doesNotMatch(listing.stdout, /release-keys\/william-zimmerman\.asc/);
     const npmMetadata = spawnSync('tar', [
       '-xOf', npmArtifact,
       'package/skills/using-zimster/references/build-metadata.json'

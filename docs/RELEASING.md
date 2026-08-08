@@ -5,6 +5,12 @@ authorized by a signed annotated tag whose message is exactly one canonical
 release-evidence JSON payload. CI verifies that authorization; it never creates
 semantic approval.
 
+The owner's private signing key remains local. CI derives the primary
+fingerprint from the checked-in public verification key, requires it to match
+the protected `RELEASE_SIGNER_FINGERPRINT` environment variable, and only then
+imports it into an ephemeral GPG keyring. Both `git verify-tag` and the later
+`release:evidence verify-tag` fingerprint check must pass.
+
 No npm publication, marketplace submission, public GitHub release, tag, or paid
 credit purchase is permitted without explicit owner authorization.
 
@@ -83,6 +89,11 @@ Release CI must:
 5. create or update an idempotent draft GitHub release;
 6. publish npm first; and
 7. expose the matching GitHub draft only after npm succeeds.
+
+The verified signed channel controls GitHub release state. `public_beta` uses
+the `Zimster <version> - Public Beta` title, is a prerelease, and is never
+Latest. `stable` is not a prerelease and intentionally becomes Latest. Reruns
+reapply the authorized state only to the release for the signed tag.
 
 Invalid signatures, wrong targets, dirty inputs, changed payloads, digest
 mismatches, duplicate publication, and npm failure must fail closed. CI must not
