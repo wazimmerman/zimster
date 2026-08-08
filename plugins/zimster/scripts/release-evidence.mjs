@@ -4,7 +4,7 @@ import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { parseOptions, required, writeLine } from './lib/cli.mjs';
 import { findRepoRoot } from './lib/git-state.mjs';
-import { parseReleaseEvidenceTagPayload } from './lib/release-evidence.mjs';
+import { parseReleaseEvidenceRefContents } from './lib/release-evidence.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
@@ -104,7 +104,7 @@ if (action === 'create') {
   const commit = spawnSync('git', ['rev-list', '-n', '1', tag], { cwd: root, encoding: 'utf8' }).stdout.trim();
   const tree = spawnSync('git', ['rev-parse', `${tag}^{tree}`], { cwd: root, encoding: 'utf8' }).stdout.trim();
   const contents = spawnSync('git', ['for-each-ref', `refs/tags/${tag}`, '--format=%(contents)'], { cwd: root, encoding: 'utf8' }).stdout;
-  const evidence = parseReleaseEvidenceTagPayload(contents);
+  const evidence = parseReleaseEvidenceRefContents(contents);
   options['expected-tag'] = tag;
   options['expected-commit'] = commit;
   options['expected-tree'] = tree;

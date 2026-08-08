@@ -9,6 +9,7 @@ import {
   analyzeCampaign,
   assertPilotSafety,
   assertSourceCheckoutClean,
+  assertSourceIndexFlagsSafe,
   buildCampaign,
   buildPierArgs,
   countDirectoryEntries,
@@ -95,11 +96,19 @@ async function gitStatus(directory) {
   return result.stdout;
 }
 
+async function gitIndexFlags(directory) {
+  const result = run('git', ['ls-files', '-v', '-z'], { cwd: directory });
+  if (result.status !== 0) fail(`Cannot inspect pinned source index at ${directory}: ${result.stderr}`);
+  return result.stdout;
+}
+
 async function validateSources(deepswe, pier, lock) {
   if (await gitHead(deepswe) !== lock.deepswe.commit) fail('DeepSWE checkout does not match the lock commit.');
   if (await gitHead(pier) !== lock.pier.commit) fail('Pier checkout does not match the lock commit.');
   assertSourceCheckoutClean(await gitStatus(deepswe), 'DeepSWE');
   assertSourceCheckoutClean(await gitStatus(pier), 'Pier');
+  assertSourceIndexFlagsSafe(await gitIndexFlags(deepswe), 'DeepSWE');
+  assertSourceIndexFlagsSafe(await gitIndexFlags(pier), 'Pier');
   const taskEntries = await readdir(path.join(deepswe, 'tasks'), { withFileTypes: true });
   const count = countDirectoryEntries(taskEntries);
   if (count !== lock.deepswe.task_count) fail(`DeepSWE task count mismatch: expected ${lock.deepswe.task_count}, received ${count}.`);

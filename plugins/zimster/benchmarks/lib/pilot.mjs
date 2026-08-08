@@ -24,6 +24,12 @@ export function assertSourceCheckoutClean(status, label) {
   assert(!String(status).trim(), `${label} checkout must be clean at the pinned commit.`);
 }
 
+export function assertSourceIndexFlagsSafe(listing, label) {
+  const unsafe = String(listing).split('\0').filter(Boolean).find((record) =>
+    /^[a-zS]/.test(record));
+  assert(!unsafe, `${label} checkout uses an unsafe Git index flag: ${unsafe}.`);
+}
+
 export function redactSensitiveText(value) {
   return String(value)
     .replace(/\bsk-[A-Za-z0-9_-]{12,}/g, '[REDACTED_TOKEN]')

@@ -5,6 +5,7 @@ import { findRepoRoot } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 
 const states = new Set(['current_truth', 'proposed_delta', 'accepted_decision', 'unresolved_proposal']);
+const rfc3339DateTime = /^(\d{4})-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])T(?:[01]\d|2[0-3]):[0-5]\d:[0-5]\d(?:\.\d+)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/i;
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
 
@@ -16,11 +17,35 @@ async function indexPath() {
 async function load(file) {
   const value = JSON.parse(await readFile(file, 'utf8'));
   if (value.schema_version !== 1 || !Array.isArray(value.entries)) throw new Error('context index requires schema_version 1 and entries');
+  const topLevelFields = new Set(['schema_version', 'entries']);
+  const entryFields = new Set(['id', 'state', 'summary', 'source', 'approved_by', 'approved_at']);
+  const entryIds = new Set();
+  const unsupportedTopLevel = Object.keys(value).find((field) => !topLevelFields.has(field));
+  if (unsupportedTopLevel) throw new Error(`unsupported context index field: ${unsupportedTopLevel}`);
   for (const entry of value.entries) {
+    if (!entry || typeof entry !== 'object' || !states.has(entry.state)) {
+      throw new Error(`unsupported context state: ${entry?.state}`);
+    }
+    const unsupportedEntry = Object.keys(entry).find((field) => !entryFields.has(field));
+    if (unsupportedEntry) throw new Error(`unsupported context field: ${unsupportedEntry}`);
+    if (![entry.id, entry.summary, entry.source].every((field) => typeof field === 'string' && field.length > 0)) {
+      throw new Error('context entries require a valid id, summary, and source');
+    }
+    if (entryIds.has(entry.id)) throw new Error(`duplicate context entry id: ${entry.id}`);
+    entryIds.add(entry.id);
+    if (entry.approved_by !== undefined && !humanApproval(entry.approved_by)) {
+      throw new Error('context approved_by must identify a human approver');
+    }
+    if (entry.approved_at !== undefined && (
+      typeof entry.approved_at !== 'string'
+      || !validDateTime(entry.approved_at)
+    )) {
+      throw new Error('context approved_at must be a valid date-time');
+    }
     if (entry.state === 'accepted_decision' && (
       !humanApproval(entry.approved_by)
       || typeof entry.approved_at !== 'string'
-      || Number.isNaN(Date.parse(entry.approved_at))
+      || !validDateTime(entry.approved_at)
     )) {
       throw new Error('accepted_decision requires valid approved_by and approved_at fields');
     }
@@ -30,6 +55,17 @@ async function load(file) {
 
 function humanApproval(value) {
   return typeof value === 'string' && /^human:[A-Za-z0-9][A-Za-z0-9._-]*$/.test(value);
+}
+
+function validDateTime(value) {
+  const match = rfc3339DateTime.exec(value);
+  if (!match || Number.isNaN(Date.parse(value))) return false;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInMonth = [31, leapYear ? 29 : 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+  return day <= daysInMonth[month - 1];
 }
 
 const file = await indexPath();

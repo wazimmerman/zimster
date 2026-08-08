@@ -12,7 +12,7 @@
       ],
       "evidence_refs": [],
       "evidence_scope": {
-        "git_tree": "candidate",
+        "git_tree": "0000000000000000000000000000000000000000",
         "environment": "node-linux"
       },
       "unavailable_proof": [

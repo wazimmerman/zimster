@@ -274,7 +274,7 @@ function matrixEntry(id, overrides = {}) {
     implementation_locations: ['scripts/example.mjs'],
     evidence_refs: [`evidence-${id}`],
     evidence_scope: {
-      git_tree: 'candidate',
+      git_tree: TREE,
       environment: 'node-linux'
     },
     unavailable_proof: [],
@@ -321,6 +321,7 @@ test('a complete matrix derives only evidence-backed acceptance claims', () => {
   );
   assert.equal(result.valid, true);
   assert.deepEqual(result.counts, {
+    pending: 0,
     verified: 2,
     partially_verified: 0,
     unverified: 0,
@@ -421,6 +422,26 @@ test('evidence from a dirty checkout cannot prove the committed candidate tree',
   assert.match(result.unverified_obligations.join('\n'), /dirty checkout/i);
 });
 
+test('exact-tree evidence scope still requires the candidate head, tree, and clean checkout', () => {
+  const entry = matrixEntry('MATRIX-001', {
+    evidence_scope: { git_tree: TREE, environment: 'node-linux' }
+  });
+  for (const [override, expected] of [
+    [{ git_commit: SHA_A }, /candidate Git tree/i],
+    [{ git_tree: 'f'.repeat(40) }, /candidate Git tree/i],
+    [{ dirty_tree_fingerprint: 'd'.repeat(64) }, /dirty checkout/i]
+  ]) {
+    const result = evaluate(
+      [entry],
+      binding('MATRIX-001'),
+      [scopedEvidence('MATRIX-001', override)]
+    );
+    assert.equal(result.valid, false);
+    assert.deepEqual(result.allowed_claims, []);
+    assert.match(result.unverified_obligations.join('\n'), expected);
+  }
+});
+
 const COMPLETE_MATRIX = Object.freeze({
   valid: true,
   binding_requirement_ids: ['ASSURANCE-001', 'GATE-001', 'GATE-002'],
@@ -440,6 +461,7 @@ const COMPLETE_MATRIX = Object.freeze({
     }
   ],
   counts: {
+    pending: 0,
     verified: 1,
     partially_verified: 0,
     unverified: 0,

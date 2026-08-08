@@ -74,7 +74,10 @@ test('review package keeps authoritative changes and hashes generated mirrors wi
         source: 'requirements.md#review-001',
         implementation_locations: ['scripts/example.mjs'],
         evidence_refs: [receipt.id],
-        evidence_scope: { git_tree: 'candidate', environment: 'node-linux' },
+        evidence_scope: {
+          git_tree: run('git', ['rev-parse', 'HEAD^{tree}'], repo).stdout.trim(),
+          environment: 'node-linux'
+        },
         unavailable_proof: ['Independent review pending.'],
         status: 'partially_verified',
         intended_acceptance_claims: ['Semantic review inputs are complete.']

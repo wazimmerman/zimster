@@ -94,3 +94,20 @@ test('semantic review schema binds the stable semantic contract separately from 
     pattern: '^[0-9a-f]{64}$'
   });
 });
+
+test('requirement matrix schema and template use exact-tree scopes and the pending lifecycle state', async () => {
+  const schema = JSON.parse(
+    await readFile(path.join(root, 'schemas/requirement-matrix.schema.json'), 'utf8')
+  );
+  const template = JSON.parse(
+    await readFile(path.join(root, 'templates/requirement-matrix.json'), 'utf8')
+  );
+  const treeRule = schema.$defs.requirement.properties.evidence_scope.properties.git_tree;
+  assert.deepEqual(treeRule.anyOf, [
+    { const: 'any' },
+    { type: 'string', pattern: '^[0-9a-f]{40}$' }
+  ]);
+  assert.ok(schema.$defs.requirement.properties.status.enum.includes('pending'));
+  assert.match(template.requirements[0].evidence_scope.git_tree, /^[0-9a-f]{40}$/);
+  assert.equal(template.requirements[0].evidence_scope.git_tree, template.candidate_tree);
+});

@@ -5,7 +5,10 @@ import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { createPackages } from '../scripts/package.mjs';
-import { parseReleaseEvidenceTagPayload } from '../scripts/lib/release-evidence.mjs';
+import {
+  parseReleaseEvidenceRefContents,
+  parseReleaseEvidenceTagPayload
+} from '../scripts/lib/release-evidence.mjs';
 import { root } from './helpers.mjs';
 
 function run(args, cwd = root) {
@@ -18,6 +21,7 @@ test('signed authorization accepts exactly one canonical JSON payload', () => {
   const payload = { schema_version: 1, version: '0.7.0' };
   const canonical = `${JSON.stringify(payload, null, 2)}\n`;
   assert.deepEqual(parseReleaseEvidenceTagPayload(canonical), payload);
+  assert.deepEqual(parseReleaseEvidenceRefContents(`${canonical}\n`), payload);
   for (const invalid of [
     `release approved\n${canonical}`,
     `${canonical}additional note\n`,
@@ -25,6 +29,10 @@ test('signed authorization accepts exactly one canonical JSON payload', () => {
   ]) {
     assert.throws(() => parseReleaseEvidenceTagPayload(invalid), /canonical.*payload/i);
   }
+  assert.throws(
+    () => parseReleaseEvidenceRefContents(`release approved\n${canonical}\n`),
+    /canonical.*payload/i
+  );
 });
 
 test('release evidence canonically binds authorization inputs and all five artifacts', async () => {

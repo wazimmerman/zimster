@@ -49,6 +49,62 @@ test('context index supports four evidence states and human-gated promotion', as
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /accepted_decision.*approved_by.*approved_at/i);
 
+    await writeFile(file, `${JSON.stringify({
+      schema_version: 1,
+      entries: [{
+        id: 'invented-state', state: 'fifth_state',
+        summary: 'outside the four-state contract', source: 'external fixture'
+      }]
+    })}\n`);
+    result = run('context-index.mjs', ['list', '--file', file], directory);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /unsupported context state.*fifth_state/i);
+
+    await writeFile(file, `${JSON.stringify({
+      schema_version: 1,
+      entries: [{ id: 'malformed', state: 'current_truth', source: 'external fixture', extra: true }]
+    })}\n`);
+    result = run('context-index.mjs', ['list', '--file', file], directory);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /valid id, summary, and source|unsupported context field/i);
+
+    await writeFile(file, `${JSON.stringify({
+      schema_version: 1,
+      entries: [{
+        id: 'bad-date', state: 'accepted_decision', summary: 'noncanonical approval time',
+        source: 'external fixture', approved_by: 'human:owner', approved_at: '1'
+      }]
+    })}\n`);
+    result = run('context-index.mjs', ['list', '--file', file], directory);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /approved_at.*date-time/i);
+
+    for (const [approvedAt, accepted] of [
+      ['2026-02-31T00:00:00Z', false],
+      ['2024-02-29T00:00:00Z', true]
+    ]) {
+      await writeFile(file, `${JSON.stringify({
+        schema_version: 1,
+        entries: [{
+          id: 'calendar-date', state: 'accepted_decision', summary: 'calendar validation',
+          source: 'external fixture', approved_by: 'human:owner', approved_at: approvedAt
+        }]
+      })}\n`);
+      result = run('context-index.mjs', ['list', '--file', file], directory);
+      assert.equal(result.status === 0, accepted, result.stderr || result.stdout);
+    }
+
+    await writeFile(file, `${JSON.stringify({
+      schema_version: 1,
+      entries: [
+        { id: 'duplicate', state: 'current_truth', summary: 'first', source: 'external fixture' },
+        { id: 'duplicate', state: 'proposed_delta', summary: 'second', source: 'external fixture' }
+      ]
+    })}\n`);
+    result = run('context-index.mjs', ['list', '--file', file], directory);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /duplicate context entry id.*duplicate/i);
+
     const schema = JSON.parse(await readFile(path.join(root, 'schemas/context-index.schema.json'), 'utf8'));
     assert.ok(schema.properties.entries.items.allOf, 'schema must condition accepted decisions on approval fields');
   } finally {
@@ -119,6 +175,31 @@ test('plan conformance detects requirement drift and blocks unverified release c
     })}\n`);
     result = run('plan-conformance.mjs', ['--phase', 'slice'], directory);
     assert.equal(result.status, 0, result.stderr || result.stdout);
+    await writeFile(matrix, `${JSON.stringify({
+      schema_version: 1, candidate_head: head, candidate_tree: tree,
+      requirements: [row], observations: ['narrative history is not evidence']
+    })}\n`);
+    result = run('plan-conformance.mjs', ['--phase', 'slice'], directory);
+    assert.notEqual(result.status, 0);
+    row.status = 'pending';
+    await writeFile(matrix, `${JSON.stringify({
+      schema_version: 1, candidate_head: head, candidate_tree: tree,
+      requirements: [row], observations: []
+    })}\n`);
+    result = run('plan-conformance.mjs', ['--phase', 'slice'], directory);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    row.status = 'invented_state';
+    await writeFile(matrix, `${JSON.stringify({
+      schema_version: 1, candidate_head: head, candidate_tree: tree,
+      requirements: [row], observations: []
+    })}\n`);
+    result = run('plan-conformance.mjs', ['--phase', 'slice'], directory);
+    assert.notEqual(result.status, 0);
+    row.status = 'unverified';
+    await writeFile(matrix, `${JSON.stringify({
+      schema_version: 1, candidate_head: head, candidate_tree: tree,
+      requirements: [row], observations: []
+    })}\n`);
     result = run('plan-conformance.mjs', ['--phase', 'release'], directory);
     assert.notEqual(result.status, 0);
     row.status = 'verified';
@@ -129,6 +210,13 @@ test('plan conformance detects requirement drift and blocks unverified release c
     })}\n`);
     result = run('plan-conformance.mjs', ['--phase', 'release'], directory);
     assert.equal(result.status, 0, result.stderr || result.stdout);
+    row.evidence_scope.git_tree = 'candidate';
+    await writeFile(matrix, `${JSON.stringify({
+      schema_version: 1, candidate_head: head, candidate_tree: tree,
+      requirements: [row], observations: []
+    })}\n`);
+    result = run('plan-conformance.mjs', ['--phase', 'release'], directory);
+    assert.notEqual(result.status, 0);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

@@ -76,6 +76,14 @@ test('pinned benchmark sources reject tracked, staged, and untracked mutations',
     );
   }
   assert.doesNotThrow(() => pilotHelpers.assertSourceCheckoutClean('', 'Pier'));
+  assert.equal(typeof pilotHelpers.assertSourceIndexFlagsSafe, 'function');
+  for (const indexState of ['h tasks/example/test.sh\0', 'S pier/runner.py\0']) {
+    assert.throws(
+      () => pilotHelpers.assertSourceIndexFlagsSafe(indexState, 'DeepSWE'),
+      /DeepSWE.*index|index.*DeepSWE/i
+    );
+  }
+  assert.doesNotThrow(() => pilotHelpers.assertSourceIndexFlagsSafe('H tasks/example/test.sh\0', 'Pier'));
 });
 
 test('evidence bundling redacts authentication paths and tokens in nested logs', async () => {

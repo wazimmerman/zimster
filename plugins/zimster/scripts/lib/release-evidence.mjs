@@ -10,3 +10,10 @@ export function parseReleaseEvidenceTagPayload(contents) {
   }
   return evidence;
 }
+
+export function parseReleaseEvidenceRefContents(contents) {
+  if (!String(contents).endsWith('\n')) {
+    throw new Error('signed tag reference contents must include the Git record terminator');
+  }
+  return parseReleaseEvidenceTagPayload(String(contents).slice(0, -1));
+}
