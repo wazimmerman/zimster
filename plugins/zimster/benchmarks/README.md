@@ -7,7 +7,9 @@ code. It intentionally does not contain raw model traces.
 - `manifests/codex-pro-pilot.json` freezes task selection and campaign sizes.
 - `lib/pilot.mjs` plans pairs, enforces safety invariants, imports Pier results,
   and computes paired estimates.
-- `../schemas/benchmark-result.schema.json` defines the public run record.
+- `../schemas/benchmark-result.schema.json` defines each public run record.
+- `../schemas/benchmark-campaign-result.schema.json` defines the published
+  campaign summary, including its treatment-source provenance.
 
 The runner stores mutable state and content-addressed evidence under the Git
 directory (`.git/zimster/benchmarks/`) by default. This keeps large traces and

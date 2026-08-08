@@ -90,6 +90,7 @@ const requiredFiles = [
   'schemas/work-journal.schema.json',
   'schemas/release-evidence.schema.json',
   'schemas/benchmark-result.schema.json',
+  'schemas/benchmark-campaign-result.schema.json',
   'benchmarks/lock/deepswe-v1.1.json',
   'benchmarks/manifests/codex-pro-pilot.json',
   'benchmarks/results/codex-pro-pilot-minimum.json',

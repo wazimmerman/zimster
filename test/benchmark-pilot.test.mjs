@@ -21,6 +21,7 @@ import { root } from './helpers.mjs';
 
 const manifestPath = path.join(root, 'benchmarks/manifests/codex-pro-pilot.json');
 const resultPath = path.join(root, 'benchmarks/results/codex-pro-pilot-minimum.json');
+const campaignResultSchemaPath = path.join(root, 'schemas/benchmark-campaign-result.schema.json');
 
 async function manifest() {
   return JSON.parse(await readFile(manifestPath, 'utf8'));
@@ -52,6 +53,16 @@ test('minimum pilot publishes complete paired evidence without account identifie
   assert.equal(result.primary.treatment_pass_rate, 5 / 6);
   assert.equal(result.primary.paired_risk_difference, 1 / 12);
   assert.equal(result.retries, 0);
+  assert.deepEqual(result.treatment_source, {
+    commit: '95dfedf7d396a7b9faa72ced844a28f70bd6bcef',
+    classification: 'historical_pre_change_candidate',
+    applies_to_changed_final_v0_7_candidate: false
+  });
+  const schema = JSON.parse(await readFile(campaignResultSchemaPath, 'utf8'));
+  assert.ok(schema.required.includes('treatment_source'));
+  assert.equal(schema.properties.treatment_source.properties.commit.pattern, '^[a-f0-9]{40}$');
+  assert.equal(schema.properties.treatment_source.properties.classification.const, 'historical_pre_change_candidate');
+  assert.equal(schema.properties.treatment_source.properties.applies_to_changed_final_v0_7_candidate.const, false);
   assert.doesNotMatch(raw, /account|email|auth\.json|access_token|refresh_token|id_token|sk-[A-Za-z0-9_-]{12,}/i);
 });
 

@@ -3,6 +3,11 @@
   "campaign_id": "zimster-v0.7.0-codex-pro-deepswe-v1.1",
   "campaign": "minimum",
   "completed_on": "2026-08-07",
+  "treatment_source": {
+    "commit": "95dfedf7d396a7b9faa72ced844a28f70bd6bcef",
+    "classification": "historical_pre_change_candidate",
+    "applies_to_changed_final_v0_7_candidate": false
+  },
   "scored_runs": 24,
   "complete_pairs": 12,
   "incomplete_pairs": [],
