@@ -24,6 +24,7 @@ const includes = [
   'scripts/delegation-record.mjs', 'scripts/model-routing.mjs',
   'scripts/adapter-config.mjs', 'scripts/convergence.mjs',
   'scripts/codex-cachebuster.mjs', 'scripts/doctor.mjs', 'scripts/evidence.mjs',
+  'scripts/docs-hygiene.mjs',
   'scripts/evaluate-execution-economy.mjs',
   'scripts/host-smoke.mjs', 'scripts/init-run.mjs',
   'scripts/installed-package-smoke.mjs', 'scripts/phase-checkpoint.mjs',

@@ -72,7 +72,7 @@ test('BETA-001 and BETA-003: six beta surfaces use claim-scoped states and chann
   for (const phrase of [
     'verification level', 'what was tested', 'what was not tested',
     'installation availability', 'known limitations'
-  ]) assert.match(readme, new RegExp(phrase, 'i'));
+  ]) assert.match(readme, new RegExp(phrase.replaceAll(' ', '\\s+'), 'i'));
   const compatibility = await read('docs/COMPATIBILITY.md');
   for (const version of ['0.146.1', '2.1.224', '1.0.0', '1.18.13', '0.84.1']) {
     assert.match(compatibility, new RegExp(version.replaceAll('.', '\\.')));

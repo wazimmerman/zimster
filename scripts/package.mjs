@@ -19,6 +19,7 @@ const operationalScripts = [
   'scripts/delegation-record.mjs', 'scripts/model-routing.mjs',
   'scripts/adapter-config.mjs', 'scripts/convergence.mjs',
   'scripts/dispatch-record.mjs', 'scripts/doctor.mjs',
+  'scripts/docs-hygiene.mjs',
   'scripts/evidence.mjs', 'scripts/host-smoke.mjs',
   'scripts/evaluate-execution-economy.mjs',
   'scripts/init-run.mjs', 'scripts/installed-package-smoke.mjs',

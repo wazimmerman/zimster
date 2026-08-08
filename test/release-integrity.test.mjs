@@ -61,7 +61,9 @@ test('current release docs use the synchronized package version and honest evalu
   const readme = await read('README.md');
   const evaluation = await read('docs/EVALUATION.md');
   assert.match(readme, new RegExp(`Version ${pkg.version.replaceAll('.', '\\.')}`));
-  assert.match(evaluation, /Primary v0\.7\.0 pilot/);
+  assert.match(evaluation, /Final v0\.7 candidate mechanism evidence/);
+  assert.match(evaluation, /Historical pre-change v0\.7 pilot/);
+  assert.match(evaluation, /no comparative benchmark has been run against the final v0\.7 candidate/i);
   assert.match(evaluation, /paired risk difference/);
 });
 
@@ -78,7 +80,7 @@ test('public pilot docs distinguish the skills treatment from package proof and 
   assert.doesNotMatch(evaluation, /minimum interpretable pilot/i);
 
   const roadmap = await read('docs/ROADMAP.md');
-  assert.match(roadmap, /completed prespecified minimum\s+paired pilot/i);
+  assert.match(roadmap, /completed\s+(?:historical\s+)?prespecified\s+minimum\s+paired pilot/i);
   assert.doesNotMatch(roadmap, /largest complete paired pilot[\s\S]*included ChatGPT Pro usage/i);
 });
 

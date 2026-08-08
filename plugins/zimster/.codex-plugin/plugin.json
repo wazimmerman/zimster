@@ -1,9 +1,9 @@
 {
   "name": "zimster",
   "version": "0.7.0",
-  "description": "A proof-first, owner-driven development workflow optimized for capable coding agents.",
+  "description": "A software development workflow for coding agents.",
   "author": {
-    "name": "Zimster Contributors",
+    "name": "William Zimmerman",
     "url": "https://github.com/wazimmerman/zimster"
   },
   "homepage": "https://zimster.dev",
@@ -21,9 +21,9 @@
   "skills": "./skills/",
   "interface": {
     "displayName": "Zimster",
-    "shortDescription": "Proof-first agent workflow",
-    "longDescription": "Plan coherent vertical slices, use RED-GREEN-REFACTOR, delegate only when it pays, review risky seams, and finish with fresh evidence.",
-    "developerName": "Zimster Contributors",
+    "shortDescription": "Workflow for coding agents",
+    "longDescription": "Build, debug, refactor, review, and ship software with adaptive planning, test-driven development, selective delegation, and evidence-backed verification.",
+    "developerName": "William Zimmerman",
     "category": "Developer Tools",
     "capabilities": [
       "Interactive",
@@ -31,7 +31,9 @@
       "Write"
     ],
     "defaultPrompt": [
-      "Use Zimster’s proof-first workflow for this change."
+      "I have an idea for something new. Help me figure out what to build and get started.",
+      "Help me add or change something in this project.",
+      "Something isn't working. Help me find the cause and fix it."
     ],
     "websiteURL": "https://zimster.dev",
     "supportURL": "https://zimster.dev/support",

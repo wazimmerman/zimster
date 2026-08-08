@@ -31,7 +31,7 @@ SEMANTIC_REVIEW_APPROVED | NEEDS_CORRECTION |
 BLOCKED_BY_MISSING_EVIDENCE | SELF_REVIEW_ONLY
 
 ## Findings
-- [Critical|Important|Minor] file:line — defect, consequence, proof.
+- [Critical|Important|Minor] file:line: defect, consequence, proof.
 
 ## Unverified obligations
 - Requirement ID, intended claim, and missing or too-narrow proof.

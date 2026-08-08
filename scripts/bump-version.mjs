@@ -14,7 +14,7 @@ if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error('--date must be YYYY-MM-D
 
 const changelogPath = path.join(root, 'CHANGELOG.md');
 let changelog = await readFile(changelogPath, 'utf8');
-const heading = `## ${version} — ${date}`;
+const heading = `## ${version} - ${date}`;
 if (!new RegExp(`^## ${String(version).replaceAll('.', '\\.')}(?:\\s|—|-)`, 'm').test(changelog)) {
   changelog = changelog.replace(/^# Changelog\s*\n/, `# Changelog\n\n${heading}\n\n- ${note}\n\n`);
   await writeFile(changelogPath, changelog);

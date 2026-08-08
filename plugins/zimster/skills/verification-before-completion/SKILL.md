@@ -47,15 +47,15 @@ proof; state why and how the direct command differs.
 
 Do not call every successful process a “full suite.” Distinguish:
 
-- **command failed before discovering tests**—setup/flag/loader failure; zero
+- **command failed before discovering tests**: setup/flag/loader failure; zero
   behavioral evidence;
-- **command succeeded with zero tests**—valid command, no tests discovered;
-- **baseline suite ran with zero tests**—starting-state fact, not a post-change
+- **command succeeded with zero tests**: valid command, no tests discovered;
+- **baseline suite ran with zero tests**: starting-state fact, not a post-change
   passing suite;
-- **focused test run**—named subset with exact counts;
-- **affected/subsystem suite**—declared scope and counts;
-- **full project gate**—canonical project command and exact counts;
-- **external/hardware/manual observation**—named environment and result.
+- **focused test run**: named subset with exact counts;
+- **affected/subsystem suite**: declared scope and counts;
+- **full project gate**: canonical project command and exact counts;
+- **external/hardware/manual observation**: named environment and result.
 
 A baseline containing zero tests must never be reported as one of several
 successful full-suite executions.
@@ -141,18 +141,18 @@ implies semantic approval.
 
 ## Honest states
 
-- `CODE_READY`—implementation and automated gates support the code claim;
-- `INTEGRATION_VERIFIED`—required components ran together;
-- `EXTERNAL_SERVICE_VERIFIED`—named live service tested;
-- `HARDWARE_VERIFIED`—exact hardware/parameters tested;
-- `HUMAN_ACCEPTANCE_VERIFIED`—named manual acceptance performed;
-- `BLOCKED_BY_ENVIRONMENT`—blocked by environment because required proof cannot run here;
-- `BLOCKED_BY_REQUIREMENT`—requirements are contradictory, impossible, or lack
+- `CODE_READY`: implementation and automated gates support the code claim;
+- `INTEGRATION_VERIFIED`: required components ran together;
+- `EXTERNAL_SERVICE_VERIFIED`: named live service tested;
+- `HARDWARE_VERIFIED`: exact hardware/parameters tested;
+- `HUMAN_ACCEPTANCE_VERIFIED`: named manual acceptance performed;
+- `BLOCKED_BY_ENVIRONMENT`: blocked by environment because required proof cannot run here;
+- `BLOCKED_BY_REQUIREMENT`: requirements are contradictory, impossible, or lack
   an authoritative decision;
-- `OWNER_VERIFIED_REVIEW_UNAVAILABLE`—owner proof exists but required
+- `OWNER_VERIFIED_REVIEW_UNAVAILABLE`: owner proof exists but required
   independent review could not run;
-- `PARTIALLY_VERIFIED`—some obligations remain unproved.
-- `CANDIDATE_COMPLETE`—the matrix and profile-appropriate exact-head review
+- `PARTIALLY_VERIFIED`: some obligations remain unproved.
+- `CANDIDATE_COMPLETE`: the matrix and profile-appropriate exact-head review
   gate both pass.
 
 Never let automated tests imply service, hardware, or human proof.

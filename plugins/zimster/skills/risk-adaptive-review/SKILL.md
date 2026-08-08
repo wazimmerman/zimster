@@ -45,7 +45,7 @@ load-bearing obligations and final integration approval.
 
 ## Complete review scope
 
-Before any verdict, account for every change—not only tracked unstaged diffs:
+Before any verdict, account for every change, not only tracked unstaged diffs:
 
 ```text
 git status --short
@@ -142,7 +142,7 @@ SEMANTIC_REVIEW_APPROVED | NEEDS_CORRECTION |
 BLOCKED_BY_MISSING_EVIDENCE | SELF_REVIEW_ONLY
 
 ## Findings
-- [Critical|Important|Minor] file:line — defect, consequence, proof.
+- [Critical|Important|Minor] file:line: defect, consequence, proof.
 
 ## Scope inspected
 Branch/range plus staged, unstaged, and untracked coverage.
@@ -176,10 +176,10 @@ approval and requires a new exact-head review within finalization budget.
 If a load-bearing finding remains after the recheck, stop the loop. Choose one
 evidence-backed route:
 
-1. reviewer wrong—record technical ruling and proof;
-2. contradictory requirement/design—`BLOCKED_BY_REQUIREMENT` or return to owner;
-3. real but non-load-bearing—record explicit deferral;
-4. real and load-bearing—revise design or stop blocked;
-5. evidence unavailable—report the strongest partial state.
+1. reviewer wrong: record technical ruling and proof;
+2. contradictory requirement/design: `BLOCKED_BY_REQUIREMENT` or return to owner;
+3. real but non-load-bearing: record explicit deferral;
+4. real and load-bearing: revise design or stop blocked;
+5. evidence unavailable: report the strongest partial state.
 
 Silent dismissal is forbidden.

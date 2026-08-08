@@ -1,7 +1,7 @@
 {
   "name": "zimster",
   "interface": {
-    "displayName": "Zimster Dev"
+    "displayName": "Zimster"
   },
   "plugins": [
     {

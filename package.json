@@ -1,7 +1,8 @@
 {
   "name": "zimster",
   "version": "0.7.0",
-  "description": "A proof-first, owner-driven development workflow for capable coding agents.",
+  "description": "A software development workflow for coding agents.",
+  "author": "William Zimmerman",
   "type": "module",
   "private": false,
   "license": "MIT",
@@ -14,6 +15,7 @@
     "validate:claude": "node scripts/validate-claude-plugin.mjs",
     "validate:adapters": "node scripts/validate-adapters.mjs",
     "validate:codex": "node scripts/validate-codex.mjs",
+    "docs:hygiene": "node scripts/docs-hygiene.mjs",
     "doctor": "node scripts/doctor.mjs",
     "commands": "node scripts/project-commands.mjs",
     "snapshot": "node scripts/change-snapshot.mjs",
@@ -42,7 +44,7 @@
     "evaluate:economy": "node scripts/evaluate-execution-economy.mjs",
     "goal:verify": "node scripts/verify.mjs run --profile goal",
     "release:verify": "node scripts/verify.mjs run --profile release",
-    "check": "npm run test && npm run validate && npm run package"
+    "check": "npm run docs:hygiene && npm run test && npm run validate && npm run package"
   },
   "main": ".opencode/plugins/zimster.js",
   "keywords": [

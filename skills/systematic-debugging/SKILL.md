@@ -31,7 +31,7 @@ Trace data and control flow backward from the bad observation:
 5. Why did existing validation or tests not catch it?
 
 For distributed, asynchronous, or native boundaries, record timestamps,
-identifiers, generations, ownership, and cleanup—not only error strings.
+identifiers, generations, ownership, and cleanup, not only error strings.
 
 ## 3. Form competing hypotheses
 

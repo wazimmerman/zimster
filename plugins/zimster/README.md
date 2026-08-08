@@ -7,7 +7,7 @@
 </p>
 
 <p align="center">
-  <strong>Proof-first development without orchestration bloat.</strong>
+  <strong>One development workflow for coding agents, without the agent sprawl.</strong>
 </p>
 
 <p align="center">
@@ -30,31 +30,14 @@
 
 ## What Zimster is
 
-Zimster is a proof-first software-development workflow for capable coding
-agents. It is built for developers and engineering teams that want one
-persistent implementation owner, meaningful RED-GREEN-REFACTOR, selective
-delegation, risk-focused review, and fresh evidence behind every completion
-claim—without making multi-agent orchestration the default.
+Zimster brings planning, specifications, TDD, debugging, review, delegation,
+durable work context, and verification into one software development workflow.
+One agent stays responsible for the result. Zimster adds process or agents only
+when the work calls for them.
 
-## Why developers use it
-
-- **Coherent ownership:** one persistent owner carries context across design,
-  implementation, correction, and verification.
-- **Behavior-specific TDD:** tests demonstrate that each load-bearing behavior
-  can fail before implementation makes it pass.
-- **Bounded delegation:** separate workers are used only for tasks where the
-  expected benefit justifies the coordination cost.
-- **Risk-adaptive review:** independent review concentrates on architectural
-  seams and integration points where defects would matter most.
-- **Evidence-backed completion:** fresh, scoped proof supports each requirement
-  and prevents stale results from becoming completion claims.
-- **Honest unavailable-proof states:** blocked environments, missing services,
-  and unavailable reviewers narrow the claim instead of being treated as
-  success.
-- **Deliberate model selection:** routing begins only after delegation has
-  already been justified.
-- **Bounded autonomous correction:** ordinary deterministic failures are fixed
-  within an explicit convergence budget without unnecessary interruption.
+It covers capabilities that are often split across several coding-agent skills,
+plugins, or workflow systems. It is meant to work alongside the development
+tools a project already uses, not replace every coding plugin.
 
 ## Quick start
 
@@ -93,6 +76,94 @@ a host-specific plugin is not appropriate. Follow the
 [skills-only installation instructions](docs/INSTALL.md)
 for the supported command and limitations.
 
+## How to use Zimster
+
+After installation, work with your coding agent the way you already do. Describe
+the software work you want done. You do not need to know Zimster's internal
+skill names or construct a large workflow prompt. Zimster selects the smallest
+appropriate workflow for the request and its risk.
+
+Natural requests are enough:
+
+- "Help me start a new project and decide what to build first."
+- "Add or change the account settings behavior."
+- "Debug why these background jobs sometimes stop."
+- "Refactor this module without changing its public behavior."
+- "Review this implementation before I merge it."
+- "Help me choose an architecture for this consequential product change."
+
+Advanced users can ask explicitly to use Zimster or invoke an individual skill
+when their host supports it. Invocation syntax differs by host; see the
+[installation guide](docs/INSTALL.md) and the matching host guide.
+
+## Features
+
+### Design, specifications, and planning
+
+Zimster uses a risk-adaptive form of spec-driven development. Exact, low-risk
+work can proceed directly. Material ambiguity gets compact design, while major
+product, architecture, UX, security, migration, public-contract, or expensive
+choices get deeper collaborative design. Oversized requests are separated into
+bounded workstreams only when one plan would stop being coherent.
+
+The workflow reads relevant project context before asking questions, separates
+current system truth from proposed changes, keeps accepted decisions distinct
+from unresolved proposals, and requires human approval before a proposal becomes
+durable project knowledge. Plans preserve requirement IDs, architecture,
+dependencies, coherent vertical slices, and evidence obligations. Plan
+conformance is checked at slice boundaries and before release.
+
+Specification and TDD are complementary: specifications establish what should
+be built, while TDD drives and verifies implementation behavior.
+
+```text
+requirements and specification
+→ architecture and design where needed
+→ implementation plan
+→ TDD and implementation
+→ review and integration evidence
+→ requirement and evidence completion
+```
+
+### Implementation and debugging
+
+One persistent owner carries the work through coherent vertical slices. The
+workflow uses behavior-specific RED-GREEN-REFACTOR, systematic root-cause
+debugging, safe refactoring, and explicit Git or worktree isolation. Parallel
+implementation is available only for genuinely independent workstreams.
+
+### Review and verification
+
+Review depth follows risk and concentrates on load-bearing seams. Zimster covers
+review feedback adjudication, requirement-to-evidence mapping, stale-evidence
+detection, exact-head verification, and staged, unstaged, and untracked changes.
+Unavailable service, hardware, human, or reviewer proof narrows the completion
+claim instead of being presented as success.
+
+### Delegation and model use
+
+Delegation must materially improve the task before model selection begins.
+Delegated roles are bounded, parallelism is limited, and subagents do not recruit
+more subagents. Vendor-neutral capability classes keep task needs separate from
+specific model names. Requested and effective models are reported separately
+when the host exposes that information.
+
+### Continuity and bounded automation
+
+Compact Git-local journals preserve the mission, decisions, evidence, and next
+slice across context renewal or compaction. Deterministic corrections can
+continue within explicit evidence and execution budgets. Receipts bind proof to
+the relevant candidate, command, environment, and dependency scope, while build
+metadata preserves package provenance.
+
+### Portability
+
+Canonical Agent Skills and an Agent Plugins manifest support portable,
+skills-only use. Host-specific packaging covers Codex, Claude Code, Grok Build,
+OpenCode, Pi, and Kimi Code, with the precise evidence level for each host shown
+below. Structural validation and installability are not treated as model-backed
+execution proof.
+
 ## How the workflow works
 
 ```text
@@ -109,8 +180,8 @@ classify risk and Git disposition
 → make only supported completion claims
 ```
 
-The workflow scales its planning, review, and proof requirements with the risk
-of the change while keeping implementation ownership continuous.
+The workflow scales planning, review, and proof with the risk of the change
+while keeping implementation ownership continuous.
 
 ## Model-aware delegation
 
@@ -121,8 +192,8 @@ cannot silently become routing policy.
 
 Routing can use recommendation (`recommend`), mapping-only (`map_only`),
 automatic-within-policy (`auto_within_policy`), or inherited (`inherit`)
-behavior. Abstract capability classes—`economy`, `balanced`, `expert`, and
-`inherit`—describe task needs rather than hardcoded vendor models. The
+behavior. Abstract capability classes (`economy`, `balanced`, `expert`, and
+`inherit`) describe task needs rather than hardcoded vendor models. The
 persistent owner verifies delegated implementation, and Zimster reports routing
 enforcement and the effective model only when the harness exposes that evidence.
 
@@ -144,7 +215,7 @@ structural validation do not imply live, model-backed execution.
 
 | Harness | Current verification level | Installation path | Principal limitation |
 |---|---|---|---|
-| Codex 0.146.1 | `INSTALLED_PACKAGE_VERIFIED` | Full Codex ZIP or Git/custom marketplace | Isolated registration and installation passed; model-backed task execution is evaluated separately |
+| Codex 0.146.1 | `INSTALLED_PACKAGE_VERIFIED` | Full Codex ZIP or Git/custom marketplace | Isolated registration and installation passed; no comparative benchmark covers the changed final v0.7 candidate |
 | Claude Code 2.1.224 | `STRUCTURALLY_VALIDATED` | Full Claude ZIP or GitHub marketplace | The exact package structure validates with 12 skills, 4 agents, and the SessionStart hook; isolated installation and model-backed execution are not established |
 | Grok 1.0.0 | `STRUCTURALLY_VALIDATED` | Portable Agent Plugin ZIP | The root manifest and all 12 skills validate structurally; isolated installation, skill discovery, and model-backed execution are not established |
 | Kimi Code | `UNAVAILABLE` | Primary npm package or copied skills | The CLI was absent, so only the documented adapter structure was validated |
@@ -153,18 +224,18 @@ structural validation do not imply live, model-backed execution.
 
 The vocabulary is intentionally narrow:
 
-- `LIVE_VERIFIED` — the named live behavior was observed on the current host.
-- `INSTALLED_PACKAGE_VERIFIED` — exact-package installation and package
+- `LIVE_VERIFIED`: the named live behavior was observed on the current host.
+- `INSTALLED_PACKAGE_VERIFIED`: exact-package installation and package
   integrity passed, without implying model-backed execution.
-- `STRUCTURALLY_VALIDATED` — the package or adapter conforms to validated
+- `STRUCTURALLY_VALIDATED`: the package or adapter conforms to validated
   structure, without a live-support claim.
-- `BLOCKED_BY_AUTHENTICATION` — the live check reached an authentication
+- `BLOCKED_BY_AUTHENTICATION`: the live check reached an authentication
   boundary that prevented proof.
-- `UNAVAILABLE` — the required host or capability was not present.
-- `UNSUPPORTED` — Zimster does not provide the claimed integration.
+- `UNAVAILABLE`: the required host or capability was not present.
+- `UNSUPPORTED`: Zimster does not provide the claimed integration.
 
-For the complete evidence matrix—what was tested, what was not tested,
-installation availability, and known limitations—see the harness guides in
+For the complete evidence matrix, including what was tested, what was not
+tested, installation availability, and known limitations, see the harness guides in
 [the documentation](#documentation) and run `npm run doctor -- --json` from a
 checkout or package.
 
@@ -219,6 +290,11 @@ usable, while evidence
 levels differ by harness and live model-backed testing has not been completed
 for every integration. Review the [known limitations](docs/KNOWN_LIMITATIONS.md)
 before adoption.
+
+The completed DeepSWE pilot is historical evidence for pre-change commit
+`95dfedf7d396a7b9faa72ced844a28f70bd6bcef`. It is not a benchmark of the
+changed final v0.7 candidate. See [Evaluation](docs/EVALUATION.md) for the exact
+result and the cost-planned path to future comparative evidence.
 
 Reproducible issue reports should include the Zimster version, harness version,
 selected workflow profile, and relevant `doctor` or postmortem output.

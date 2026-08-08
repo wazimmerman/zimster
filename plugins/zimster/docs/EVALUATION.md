@@ -5,7 +5,25 @@ mechanism tests prove that a workflow feature behaves as designed; they do not
 prove that Zimster improves coding-agent outcomes. Null and negative results are
 publishable results.
 
-## Primary v0.7.0 pilot
+## Final v0.7 candidate mechanism evidence
+
+The final v0.7 candidate adds oversized-request decomposition and an optional
+visual-treatment decision to `designing-work`. Focused behavioral tests, the
+existing deterministic mechanism suite, exact-head semantic review, and
+reproducible release artifacts establish the candidate's workflow and packaging
+contracts. They do not establish a comparative effect on coding outcomes.
+
+No comparative benchmark has been run against the final v0.7 candidate. The
+completed pilot below is retained as historical evidence for the earlier
+treatment and for the evaluation system itself; it is not final-candidate
+evidence.
+
+## Historical pre-change v0.7 pilot
+
+The completed pilot applies to commit
+`95dfedf7d396a7b9faa72ced844a28f70bd6bcef`. Its treatment used the canonical
+skills at that commit, before the two `designing-work` behaviors were added.
+The results therefore do not apply to or describe the final v0.7 candidate.
 
 The first campaign uses [DeepSWE v1.1](https://github.com/datacurve-ai/deep-swe)
 through [Pier](https://github.com/datacurve-ai/pier). DeepSWE supplies the task
@@ -45,7 +63,7 @@ Campaign sizes are:
 - prespecified minimum pilot: 6 tasks × 2 conditions × 2 repeats = 24 runs;
 - preferred pilot: 8 tasks × 2 conditions × 3 repeats = 48 runs.
 
-## v0.7.0 minimum-pilot result
+## Historical minimum-pilot result
 
 The minimum campaign completed on 2026-08-07 with 12 complete pairs, 24
 scored runs, no incomplete pairs, and no retries. The treatment passed 10 of 12
@@ -57,9 +75,9 @@ Treatment averaged 914.701 seconds versus 1,031.920 seconds for control, 64.75
 turns versus 73.75, and 29,128.7 output tokens versus 32,430.8. These are
 descriptive pilot estimates: all Holm-adjusted secondary p-values are 1, and
 the complementary task-clustered GEE treatment odds ratio is 1.667 (p=0.388).
-The result therefore does not establish a definitive quality or efficiency
-gain, and the +8.33-point estimate is not general proof that the entire plugin
-package is superior.
+There were no statistically significant Holm-adjusted secondary effects. The
+result does not establish a definitive quality or efficiency gain, and the
++8.33-point estimate is not general proof that the plugin package is superior.
 
 The calibration pair passed in both conditions and was excluded as planned.
 The tracked public result at
@@ -101,8 +119,8 @@ Raw Pier jobs, Codex trajectories, runner logs, and patches are kept outside the
 tracked tree under `.git/zimster/benchmarks/`. Each job becomes a
 content-addressed `sha256/<digest>` bundle with a file inventory. Public evidence
 contains the frozen manifest and lock hashes, run-level bundle hashes,
-exclusions, failure classes, and analysis output—not credentials, account
-identifiers, authentication paths, or tokens.
+exclusions, failure classes, and analysis output. It does not contain
+credentials, account identifiers, authentication paths, or tokens.
 
 The visible plan-window state is recorded categorically and without account
 identifiers before a campaign. Never purchase credits or enable top-up on behalf
@@ -153,10 +171,17 @@ npm run benchmark:analyze -- --records /absolute/path/to/records.jsonl
 The deterministic implementation and fixtures are in `benchmarks/lib/pilot.mjs`
 and `test/benchmark-pilot.test.mjs`.
 
-## Later diagnostics
+## Future comparative evaluation
 
-SWE-Interact, SWE Atlas, and Terminal-Bench 2.1 are later diagnostic suites.
-SWE-bench Verified is not a headline benchmark for this release. Superpowers and
-GSD comparisons require the same Codex authentication and run contract. Any
-API-billed, external-provider, contamination-sensitive, or paid-judge campaign
-requires a separate approval and a distinct label.
+A new campaign for the final v0.7 candidate or a later release is post-v0.7
+work. Its design must first pass the registered evidence-sufficiency and cost
+planning analysis. The historical pilot's variance, runtime, and cost data will
+inform the run allocation, including whether more unique tasks with fewer
+repeats provide better information per Codex hour than the old preferred design.
+
+Superpowers and GSD may be neutral comparators under the same frozen Codex run
+contract. SWE-Interact, SWE Atlas, Terminal-Bench 2.1, or another suite should be
+added only when it answers a defined evaluation question. Any API-billed,
+external-provider, contamination-sensitive, or paid-judge campaign requires a
+separate approval and a distinct label. Null and negative results remain
+publishable.

@@ -34,6 +34,7 @@ const requiredFiles = [
   'scripts/validate.mjs',
   'scripts/package.mjs',
   'scripts/doctor.mjs',
+  'scripts/docs-hygiene.mjs',
   'scripts/verify.mjs',
   'scripts/archive-safety.mjs',
   'scripts/secret-scan.mjs',

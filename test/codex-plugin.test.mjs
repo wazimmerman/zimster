@@ -12,7 +12,7 @@ test('Codex manifest follows the accepted ingestion shape', async () => {
   const manifest = await json('.codex-plugin/plugin.json');
   assert.equal(manifest.skills, './skills/');
   assert.equal(Object.hasOwn(manifest, 'hooks'), false, 'Codex rejects unsupported hooks fields');
-  assert.match(manifest.description, /owner-driven|proof-first/i);
+  assert.equal(manifest.description, 'A software development workflow for coding agents.');
   assert.ok(Array.isArray(manifest.interface.defaultPrompt));
   assert.ok(manifest.interface.defaultPrompt.length > 0 && manifest.interface.defaultPrompt.length <= 3);
   assert.ok(manifest.interface.defaultPrompt.every((prompt) => typeof prompt === 'string' && prompt.length <= 128));

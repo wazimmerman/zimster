@@ -8,6 +8,20 @@ description: Turn an ambiguous or consequential software request into a compact 
 Use this skill when choices about scope, architecture, behavior, or acceptance
 would materially change the implementation. Skip it for exact low-risk edits.
 
+Choose design depth from the work itself:
+
+- exact, low-risk, well-defined work proceeds without design ceremony;
+- material ambiguity or a consequential choice gets compact design;
+- a large product, major architecture or UX decision, security or migration
+  boundary, public contract, or expensive commitment gets deeper collaborative
+  design;
+- an oversized multi-system request is decomposed before one bounded workstream
+  receives deeper design.
+
+Do not turn this hierarchy into a universal brainstorming gate. Do not require
+one question per turn, a committed specification for routine work, or agents
+whose only purpose is brainstorming.
+
 ## 1. Inspect before asking
 
 Read the repository instructions, relevant code, tests, architecture notes,
@@ -21,6 +35,27 @@ Identify:
 - constraints and explicit exclusions;
 - external systems, hardware, migrations, concurrency, or security risks;
 - evidence that can and cannot be produced in the current environment.
+
+### Decompose only oversized requests
+
+After inspection, decide whether the request is one complex but coherent system
+or multiple substantial, loosely coupled systems with independently meaningful
+workstreams. A request touching many files does not by itself require
+decomposition, and a well-scoped request should proceed normally.
+
+When one plan would be too broad to stay coherent:
+
+1. identify logical subprojects or bounded workstreams;
+2. state their dependencies and recommended order;
+3. establish enough shared architecture and constraints to prevent incompatible
+   subprojects;
+4. preserve the overall mission for later workstreams;
+5. select the first useful bounded piece for deeper design.
+
+Decomposition is a design and scoping tool. It does not itself cause delegation
+or agent creation. Evaluate any later delegation independently. If the user has
+already approved a coherent, binding decomposition, preserve it and do not
+reopen it without a material contradiction.
 
 If delegation is a design option, assess its material benefit independently
 from model routing. Record the bounded role and why inline ownership is less
@@ -46,6 +81,25 @@ Lead with the recommendation and explain:
 - execution cost and unnecessary machinery avoided.
 
 Do not present fake alternatives that no competent engineer would choose.
+
+### Choose visual treatment per question
+
+For each design question, decide whether seeing the alternatives would be
+materially clearer than reading them. UI layouts, architecture topology, state
+transitions, data flow, workflow flow, component relationships, and before and
+after structure may benefit from lightweight visual treatment when the active
+host visual capability is useful.
+
+Use a small diagram, wireframe, side-by-side comparison, or annotated image only
+when it improves the decision. Lightweight textual diagram syntax is enough
+when the host can render or meaningfully present it. Visual treatment is not
+mandatory for UI work.
+
+Requirements clarification, naming decisions, simple implementation trade-offs,
+configuration choices, and text-heavy policy decisions normally remain textual.
+If no useful visual capability is available, continue textually. Its absence is
+not a blocker. Do not require a browser service. Do not require image generation,
+and do not imply that Zimster has a dedicated visual companion.
 
 ## 4. Write the mission contract
 

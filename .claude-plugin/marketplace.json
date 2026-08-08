@@ -1,17 +1,17 @@
 {
   "name": "zimster",
-  "description": "Development marketplace for Zimster",
+  "description": "A software development workflow for coding agents.",
   "owner": {
-    "name": "Zimster Contributors"
+    "name": "William Zimmerman"
   },
   "plugins": [
     {
       "name": "zimster",
-      "description": "Proof-first, owner-driven development workflows",
+      "description": "Build, debug, refactor, review, and ship software with adaptive planning, test-driven development, selective delegation, and evidence-backed verification.",
       "version": "0.7.0",
       "source": "./",
       "author": {
-        "name": "Zimster Contributors"
+        "name": "William Zimmerman"
       }
     }
   ]
