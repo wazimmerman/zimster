@@ -18,8 +18,8 @@
   Pi, and Kimi Code.
 - Signed release-evidence payload bound to tag, commit, tree, standards,
   semantic review, host matrix, verification, and artifact digests.
-- A reproducible Codex/DeepSWE protocol plus the largest complete paired pilot
-  permitted by included ChatGPT Pro usage.
+- A reproducible Codex/DeepSWE protocol and a completed prespecified minimum
+  paired pilot.
 - No credentials, obsolete plans, private scratchpads, or untrusted archives in
   the release tree.
 

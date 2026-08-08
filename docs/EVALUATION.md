@@ -13,15 +13,22 @@ images and deterministic verifiers. Pier is benchmark infrastructure, not a
 model provider. The source revisions, 113-task population, Codex version, model,
 and reasoning level are frozen in `benchmarks/lock/deepswe-v1.1.json`.
 
-Both conditions use locally installed Codex CLI `0.146.1`, `gpt-5.6-sol`, high
+Both conditions used locally installed Codex CLI `0.146.1`, `gpt-5.6-sol`, high
 reasoning, one concurrent trial, no retry, identical task images, identical
-timeouts, and the owner's ChatGPT subscription authentication:
+timeouts, and ChatGPT Pro authentication. The pilot used no API-key billing, no
+purchased or promotional credits, no alternate provider, and no paid judge:
 
 - `control`: task-repository instructions with no Zimster plugin or skills;
 - `treatment`: the canonical `skills/` tree embedded read-only in the task
   image and discovered through Codex's Agent Skills directory.
 
-The harness rejects API-key authentication, provider/base-URL overrides, a
+The treatment measures the effect of Zimster's portable Agent Skills workflow
+in Codex. It does not exercise or evaluate every host-specific capability of
+the full installed Codex marketplace package. Package, runtime, and mechanism
+correctness are established separately by package and mechanism tests.
+
+For this v0.7 pilot, the harness rejects API-key authentication,
+provider/base-URL overrides, a
 different Codex version, or a run without an explicit operator assertion that
 automatic credit top-up is disabled. It never installs or selects an alternate
 model provider. Authentication material remains outside the task repository and
@@ -35,7 +42,7 @@ paired blocks.
 Campaign sizes are:
 
 - calibration: one excluded task per condition;
-- minimum interpretable pilot: 6 tasks × 2 conditions × 2 repeats = 24 runs;
+- prespecified minimum pilot: 6 tasks × 2 conditions × 2 repeats = 24 runs;
 - preferred pilot: 8 tasks × 2 conditions × 3 repeats = 48 runs.
 
 ## v0.7.0 minimum-pilot result
@@ -51,7 +58,8 @@ turns versus 73.75, and 29,128.7 output tokens versus 32,430.8. These are
 descriptive pilot estimates: all Holm-adjusted secondary p-values are 1, and
 the complementary task-clustered GEE treatment odds ratio is 1.667 (p=0.388).
 The result therefore does not establish a definitive quality or efficiency
-gain.
+gain, and the +8.33-point estimate is not general proof that the entire plugin
+package is superior.
 
 The calibration pair passed in both conditions and was excluded as planned.
 The tracked public result at
@@ -102,14 +110,21 @@ of the campaign. Resume only after the included-usage window resets.
 
 ## Reproduction
 
+Independent replications must record authentication and billing mode and hold
+them constant between conditions. They must never silently change model,
+provider, or authentication. Record the exact model, reasoning level, CLI
+version, runner version, task locks, and plugin condition for every campaign.
+
 Check the fixed schedule without using model allowance:
 
 ```sh
 npm run benchmark:plan -- --campaign minimum
 ```
 
-Run the safety preflight after manually confirming auto top-up is disabled in
-the account UI. Use a categorical plan-window description:
+For the subscription-backed v0.7 campaign, the runner retains its
+auto-top-up-disabled safeguard. This campaign-specific protection does not make
+one person's account settings a universal scientific requirement. Use a
+categorical plan-window description:
 
 ```sh
 npm run benchmark:preflight -- \

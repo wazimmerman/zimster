@@ -64,3 +64,20 @@ test('current release docs use the synchronized package version and honest evalu
   assert.match(evaluation, /Primary v0\.7\.0 pilot/);
   assert.match(evaluation, /paired risk difference/);
 });
+
+test('public pilot docs distinguish the skills treatment from package proof and general replication', async () => {
+  const evaluation = await read('docs/EVALUATION.md');
+  assert.match(evaluation, /portable Agent Skills workflow\s+in Codex/i);
+  assert.match(evaluation, /does not (?:exercise|evaluate)[\s\S]*every host-specific capability/i);
+  assert.match(evaluation, /package[\s\S]*correctness[\s\S]*established separately[\s\S]*mechanism tests/i);
+  assert.match(evaluation, /record authentication and billing mode/i);
+  assert.match(evaluation, /hold\s+(?:both|them) constant between conditions/i);
+  assert.match(evaluation, /never silently change[\s\S]*model[\s\S]*provider[\s\S]*authentication/i);
+  assert.match(evaluation, /exact model[\s\S]*reasoning level[\s\S]*CLI\s+version[\s\S]*runner version[\s\S]*task locks[\s\S]*plugin condition/i);
+  assert.match(evaluation, /prespecified minimum pilot|minimum feasibility pilot/i);
+  assert.doesNotMatch(evaluation, /minimum interpretable pilot/i);
+
+  const roadmap = await read('docs/ROADMAP.md');
+  assert.match(roadmap, /completed prespecified minimum\s+paired pilot/i);
+  assert.doesNotMatch(roadmap, /largest complete paired pilot[\s\S]*included ChatGPT Pro usage/i);
+});
