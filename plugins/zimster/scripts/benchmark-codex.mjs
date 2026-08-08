@@ -8,6 +8,7 @@ import { fileURLToPath } from 'node:url';
 import {
   analyzeCampaign,
   assertPilotSafety,
+  assertSourceCheckoutClean,
   buildCampaign,
   buildPierArgs,
   countDirectoryEntries,
@@ -88,9 +89,17 @@ async function gitHead(directory) {
   return result.stdout.trim();
 }
 
+async function gitStatus(directory) {
+  const result = run('git', ['status', '--porcelain=v1', '--untracked-files=all'], { cwd: directory });
+  if (result.status !== 0) fail(`Cannot inspect pinned source at ${directory}: ${result.stderr}`);
+  return result.stdout;
+}
+
 async function validateSources(deepswe, pier, lock) {
   if (await gitHead(deepswe) !== lock.deepswe.commit) fail('DeepSWE checkout does not match the lock commit.');
   if (await gitHead(pier) !== lock.pier.commit) fail('Pier checkout does not match the lock commit.');
+  assertSourceCheckoutClean(await gitStatus(deepswe), 'DeepSWE');
+  assertSourceCheckoutClean(await gitStatus(pier), 'Pier');
   const taskEntries = await readdir(path.join(deepswe, 'tasks'), { withFileTypes: true });
   const count = countDirectoryEntries(taskEntries);
   if (count !== lock.deepswe.task_count) fail(`DeepSWE task count mismatch: expected ${lock.deepswe.task_count}, received ${count}.`);

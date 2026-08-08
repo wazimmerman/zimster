@@ -18,6 +18,12 @@
           "approved_by": { "type": "string", "pattern": "^human:[A-Za-z0-9][A-Za-z0-9._-]*$" },
           "approved_at": { "type": "string", "format": "date-time" }
         },
+        "allOf": [
+          {
+            "if": { "properties": { "state": { "const": "accepted_decision" } }, "required": ["state"] },
+            "then": { "required": ["approved_by", "approved_at"] }
+          }
+        ],
         "additionalProperties": false
       }
     }

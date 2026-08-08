@@ -20,6 +20,10 @@ export function countDirectoryEntries(entries) {
   return entries.filter((entry) => entry.isDirectory()).length;
 }
 
+export function assertSourceCheckoutClean(status, label) {
+  assert(!String(status).trim(), `${label} checkout must be clean at the pinned commit.`);
+}
+
 export function redactSensitiveText(value) {
   return String(value)
     .replace(/\bsk-[A-Za-z0-9_-]{12,}/g, '[REDACTED_TOKEN]')

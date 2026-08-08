@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { createPackages } from '../scripts/package.mjs';
+import { parseReleaseEvidenceTagPayload } from '../scripts/lib/release-evidence.mjs';
 import { root } from './helpers.mjs';
 
 function run(args, cwd = root) {
@@ -12,6 +13,19 @@ function run(args, cwd = root) {
     cwd, encoding: 'utf8'
   });
 }
+
+test('signed authorization accepts exactly one canonical JSON payload', () => {
+  const payload = { schema_version: 1, version: '0.7.0' };
+  const canonical = `${JSON.stringify(payload, null, 2)}\n`;
+  assert.deepEqual(parseReleaseEvidenceTagPayload(canonical), payload);
+  for (const invalid of [
+    `release approved\n${canonical}`,
+    `${canonical}additional note\n`,
+    `${JSON.stringify(payload)}\n`
+  ]) {
+    assert.throws(() => parseReleaseEvidenceTagPayload(invalid), /canonical.*payload/i);
+  }
+});
 
 test('release evidence canonically binds authorization inputs and all five artifacts', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'zimster-release-evidence-'));
@@ -49,6 +63,7 @@ test('release evidence canonically binds authorization inputs and all five artif
       '--dist', dist
     ]);
     assert.equal(result.status, 0, result.stderr || result.stdout);
+
     await writeFile(verification, '{"status":"changed"}\n');
     result = run([
       'verify', '--file', output, '--expected-tag', 'v0.7.0', '--expected-commit', commit,

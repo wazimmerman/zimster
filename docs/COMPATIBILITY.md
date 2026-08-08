@@ -17,8 +17,8 @@ Status vocabulary:
 | Host | CLI | Distribution | Verified capabilities | Not established |
 |---|---:|---|---|---|
 | Codex | 0.146.1 | Codex zip / Git marketplace | `INSTALLED_PACKAGE_VERIFIED`: marketplace registration, install, version, generated-mirror integrity | Fresh isolated prompt discovery for the 0.7.0 archive; model-backed task execution |
-| Claude Code | 2.1.224 | Claude zip / GitHub marketplace | `LIVE_VERIFIED`: manifest validation, isolated marketplace install, 12 skills, 4 agents, 1 SessionStart hook inventory | Authenticated model-backed invocation and effective model identity |
-| Grok | 1.0.0 stable | Portable Agent Plugin zip | `LIVE_VERIFIED`: root Agent Plugins manifest validation, isolated install, 12-skill discovery; root manifest takes precedence | Model-backed invocation; no separate `.grok` layer was needed |
+| Claude Code | 2.1.224 | Claude zip / GitHub marketplace | `STRUCTURALLY_VALIDATED`: exact-package manifest, 12 skills, 4 agents, and 1 SessionStart hook structure | Isolated installation, fresh discovery, authenticated model-backed invocation, and effective model identity |
+| Grok | 1.0.0 stable | Portable Agent Plugin zip | `STRUCTURALLY_VALIDATED`: root Agent Plugins manifest and 12-skill package structure | Isolated installation, fresh discovery, and model-backed invocation; no separate `.grok` layer was needed |
 | OpenCode | 1.18.13 | npm tarball / project package | `LIVE_VERIFIED`: exact npm tarball extraction, project adapter load, canonical skill discovery | Model-backed task execution and effective model identity |
 | Pi | 0.84.1 | `zimster` npm package | `INSTALLED_PACKAGE_VERIFIED`: local package installation and listing; structural extension/resource tests | Model-backed session discovery; optional `pi-subagents` transport execution |
 | Kimi Code | unavailable | `zimster` npm package / repository | `STRUCTURALLY_VALIDATED`: native manifest fields, skill paths, and single session bootstrap | CLI installation, managed-copy discovery, and model-backed execution |

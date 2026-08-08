@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import * as pilotHelpers from '../benchmarks/lib/pilot.mjs';
 import {
   analyzeCampaign,
   assertPilotSafety,
@@ -64,6 +65,17 @@ test('pinned source validation counts directory entries without detaching Dirent
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test('pinned benchmark sources reject tracked, staged, and untracked mutations', () => {
+  assert.equal(typeof pilotHelpers.assertSourceCheckoutClean, 'function');
+  for (const status of [' M tasks/example/test.sh', 'M  pier/runner.py', '?? tasks/injected/']) {
+    assert.throws(
+      () => pilotHelpers.assertSourceCheckoutClean(status, 'DeepSWE'),
+      /DeepSWE.*clean|clean.*DeepSWE/i
+    );
+  }
+  assert.doesNotThrow(() => pilotHelpers.assertSourceCheckoutClean('', 'Pier'));
 });
 
 test('evidence bundling redacts authentication paths and tokens in nested logs', async () => {

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -37,6 +37,20 @@ test('context index supports four evidence states and human-gated promotion', as
     const index = JSON.parse(await readFile(file, 'utf8'));
     assert.equal(index.schema_version, 1);
     assert.equal(index.entries.find(({ id }) => id === 'item-proposed_delta').state, 'accepted_decision');
+
+    await writeFile(file, `${JSON.stringify({
+      schema_version: 1,
+      entries: [{
+        id: 'forged-decision', state: 'accepted_decision',
+        summary: 'approval fields omitted', source: 'external fixture'
+      }]
+    })}\n`);
+    result = run('context-index.mjs', ['list', '--file', file], directory);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /accepted_decision.*approved_by.*approved_at/i);
+
+    const schema = JSON.parse(await readFile(path.join(root, 'schemas/context-index.schema.json'), 'utf8'));
+    assert.ok(schema.properties.entries.items.allOf, 'schema must condition accepted decisions on approval fields');
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -69,9 +83,19 @@ test('run initializer creates journal v2 with plan, decisions, slices, evidence,
 
 test('plan conformance detects requirement drift and blocks unverified release claims', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'zimster-conformance-'));
-  const requirements = path.join(directory, 'requirements.json');
-  const matrix = path.join(directory, 'matrix.json');
   try {
+    assert.equal(spawnSync('git', ['init', '-b', 'main'], { cwd: directory }).status, 0);
+    assert.equal(spawnSync('git', ['config', 'user.name', 'Zimster Test'], { cwd: directory }).status, 0);
+    assert.equal(spawnSync('git', ['config', 'user.email', 'test@example.com'], { cwd: directory }).status, 0);
+    await writeFile(path.join(directory, 'tracked.txt'), 'base\n');
+    assert.equal(spawnSync('git', ['add', 'tracked.txt'], { cwd: directory }).status, 0);
+    assert.equal(spawnSync('git', ['commit', '-m', 'base'], { cwd: directory }).status, 0);
+    const head = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: directory, encoding: 'utf8' }).stdout.trim();
+    const tree = spawnSync('git', ['rev-parse', 'HEAD^{tree}'], { cwd: directory, encoding: 'utf8' }).stdout.trim();
+    const plan = path.join(directory, '.git', 'zimster', 'plan');
+    await mkdir(plan, { recursive: true });
+    const requirements = path.join(plan, 'requirements.json');
+    const matrix = path.join(plan, 'matrix.json');
     await writeFile(requirements, `${JSON.stringify({
       schema_version: 1,
       source: 'approved-plan',
@@ -80,30 +104,30 @@ test('plan conformance detects requirement drift and blocks unverified release c
     const row = {
       id: 'PLAN-001', authoritative_text: 'Ship the portable contract.', source: 'approved-plan',
       implementation_locations: ['plugin.json'], evidence_refs: [],
-      evidence_scope: { git_tree: 'candidate', environment: 'node' }, unavailable_proof: [],
+      evidence_scope: { git_tree: tree, environment: 'node' }, unavailable_proof: [],
       status: 'unverified', intended_acceptance_claims: ['Portable contract ships.']
     };
     await writeFile(matrix, `${JSON.stringify({
-      schema_version: 1, candidate_head: '0'.repeat(40), candidate_tree: '1'.repeat(40),
+      schema_version: 1, candidate_head: '0'.repeat(40), candidate_tree: tree,
       requirements: [row], observations: []
     })}\n`);
-    let result = run('plan-conformance.mjs', [
-      '--phase', 'slice', '--requirements', requirements, '--matrix', matrix
-    ], directory);
+    let result = run('plan-conformance.mjs', ['--phase', 'slice'], directory);
+    assert.notEqual(result.status, 0);
+    await writeFile(matrix, `${JSON.stringify({
+      schema_version: 1, candidate_head: head, candidate_tree: tree,
+      requirements: [row], observations: []
+    })}\n`);
+    result = run('plan-conformance.mjs', ['--phase', 'slice'], directory);
     assert.equal(result.status, 0, result.stderr || result.stdout);
-    result = run('plan-conformance.mjs', [
-      '--phase', 'release', '--requirements', requirements, '--matrix', matrix
-    ], directory);
+    result = run('plan-conformance.mjs', ['--phase', 'release'], directory);
     assert.notEqual(result.status, 0);
     row.status = 'verified';
     row.evidence_refs = ['receipt-1'];
     await writeFile(matrix, `${JSON.stringify({
-      schema_version: 1, candidate_head: '0'.repeat(40), candidate_tree: '1'.repeat(40),
+      schema_version: 1, candidate_head: head, candidate_tree: tree,
       requirements: [row], observations: []
     })}\n`);
-    result = run('plan-conformance.mjs', [
-      '--phase', 'release', '--requirements', requirements, '--matrix', matrix
-    ], directory);
+    result = run('plan-conformance.mjs', ['--phase', 'release'], directory);
     assert.equal(result.status, 0, result.stderr || result.stdout);
   } finally {
     await rm(directory, { recursive: true, force: true });

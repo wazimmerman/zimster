@@ -81,3 +81,14 @@ test('public pilot docs distinguish the skills treatment from package proof and 
   assert.match(roadmap, /completed prespecified minimum\s+paired pilot/i);
   assert.doesNotMatch(roadmap, /largest complete paired pilot[\s\S]*included ChatGPT Pro usage/i);
 });
+
+test('public host claims do not exceed the claim-scoped host receipt', async () => {
+  for (const file of [
+    'README.md', 'docs/COMPATIBILITY.md', 'docs/CLAUDE.md',
+    'docs/GROK.md', 'docs/KNOWN_LIMITATIONS.md'
+  ]) {
+    const content = await read(file);
+    assert.doesNotMatch(content, /Claude(?: Code)?[^\n|]*\|[^\n]*`LIVE_VERIFIED`|Claude(?: Code)?[\s\S]{0,100}Verification level[\s\S]{0,100}`LIVE_VERIFIED`/i);
+    assert.doesNotMatch(content, /Grok[^\n|]*\|[^\n]*`LIVE_VERIFIED`|Grok[\s\S]{0,100}Verification level[\s\S]{0,100}`LIVE_VERIFIED`/i);
+  }
+});

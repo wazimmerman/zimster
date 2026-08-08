@@ -16,6 +16,15 @@ async function indexPath() {
 async function load(file) {
   const value = JSON.parse(await readFile(file, 'utf8'));
   if (value.schema_version !== 1 || !Array.isArray(value.entries)) throw new Error('context index requires schema_version 1 and entries');
+  for (const entry of value.entries) {
+    if (entry.state === 'accepted_decision' && (
+      !humanApproval(entry.approved_by)
+      || typeof entry.approved_at !== 'string'
+      || Number.isNaN(Date.parse(entry.approved_at))
+    )) {
+      throw new Error('accepted_decision requires valid approved_by and approved_at fields');
+    }
+  }
   return value;
 }
 

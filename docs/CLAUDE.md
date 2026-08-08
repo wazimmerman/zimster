@@ -1,9 +1,10 @@
 # Claude Code
 
-Verification level for Zimster 0.7.0: `LIVE_VERIFIED` for validation, isolated
-marketplace installation, and component inventory on Claude Code 2.1.224. The
-live inventory reported 12 skills, 4 agents, and 1 SessionStart hook. No
-authenticated model-backed invocation was performed.
+Verification level for Zimster 0.7.0: `STRUCTURALLY_VALIDATED` for the exact
+package manifest, 12 skills, 4 agents, and 1 SessionStart hook on the Claude
+Code 2.1.224 validation surface. Isolated installation, fresh discovery, and
+authenticated model-backed invocation are not established by the release
+receipt.
 
 ## Validate and install
 

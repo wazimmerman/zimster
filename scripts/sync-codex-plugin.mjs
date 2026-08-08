@@ -44,6 +44,7 @@ const includes = [
   'scripts/lib/run-state.mjs',
   'scripts/lib/semantic-assurance.mjs',
   'scripts/lib/evidence-validity.mjs',
+  'scripts/lib/release-evidence.mjs',
   'scripts/lib/tar-reader.mjs',
   'scripts/lib/zip-reader.mjs', 'scripts/lib/zip.mjs',
   'vendor/openai-codex-plugin-validator',

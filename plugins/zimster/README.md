@@ -145,8 +145,8 @@ structural validation do not imply live, model-backed execution.
 | Harness | Current verification level | Installation path | Principal limitation |
 |---|---|---|---|
 | Codex 0.146.1 | `INSTALLED_PACKAGE_VERIFIED` | Full Codex ZIP or Git/custom marketplace | Isolated registration and installation passed; model-backed task execution is evaluated separately |
-| Claude Code 2.1.224 | `LIVE_VERIFIED` | Full Claude ZIP or GitHub marketplace | Isolated installation and inventory exposed 12 skills, 4 agents, and the SessionStart hook; model-backed execution was not run |
-| Grok 1.0.0 | `LIVE_VERIFIED` | Portable Agent Plugin ZIP | The root manifest installed and all 12 skills were discovered; no separate `.grok` overlay was needed |
+| Claude Code 2.1.224 | `STRUCTURALLY_VALIDATED` | Full Claude ZIP or GitHub marketplace | The exact package structure validates with 12 skills, 4 agents, and the SessionStart hook; isolated installation and model-backed execution are not established |
+| Grok 1.0.0 | `STRUCTURALLY_VALIDATED` | Portable Agent Plugin ZIP | The root manifest and all 12 skills validate structurally; isolated installation, skill discovery, and model-backed execution are not established |
 | Kimi Code | `UNAVAILABLE` | Primary npm package or copied skills | The CLI was absent, so only the documented adapter structure was validated |
 | OpenCode 1.18.13 | `LIVE_VERIFIED` | Primary npm package or copied skills | Exact npm-package skill discovery passed; model-backed execution was not run |
 | Pi 0.84.1 | `INSTALLED_PACKAGE_VERIFIED` | Primary npm package | Isolated package installation passed; optional delegation remains disabled by default |
