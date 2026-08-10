@@ -66,14 +66,6 @@ Use `/plugins install <path-or-url>`, then `/plugins info zimster` and
 `/plugins reload`. The CLI was unavailable for the 0.7.0 smoke, so follow the
 bounded claims in `KIMI.md`.
 
-## OpenAI Plugin Directory
-
-Submit `zimster-0.7.0-openai.zip` as the final skills bundle. It contains the 12
-skills plus the dependency-free runtime used by helper-backed workflows under
-`skills/using-zimster/scripts/`. The directory ingests the skills and their
-supporting files; it does not install the Git/repo marketplace wrapper from the
-Codex ZIP.
-
 ## Skills-only installation
 
 The OpenAI submission zip and portable Agent Plugin zip contain canonical
