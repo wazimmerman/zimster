@@ -52,9 +52,7 @@ codex plugin marketplace add /absolute/path/to/zimster
 codex plugin add zimster@zimster --json
 ```
 
-This is the current public Codex installation path; Zimster does not claim an
-official OpenAI Plugin Directory listing. See the
-[installation guide](docs/INSTALL.md) for isolated validation, updates,
+See the [installation guide](docs/INSTALL.md) for isolated validation, updates,
 rollback, and uninstall.
 
 ### Claude Code
@@ -66,8 +64,8 @@ claude plugin marketplace add wazimmerman/zimster
 claude plugin install zimster@zimster
 ```
 
-This uses Zimster's GitHub marketplace and does not claim an official Claude
-marketplace listing.
+Official directory listings for ChatGPT and Codex, Claude Code, and Grok are
+pending. The documented installation methods remain available in the meantime.
 
 ### Skills only
 
