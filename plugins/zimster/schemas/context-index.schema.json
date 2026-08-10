@@ -1,0 +1,32 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zimster.dev/schemas/context-index.schema.json",
+  "type": "object",
+  "required": ["schema_version", "entries"],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "state", "summary", "source"],
+        "properties": {
+          "id": { "type": "string", "minLength": 1 },
+          "state": { "enum": ["current_truth", "proposed_delta", "accepted_decision", "unresolved_proposal"] },
+          "summary": { "type": "string", "minLength": 1 },
+          "source": { "type": "string", "minLength": 1 },
+          "approved_by": { "type": "string", "pattern": "^human:[A-Za-z0-9][A-Za-z0-9._-]*$" },
+          "approved_at": { "type": "string", "format": "date-time" }
+        },
+        "allOf": [
+          {
+            "if": { "properties": { "state": { "const": "accepted_decision" } }, "required": ["state"] },
+            "then": { "required": ["approved_by", "approved_at"] }
+          }
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

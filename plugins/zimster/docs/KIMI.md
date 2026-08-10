@@ -1,40 +1,46 @@
 # Kimi Code
 
+Verification level for Zimster 0.7.0: `STRUCTURALLY_VALIDATED`; the Kimi CLI was
+`UNAVAILABLE` in the release environment. The native manifest uses documented
+fields, canonical skill paths, and exactly one `sessionStart.skill`. Managed
+installation, discovery, and model-backed execution are not claimed.
+
 ## Install
 
-Install the repository or an extracted portable package with Kimi Code's
-`/plugins install` command. The native `.kimi-plugin/plugin.json` points to the
-packaged `skills/` directory and injects only `using-zimster` at session start.
-No second bootstrap hook is registered.
+From Kimi Code's interactive UI:
+
+```text
+/plugins install /absolute/path/to/zimster
+/plugins info zimster
+/plugins reload
+```
+
+The primary npm package and repository include `.kimi-plugin/plugin.json`.
+Kimi copies local installations into its managed plugin directory; later source
+edits require reinstalling. Third-party installation requires an explicit trust
+decision.
 
 ## Update
 
-Kimi Code manages a copied plugin under its managed plugin directory. Reinstall
-the newer source with `/plugins install`, then use `/plugins reload` or start a
-fresh session. Reinstallation is required for changes in the source checkout to
-reach the managed copy.
+Reinstall the new version, then use `/plugins reload` or start a new session.
 
 ## Remove
 
-Use `/plugins remove zimster`. Kimi Code may retain its managed copy as an
-installation record; use `/plugins info zimster` to distinguish an installed
-plugin from retained files.
+Use `/plugins remove zimster` to remove the installation record. Kimi may retain
+the managed copy; `/plugins info zimster` distinguishes retained files from an
+enabled installation.
 
 ## Diagnostics
 
-Use `/plugins info zimster` and `/plugins reload` in Kimi Code. From the package,
-run `npm run validate:adapters` and `npm run doctor -- --json`. Unsupported
-manifest fields are treated as package errors; expected unavailable reviewer
-controls are quiet capability fallbacks.
+Use `/plugins info zimster` and `/plugins reload`. Because the CLI was absent,
+any Kimi-specific loading problem remains `UNAVAILABLE` release evidence until
+reproduced with the documented host.
 
 ## Verification status
 
-Verification level: `STRUCTURALLY_VALIDATED`. Validated against the current Kimi plugin schema. The manifest uses
-only documented fields and exactly one `sessionStart.skill`. The Kimi CLI was
-unavailable, so managed installation, skill discovery, and session behavior
-were not live-tested.
+Only manifest and skill structure are `STRUCTURALLY_VALIDATED`. Installation,
+fresh-session discovery, and model-backed behavior are not release claims.
 
-Routing maps only to Kimi's symbolic `primary`, verified experimental
-`secondary`, or inheritance. `secondary` is unavailable unless the active host
-reports that mode; vendor model IDs never enter the plugin manifest. This
-surface remains experimental and is not included in the live 0.6 support claim.
+Zimster maps only to Kimi's symbolic `primary`, a host-verified experimental
+`secondary`, or inheritance. Vendor model IDs are not stored in the manifest.
+Unsupported reviewer or routing controls remain explicit fallbacks.

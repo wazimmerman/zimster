@@ -1,0 +1,8 @@
+{
+  "schema_version": 1,
+  "tag": "v0.6.0",
+  "commit": "9b128196dc058d92117edeaf0dcd670e946f67db",
+  "tree": "c5cebddf1426ba8d488e5c4cc9f053823ad9483d",
+  "local_archives_trusted": false,
+  "reason": "Ignored local archives embed post-tag source provenance and are not v0.6.0 release evidence."
+}

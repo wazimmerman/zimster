@@ -1,30 +1,25 @@
 # Known limitations
 
-Zimster 0.6.0 is a public beta, not a stable 1.0 compatibility guarantee.
+Zimster 0.7.0 is a release candidate, not a stable 1.0 compatibility guarantee.
 
-- Codex exact-package installation and manifest validation are
-  `INSTALLED_PACKAGE_VERIFIED`; fresh-session plugin skill discovery remains
-  unverified for 0.6.0.
-- Claude Code, Cursor, Kimi Code, and Pi CLIs are unavailable in the current
-  release environment, so their packages are structurally validated rather
-  than live-verified.
-- OpenCode exact-package skill discovery is `LIVE_VERIFIED`; this does not claim
-  model-backed task execution or effective-model identity.
+- Host evidence is capability-scoped. Only OpenCode discovery is
+  `LIVE_VERIFIED`; Claude and Grok are `STRUCTURALLY_VALIDATED`. None of those
+  checks establishes model-backed task quality or effective model identity.
+- Codex and Pi are `INSTALLED_PACKAGE_VERIFIED` for the named package behavior.
+- Kimi Code is `STRUCTURALLY_VALIDATED` because its CLI was unavailable.
+- Skills-only installs lack guaranteed scripts, receipts, agents, hooks, and
+  machine-enforced routing.
 - A host may accept a requested model without reporting the effective model.
-  That remains `unverified`, and strict-cost routing cannot treat it as proof.
-- Cursor concrete model fields and Kimi secondary routing are experimental or
-  version-gated. Pi ships no Zimster subagent runtime.
-- Model catalogs are account/session dependent and may be unavailable. Zimster
-  has no canonical vendor-model table and safely inherits when evidence is
-  insufficient.
-- Skills-only installs preserve workflow guidance but may lack scripts,
-  receipts, adapter generation, and machine-enforced routing.
-- Generated overrides deliberately refuse user-owned collisions, changed
-  generated files, and symlink targets; manual reconciliation is required.
-- Public-beta completion requires one exact-package `LIVE_VERIFIED` host and
-  claim-bounded receipts for all six harnesses. Stable completion may require
-  stronger multi-host live coverage. Missing optional public-beta hosts are
-  classified explicitly and narrow their support claims.
+  Strict-cost routing treats that as unverified.
+- Model catalogs are account- and session-dependent. Zimster has no canonical
+  vendor-model table and safely inherits when evidence is insufficient.
+- Optional Pi delegation depends on a separately installed, pinned transport;
+  the normal fallback is owner-inline execution.
+- The minimum Codex/DeepSWE pilot completed 12 pairs. Its positive point
+  estimates are not definitive: the pass-rate confidence interval includes
+  zero and Holm-adjusted secondary comparisons are not significant. The
+  preferred 48-run campaign remains future work.
+- Public marketplace or registry approval is outside the repository's control.
 
-Use `npm run doctor -- --json` for structural state and `npm run release:verify`
-for the exact candidate. Diagnostics hide concrete mapping contents by default.
+Run `npm run doctor -- --json`, consult `COMPATIBILITY.md`, and bind any broader
+claim to a fresh exact-artifact receipt.

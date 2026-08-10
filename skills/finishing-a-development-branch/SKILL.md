@@ -89,7 +89,7 @@ Always report in one place:
 
 A `CODE_READY` claim with untracked implementation files is permitted only when
 the no-commit policy was explicit and every file was reviewed; it must say
-`CODE_READY — verified but uncommitted`, not imply branch readiness.
+`CODE_READY: verified but uncommitted`, not imply branch readiness.
 
 ## 6. Choose outcome
 

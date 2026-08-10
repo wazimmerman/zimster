@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { json, read } from './helpers.mjs';
 
-test('REL-001: every public manifest identifies the 0.6.0 beta candidate', async () => {
+test('REL-001: every public manifest identifies the 0.7.0 release candidate', async () => {
   const versions = [
     (await json('package.json')).version,
     (await json('package-lock.json')).version,
@@ -12,7 +12,7 @@ test('REL-001: every public manifest identifies the 0.6.0 beta candidate', async
     (await json('.kimi-plugin/plugin.json')).version,
     (await json('.claude-plugin/marketplace.json')).plugins[0].version
   ];
-  assert.deepEqual([...new Set(versions)], ['0.6.0']);
+  assert.deepEqual([...new Set(versions)], ['0.7.0']);
 });
 
 test('BETA-002: consolidated beta documentation covers every installation lifecycle and migration contract', async () => {
@@ -45,22 +45,22 @@ test('BETA-002: consolidated beta documentation covers every installation lifecy
 test('BETA-001 and BETA-003: six beta surfaces use claim-scoped states and channel-specific live coverage', async () => {
   const hosts = await json('config/host-smoke.json');
   assert.deepEqual(hosts.hosts.map(({ id }) => id).sort(), [
-    'claude', 'codex', 'cursor', 'kimi', 'opencode', 'pi'
+    'claude', 'codex', 'grok', 'kimi', 'opencode', 'pi'
   ]);
   assert.equal(hosts.release_profiles.public_beta.minimum_live_verified_hosts, 1);
   assert.deepEqual(hosts.release_profiles.public_beta.required_live_host_ids, []);
   assert.equal(hosts.release_profiles.stable.minimum_live_verified_hosts, 6);
   assert.deepEqual([...hosts.release_profiles.stable.required_live_host_ids].sort(), [
-    'claude', 'codex', 'cursor', 'kimi', 'opencode', 'pi'
+    'claude', 'codex', 'grok', 'kimi', 'opencode', 'pi'
   ]);
   const receiptSchema = await json('schemas/host-smoke-receipt.schema.json');
   assert.deepEqual(receiptSchema.properties.hosts.items.properties.verification_state.enum, [
     'LIVE_VERIFIED', 'INSTALLED_PACKAGE_VERIFIED', 'STRUCTURALLY_VALIDATED',
     'BLOCKED_BY_AUTHENTICATION', 'UNAVAILABLE', 'UNSUPPORTED'
   ]);
-  assert.equal(hosts.hosts.every(({ candidate }) => ['claude', 'codex', 'portable'].includes(candidate)), true);
-  assert.equal(hosts.hosts.every(({ proof_kind }) => proof_kind === 'exact_package_install_and_fresh_session_discovery'), true);
-  for (const harness of ['CLAUDE', 'CODEX', 'CURSOR', 'KIMI', 'OPENCODE', 'PI']) {
+  assert.equal(hosts.hosts.every(({ candidate }) => ['claude', 'codex', 'npm', 'portable'].includes(candidate)), true);
+  assert.equal(hosts.hosts.every(({ proof_kind }) => proof_kind === 'exact_package_capability'), true);
+  for (const harness of ['CLAUDE', 'CODEX', 'GROK', 'KIMI', 'OPENCODE', 'PI']) {
     const guide = await read(`docs/${harness}.md`);
     assert.match(
       guide,
@@ -72,10 +72,12 @@ test('BETA-001 and BETA-003: six beta surfaces use claim-scoped states and chann
   for (const phrase of [
     'verification level', 'what was tested', 'what was not tested',
     'installation availability', 'known limitations'
-  ]) assert.match(readme, new RegExp(phrase, 'i'));
-  const research = await read('docs/RESEARCH.md');
-  assert.match(research, /OpenCode[\s\S]*1\.18\.9[\s\S]*exact-package[\s\S]*discovery/i);
-  assert.doesNotMatch(research, /Current-version 0\.6 exact-package proof[^|\n]*pending/i);
+  ]) assert.match(readme, new RegExp(phrase.replaceAll(' ', '\\s+'), 'i'));
+  const compatibility = await read('docs/COMPATIBILITY.md');
+  for (const version of ['0.146.1', '2.1.224', '1.0.0', '1.18.13', '0.84.1']) {
+    assert.match(compatibility, new RegExp(version.replaceAll('.', '\\.')));
+  }
+  assert.match(compatibility, /Kimi[\s\S]*UNAVAILABLE/i);
 });
 
 test('BETA-002: privacy, diagnostics, contribution, and security contracts are public-beta ready', async () => {
@@ -87,7 +89,7 @@ test('BETA-002: privacy, diagnostics, contribution, and security contracts are p
   assert.match(await read('SECURITY.md'), /report[\s\S]*(vulnerab|security)/i);
 });
 
-test('REL-001: exact packages declare every 0.6 routing and convergence contract', async () => {
+test('REL-001: exact packages declare every routing and convergence contract', async () => {
   const packaging = await readFile('scripts/package.mjs', 'utf8');
   for (const relative of [
     'scripts/delegation-record.mjs', 'scripts/model-routing.mjs',

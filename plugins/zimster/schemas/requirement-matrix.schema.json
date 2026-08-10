@@ -55,8 +55,14 @@
         "evidence_refs": {"$ref": "#/$defs/stringList"},
         "evidence_scope": {
           "type": "object",
+          "required": ["git_tree", "environment"],
           "properties": {
-            "git_tree": {"enum": ["candidate", "any"]},
+            "git_tree": {
+              "anyOf": [
+                {"const": "any"},
+                {"type": "string", "pattern": "^[0-9a-f]{40}$"}
+              ]
+            },
             "environment": {"type": "string", "minLength": 1}
           },
           "additionalProperties": false
@@ -65,6 +71,7 @@
         "not_applicable_reason": {"type": "string", "minLength": 1},
         "status": {
           "enum": [
+            "pending",
             "verified",
             "partially_verified",
             "unverified",

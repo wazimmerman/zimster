@@ -30,6 +30,11 @@ effective routing as `unverified` when the harness cannot expose it.
 
 ## Discover canonical commands first
 
+Resolve `<zimster-runtime>` to the installed `using-zimster` skill root when it
+contains scripts/project-commands.mjs, otherwise to the full plugin root when
+that script exists there. Never resolve it from the target repository; use the
+manual fallback when neither path exists.
+
 Prefer repository-declared commands in this order:
 
 1. repository instructions (`AGENTS.md`, `CLAUDE.md`, contribution docs);
@@ -37,7 +42,8 @@ Prefer repository-declared commands in this order:
 3. Makefile, task runner, or project scripts;
 4. CI workflow commands.
 
-Use `scripts/project-commands.mjs` as an inventory aid. Prefer `npm test` over an
+Use `<zimster-runtime>/scripts/project-commands.mjs` as an inventory aid when
+available. Prefer `npm test` over an
 invented `node --test` command when the repository defines it. Invent direct
 commands or flags only when canonical commands cannot establish the required
 proof; state why and how the direct command differs.
@@ -46,22 +52,22 @@ proof; state why and how the direct command differs.
 
 Do not call every successful process a “full suite.” Distinguish:
 
-- **command failed before discovering tests**—setup/flag/loader failure; zero
+- **command failed before discovering tests**: setup/flag/loader failure; zero
   behavioral evidence;
-- **command succeeded with zero tests**—valid command, no tests discovered;
-- **baseline suite ran with zero tests**—starting-state fact, not a post-change
+- **command succeeded with zero tests**: valid command, no tests discovered;
+- **baseline suite ran with zero tests**: starting-state fact, not a post-change
   passing suite;
-- **focused test run**—named subset with exact counts;
-- **affected/subsystem suite**—declared scope and counts;
-- **full project gate**—canonical project command and exact counts;
-- **external/hardware/manual observation**—named environment and result.
+- **focused test run**: named subset with exact counts;
+- **affected/subsystem suite**: declared scope and counts;
+- **full project gate**: canonical project command and exact counts;
+- **external/hardware/manual observation**: named environment and result.
 
 A baseline containing zero tests must never be reported as one of several
 successful full-suite executions.
 
 ## Evidence receipts and reuse
 
-Record commands with `scripts/evidence.mjs`. A receipt binds command, working
+Record commands with `<zimster-runtime>/scripts/evidence.mjs` when available. A receipt binds command, working
 -tree fingerprint, Git head/tree, cwd, environment, exit code, test discovery,
 counts, scope, and timestamps.
 
@@ -85,7 +91,7 @@ git diff
 git diff --cached
 ```
 
-Use `scripts/change-snapshot.mjs` to include all untracked files without
+Use `<zimster-runtime>/scripts/change-snapshot.mjs` to include all untracked files without
 modifying the index, or read every untracked file directly. `git diff` alone is
 not a complete review when new files exist.
 
@@ -113,7 +119,7 @@ passing does not prove every requirement.
 On a clean final checkout, run the dependency-free gate:
 
 ```text
-node <zimster>/scripts/semantic-assurance.mjs complete \
+node <zimster-runtime>/scripts/semantic-assurance.mjs complete \
   --profile <micro|standard|high-risk> --owner-verified \
   --requirements <binding.json> --matrix <matrix.json> \
   --evidence <receipts.jsonl> --reviews <reviews.json> \
@@ -140,18 +146,18 @@ implies semantic approval.
 
 ## Honest states
 
-- `CODE_READY`—implementation and automated gates support the code claim;
-- `INTEGRATION_VERIFIED`—required components ran together;
-- `EXTERNAL_SERVICE_VERIFIED`—named live service tested;
-- `HARDWARE_VERIFIED`—exact hardware/parameters tested;
-- `HUMAN_ACCEPTANCE_VERIFIED`—named manual acceptance performed;
-- `BLOCKED_BY_ENVIRONMENT`—blocked by environment because required proof cannot run here;
-- `BLOCKED_BY_REQUIREMENT`—requirements are contradictory, impossible, or lack
+- `CODE_READY`: implementation and automated gates support the code claim;
+- `INTEGRATION_VERIFIED`: required components ran together;
+- `EXTERNAL_SERVICE_VERIFIED`: named live service tested;
+- `HARDWARE_VERIFIED`: exact hardware/parameters tested;
+- `HUMAN_ACCEPTANCE_VERIFIED`: named manual acceptance performed;
+- `BLOCKED_BY_ENVIRONMENT`: blocked by environment because required proof cannot run here;
+- `BLOCKED_BY_REQUIREMENT`: requirements are contradictory, impossible, or lack
   an authoritative decision;
-- `OWNER_VERIFIED_REVIEW_UNAVAILABLE`—owner proof exists but required
+- `OWNER_VERIFIED_REVIEW_UNAVAILABLE`: owner proof exists but required
   independent review could not run;
-- `PARTIALLY_VERIFIED`—some obligations remain unproved.
-- `CANDIDATE_COMPLETE`—the matrix and profile-appropriate exact-head review
+- `PARTIALLY_VERIFIED`: some obligations remain unproved.
+- `CANDIDATE_COMPLETE`: the matrix and profile-appropriate exact-head review
   gate both pass.
 
 Never let automated tests imply service, hardware, or human proof.

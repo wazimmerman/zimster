@@ -1,50 +1,61 @@
 # Pi
 
+Verification level for Zimster 0.7.0: `INSTALLED_PACKAGE_VERIFIED` on Pi 0.84.1.
+An isolated local package install and `pi list` succeeded. Dependency-free
+tests verify the extension factory, declared skill resources, duplicate
+bootstrap guard, and delegation fallback. Model-backed discovery was not run.
+
 ## Install
 
-Pi recognizes the `pi` resource declaration in `package.json`. Install the
-package from Git with:
+The primary `zimster` npm package is the Pi package:
 
 ```text
-pi install git:github.com/wazimmerman/zimster
+pi install npm:zimster
+pi list
 ```
 
-For an isolated trial, use `pi -e /absolute/path/to/zimster`. Pi loads the
-TypeScript extension and the packaged `skills/` directory. Pi packages execute
-with full system access, so review the source before installation.
+For a local candidate, use `pi install /absolute/path/to/extracted/package`.
+Set `PI_CODING_AGENT_DIR` to a new temporary directory and `PI_TELEMETRY=0` for
+an isolated smoke. Pi packages execute with full system access, so inspect the
+source before installation.
 
 ## Update
 
-Use `pi update git:github.com/wazimmerman/zimster` for this package or
-`pi update --extensions` for all unpinned packages. A pinned tag or commit does
-not advance during a general update; install the new pinned source explicitly.
+```text
+pi update npm:zimster
+```
+
+Use `-l` for project-local settings. Start a fresh session after changing
+package resources.
 
 ## Remove
 
-Use:
-
 ```text
-pi remove git:github.com/wazimmerman/zimster
+pi remove npm:zimster
 ```
 
-Add `-l` to install or remove project-local package state instead of user state.
+Remove only the Zimster package record. Preserve unrelated Pi settings and
+packages.
 
 ## Diagnostics
 
-Use `pi list` to inspect installed packages and `pi config` to inspect enabled
-resources. From the package, run `npm run validate:adapters` and
-`npm run doctor -- --json`. The extension registers the skills directory and
-inserts the compact bootstrap at most once per active context.
+Run `pi list` with the same isolated `PI_CODING_AGENT_DIR`. Confirm the package
+source and inspect startup diagnostics before attributing behavior to Zimster.
 
 ## Verification status
 
-Verification level: `STRUCTURALLY_VALIDATED`. The package declaration and TypeScript extension are validated.
-The extension factory, resource discovery, and duplicate-injection guard run in
-a dependency-free Node 22 smoke fixture. The Pi CLI was unavailable, so package
-installation and a model-backed session were not live-tested.
+Exact npm-package installation is `INSTALLED_PACKAGE_VERIFIED` on Pi 0.84.1.
+Fresh model-backed discovery and the optional delegation transport remain
+unverified.
 
-Zimster ships no Pi subagent runtime, so the owner executes inline by default.
-`pi --list-models` may supply catalog evidence for external extensions, but
-Zimster neither installs nor trusts them. Independent review is unavailable
-unless the active Pi setup supplies a qualifying separate context; no Pi live
-or model-backed claim is made for 0.6.0.
+## Optional delegation
+
+Owner-inline execution is the default. `.pi/delegation.ts` exposes only
+`probe`, `launch`, `status`, `cancel`, and `collect`. If an owner explicitly
+installs the pinned optional `pi-subagents` 0.42.1 transport, Zimster prohibits
+nested subagents and caps parallel implementers at two. Zimster never installs
+that transport silently. Missing or incompatible transport returns an
+`inline_required` result.
+
+`pi --list-models` is session-scoped catalog evidence, not proof of effective
+model routing.

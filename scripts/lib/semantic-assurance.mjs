@@ -5,6 +5,7 @@ const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const CLEAN_DIRTY_TREE_FINGERPRINT = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 const REQUIREMENT_ID_PATTERN = /^[A-Z][A-Z0-9]*-[0-9]{3,}$/;
 const REQUIREMENT_STATES = Object.freeze([
+  'pending',
   'verified',
   'partially_verified',
   'unverified',
@@ -12,14 +13,14 @@ const REQUIREMENT_STATES = Object.freeze([
   'blocked_by_requirement',
   'not_applicable'
 ]);
-const PUBLIC_BETA_HOST_IDS = Object.freeze(['codex', 'claude', 'cursor', 'kimi', 'opencode', 'pi']);
+const PUBLIC_BETA_HOST_IDS = Object.freeze(['codex', 'claude', 'grok', 'kimi', 'opencode', 'pi']);
 const PUBLIC_BETA_CANDIDATE = Object.freeze({
   codex: 'codex',
   claude: 'claude',
-  cursor: 'portable',
-  kimi: 'portable',
-  opencode: 'portable',
-  pi: 'portable'
+  grok: 'portable',
+  kimi: 'npm',
+  opencode: 'npm',
+  pi: 'npm'
 });
 const HOST_VERIFICATION_STATES = Object.freeze([
   'LIVE_VERIFIED',
@@ -461,15 +462,14 @@ function evidenceIssue(entry, item, matrix) {
   if (!item.requirement_ids?.includes(entry.id)) {
     return `evidence ${item.id} does not support requirement ${entry.id}`;
   }
-  if (entry.evidence_scope?.git_tree === 'candidate' && (
+  const evidenceTree = entry.evidence_scope?.git_tree;
+  const bindsCandidateTree = evidenceTree === matrix.candidate_tree;
+  if (bindsCandidateTree && (
     item.git_commit !== matrix.candidate_head || item.git_tree !== matrix.candidate_tree
   )) {
     return `evidence ${item.id} does not apply to the candidate Git tree`;
   }
-  if (
-    entry.evidence_scope?.git_tree === 'candidate'
-    && item.dirty_tree_fingerprint !== CLEAN_DIRTY_TREE_FINGERPRINT
-  ) {
+  if (bindsCandidateTree && item.dirty_tree_fingerprint !== CLEAN_DIRTY_TREE_FINGERPRINT) {
     return `evidence ${item.id} came from a dirty checkout, not the committed candidate tree`;
   }
   const expectedEnvironment = entry.evidence_scope?.environment;

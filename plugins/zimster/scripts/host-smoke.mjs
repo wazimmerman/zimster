@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { parseOptions, writeLine } from './lib/cli.mjs';
 import { executableAvailable } from './lib/path-identity.mjs';
 import { archivePathProblem, readStoredZip } from './lib/zip-reader.mjs';
+import { readTarGzip } from './lib/tar-reader.mjs';
 import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 
@@ -126,8 +127,11 @@ function hostRecord(host, {
 }
 
 async function candidateDirectory(host) {
-  const suffix = `-${host.candidate}.zip`;
-  const matchingArchives = (await readdir(dist)).filter((name) => name.endsWith(suffix));
+  const matchingArchives = (await readdir(dist)).filter((name) => (
+    host.candidate === 'npm'
+      ? /^zimster-[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?\.tgz$/.test(name)
+      : name.endsWith(`-${host.candidate}.zip`)
+  ));
   if (matchingArchives.length !== 1) {
     throw new Error(`expected exactly one ${host.candidate} candidate archive, found ${matchingArchives.length}`);
   }
@@ -139,7 +143,10 @@ async function candidateDirectory(host) {
     throw new Error(`conflicting exact ${host.candidate} archive digests`);
   }
   const destination = path.join(temporary, host.id, 'candidate');
-  for (const entry of await readStoredZip(archive)) {
+  const archiveEntries = host.candidate === 'npm'
+    ? await readTarGzip(archive)
+    : await readStoredZip(archive);
+  for (const entry of archiveEntries) {
     const problem = archivePathProblem(entry.name);
     if (problem) throw new Error(`${entry.name}: ${problem}`);
     const target = path.join(destination, ...entry.name.split('/'));
@@ -148,6 +155,8 @@ async function candidateDirectory(host) {
   }
   const installedRoot = host.candidate === 'codex'
     ? path.join(destination, 'plugins', 'zimster')
+    : host.candidate === 'npm'
+      ? path.join(destination, 'package')
     : destination;
   const metadata = JSON.parse(await readFile(path.join(
     installedRoot,
@@ -165,7 +174,7 @@ async function candidateDirectory(host) {
   ) {
     throw new Error(`exact ${host.candidate} archive provenance does not match the clean candidate head and tree`);
   }
-  return { directory: destination, archive: archiveName, archiveSha256, metadata };
+  return { directory: installedRoot, archive: archiveName, archiveSha256, metadata };
 }
 
 try {
@@ -173,11 +182,11 @@ try {
     if (!host || typeof host.id !== 'string' || !host.id) {
       throw new Error('host smoke entries require id');
     }
-    if (!['claude', 'codex', 'portable'].includes(host.candidate)) {
-      throw new Error(`host ${host.id} requires an exact claude, codex, or portable candidate`);
+    if (!['claude', 'codex', 'npm', 'portable'].includes(host.candidate)) {
+      throw new Error(`host ${host.id} requires an exact claude, codex, npm, or portable candidate`);
     }
-    if (host.proof_kind !== 'exact_package_install_and_fresh_session_discovery') {
-      throw new Error(`host ${host.id} requires exact-package install and fresh-session discovery proof`);
+    if (!['exact_package_capability', 'exact_package_install_and_fresh_session_discovery'].includes(host.proof_kind)) {
+      throw new Error(`host ${host.id} requires an exact-package capability proof`);
     }
     const fallbackState = String(host.fallback_verification_state || 'UNAVAILABLE');
     if (!verificationStates.has(fallbackState) || fallbackState === 'LIVE_VERIFIED') {
@@ -253,7 +262,10 @@ try {
         XDG_CONFIG_HOME: path.join(home, 'config'),
         XDG_CACHE_HOME: path.join(home, 'cache'),
         XDG_DATA_HOME: path.join(home, 'data'),
-        CODEX_HOME: path.join(home, 'codex')
+        CODEX_HOME: path.join(home, 'codex'),
+        CLAUDE_CONFIG_DIR: path.join(home, 'claude'),
+        GROK_HOME: path.join(home, 'grok'),
+        PI_CODING_AGENT_DIR: path.join(home, 'pi')
       }
     });
     if (result.error?.code === 'ENOENT') {
@@ -295,8 +307,14 @@ try {
     }
     executed.push(host.id);
     const modelBackedExecution = host.model_backed_execution === true;
+    const successVerificationState = String(host.success_verification_state || 'LIVE_VERIFIED');
+    if (!verificationStates.has(successVerificationState)) {
+      throw new Error(`host ${host.id} has an invalid success verification state`);
+    }
     const liveCapabilities = [
-      'package_installation', 'fresh_session_discovery', 'live_host_execution',
+      ...(host.live_capabilities_established || [
+        'package_installation', 'fresh_session_discovery', 'live_host_execution'
+      ]),
       ...(modelBackedExecution ? ['model_backed_execution'] : [])
     ];
     let hostVersion = host.host_version || null;
@@ -307,19 +325,21 @@ try {
       if (versionResult.status === 0) hostVersion = String(versionResult.stdout || '').trim() || hostVersion;
     }
     const liveRecord = hostRecord(host, {
-      verificationState: 'LIVE_VERIFIED',
+      verificationState: successVerificationState,
       candidate,
       hostVersion,
       commandsOrObservations: [[host.command, ...(host.args || [])].join(' ')],
       capabilitiesEstablished: liveCapabilities,
       publicClaims: host.live_public_claims || liveCapabilities,
       modelBackedExecution,
-      authenticationStatus: host.authentication_available === false ? 'unavailable' : 'available',
+      authenticationStatus: host.authentication_available === false || successVerificationState !== 'LIVE_VERIFIED'
+        ? 'unavailable'
+        : 'available',
       configurationStatus: 'isolated',
       knownLimitations: host.known_limitations || []
     });
-    liveRecord.exact_package_install = true;
-    liveRecord.fresh_session_discovery = true;
+    liveRecord.exact_package_install = liveCapabilities.includes('package_installation');
+    liveRecord.fresh_session_discovery = liveCapabilities.includes('fresh_session_discovery');
     hostResults.push(liveRecord);
   }
   const liveVerifiedHostIds = hostResults

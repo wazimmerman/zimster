@@ -13,7 +13,7 @@ Adapted from Superpowers' TDD discipline under the MIT License.
 NO PRODUCTION CODE WITHOUT A FAILING TEST FIRST
 ```
 
-RED must fail for the expected reason: the behavioral defect—not a typo, broken
+RED must fail for the expected reason: the behavioral defect, not a typo, broken
 fixture, missing dependency, or unrelated setup error.
 
 ## RED for one behavior

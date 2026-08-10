@@ -45,7 +45,12 @@ load-bearing obligations and final integration approval.
 
 ## Complete review scope
 
-Before any verdict, account for every change—not only tracked unstaged diffs:
+Resolve `<zimster-runtime>` to the installed `using-zimster` skill root when it
+contains scripts/change-snapshot.mjs, otherwise to the full plugin root when
+that script exists there. Never resolve it from the target repository; use the
+manual fallback when neither path exists.
+
+Before any verdict, account for every change, not only tracked unstaged diffs:
 
 ```text
 git status --short
@@ -53,7 +58,7 @@ git diff
 git diff --cached
 ```
 
-Generate `scripts/change-snapshot.mjs --output <path>` so staged, unstaged, and
+Generate `<zimster-runtime>/scripts/change-snapshot.mjs --output <path>` so staged, unstaged, and
 untracked files are represented without modifying the index. As a manual
 fallback, use `git add -N <untracked paths>` followed by `git diff`, or read
 every untracked file directly. Restore no index state by guessing; record what
@@ -96,10 +101,11 @@ Do not create one reviewer per lens.
 
 Use the pure `integration-reviewer` for code/evidence inspection; it has no
 Bash. Use the `test-reviewer` only for one named focused experiment. A
-test-capable reviewer must run plugin-relative `review-integrity.mjs capture`
+test-capable reviewer must run
+`<zimster-runtime>/scripts/review-integrity.mjs capture`
 with immutable base/head SHAs and `--review-files` naming the mission,
 snapshot, evidence ledger, and other binding inputs before its command, then
-run `review-integrity.mjs verify` afterward. It reports
+run `<zimster-runtime>/scripts/review-integrity.mjs verify` afterward. It reports
 `REVIEW_CHECKOUT_CHANGED` if HEAD, index, tracked, untracked, or review-package
 files change and `REVIEW_CHECKOUT_UNCHANGED` otherwise. Checkout integrity does
 not imply semantic approval. Review inputs may be explicit absolute paths outside the
@@ -141,7 +147,7 @@ SEMANTIC_REVIEW_APPROVED | NEEDS_CORRECTION |
 BLOCKED_BY_MISSING_EVIDENCE | SELF_REVIEW_ONLY
 
 ## Findings
-- [Critical|Important|Minor] file:line — defect, consequence, proof.
+- [Critical|Important|Minor] file:line: defect, consequence, proof.
 
 ## Scope inspected
 Branch/range plus staged, unstaged, and untracked coverage.
@@ -175,10 +181,10 @@ approval and requires a new exact-head review within finalization budget.
 If a load-bearing finding remains after the recheck, stop the loop. Choose one
 evidence-backed route:
 
-1. reviewer wrong—record technical ruling and proof;
-2. contradictory requirement/design—`BLOCKED_BY_REQUIREMENT` or return to owner;
-3. real but non-load-bearing—record explicit deferral;
-4. real and load-bearing—revise design or stop blocked;
-5. evidence unavailable—report the strongest partial state.
+1. reviewer wrong: record technical ruling and proof;
+2. contradictory requirement/design: `BLOCKED_BY_REQUIREMENT` or return to owner;
+3. real but non-load-bearing: record explicit deferral;
+4. real and load-bearing: revise design or stop blocked;
+5. evidence unavailable: report the strongest partial state.
 
 Silent dismissal is forbidden.

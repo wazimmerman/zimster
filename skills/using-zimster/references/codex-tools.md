@@ -6,10 +6,10 @@ fields accepted by the current Codex plugin contract; Claude hooks are outside
 the Codex plugin tree.
 
 Operational helpers (`scripts/`, `config/`, `schemas/`, and `templates/`) ship
-inside the plugin. Resolve commands from the installed Zimster plugin root—the
-parent containing `.codex-plugin/plugin.json`—not from the user's target
-repository. Normal run artifacts live under the target worktree's Git-local
-`zimster` administrative directory, outside product history.
+inside the plugin. Resolve commands from the installed Zimster plugin root,
+which is the parent containing `.codex-plugin/plugin.json`, rather than from the
+user's target repository. Normal run artifacts live under the target worktree's
+Git-local `zimster` administrative directory, outside product history.
 
 When multi-agent tools are available:
 

@@ -10,9 +10,9 @@
   ],
   "harnesses": {
     "codex": {
-      "checked_at": "2026-08-04T00:00:00.000Z",
+      "checked_at": "2026-08-07T00:00:00.000Z",
       "max_age_days": 90,
-      "local_host_version": "codex-cli 0.146.0",
+      "local_host_version": "codex-cli 0.146.1",
       "validator_status": "consistent",
       "sources": [
         {
@@ -20,7 +20,7 @@
           "url": "https://github.com/openai/codex/blob/main/codex-rs/skills/src/assets/samples/plugin-creator/references/plugin-json-spec.md"
         }
       ],
-      "verification": "candidate_smoke_pending",
+      "verification": "installed_package_verified",
       "capabilities": {
         "native_skill_loading": "unverified",
         "plugin_relative_helper_scripts": "native",
@@ -40,17 +40,17 @@
       }
     },
     "claude": {
-      "checked_at": "2026-08-04T00:00:00.000Z",
+      "checked_at": "2026-08-07T00:00:00.000Z",
       "max_age_days": 90,
-      "local_host_version": null,
-      "validator_status": "not_run",
+      "local_host_version": "2.1.224",
+      "validator_status": "consistent",
       "sources": [
         {
           "title": "Claude Code plugins reference",
           "url": "https://code.claude.com/docs/en/plugins-reference"
         }
       ],
-      "verification": "structurally_validated",
+      "verification": "live_component_inventory_verified",
       "capabilities": {
         "native_skill_loading": "native",
         "plugin_relative_helper_scripts": "native",
@@ -69,8 +69,35 @@
         "token_turn_telemetry": "unverified"
       }
     },
+    "grok": {
+      "checked_at": "2026-08-07T00:00:00.000Z",
+      "max_age_days": 90,
+      "local_host_version": "1.0.0 stable",
+      "validator_status": "consistent",
+      "sources": [
+        {"title": "Agent Plugins specification", "url": "https://agent-plugins.org"}
+      ],
+      "verification": "live_skill_discovery_verified",
+      "capabilities": {
+        "native_skill_loading": "native",
+        "plugin_relative_helper_scripts": "supported_with_constraints",
+        "named_custom_agents": "unavailable",
+        "read_only_tool_enforcement": "unverified",
+        "isolated_reviewer_worktrees": "inline_fallback",
+        "per_agent_model_selection": "unverified",
+        "per_agent_reasoning_effort": "unverified",
+        "delegated_runtime": "unverified",
+        "model_routing_enforcement": "unverified",
+        "effective_model_reporting": "unverified",
+        "dynamic_model_catalog": "unverified",
+        "turn_limits": "unverified",
+        "agent_resume": "unverified",
+        "nested_agent_prohibition": "prompt_constrained",
+        "token_turn_telemetry": "unverified"
+      }
+    },
     "cursor": {
-      "checked_at": "2026-08-04T00:00:00.000Z",
+      "checked_at": "2026-08-07T00:00:00.000Z",
       "max_age_days": 90,
       "local_host_version": null,
       "validator_status": "not_run",
@@ -100,7 +127,7 @@
       }
     },
     "kimi": {
-      "checked_at": "2026-08-04T00:00:00.000Z",
+      "checked_at": "2026-08-07T00:00:00.000Z",
       "max_age_days": 90,
       "local_host_version": null,
       "validator_status": "not_run",
@@ -130,17 +157,17 @@
       }
     },
     "opencode": {
-      "checked_at": "2026-08-04T00:00:00.000Z",
+      "checked_at": "2026-08-07T00:00:00.000Z",
       "max_age_days": 90,
-      "local_host_version": "1.18.9",
-      "validator_status": "version_changed_reverification_required",
+      "local_host_version": "1.18.13",
+      "validator_status": "consistent",
       "sources": [
         {
           "title": "OpenCode plugins",
           "url": "https://opencode.ai/docs/plugins"
         }
       ],
-      "verification": "candidate_smoke_pending",
+      "verification": "live_skill_discovery_verified",
       "capabilities": {
         "native_skill_loading": "native",
         "plugin_relative_helper_scripts": "supported_with_constraints",
@@ -160,17 +187,17 @@
       }
     },
     "pi": {
-      "checked_at": "2026-08-04T00:00:00.000Z",
+      "checked_at": "2026-08-07T00:00:00.000Z",
       "max_age_days": 90,
-      "local_host_version": null,
-      "validator_status": "not_run",
+      "local_host_version": "0.84.1",
+      "validator_status": "consistent",
       "sources": [
         {
           "title": "Pi coding-agent packages",
           "url": "https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/packages.md"
         }
       ],
-      "verification": "structurally_validated",
+      "verification": "installed_package_verified",
       "capabilities": {
         "native_skill_loading": "native",
         "plugin_relative_helper_scripts": "supported_with_constraints",

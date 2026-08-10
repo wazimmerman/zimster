@@ -1,19 +1,28 @@
 # Changelog
 
-## 0.6.0 — 2026-08-04
+## 0.7.0 - 2026-08-07
+
+- Adopt portable Agent Plugin standards, reproducible marketplace artifacts,
+  registered workflow controls, and a historical Codex evaluation pilot.
+- Add risk-adaptive oversized-request decomposition and optional lightweight
+  visual treatment to consequential design work.
+- Refresh the public product identity, usage guidance, evaluation boundaries,
+  and post-v0.7 roadmap.
+
+## 0.6.0 - 2026-08-04
 
 - Add adaptive delegation, policy-bounded model routing, autonomous convergence, and public-beta installation contracts
 - Scope public-beta support claims to per-harness receipts, require one exact-package live smoke, and reserve exact-final-head review separately from correction rechecks
 
-## 0.5.0 — 2026-07-30
+## 0.5.0 - 2026-07-30
 
 - Enforce semantic assurance and requirement-to-evidence completion gates
 
-## 0.4.0 — 2026-07-28
+## 0.4.0 - 2026-07-28
 
 - Execution-economy optimization
 
-## 0.3.0 — 2026-07-28
+## 0.3.0 - 2026-07-28
 
 - Correct the Codex marketplace/package layout, pin the official validation
   contract, add cachebuster/reinstall tooling, and document the current
@@ -31,11 +40,11 @@
   deterministic 0.3.0 Claude, Codex, and portable packages remain
   telemetry-free.
 
-## 0.2.0 — 2026-07-28
+## 0.2.0 - 2026-07-28
 
 - Add operational controls for valid Codex packaging, Git lifecycle, complete review, evidence, model routing, and release integrity.
 
-## 0.1.0 — 2026-07-27
+## 0.1.0 - 2026-07-27
 
 - Added the persistent-owner, vertical-slice development workflow.
 - Preserved compact RED-GREEN-REFACTOR, systematic debugging, review, worktree,

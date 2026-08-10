@@ -211,7 +211,7 @@ test('doctor exposes the shared capability vocabulary without warning on JSON ou
     'native', 'supported_with_constraints', 'prompt_constrained',
     'inline_fallback', 'unavailable', 'unverified'
   ]);
-  for (const harness of ['codex', 'claude', 'cursor', 'kimi', 'opencode', 'pi']) {
+  for (const harness of ['codex', 'claude', 'grok', 'cursor', 'kimi', 'opencode', 'pi']) {
     assert.ok(report.harnesses[harness]);
     for (const state of Object.values(report.harnesses[harness].capabilities)) {
       assert.equal(allowed.has(state), true, `${harness} uses unknown capability state ${state}`);

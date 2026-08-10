@@ -1,0 +1,117 @@
+{
+  "schema_version": 1,
+  "campaign_id": "zimster-v0.7.0-codex-pro-deepswe-v1.1",
+  "campaign": "minimum",
+  "completed_on": "2026-08-07",
+  "treatment_source": {
+    "commit": "95dfedf7d396a7b9faa72ced844a28f70bd6bcef",
+    "classification": "historical_pre_change_candidate",
+    "applies_to_changed_final_v0_7_candidate": false
+  },
+  "scored_runs": 24,
+  "complete_pairs": 12,
+  "incomplete_pairs": [],
+  "retries": 0,
+  "run_contract": {
+    "deepswe_version": "1.1",
+    "deepswe_commit": "435ee89ec2f2e2289f33b0da4f992f0b7b7266b9",
+    "pier_commit": "0daf53d3599e58c4506cf0bcff5e12c77dc282d2",
+    "codex_cli": "0.146.1",
+    "model": "gpt-5.6-sol",
+    "reasoning_effort": "high",
+    "auth_mode": "chatgpt_subscription",
+    "max_concurrency": 1,
+    "incremental_cash_cost_usd": 0
+  },
+  "calibration": {
+    "excluded_from_comparison": true,
+    "task_id": "geo-shapeindex-serialization",
+    "control": {
+      "test_pass": true,
+      "wall_clock_seconds": 823.045,
+      "turns": 67,
+      "raw_bundle_sha256": "5adff2e005884e0a0c58c94fa48a1083cabdfa97f1eab35596a9886c16b345d9"
+    },
+    "treatment": {
+      "test_pass": true,
+      "wall_clock_seconds": 1053.004,
+      "turns": 91,
+      "raw_bundle_sha256": "7f1a5e9a8e8104043e9835e1903680ea0a399ddc10216b5c7ba18a46762b3cf8"
+    }
+  },
+  "primary": {
+    "outcome": "benchmark_test_pass",
+    "control_pass_rate": 0.75,
+    "treatment_pass_rate": 0.8333333333333334,
+    "paired_risk_difference": 0.08333333333333333,
+    "cluster_bootstrap_95_ci": {
+      "lower": 0,
+      "upper": 0.25,
+      "samples": 10000
+    }
+  },
+  "efficiency": {
+    "unconditional": {
+      "wall_clock_seconds": { "control_mean": 1031.9195000000002, "treatment_mean": 914.7011666666666, "difference": -117.21833333333359 },
+      "turns": { "control_mean": 73.75, "treatment_mean": 64.75, "difference": -9 },
+      "input_tokens": { "control_mean": 6575768.833333333, "treatment_mean": 5800406, "difference": -775362.833333333 },
+      "cached_input_tokens": { "control_mean": 6410901.333333333, "treatment_mean": 5655445.333333333, "difference": -755456 },
+      "output_tokens": { "control_mean": 32430.75, "treatment_mean": 29128.666666666668, "difference": -3302.083333333332 },
+      "tool_calls": { "control_mean": 72.75, "treatment_mean": 63.75, "difference": -9 }
+    },
+    "conditional_on_success": {
+      "same_as_unconditional": true,
+      "reason": "all 24 trials completed successfully; deterministic verifier failures remain in the primary outcome"
+    }
+  },
+  "inference": {
+    "holm_adjusted_secondary_p_values": {
+      "wall_clock_seconds": 1,
+      "turns": 1,
+      "input_tokens": 1,
+      "cached_input_tokens": 1,
+      "output_tokens": 1,
+      "tool_calls": 1
+    },
+    "complementary_gee": {
+      "method": "logistic_GEE_independence_task_clustered",
+      "task_clusters": 6,
+      "treatment_odds_ratio": 1.666666666666666,
+      "p_value": 0.3876371857548011
+    },
+    "conclusion": "The minimum pilot is compatible with a positive pass-rate effect and lower mean resource use, but is too small for a definitive quality or efficiency claim."
+  },
+  "evidence_sha256": {
+    "manifest": "63c8b35b04c279bde3263d86883a71cf6d8e3383cc408a5e36ad5c7112cff408",
+    "lock": "6611c6c8daef8a35fde376d1386121644622df9efd3eea2979f19b7ab59f5402",
+    "generated_public_evidence": "3759f2255c68e078395f30bcd17a2c7b7f686140e5b047690924d0df252ec3d5",
+    "analysis": "e9ca70c169ef16490576ad991d41e533cc3ef671fbd52595014dea986dbbbe6f",
+    "records": "6c1b4dd7988c76599fd07c2b7b6c15205e9b06738581ef24438c454313f011fb"
+  },
+  "raw_bundle_sha256": [
+    { "run_id": "minimum-01-treatment", "sha256": "978efdf658057df6f223f0cef5df1207bf9663742975fbe60a0b5d1c3a4b4a89" },
+    { "run_id": "minimum-02-control", "sha256": "a6c682a5dcff7b125611561094ac5f63e578289bc45d0c49040b3c75d44db3c6" },
+    { "run_id": "minimum-03-control", "sha256": "31e29d47b4035869c5fad8ef86bcf306c36596f0c709038d648733791f78b220" },
+    { "run_id": "minimum-04-treatment", "sha256": "a8a4b4a0c25802a1c2f473ad31852a87463e009f1b87a26717621fb749f681ca" },
+    { "run_id": "minimum-05-treatment", "sha256": "73e8b52ac6187eea2b6f06a984c2e3034af29fd741d9f8cef43b4b75afab8847" },
+    { "run_id": "minimum-06-control", "sha256": "cdfbfa0eb58d4593d4b19beb8e0aec8d721c0a18a0b5f18b7ded42d67ba1bf9b" },
+    { "run_id": "minimum-07-control", "sha256": "02588bf721af50d93bfa76e1760261650c8ce63bdabf898e4b3b70e0e3487328" },
+    { "run_id": "minimum-08-treatment", "sha256": "93e801b3c8637ed35a1b3ac8d747aa907b74d8d627673f52935d058fd21ac802" },
+    { "run_id": "minimum-09-treatment", "sha256": "b0feff2c8712ef4aacb6967826ed31fe2bb46843cbc8ef80b3784fb50d13ed75" },
+    { "run_id": "minimum-10-control", "sha256": "a105376c1f0d0754c85498dea9fce070edf94a2f9a32f11b417b6ef5b29dbe68" },
+    { "run_id": "minimum-11-control", "sha256": "66818784a9a773cb2df44bd91b3a3145044ad3572b086a9738f72d9c698ff669" },
+    { "run_id": "minimum-12-treatment", "sha256": "893e7c357c3c5dd934e856f4fa0a24dbbc6a0c30abf19c6e13b01e7daca63d68" },
+    { "run_id": "minimum-13-control", "sha256": "d0fee523ace35b0128d21f998f0ab3e7f3554976bdaa21c74143bc17cf6f2e86" },
+    { "run_id": "minimum-14-treatment", "sha256": "69c773cf8a8d446f589cd426f7342822f316f261cdc0f1284ba346d136016781" },
+    { "run_id": "minimum-15-treatment", "sha256": "54bc527673588ffeba4b55f67f281303747adc5a8822a33790d751b7815965fa" },
+    { "run_id": "minimum-16-control", "sha256": "7a7e0390693ea13972700f2a073319bfac3a1249c0906c0e59173852ccf0a67e" },
+    { "run_id": "minimum-17-control", "sha256": "deac0cf90192639e33d02815b6ac07d4baed1726b5d775f1831b4a3d4d901cf4" },
+    { "run_id": "minimum-18-treatment", "sha256": "c17a0fa09de0e1ce55b1d4767aab24d142012f0f73609aaac4aaefead994a904" },
+    { "run_id": "minimum-19-treatment", "sha256": "9f4853400405405cbc343f880019ed18e32cd53c6a7fedec3ab2a98115ae17ad" },
+    { "run_id": "minimum-20-control", "sha256": "d9b0af8336c664aa9077238cbbc8b959d5d4617eb4caa11b461f901e11f6109b" },
+    { "run_id": "minimum-21-control", "sha256": "7a9a371e25d12dc0bd1f6b51d418d202548310337786467a8b2943ada50bdc21" },
+    { "run_id": "minimum-22-treatment", "sha256": "cb5f60d2decbd5153867e709bbbad29dbee2d079f1513110d694443f0beeea4d" },
+    { "run_id": "minimum-23-treatment", "sha256": "23d44e6c4f4f3b47fc7c9dffe2317e8a42922b639a06bc2e05fa53b2872d919f" },
+    { "run_id": "minimum-24-control", "sha256": "6173ba9a2c313cee58c5f7bd1ee62504f28760494b82bc0fe44cf56c9045366c" }
+  ]
+}

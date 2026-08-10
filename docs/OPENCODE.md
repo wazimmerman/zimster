@@ -1,43 +1,46 @@
 # OpenCode
 
+Verification level for Zimster 0.7.0: `LIVE_VERIFIED` for project adapter load
+and canonical skill discovery on OpenCode 1.18.13. The exact npm tarball was
+extracted into isolated config/data/cache/state paths; `opencode debug skill`
+reported the Zimster skills. No model-backed task was run.
+
 ## Install
 
-Use the portable archive as a project package, preserving
-`.opencode/plugins/zimster.js` and `skills/` at their packaged relative paths.
-OpenCode discovers the project adapter, which registers the packaged skills
-directory and adds the compact `using-zimster` bootstrap once to the first user
-message.
+Use the primary npm package, which preserves `.opencode/plugins/zimster.js` and
+`skills/` at the same package root. The portable Agent Plugin zip intentionally
+does not carry the OpenCode overlay.
+
+For project use, extract/copy the npm package into the project or install the
+canonical skills under `.agents/skills/`. Restart OpenCode, then inspect:
+
+```text
+opencode debug config
+opencode debug skill
+```
+
+The thin adapter registers the canonical skills and injects the compact
+`using-zimster` bootstrap once.
 
 ## Update
 
-Replace the project package with the newer portable release while preserving
-its relative layout, then start a fresh OpenCode session. Do not copy the
-adapter without its sibling `skills/` directory.
+Replace the complete package root, preserving relative paths, then restart.
 
 ## Remove
 
-Remove `.opencode/plugins/zimster.js` and the Zimster-managed skills. Preserve
-all unrelated OpenCode plugins and Agent Skills.
+Remove only `.opencode/plugins/zimster.js` and Zimster-owned skill directories;
+preserve unrelated host configuration.
 
 ## Diagnostics
 
-From the project root, use `opencode debug config` to inspect loaded project
-configuration and `opencode debug skill` to inspect discovered skills. Package
-maintainers can run `npm run validate:adapters` and
-`npm run doctor -- --json`. A missing required Zimster skill is an installation
-error; unavailable reviewer isolation or effort controls are capability
-fallbacks.
+Run `opencode debug config` and `opencode debug skill` under isolated XDG paths.
+Verify that `using-zimster` resolves from the same extracted npm package as the
+adapter.
 
 ## Verification status
 
-Verification level: `LIVE_VERIFIED`. The dependency-free adapter is validated
-on Node 22, and the exact 0.6.0 portable archive passed isolated OpenCode
-configuration and skill discovery. The receipt does not establish model-backed
-prompt execution, effective-model identity, or separately documented v2-only
-behavior.
+Exact-package skill discovery is `LIVE_VERIFIED` on OpenCode 1.18.13.
+Model-backed task execution and effective-model identity are not established.
 
-Optional generated agents use OpenCode's `provider/model-id` syntax. An omitted
-model inherits from the invoking primary agent, and `opencode models` is only
-session-scoped catalog evidence. Prefer current permission fields over
-deprecated tool booleans. The exact host version and receipt freshness are
-reported by `doctor -- --json`.
+Optional generated agents use OpenCode's `provider/model-id` syntax. Omitted
+models inherit. Catalog output is not proof of effective model identity.

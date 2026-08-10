@@ -47,10 +47,22 @@ Unless required by applicable law or agreed to in writing, software distributed
 under the License is distributed on an "AS IS" BASIS, WITHOUT WARRANTIES OR
 CONDITIONS OF ANY KIND, either express or implied.
 
+## Agent Plugins specification and Agent Skills specification
+
+Zimster's portable validation rules derive from the Agent Plugins 1.0.0
+specification and schema at commit
+`1fc1b6270e3cc492ec2d24ad7a34277c6d53b9c1`. The schema and software are
+licensed under Apache-2.0; specification prose and examples are licensed under
+CC-BY-4.0.
+
+The Agent Skills validation rules derive from the specification at commit
+`217be548739f21d6008915c29aefe320ea1a90af`, licensed under Apache-2.0.
+
 ## Other researched projects
 
 OpenSpec, GitHub Spec Kit, Agent OS, BMAD, Ralph, GSD, Ruflo, metaswarm,
 Smithers, Microsoft Conductor, Trellis, and Task Master informed comparative
-research in `docs/RESEARCH.md`. No code from those projects is included. Task
-Master code is specifically excluded because its current Commons Clause
-restricts competing products.
+research preserved in Git history. No code from those projects is included.
+Task Master code is specifically excluded because its current Commons Clause
+restricts competing products. Current public capability conclusions are in
+`docs/COMPATIBILITY.md`.

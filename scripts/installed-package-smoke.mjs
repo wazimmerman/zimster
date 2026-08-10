@@ -5,6 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { parseOptions, writeLine } from './lib/cli.mjs';
 import { archivePathProblem, readStoredZip } from './lib/zip-reader.mjs';
+import { readTarGzip } from './lib/tar-reader.mjs';
 
 const { options } = parseOptions(process.argv.slice(2));
 const dist = path.resolve(process.cwd(), String(options.dist || 'dist'));
@@ -50,11 +51,48 @@ function execute(file, args, cwd, env) {
   return String(result.stdout || '').trim();
 }
 
+async function exercisePackagedWorkflow(runtimeRoot, fixture, home) {
+  await mkdir(fixture, { recursive: true });
+  const initialized = spawnSync('git', ['init', '-q', '-b', 'main'], {
+    cwd: fixture,
+    encoding: 'utf8',
+    shell: false
+  });
+  if (initialized.status !== 0) throw new Error(initialized.stderr || 'fixture git init failed');
+  await writeFile(path.join(fixture, 'fixture.txt'), 'packaged helper workflow\n');
+  execute(
+    path.join(runtimeRoot, 'scripts', 'init-run.mjs'),
+    ['--profile', 'micro', '--harness', 'codex', '--audit-path', '.audit/run.md'],
+    fixture,
+    isolatedEnvironment(home)
+  );
+  const run = await readFile(path.join(fixture, '.audit', 'run.md'), 'utf8');
+  if (!run.includes('Profile: Micro') || !run.includes('Harness capability receipt')) {
+    throw new Error('packaged init-run helper did not continue the durable-state workflow');
+  }
+  execute(
+    path.join(runtimeRoot, 'scripts', 'change-snapshot.mjs'),
+    ['--output', '.audit/change-snapshot.md'],
+    fixture,
+    isolatedEnvironment(home)
+  );
+  const snapshot = await readFile(path.join(fixture, '.audit', 'change-snapshot.md'), 'utf8');
+  if (!snapshot.includes('fixture.txt')) {
+    throw new Error('packaged change-snapshot helper did not continue the review workflow');
+  }
+  JSON.parse(execute(
+    path.join(runtimeRoot, 'scripts', 'model-routing.mjs'),
+    ['validate-config', '--config', path.join(runtimeRoot, 'config', 'model-routing.json')],
+    fixture,
+    isolatedEnvironment(home)
+  ));
+}
+
 try {
   const archives = (await readdir(dist))
-    .filter((name) => /^zimster-.*-(claude|codex|portable)\.zip$/.test(name))
+    .filter((name) => /^zimster-.*-(claude|codex|openai|portable)\.zip$/.test(name))
     .sort();
-  for (const target of ['claude', 'codex', 'portable']) {
+  for (const target of ['claude', 'codex', 'openai', 'portable']) {
     const name = archives.find((candidate) => candidate.endsWith(`-${target}.zip`));
     if (!name) throw new Error(`missing exact ${target} candidate archive`);
     const archive = path.join(dist, name);
@@ -79,42 +117,71 @@ try {
     const packageRoot = target === 'codex'
       ? path.join(extracted, 'plugins', 'zimster')
       : extracted;
-    JSON.parse(execute(
-      path.join(packageRoot, 'scripts', 'model-routing.mjs'),
-      ['validate-config', '--config', path.join(packageRoot, 'templates', 'zimster-config.json')],
-      packageRoot,
-      isolatedEnvironment(home)
-    ));
-    for (const contract of [
-      'schemas/delegation-decision.schema.json',
-      'schemas/model-proposal.schema.json',
-      'schemas/routing-observation.schema.json',
-      'schemas/convergence-decision.schema.json',
-      'schemas/host-smoke-receipt.schema.json',
-      'docs/INSTALL.md',
-      'docs/CONFIGURATION.md',
-      'docs/MIGRATING-0.5.0.md'
-    ]) await readFile(path.join(packageRoot, contract));
-    if (target !== 'claude') {
+    if (target === 'claude' || target === 'codex') {
+      JSON.parse(execute(
+        path.join(packageRoot, 'scripts', 'model-routing.mjs'),
+        ['validate-config', '--config', path.join(packageRoot, 'templates', 'zimster-config.json')],
+        packageRoot,
+        isolatedEnvironment(home)
+      ));
+      for (const contract of [
+        'schemas/delegation-decision.schema.json',
+        'schemas/model-proposal.schema.json',
+        'schemas/routing-observation.schema.json',
+        'schemas/convergence-decision.schema.json',
+        'schemas/host-smoke-receipt.schema.json',
+        'docs/INSTALL.md',
+        'docs/CONFIGURATION.md',
+        'docs/MIGRATING-0.5.0.md'
+      ]) await readFile(path.join(packageRoot, contract));
+    }
+    if (target === 'codex') {
       JSON.parse(execute(
         path.join(packageRoot, 'scripts', 'doctor.mjs'),
         ['--json'],
         packageRoot,
         isolatedEnvironment(home)
       ));
-      if (target === 'portable') {
-        const metadata = JSON.parse(await readFile(
-          path.join(packageRoot, 'skills', 'using-zimster', 'references', 'build-metadata.json'),
-          'utf8'
-        ));
-        if (metadata.package_target !== 'portable') {
-          throw new Error('portable build metadata does not identify the exact candidate');
-        }
+    }
+    if (target === 'codex' || target === 'openai' || target === 'portable') {
+      const runtimeRoot = target === 'codex'
+        ? packageRoot
+        : path.join(packageRoot, 'skills', 'using-zimster');
+      await exercisePackagedWorkflow(
+        runtimeRoot,
+        path.join(temporary, target, 'workflow-fixture'),
+        home
+      );
+    }
+    if (target === 'openai' || target === 'portable') {
+      await readFile(path.join(packageRoot, target === 'openai' ? '.codex-plugin/plugin.json' : 'plugin.json'));
+      await readFile(path.join(packageRoot, 'skills', 'using-zimster', 'SKILL.md'));
+      const metadata = JSON.parse(await readFile(
+        path.join(packageRoot, 'skills', 'using-zimster', 'references', 'build-metadata.json'),
+        'utf8'
+      ));
+      if (metadata.package_target !== target) {
+        throw new Error(`${target} build metadata does not identify the exact candidate`);
       }
     }
     const hash = createHash('sha256').update(await readFile(archive)).digest('hex');
     targets.push({ target, status: 'passed', archive: name, sha256: hash });
   }
+  const npmName = (await readdir(dist)).find((name) => /^zimster-.*\.tgz$/.test(name));
+  if (!npmName) throw new Error('missing exact npm candidate archive');
+  const npmArchive = path.join(dist, npmName);
+  const npmEntries = await readTarGzip(npmArchive);
+  const npmNames = new Set(npmEntries.map(({ name }) => name));
+  for (const required of ['package/package.json', 'package/plugin.json', 'package/skills/using-zimster/SKILL.md']) {
+    if (!npmNames.has(required)) throw new Error(`npm candidate is missing ${required}`);
+  }
+  if ([...npmNames].some((name) => name.startsWith('package/plugins/zimster/'))) {
+    throw new Error('npm candidate contains the generated Codex mirror');
+  }
+  targets.push({
+    target: 'npm', status: 'passed', archive: npmName,
+    sha256: createHash('sha256').update(await readFile(npmArchive)).digest('hex')
+  });
   writeLine(JSON.stringify({ schema_version: 1, status: 'passed', targets }));
 } catch (error) {
   writeLine(JSON.stringify({

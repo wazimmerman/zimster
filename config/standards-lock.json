@@ -1,0 +1,16 @@
+{
+  "schema_version": 1,
+  "agent_plugins": {
+    "version": "1.0.0",
+    "commit": "1fc1b6270e3cc492ec2d24ad7a34277c6d53b9c1",
+    "source": "https://github.com/agentplugins/agent-plugins-spec/tree/1fc1b6270e3cc492ec2d24ad7a34277c6d53b9c1",
+    "schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+    "license": "Apache-2.0 AND CC-BY-4.0"
+  },
+  "agent_skills": {
+    "commit": "217be548739f21d6008915c29aefe320ea1a90af",
+    "source": "https://github.com/agentskills/agentskills/tree/217be548739f21d6008915c29aefe320ea1a90af",
+    "specification": "https://agentskills.io/specification",
+    "license": "Apache-2.0"
+  }
+}

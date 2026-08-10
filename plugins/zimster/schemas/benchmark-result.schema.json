@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zimster.dev/schemas/benchmark-result.schema.json",
+  "title": "Zimster benchmark run result",
+  "type": "object",
+  "required": [
+    "run_id", "pair_id", "task_id", "condition", "repeat", "status",
+    "scorable", "test_pass", "success", "failure_class"
+  ],
+  "properties": {
+    "run_id": { "type": "string", "minLength": 1 },
+    "pair_id": { "type": "string", "minLength": 1 },
+    "task_id": { "type": "string", "minLength": 1 },
+    "condition": { "enum": ["control", "treatment"] },
+    "repeat": { "type": "integer", "minimum": 1 },
+    "status": { "enum": ["completed", "failed"] },
+    "scorable": { "type": "boolean" },
+    "test_pass": { "type": "boolean" },
+    "success": { "type": "boolean" },
+    "wall_clock_seconds": { "type": ["number", "null"], "minimum": 0 },
+    "turns": { "type": ["integer", "null"], "minimum": 0 },
+    "input_tokens": { "type": ["integer", "null"], "minimum": 0 },
+    "cached_input_tokens": { "type": ["integer", "null"], "minimum": 0 },
+    "output_tokens": { "type": ["integer", "null"], "minimum": 0 },
+    "tool_calls": { "type": ["integer", "null"], "minimum": 0 },
+    "retries": { "type": ["integer", "null"], "minimum": 0 },
+    "failure_class": { "type": ["string", "null"] },
+    "raw_bundle_sha256": { "type": ["string", "null"], "pattern": "^[a-f0-9]{64}$" }
+  },
+  "additionalProperties": true
+}

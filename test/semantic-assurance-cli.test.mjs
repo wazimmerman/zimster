@@ -71,7 +71,7 @@ test('matrix CLI emits machine-readable coverage and a human summary', async () 
         source: 'plan.md#matrix-001',
         implementation_locations: ['scripts/semantic-assurance.mjs'],
         evidence_refs: ['receipt-1'],
-        evidence_scope: { git_tree: 'candidate', environment: 'node-linux' },
+        evidence_scope: { git_tree: tree, environment: 'node-linux' },
         unavailable_proof: [],
         status: 'verified',
         intended_acceptance_claims: ['Matrix coverage is validated.']
@@ -145,7 +145,7 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
         source: 'plan.md#gate-001',
         implementation_locations: ['scripts/semantic-assurance.mjs'],
         evidence_refs: ['receipt-1'],
-        evidence_scope: { git_tree: 'candidate', environment: 'node-linux' },
+        evidence_scope: { git_tree: candidateTree, environment: 'node-linux' },
         unavailable_proof: [],
         status: 'verified',
         intended_acceptance_claims: ['Candidate completion is gated.']
@@ -309,7 +309,7 @@ test('completion CLI rejects a review that is not bound to its exact package and
         source: 'requirements.md#gate-001',
         implementation_locations: ['scripts/semantic-assurance.mjs'],
         evidence_refs: ['receipt-1'],
-        evidence_scope: { git_tree: 'candidate', environment: 'node-linux' },
+        evidence_scope: { git_tree: candidateTree, environment: 'node-linux' },
         unavailable_proof: [],
         status: 'verified',
         intended_acceptance_claims: ['Approval is bound to exact inputs.']

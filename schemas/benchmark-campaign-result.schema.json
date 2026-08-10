@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zimster.dev/schemas/benchmark-campaign-result.schema.json",
+  "title": "Zimster benchmark campaign result",
+  "type": "object",
+  "required": [
+    "schema_version", "campaign_id", "campaign", "completed_on",
+    "treatment_source", "scored_runs", "complete_pairs", "primary", "inference"
+  ],
+  "properties": {
+    "schema_version": { "const": 1 },
+    "campaign_id": { "type": "string", "minLength": 1 },
+    "campaign": { "type": "string", "minLength": 1 },
+    "completed_on": { "type": "string", "format": "date" },
+    "treatment_source": {
+      "type": "object",
+      "required": ["commit", "classification", "applies_to_changed_final_v0_7_candidate"],
+      "properties": {
+        "commit": { "type": "string", "pattern": "^[a-f0-9]{40}$" },
+        "classification": { "const": "historical_pre_change_candidate" },
+        "applies_to_changed_final_v0_7_candidate": { "const": false }
+      },
+      "additionalProperties": false
+    },
+    "scored_runs": { "type": "integer", "minimum": 0 },
+    "complete_pairs": { "type": "integer", "minimum": 0 },
+    "primary": { "type": "object" },
+    "inference": { "type": "object" }
+  },
+  "additionalProperties": true
+}

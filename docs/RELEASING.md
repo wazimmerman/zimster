@@ -1,117 +1,100 @@
-# Release checklist
+# Release authorization
 
-Zimster releases are cut only from a clean, reviewed feature branch after the
-complete package set has been exercised. Use the smallest semantic version that
-matches the public change. Before 1.0, a new or changed public harness/runtime
-contract normally requires a minor bump; a compatible defect correction may
-use a patch.
+Zimster releases are cut from a clean, reviewed feature branch. A release is
+authorized by a signed annotated tag whose message is exactly one canonical
+release-evidence JSON payload. CI verifies that authorization; it never creates
+semantic approval.
 
-## Prepare metadata
+The owner's private signing key remains local. CI derives the primary
+fingerprint from the checked-in public verification key, requires it to match
+the protected `RELEASE_SIGNER_FINGERPRINT` environment variable, and only then
+imports it into an ephemeral GPG keyring. Both `git verify-tag` and the later
+`release:evidence verify-tag` fingerprint check must pass.
 
-Use the repository mechanism instead of editing versions independently:
+No npm publication, marketplace submission, public GitHub release, tag, or paid
+credit purchase is permitted without explicit owner authorization.
+
+## Prepare the candidate
+
+Synchronize versions through the repository command:
 
 ```text
 npm run version:bump -- <next-version> --note "Release summary"
 ```
 
-This synchronizes package and lock metadata, all current manifests and
-marketplace entries, skills build metadata, changelog, and the generated Codex
-mirror.
+For v0.7.0 the candidate must satisfy the standards lock, canonical/generated
+mirror equality, current host evidence, benchmark evidence policy, and
+plan-conformance gate. Registry acceptance is a later external event, not a tag
+gate.
 
-## Build, install, and review the exact candidate
-
-The default order is:
-
-```text
-build candidate packages
-→ installed-package smoke in isolated homes
-→ available live host discovery and smoke
-→ immutable semantic review package
-→ reserved exact-final-head clean-context integration `independent_review`
-→ bounded correction and another exact-head review only if required
-→ final exact-tree verification
-→ requirement/evidence candidate-completion gate
-```
-
-The final integration review cannot approve source-only correctness when
-installed-package smoke is available. `npm run release:verify` deterministically
-orchestrates version checks, packaging, checksums, archive safety, secret scan,
-official plugin validation, configured host smoke, and review-package creation.
-Installed-package smoke therefore precedes final integration review.
-
-The semantic package binds stable requirement IDs, the requirement-to-evidence
-matrix, immutable range, complete change snapshot, relevant unchanged
-interfaces, evidence validity and claim scope, unavailable proof, intended
-acceptance claims, selected risk lenses, and requested completion state.
-Checkout integrity is reported separately from semantic approval.
-
-## Validate the exact tree
-
-Run fresh, after all release edits:
+Run fresh verification after the last edit:
 
 ```text
+npm run sync:codex:check
 npm run release:verify
 npm run check
 npm run version:check
 npm run version:check -- --tag v<next-version>
-npm run assurance -- complete --profile <profile> --owner-verified ...
-npm run sync:codex:check
-npm run doctor -- --json
 npm run checksums
-git diff --check
+npm run plan:conformance -- --phase release
 npm run postmortem
+git diff --check
 ```
 
-Also run the current official Codex validator against `plugins/zimster`, then
-perform marketplace registration and installation with an isolated
-`CODEX_HOME`. Distinguish package validation, installation, fresh-session skill
-discovery, and any upstream blocker. When installed, live-smoke the other
-harnesses in temporary configuration directories; otherwise record structural
-validation as unexecuted live proof.
+Inspect `git status --short`, `git diff`, `git diff --cached`, and every
+untracked file. A correction invalidates affected evidence and exact-head
+review. Re-run the applicable checks on the corrected tree.
 
-Every public harness gets an independent receipt state: `LIVE_VERIFIED`,
-`INSTALLED_PACKAGE_VERIFIED`, `STRUCTURALLY_VALIDATED`,
-`BLOCKED_BY_AUTHENTICATION`, `UNAVAILABLE`, or `UNSUPPORTED`. Each record names
-the candidate commit/tree and archive identity where applicable, observations,
-authentication/configuration availability, whether model-backed execution
-occurred, established and unestablished capabilities, public claims, timestamp,
-and expiry. Structural validation and installation never imply live or
-model-backed execution.
+## Build the five artifacts
 
-For the 0.6.0 `public_beta` channel, at least one exact-package harness smoke
-must be `LIVE_VERIFIED`; every public claim must be no broader than its receipt;
-and all absent or unauthenticated hosts must be explicitly classified. OpenCode
-may satisfy that live floor. Missing optional hosts do not otherwise block the
-candidate. The `stable` profile is intentionally stronger and currently
-requires all six public harnesses to be `LIVE_VERIFIED`. Host smoke still rejects
-isolation-critical environment overrides and binds archive SHA-256 values to
-the clean candidate commit, tree, and dirty-tree fingerprint.
+`npm run package` builds, from one canonical source tree:
 
-## Inspect artifacts
+- the portable Agent Plugin ZIP;
+- the full Codex plugin ZIP;
+- the full Claude plugin ZIP;
+- the OpenAI skills-plugin submission ZIP with bundled supporting code; and
+- the primary npm/Pi package tarball.
 
-- Confirm the Claude, Codex, and portable ZIPs exist.
-- Confirm every archive entry is relative, expected, and free of caches,
-  temporary configuration, and Git-local run state.
-- Rebuild and compare hashes to prove deterministic packages.
-- Verify `dist/SHA256SUMS.txt` covers every archive.
-- Run a secret scan over tracked files and archive listings; investigate every
-  credential-like match rather than assuming it is safe.
-- Validate the version embedded in each package's build metadata.
+Build twice from independent clean checkouts and require byte-identical files
+and inventories. Validate archive paths, embedded build metadata, SHA-256
+digests, npm allowlist exclusions, and absence of credentials or private
+planning material. Smoke-test each available host in a fresh isolated home and
+record unavailable capabilities without broadening the claim.
 
-## Review and Git disposition
+Run installed-package smoke before the final integration review. In particular,
+register and install the exact Codex ZIP with an isolated `CODEX_HOME`. Run the
+secret scan over both tracked content and every artifact before accepting the
+checksums.
 
-Use immutable base/head SHAs for the final integration review. Inspect
-`git status --short`, `git diff`, `git diff --cached`, and every untracked file
-without staging merely for review. Run the reviewer integrity guard for any
-shell-capable probe. Commit documentation and release metadata with real
-release changes, never as a standalone approval-bookkeeping commit.
+## Create release evidence
 
-A correction invalidates affected evidence and prior-head approval. Correction
-commits and correction rechecks use their own budgets. The reserved final review
-cannot be consumed while the head is changing. If it finds a load-bearing
-defect, correct within budget, refresh the matrix/package, and require another
-independent review of the new exact head. A post-review mutation is never
-`CANDIDATE_COMPLETE`.
+The canonical payload conforms to `schemas/release-evidence.schema.json` and
+binds the version, tag, channel, commit, tree, standards-lock hash,
+semantic-review hash, host-matrix hash, verification results, artifact names,
+and SHA-256 digests. Generate and validate it with the release-evidence tools,
+then place that exact JSON in a signed annotated tag targeting the reviewed
+commit.
 
-The tag must exactly match `package.json`; CI reruns `npm run version:check`,
-`npm run check`, and `npm run checksums` before publishing artifacts.
+Never move, delete, or recreate a published tag. Correct a released defect with
+a patch version.
+
+## Verification-only CI
+
+Release CI must:
+
+1. validate the tag signature, signer, exact target, and JSON schema;
+2. rebuild from the tagged tree in a clean environment;
+3. compare every artifact name and digest with the signed payload;
+4. generate attestations;
+5. create or update an idempotent draft GitHub release;
+6. publish npm first; and
+7. expose the matching GitHub draft only after npm succeeds.
+
+The verified signed channel controls GitHub release state. `public_beta` uses
+the `Zimster <version> - Public Beta` title, is a prerelease, and is never
+Latest. `stable` is not a prerelease and intentionally becomes Latest. Reruns
+reapply the authorized state only to the release for the signed tag.
+
+Invalid signatures, wrong targets, dirty inputs, changed payloads, digest
+mismatches, duplicate publication, and npm failure must fail closed. CI must not
+replace missing human review or create a release authorization.

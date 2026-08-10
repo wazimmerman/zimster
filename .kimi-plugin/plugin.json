@@ -1,11 +1,11 @@
 {
   "name": "zimster",
-  "version": "0.6.0",
-  "description": "Proof-first, owner-driven development workflows.",
+  "version": "0.7.0",
+  "description": "A software development workflow for coding agents.",
   "author": {
-    "name": "Zimster Contributors"
+    "name": "William Zimmerman"
   },
-  "homepage": "https://github.com/wazimmerman/zimster",
+  "homepage": "https://zimster.dev",
   "license": "MIT",
   "keywords": [
     "skills",
@@ -23,9 +23,9 @@
   "skillInstructions": "Kimi Code mapping for Zimster: decide whether delegation materially improves the task before model routing. Use Agent only for a selected bounded role; choose primary, a verified experimental secondary, or inheritance, never a vendor model ID. Use AskUserQuestion only when a decision truly requires user input and TodoList for tracked work. Keep dependent work sequential, do not permit subagents to create subagents, and use no more than two parallel implementation agents. Use native Skill, Read, Write, Edit, Bash, Grep, Glob, FetchURL, WebSearch, and MCP tools.",
   "interface": {
     "displayName": "Zimster",
-    "shortDescription": "Proof-first development without orchestration bloat",
-    "longDescription": "Owner-driven implementation, selective delegation, TDD, risk-adaptive review, and evidence-based completion.",
-    "developerName": "Zimster Contributors",
-    "websiteURL": "https://github.com/wazimmerman/zimster"
+    "shortDescription": "A software development workflow for coding agents.",
+    "longDescription": "Build, debug, refactor, review, and ship software with adaptive planning, test-driven development, selective delegation, and evidence-backed verification.",
+    "developerName": "William Zimmerman",
+    "websiteURL": "https://zimster.dev"
   }
 }

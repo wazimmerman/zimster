@@ -1,8 +1,10 @@
 # Skills-only installation
 
-A skills-only installation preserves Zimster's workflow policy without
-requiring plugin-relative helper scripts. From a Zimster checkout or extracted
-portable release, synchronize into a target Git repository:
+A skills-only installation preserves Zimster's workflow policy. The OpenAI and
+portable release bundles also preserve the helper-backed workflows under the
+`using-zimster` skill's supporting files; source-checkout synchronization may
+use the script-free fallback. From a Zimster checkout or npm package,
+synchronize into a target Git repository:
 
 ```text
 npm run sync-skills -- --target /path/to/project
@@ -33,7 +35,11 @@ build date or reproducible build identity, and package target. Do not infer the
 installed Zimster version from the target project's `package.json` or Git
 history.
 
-## Script-free operation
+## Packaged runtime and script-free operation
+
+When `using-zimster/scripts/init-run.mjs` exists, resolve
+`<zimster-runtime>` to that installed skill root and use its helpers. Keep the
+supporting `config/` and `templates/` directories with the skill.
 
 When no Zimster `scripts/` directory is installed, generated receipts are
 unavailable. This is an expected quiet fallback, not an error. The owner still

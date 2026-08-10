@@ -38,6 +38,54 @@ test('planning preserves semantic detail without microtask multiplication', asyn
   assert.doesNotMatch(plan, /Each step is one action \(2-5 minutes\)/);
 });
 
+test('designing-work decomposes genuinely oversized requests without fragmenting coherent work', async () => {
+  const design = await read('skills/designing-work/SKILL.md');
+  assert.match(design, /multiple substantial.*loosely coupled|independently meaningful workstreams/is);
+  assert.match(design, /one complex but coherent system/is);
+  assert.match(design, /many files.*does not|does not.*many files/is);
+  assert.match(design, /well-scoped request.*proceed normally|proceed normally.*well-scoped request/is);
+});
+
+test('designing-work preserves dependencies, shared architecture, and the overall mission when decomposing', async () => {
+  const design = await read('skills/designing-work/SKILL.md');
+  assert.match(design, /logical subprojects|bounded workstreams/i);
+  assert.match(design, /dependencies.*recommended order|recommended order.*dependencies/is);
+  assert.match(design, /shared architecture.*incompatible|incompatible.*shared architecture/is);
+  assert.match(design, /first useful bounded|first appropriate bounded/i);
+  assert.match(design, /preserve.*overall mission|overall mission.*preserve/is);
+});
+
+test('request decomposition is independent of delegation and preserves an approved decomposition', async () => {
+  const design = await read('skills/designing-work/SKILL.md');
+  assert.match(design, /decomposition.*design.*scoping|design.*scoping.*decomposition/is);
+  assert.match(design, /decomposition.*does not.*(?:delegate|agent)|does not.*(?:delegate|agent).*decomposition/is);
+  assert.match(design, /approved.*decomposition.*do not reopen|do not reopen.*approved.*decomposition/is);
+});
+
+test('designing-work selects lightweight visual treatment only when seeing the choice is materially better', async () => {
+  const design = await read('skills/designing-work/SKILL.md');
+  assert.match(design, /seeing.*materially (?:clearer|better).*reading|reading.*seeing.*materially (?:clearer|better)/is);
+  assert.match(design, /UI layout|architecture topology|state transition|data flow/i);
+  assert.match(design, /active\s+host.*visual capability|visual capability.*active\s+host/is);
+  assert.match(design, /lightweight.*diagram|diagram.*lightweight/is);
+});
+
+test('designing-work keeps conceptual choices textual and falls back when visual capability is absent', async () => {
+  const design = await read('skills/designing-work/SKILL.md');
+  assert.match(design, /requirements clarification|naming decision|configuration choice/i);
+  assert.match(design, /continue textually|textual.*fallback/i);
+  assert.match(design, /not.*block|without.*block/i);
+});
+
+test('visual treatment is neither universal brainstorming nor a dedicated companion', async () => {
+  const design = await read('skills/designing-work/SKILL.md');
+  assert.match(design, /do not require.*browser service|browser service.*not required/is);
+  assert.match(design, /do not require.*image generation|image generation.*not required/is);
+  assert.match(design, /not\s+mandatory.*UI|UI.*not\s+mandatory/is);
+  assert.match(design, /no dedicated.*visual companion|does not.*visual companion/is);
+  assert.match(design, /per (?:design )?question|for each design question/i);
+});
+
 test('completion claims require fresh evidence and distinguish unavailable proof', async () => {
   const verification = await read('skills/verification-before-completion/SKILL.md');
   assert.match(verification, /NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE/);
@@ -108,6 +156,21 @@ test('durable state has deterministic creation triggers', async () => {
   }
 });
 
+test('helper-backed skills resolve the portable using-zimster runtime before plugin-root fallback', async () => {
+  for (const name of [
+    'using-zimster',
+    'owner-driven-development',
+    'risk-adaptive-review',
+    'verification-before-completion'
+  ]) {
+    const content = await read(`skills/${name}/SKILL.md`);
+    assert.match(content, /<zimster-runtime>/);
+    assert.match(content, /using-zimster[\s\S]*scripts|scripts[\s\S]*using-zimster/i);
+    assert.match(content, /plugin root|full plugin/i);
+    assert.match(content, /manual|unavailable/i);
+  }
+});
+
 test('bootstrap policy enforces execution economy and phase-bounded ownership', async () => {
   const bootstrap = await read('skills/using-zimster/SKILL.md');
   assert.match(bootstrap, /logical owner[\s\S]*physical context|physical context[\s\S]*logical owner/i);
@@ -118,6 +181,16 @@ test('bootstrap policy enforces execution economy and phase-bounded ownership', 
   assert.match(bootstrap, /installed-package smoke[\s\S]*final integration review/i);
   assert.match(bootstrap, /capability cache/i);
   assert.match(bootstrap, /postmortem/i);
+});
+
+test('registered work separates evidence states and gates knowledge promotion and conformance', async () => {
+  const owner = await read('skills/owner-driven-development/SKILL.md');
+  for (const state of ['current_truth', 'proposed_delta', 'accepted_decision', 'unresolved_proposal']) {
+    assert.match(owner, new RegExp(state));
+  }
+  assert.match(owner, /human approval[\s\S]*durable knowledge|durable knowledge[\s\S]*human approval/i);
+  assert.match(owner, /plan-conformance[\s\S]*slice boundar|slice boundar[\s\S]*plan-conformance/i);
+  assert.match(owner, /before release/i);
 });
 
 test('completion states include requirement blockers', async () => {

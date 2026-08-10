@@ -231,8 +231,8 @@ complete initial finding batch
 ```
 
 Residuals route to technical adjudication, design/requirement blocker,
-explicit deferral, diagnosis, or partial evidence—not an unbounded reviewer
-lottery.
+explicit deferral, diagnosis, or partial evidence instead of an unbounded
+reviewer lottery.
 
 ## Completion model
 

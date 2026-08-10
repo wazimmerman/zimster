@@ -2,6 +2,7 @@ import { readFile, rm, mkdir, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { collectFiles, createZip } from './lib/zip.mjs';
+import { createTarGzip } from './lib/tar.mjs';
 import { syncCodexPlugin } from './sync-codex-plugin.mjs';
 import { versionRecords } from './lib/version-files.mjs';
 import { buildMetadata } from './lib/build-metadata.mjs';
@@ -13,14 +14,19 @@ const operationalScripts = [
   'scripts/archive-safety.mjs', 'scripts/change-snapshot.mjs',
   'scripts/capability-cache.mjs',
   'scripts/codex-cachebuster.mjs',
+  'scripts/context-index.mjs',
+  'scripts/benchmark-codex.mjs',
   'scripts/delegation-record.mjs', 'scripts/model-routing.mjs',
   'scripts/adapter-config.mjs', 'scripts/convergence.mjs',
   'scripts/dispatch-record.mjs', 'scripts/doctor.mjs',
+  'scripts/docs-hygiene.mjs',
   'scripts/evidence.mjs', 'scripts/host-smoke.mjs',
   'scripts/evaluate-execution-economy.mjs',
   'scripts/init-run.mjs', 'scripts/installed-package-smoke.mjs',
   'scripts/phase-checkpoint.mjs',
+  'scripts/plan-conformance.mjs',
   'scripts/project-commands.mjs', 'scripts/run-budget.mjs',
+  'scripts/release-evidence.mjs',
   'scripts/review-integrity.mjs', 'scripts/review-package.mjs',
   'scripts/semantic-assurance.mjs',
   'scripts/run-postmortem.mjs',
@@ -36,7 +42,28 @@ const operationalScripts = [
   'scripts/lib/run-state.mjs',
   'scripts/lib/semantic-assurance.mjs',
   'scripts/lib/evidence-validity.mjs',
+  'scripts/lib/release-evidence.mjs',
+  'scripts/lib/tar.mjs',
+  'scripts/lib/tar-reader.mjs',
   'scripts/lib/zip-reader.mjs', 'scripts/lib/zip.mjs'
+];
+const skillRuntimeFiles = [
+  'scripts/init-run.mjs',
+  'scripts/delegation-record.mjs',
+  'scripts/model-routing.mjs',
+  'scripts/dispatch-record.mjs',
+  'scripts/convergence.mjs',
+  'scripts/plan-conformance.mjs',
+  'scripts/project-commands.mjs',
+  'scripts/evidence.mjs',
+  'scripts/change-snapshot.mjs',
+  'scripts/semantic-assurance.mjs',
+  'scripts/review-integrity.mjs',
+  ...operationalScripts.filter((entry) => entry.startsWith('scripts/lib/')),
+  'config/convergence.json',
+  'config/harness-capabilities.json',
+  'config/model-routing.json',
+  'templates/run.md'
 ];
 const publicContracts = [
   'schemas/delegation-decision.schema.json', 'schemas/model-proposal.schema.json',
@@ -46,12 +73,12 @@ const publicContracts = [
   'docs/MIGRATING-0.5.0.md'
 ];
 const common = [
-  'skills', 'agents', 'templates', 'assets', 'docs', 'config', 'schemas',
+  'skills', 'agents', 'templates', 'assets', 'benchmarks', 'docs', 'config', 'schemas',
   ...operationalScripts, ...publicContracts,
   'LICENSE', 'README.md', 'THIRD_PARTY_NOTICES.md', 'PRIVACY.md', 'TERMS.md',
   'SUPPORT.md', 'CHANGELOG.md'
 ]
-const exclusions = ['dist', '.git', 'node_modules', '.zimster'];
+const exclusions = ['dist', '.git', 'node_modules', '.zimster', '.opencode/.gitignore'];
 
 export async function createPackages(outputDirectory = path.join(root, 'dist')) {
   const versionRows = await versionRecords();
@@ -63,18 +90,26 @@ export async function createPackages(outputDirectory = path.join(root, 'dist')) 
   const { version } = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
   await mkdir(outputDirectory, { recursive: true });
   for (const entry of await readdir(outputDirectory)) {
-    if (/^zimster-.*\.zip$/.test(entry)) await rm(path.join(outputDirectory, entry), { force: true });
+    if (/^zimster-.*(?:\.zip|\.tgz)$/.test(entry)) await rm(path.join(outputDirectory, entry), { force: true });
   }
 
   const definitions = [
     ['claude', ['.claude-plugin', 'hooks', ...common]],
     ['codex', ['.agents', 'plugins/zimster', 'README.md', 'LICENSE', 'THIRD_PARTY_NOTICES.md']],
-    ['portable', ['.agents', '.claude-plugin', '.codex-plugin', '.cursor', '.kimi-plugin', '.opencode', '.pi', 'plugins/zimster', 'hooks', 'scripts', 'vendor', 'package.json', 'package-lock.json', ...common]]
+    ['openai', ['.codex-plugin', 'skills', 'assets', 'LICENSE', 'README.md', 'THIRD_PARTY_NOTICES.md', 'PRIVACY.md', 'TERMS.md', 'SUPPORT.md']],
+    ['portable', ['plugin.json', 'skills', 'LICENSE', 'README.md', 'THIRD_PARTY_NOTICES.md', 'PRIVACY.md', 'TERMS.md', 'SUPPORT.md', 'docs/SKILLS_ONLY.md']]
   ];
 
   const outputs = [];
   for (const [target, includes] of definitions) {
     const entries = await collectFiles(root, includes, exclusions);
+    if (target === 'openai' || target === 'portable') {
+      const runtimeEntries = await collectFiles(root, skillRuntimeFiles, exclusions);
+      for (const [relative, source] of runtimeEntries) {
+        entries.push([`skills/using-zimster/${relative}`, source]);
+      }
+      entries.sort(([a], [b]) => a.localeCompare(b));
+    }
     const metadata = Buffer.from(`${JSON.stringify(await buildMetadata(root, target), null, 2)}\n`);
     for (const entry of entries) {
       if (entry[0].endsWith('skills/using-zimster/references/build-metadata.json')) {
@@ -85,6 +120,26 @@ export async function createPackages(outputDirectory = path.join(root, 'dist')) 
     await createZip(output, entries);
     outputs.push(output);
   }
+  const packageJson = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8'));
+  const npmIncludes = [];
+  for (const include of packageJson.files) {
+    if (include === 'docs/*.md') {
+      for (const entry of await readdir(path.join(root, 'docs'))) {
+        if (entry.endsWith('.md')) npmIncludes.push(`docs/${entry}`);
+      }
+    } else npmIncludes.push(include);
+  }
+  npmIncludes.push('package.json');
+  const npmEntries = await collectFiles(root, npmIncludes, exclusions);
+  const npmMetadata = Buffer.from(`${JSON.stringify(await buildMetadata(root, 'npm'), null, 2)}\n`);
+  for (const entry of npmEntries) {
+    if (entry[0].endsWith('skills/using-zimster/references/build-metadata.json')) {
+      entry[1] = { data: npmMetadata, mode: 0o644 };
+    }
+  }
+  const npmOutput = path.join(outputDirectory, `zimster-${version}.tgz`);
+  await createTarGzip(npmOutput, npmEntries);
+  outputs.push(npmOutput);
   return outputs;
 }
 

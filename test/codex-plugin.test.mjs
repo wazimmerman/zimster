@@ -12,10 +12,16 @@ test('Codex manifest follows the accepted ingestion shape', async () => {
   const manifest = await json('.codex-plugin/plugin.json');
   assert.equal(manifest.skills, './skills/');
   assert.equal(Object.hasOwn(manifest, 'hooks'), false, 'Codex rejects unsupported hooks fields');
-  assert.match(manifest.description, /owner-driven|proof-first/i);
+  assert.equal(manifest.description, 'A software development workflow for coding agents.');
   assert.ok(Array.isArray(manifest.interface.defaultPrompt));
   assert.ok(manifest.interface.defaultPrompt.length > 0 && manifest.interface.defaultPrompt.length <= 3);
   assert.ok(manifest.interface.defaultPrompt.every((prompt) => typeof prompt === 'string' && prompt.length <= 128));
+  assert.ok(manifest.interface.shortDescription.length <= 30);
+  assert.equal(manifest.homepage, 'https://zimster.dev');
+  assert.equal(manifest.interface.websiteURL, 'https://zimster.dev');
+  assert.equal(manifest.interface.supportURL, 'https://zimster.dev/support');
+  assert.equal(Object.hasOwn(manifest.interface, 'screenshots'), false);
+  assert.equal(manifest.interface.brandColor, '#8A4B00');
 });
 
 test('repo marketplace points at a local plugins/zimster directory', async () => {

@@ -10,6 +10,10 @@ import { validateSecondaryAdapters } from './validate-adapters.mjs';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const errors = [];
 const requiredManifests = ['.codex-plugin/plugin.json', '.claude-plugin/plugin.json', '.kimi-plugin/plugin.json'];
+const portableManifestFields = new Set([
+  '$schema', 'name', 'version', 'description', 'author', 'homepage',
+  'repository', 'license', 'keywords', 'extensions'
+]);
 
 async function read(relative) {
   return readFile(path.join(root, relative), 'utf8');
@@ -32,6 +36,17 @@ function frontmatter(content, relative) {
 }
 
 const packageJson = await parseJson('package.json');
+const portableManifest = await parseJson('plugin.json');
+if (portableManifest.$schema !== 'https://agent-plugins.org/schemas/1.0.0/plugin.schema.json') errors.push('plugin.json: expected Agent Plugins 1.0.0 schema');
+if (portableManifest.name !== 'zimster') errors.push('plugin.json: expected name zimster');
+if (portableManifest.version !== packageJson.version) errors.push('plugin.json: version differs from package.json');
+if (portableManifest.homepage !== 'https://zimster.dev') errors.push('plugin.json: expected canonical homepage https://zimster.dev');
+for (const key of Object.keys(portableManifest)) {
+  if (!portableManifestFields.has(key)) errors.push(`plugin.json: unsupported Agent Plugins field ${key}`);
+}
+const standardsLock = await parseJson('config/standards-lock.json');
+if (standardsLock.agent_plugins?.commit !== '1fc1b6270e3cc492ec2d24ad7a34277c6d53b9c1') errors.push('config/standards-lock.json: Agent Plugins revision is not pinned');
+if (standardsLock.agent_skills?.commit !== '217be548739f21d6008915c29aefe320ea1a90af') errors.push('config/standards-lock.json: Agent Skills revision is not pinned');
 const versionRows = await versionRecords();
 for (const [name, version] of versionRows) {
   if (version !== packageJson.version) errors.push(`${name}: version ${version ?? 'missing'} differs from package.json ${packageJson.version}`);
@@ -56,7 +71,10 @@ for (const name of skillNames) {
   const content = await read(relative);
   const metadata = frontmatter(content, relative);
   if (metadata.name !== name) errors.push(`${relative}: frontmatter name does not match directory`);
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(metadata.name || '') || (metadata.name || '').length > 64) errors.push(`${relative}: name violates Agent Skills constraints`);
   if (!metadata.description || metadata.description.length < 20) errors.push(`${relative}: description is missing or too short`);
+  if ((metadata.description || '').length > 1024 || /[<>]/.test(metadata.description || '')) errors.push(`${relative}: description violates Agent Skills constraints`);
+  if (/`scripts\//.test(content)) errors.push(`${relative}: helper invocation must be rooted at <zimster-runtime> with a manual fallback`);
   const lines = content.split('\n').length;
   if (lines > 240) errors.push(`${relative}: ${lines} lines exceeds the 240-line budget`);
   for (const forbidden of ['/tmp/', '/home/', 'C:\\Users\\', '~/.']) {
@@ -88,28 +106,32 @@ for (const [agent, allowBash] of [['scout', false], ['integration-reviewer', fal
 }
 
 for (const relative of [
-  'LICENSE', 'THIRD_PARTY_NOTICES.md', 'README.md', 'docs/ARCHITECTURE.md', 'docs/CLAUDE.md',
+  'plugin.json', 'LICENSE', 'THIRD_PARTY_NOTICES.md', 'README.md', 'docs/ARCHITECTURE.md', 'docs/CLAUDE.md',
   'docs/DIAGNOSTICS.md', 'docs/EVALUATION.md', 'docs/OPERATIONS.md',
   'docs/INSTALL.md', 'docs/CONFIGURATION.md', 'docs/KNOWN_LIMITATIONS.md',
   'docs/MIGRATING-0.5.0.md',
-  'docs/RELEASING.md', 'docs/RESEARCH.md', 'docs/SKILLS_ONLY.md',
+  'docs/RELEASING.md', 'docs/COMPATIBILITY.md', 'docs/GROK.md', 'docs/SKILLS_ONLY.md',
   'docs/UPSTREAM.md',
   'scripts/evidence.mjs', 'scripts/change-snapshot.mjs', 'scripts/delegation-record.mjs',
   'scripts/model-routing.mjs', 'scripts/dispatch-record.mjs',
   'scripts/adapter-config.mjs',
+  'scripts/context-index.mjs', 'scripts/plan-conformance.mjs',
+  'scripts/benchmark-codex.mjs',
+  'scripts/release-evidence.mjs',
   'scripts/convergence.mjs',
-  'scripts/verify.mjs', 'scripts/archive-safety.mjs', 'scripts/secret-scan.mjs',
+  'scripts/verify.mjs', 'scripts/docs-hygiene.mjs',
+  'scripts/archive-safety.mjs', 'scripts/secret-scan.mjs',
   'scripts/installed-package-smoke.mjs', 'scripts/host-smoke.mjs',
   'scripts/review-package.mjs', 'scripts/capability-cache.mjs',
   'scripts/semantic-assurance.mjs', 'scripts/lib/semantic-assurance.mjs',
   'scripts/lib/evidence-validity.mjs', 'scripts/lib/config-layers.mjs',
+  'scripts/lib/tar-reader.mjs',
   'scripts/lib/model-routing.mjs',
   'scripts/lib/proposal-state.mjs',
   'scripts/lib/convergence.mjs',
   'scripts/run-postmortem.mjs', 'scripts/evaluate-execution-economy.mjs',
-  'docs/evaluations/v0.3.0-hardening-postmortem.md',
   'scripts/check-version.mjs', 'scripts/bump-version.mjs', 'scripts/checksums.mjs', 'config/model-routing.json',
-  'config/host-smoke.json',
+  'config/host-smoke.json', 'config/standards-lock.json', 'config/pi-delegation.json',
   'schemas/evidence.schema.json', 'schemas/dispatch.schema.json',
   'schemas/delegation-decision.schema.json', 'schemas/model-proposal.schema.json',
   'schemas/zimster-config.schema.json', 'schemas/routing-observation.schema.json',
@@ -119,9 +141,17 @@ for (const relative of [
   'schemas/requirement-matrix.schema.json',
   'schemas/semantic-review.schema.json', 'schemas/review-records.schema.json',
   'schemas/completion-decision.schema.json',
+  'schemas/context-index.schema.json', 'schemas/work-journal.schema.json',
+  'schemas/release-evidence.schema.json',
+  'schemas/benchmark-campaign-result.schema.json',
+  'schemas/benchmark-result.schema.json',
+  'benchmarks/lock/deepswe-v1.1.json',
+  'benchmarks/manifests/codex-pro-pilot.json',
+  'benchmarks/results/codex-pro-pilot-minimum.json',
+  'benchmarks/lib/pilot.mjs',
   'templates/binding-requirements.json', 'templates/requirement-matrix.json',
   'templates/zimster-config.json', 'templates/delegation-decision.json',
-  'templates/model-proposal.json'
+  'templates/model-proposal.json', 'templates/context-index.json'
 ]) {
   try { if (!(await stat(path.join(root, relative))).isFile()) errors.push(`${relative}: not a file`); }
   catch { errors.push(`${relative}: missing`); }
@@ -130,6 +160,7 @@ for (const relative of [
 const notices = await read('THIRD_PARTY_NOTICES.md');
 if (!notices.includes('Copyright (c) 2025 Jesse Vincent')) errors.push('THIRD_PARTY_NOTICES.md: missing Superpowers copyright');
 if (!/OpenAI Codex plugin contract/i.test(notices) || !/Apache License 2\.0/i.test(notices)) errors.push('THIRD_PARTY_NOTICES.md: missing OpenAI Codex contract notice');
+if (!/Agent Plugins specification/i.test(notices) || !/Agent Skills specification/i.test(notices)) errors.push('THIRD_PARTY_NOTICES.md: missing standards attribution');
 
 if (errors.length) {
   console.error(`Validation failed with ${errors.length} issue(s):`);

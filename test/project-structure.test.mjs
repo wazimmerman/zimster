@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { exists, json } from './helpers.mjs';
 
 const requiredFiles = [
+  'plugin.json',
   '.codex-plugin/plugin.json',
   '.claude-plugin/plugin.json',
   '.cursor/commands/using-zimster.md',
@@ -10,6 +11,7 @@ const requiredFiles = [
   '.agents/plugins/marketplace.json',
   '.opencode/plugins/zimster.js',
   '.pi/extensions/zimster.ts',
+  '.pi/delegation.ts',
   'hooks/hooks.json',
   'hooks/session-start.mjs',
   'LICENSE',
@@ -24,13 +26,15 @@ const requiredFiles = [
   'docs/CONFIGURATION.md',
   'docs/KNOWN_LIMITATIONS.md',
   'docs/MIGRATING-0.5.0.md',
-  'docs/RESEARCH.md',
+  'docs/COMPATIBILITY.md',
+  'docs/GROK.md',
   'docs/RELEASING.md',
   'docs/SKILLS_ONLY.md',
   'docs/UPSTREAM.md',
   'scripts/validate.mjs',
   'scripts/package.mjs',
   'scripts/doctor.mjs',
+  'scripts/docs-hygiene.mjs',
   'scripts/verify.mjs',
   'scripts/archive-safety.mjs',
   'scripts/secret-scan.mjs',
@@ -41,7 +45,6 @@ const requiredFiles = [
   'scripts/capability-cache.mjs',
   'scripts/run-postmortem.mjs',
   'scripts/evaluate-execution-economy.mjs',
-  'docs/evaluations/v0.3.0-hardening-postmortem.md',
   'scripts/sync-codex-plugin.mjs',
   'scripts/validate-codex.mjs',
   'scripts/change-snapshot.mjs',
@@ -54,8 +57,13 @@ const requiredFiles = [
   'scripts/adapter-config.mjs',
   'scripts/convergence.mjs',
   'scripts/init-run.mjs',
+  'scripts/context-index.mjs',
+  'scripts/plan-conformance.mjs',
+  'scripts/release-evidence.mjs',
+  'scripts/benchmark-codex.mjs',
   'scripts/lib/execution-budget.mjs',
   'scripts/lib/zip-reader.mjs',
+  'scripts/lib/tar-reader.mjs',
   'scripts/lib/runtime.mjs',
   'scripts/lib/run-state.mjs',
   'scripts/lib/semantic-assurance.mjs',
@@ -78,12 +86,24 @@ const requiredFiles = [
   'schemas/semantic-review.schema.json',
   'schemas/review-records.schema.json',
   'schemas/completion-decision.schema.json',
+  'schemas/context-index.schema.json',
+  'schemas/work-journal.schema.json',
+  'schemas/release-evidence.schema.json',
+  'schemas/benchmark-result.schema.json',
+  'schemas/benchmark-campaign-result.schema.json',
+  'benchmarks/lock/deepswe-v1.1.json',
+  'benchmarks/manifests/codex-pro-pilot.json',
+  'benchmarks/results/codex-pro-pilot-minimum.json',
+  'release/baselines/v0.6.0.json',
   'templates/binding-requirements.json',
   'templates/requirement-matrix.json',
   'templates/zimster-config.json',
   'templates/delegation-decision.json',
   'templates/model-proposal.json',
+  'templates/context-index.json',
   'config/model-routing.json',
+  'config/standards-lock.json',
+  'config/pi-delegation.json',
   'config/convergence.json',
   'config/host-smoke.json',
   'plugins/zimster/.codex-plugin/plugin.json'
@@ -93,6 +113,16 @@ test('ships the public plugin structure', async () => {
   for (const file of requiredFiles) {
     assert.equal(await exists(file), true, `missing ${file}`);
   }
+});
+
+test('release tree excludes obsolete planning and research scratchpads', async () => {
+  for (const file of [
+    'docs/RESEARCH.md',
+    'docs/Zimster-v0.1-Design-Blueprint.md',
+    'docs/evaluations/v0.3.0-hardening-postmortem.md',
+    'docs/plans/2026-08-04-zimster-v0.6.0.md',
+    'docs/zimster/plans/2026-07-27-zimster-v0.1.md'
+  ]) assert.equal(await exists(file), false, `obsolete release-tree material remains: ${file}`);
 });
 
 test('all primary manifests agree on name and version', async () => {

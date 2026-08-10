@@ -28,7 +28,7 @@ function storedZipEntries(archive) {
   return entries;
 }
 
-test('packaging is deterministic and emits Codex and Claude archives', async () => {
+test('packaging is deterministic and emits the five public channel artifacts', async () => {
   const first = await mkdtemp(path.join(os.tmpdir(), 'zimster-first-'));
   const second = await mkdtemp(path.join(os.tmpdir(), 'zimster-second-'));
   try {
@@ -38,13 +38,25 @@ test('packaging is deterministic and emits Codex and Claude archives', async () 
     assert.deepEqual(firstOutputs.map((entry) => path.basename(entry)), [
       `zimster-${version}-claude.zip`,
       `zimster-${version}-codex.zip`,
-      `zimster-${version}-portable.zip`
+      `zimster-${version}-openai.zip`,
+      `zimster-${version}-portable.zip`,
+      `zimster-${version}.tgz`
     ]);
     for (let index = 0; index < firstOutputs.length; index += 1) {
       assert.deepEqual(await bytes(firstOutputs[index]), await bytes(secondOutputs[index]));
     }
 
-    const codexArchive = await bytes(firstOutputs[1]);
+    const byName = new Map(firstOutputs.map((entry) => [path.basename(entry), entry]));
+    for (const [name, file] of byName) {
+      if (name.endsWith('.zip')) {
+        assert.equal(
+          (await bytes(file)).includes(Buffer.from('.github/release-keys/william-zimmerman.asc')),
+          false,
+          `${name} includes the repository release-verification key`
+        );
+      }
+    }
+    const codexArchive = await bytes(byName.get(`zimster-${version}-codex.zip`));
     for (const skill of ['using-zimster', 'owner-driven-development', 'test-driven-development', 'risk-adaptive-review']) {
       assert.equal(
         codexArchive.includes(Buffer.from(`plugins/zimster/skills/${skill}/agents/openai.yaml`)),
@@ -69,7 +81,11 @@ test('packaging is deterministic and emits Codex and Claude archives', async () 
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/capability-cache.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/run-postmortem.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/evaluate-execution-economy.mjs')), true);
-    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/docs/evaluations/v0.3.0-hardening-postmortem.md')), true);
+    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/benchmark-codex.mjs')), true);
+    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/benchmarks/lock/deepswe-v1.1.json')), true);
+    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/docs/COMPATIBILITY.md')), true);
+    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/docs/plans/')), false);
+    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/docs/Zimster-v0.1-Design-Blueprint.md')), false);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/zip-reader.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/run-state.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/config/host-smoke.json')), true);
@@ -78,7 +94,7 @@ test('packaging is deterministic and emits Codex and Claude archives', async () 
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/review-integrity.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/config/model-routing.json')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/runtime.mjs')), true);
-    const claudeArchive = await bytes(firstOutputs[0]);
+    const claudeArchive = await bytes(byName.get(`zimster-${version}-claude.zip`));
     assert.equal(claudeArchive.includes(Buffer.from('scripts/evidence.mjs')), true);
     for (const required of [
       '.claude-plugin/plugin.json',
@@ -144,10 +160,55 @@ test('packaging is deterministic and emits Codex and Claude archives', async () 
     } finally {
       await rm(extracted, { recursive: true, force: true });
     }
-    const portableArchive = await bytes(firstOutputs[2]);
+    const openaiArchive = await bytes(byName.get(`zimster-${version}-openai.zip`));
+    const openaiEntries = storedZipEntries(openaiArchive);
+    assert.equal(openaiEntries.has('.codex-plugin/plugin.json'), true);
+    assert.equal(openaiEntries.has('skills/using-zimster/SKILL.md'), true);
+    for (const helper of [
+      'init-run.mjs', 'delegation-record.mjs', 'model-routing.mjs',
+      'dispatch-record.mjs', 'convergence.mjs', 'plan-conformance.mjs',
+      'project-commands.mjs', 'evidence.mjs', 'change-snapshot.mjs',
+      'semantic-assurance.mjs', 'review-integrity.mjs'
+    ]) {
+      assert.equal(
+        openaiEntries.has(`skills/using-zimster/scripts/${helper}`),
+        true,
+        `OpenAI skill bundle missing runtime helper ${helper}`
+      );
+    }
+    assert.equal(openaiEntries.has('skills/using-zimster/scripts/lib/runtime.mjs'), true);
+    assert.equal(openaiEntries.has('skills/using-zimster/config/convergence.json'), true);
+    assert.equal(openaiEntries.has('skills/using-zimster/config/model-routing.json'), true);
+    assert.equal(openaiEntries.has('skills/using-zimster/templates/run.md'), true);
+    assert.equal(openaiEntries.has('scripts/evidence.mjs'), false);
+    assert.equal(openaiEntries.has('hooks/session-start.mjs'), false);
+    const portableArchive = await bytes(byName.get(`zimster-${version}-portable.zip`));
+    const portableEntries = storedZipEntries(portableArchive);
+    assert.equal(portableEntries.has('plugin.json'), true);
+    assert.equal(portableEntries.has('.codex-plugin/plugin.json'), false);
+    assert.equal([...portableEntries.keys()].some((name) => name.startsWith('plugins/zimster/')), false);
     assert.equal(portableArchive.includes(Buffer.from('"package_target": "portable"')), true);
     assert.equal(portableArchive.includes(Buffer.from('"release_channel": "public_beta"')), true);
     assert.equal(portableArchive.includes(Buffer.from('"support_policy": "claim_scoped_host_receipts_v1"')), true);
+    assert.equal(portableEntries.has('skills/using-zimster/scripts/init-run.mjs'), true);
+    assert.equal(portableEntries.has('skills/using-zimster/scripts/lib/runtime.mjs'), true);
+    assert.equal(portableEntries.has('skills/using-zimster/config/model-routing.json'), true);
+
+    const npmArtifact = byName.get(`zimster-${version}.tgz`);
+    const listing = spawnSync('tar', ['-tzf', npmArtifact], { cwd: root, encoding: 'utf8' });
+    assert.equal(listing.status, 0, listing.stderr || listing.stdout);
+    assert.match(listing.stdout, /package\/plugin\.json/);
+    assert.match(listing.stdout, /package\/skills\/using-zimster\/SKILL\.md/);
+    assert.doesNotMatch(listing.stdout, /package\/plugins\/zimster/);
+    assert.doesNotMatch(listing.stdout, /package\/docs\/plans\//);
+    assert.doesNotMatch(listing.stdout, /package\/\.opencode\/\.gitignore/);
+    assert.doesNotMatch(listing.stdout, /release-keys\/william-zimmerman\.asc/);
+    const npmMetadata = spawnSync('tar', [
+      '-xOf', npmArtifact,
+      'package/skills/using-zimster/references/build-metadata.json'
+    ], { cwd: root, encoding: 'utf8' });
+    assert.equal(npmMetadata.status, 0, npmMetadata.stderr);
+    assert.equal(JSON.parse(npmMetadata.stdout).package_target, 'npm');
   } finally {
     await rm(first, { recursive: true, force: true });
     await rm(second, { recursive: true, force: true });
