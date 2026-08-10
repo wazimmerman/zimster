@@ -5,9 +5,8 @@ DeepSWE pilot. The primary question was whether adding Zimster's portable Agent
 Skills workflow in Codex changed deterministic task pass rates. Runtime, agent
 turns, token use, and other efficiency measures were secondary outcomes.
 
-The pilot provides a development-stage result for the workflow build that was
-tested. It is not a general claim that Zimster improves every coding task,
-model, or host.
+Because this was a small pilot of one workflow build, its result should not be
+generalized to every task, model, host, or later mechanism.
 
 ## DeepSWE pilot during v0.7 development
 
@@ -15,12 +14,6 @@ The benchmark tested the canonical Zimster skills at commit
 `95dfedf7d396a7b9faa72ced844a28f70bd6bcef`. Oversized-request decomposition
 and optional visual treatment were added to `designing-work` later in v0.7
 development and tested separately.
-
-Release records label this run **Historical pre-change v0.7 pilot** and the
-later checks **Final v0.7 candidate mechanism evidence**. In those terms, the
-pilot is historical evidence, not final-candidate evidence.
-Its results do not apply to or describe the final v0.7 candidate as a whole.
-No comparative benchmark has been run against the final v0.7 candidate.
 
 ## Results
 

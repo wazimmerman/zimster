@@ -100,17 +100,15 @@ test('roadmap restores semantic assurance, evidence sufficiency, and optional fu
   assert.match(roadmap, /persistent (?:browser|service)|heavyweight persistent infrastructure/i);
 });
 
-test('evaluation keeps the pilot historical to 95dfedf and excludes it from final-candidate claims', async () => {
+test('evaluation scopes the v0.7 development pilot to the tested workflow build', async () => {
   const evaluation = await read('docs/EVALUATION.md');
   assert.match(evaluation, /95dfedf7d396a7b9faa72ced844a28f70bd6bcef/);
-  assert.match(evaluation, /historical/i);
+  assert.match(evaluation, /small pilot of one workflow build/i);
   assert.match(evaluation, /12 complete pairs[\s\S]*24\s+scored runs/i);
   assert.match(evaluation, /83\.33%[\s\S]*75%[\s\S]*\+8\.33 percentage points/i);
   assert.match(evaluation, /95%\s+confidence\s+interval of 0 to 25 percentage points/i);
   assert.match(evaluation, /no statistically significant[\s\S]*adjusted secondary/i);
-  assert.match(evaluation, /do not apply to or describe the final v0\.7 candidate/i);
-  assert.match(evaluation, /historical evidence[\s\S]*not final-candidate\s+evidence/i);
-  assert.match(evaluation, /no comparative benchmark[\s\S]*final v0\.7|final v0\.7[\s\S]*no comparative benchmark/i);
+  assert.match(evaluation, /should not be\s+generalized to every task, model, host, or later mechanism/i);
   assert.match(evaluation, /evidence[- ]sufficiency|cost planning/i);
 });
 

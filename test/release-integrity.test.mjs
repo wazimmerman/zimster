@@ -113,9 +113,11 @@ test('current release docs use the synchronized package version and honest evalu
   const readme = await read('README.md');
   const evaluation = await read('docs/EVALUATION.md');
   assert.match(readme, new RegExp(`Version ${pkg.version.replaceAll('.', '\\.')}`));
-  assert.match(evaluation, /Final v0\.7 candidate mechanism evidence/);
-  assert.match(evaluation, /Historical pre-change v0\.7 pilot/);
-  assert.match(evaluation, /no comparative benchmark has been run against the final v0\.7 candidate/i);
+  assert.match(evaluation, /controlled, paired\s+DeepSWE pilot/i);
+  assert.match(evaluation, /canonical Zimster skills at commit\s+`95dfedf7d396a7b9faa72ced844a28f70bd6bcef`/i);
+  assert.match(evaluation, /oversized-request decomposition[\s\S]*optional visual treatment[\s\S]*added[\s\S]*later[\s\S]*tested separately/i);
+  assert.match(evaluation, /small pilot of one workflow build/i);
+  assert.match(evaluation, /should not be\s+generalized to every task, model, host, or later mechanism/i);
   assert.match(evaluation, /paired risk difference/);
 });
 
