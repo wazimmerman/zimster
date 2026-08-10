@@ -62,6 +62,7 @@ const skillRuntimeFiles = [
   ...operationalScripts.filter((entry) => entry.startsWith('scripts/lib/')),
   'config/convergence.json',
   'config/harness-capabilities.json',
+  'config/model-routing.json',
   'templates/run.md'
 ];
 const publicContracts = [

@@ -178,6 +178,7 @@ test('packaging is deterministic and emits the five public channel artifacts', a
     }
     assert.equal(openaiEntries.has('skills/using-zimster/scripts/lib/runtime.mjs'), true);
     assert.equal(openaiEntries.has('skills/using-zimster/config/convergence.json'), true);
+    assert.equal(openaiEntries.has('skills/using-zimster/config/model-routing.json'), true);
     assert.equal(openaiEntries.has('skills/using-zimster/templates/run.md'), true);
     assert.equal(openaiEntries.has('scripts/evidence.mjs'), false);
     assert.equal(openaiEntries.has('hooks/session-start.mjs'), false);
@@ -191,6 +192,7 @@ test('packaging is deterministic and emits the five public channel artifacts', a
     assert.equal(portableArchive.includes(Buffer.from('"support_policy": "claim_scoped_host_receipts_v1"')), true);
     assert.equal(portableEntries.has('skills/using-zimster/scripts/init-run.mjs'), true);
     assert.equal(portableEntries.has('skills/using-zimster/scripts/lib/runtime.mjs'), true);
+    assert.equal(portableEntries.has('skills/using-zimster/config/model-routing.json'), true);
 
     const npmArtifact = byName.get(`zimster-${version}.tgz`);
     const listing = spawnSync('tar', ['-tzf', npmArtifact], { cwd: root, encoding: 'utf8' });

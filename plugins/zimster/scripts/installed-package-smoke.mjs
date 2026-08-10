@@ -80,6 +80,12 @@ async function exercisePackagedWorkflow(runtimeRoot, fixture, home) {
   if (!snapshot.includes('fixture.txt')) {
     throw new Error('packaged change-snapshot helper did not continue the review workflow');
   }
+  JSON.parse(execute(
+    path.join(runtimeRoot, 'scripts', 'model-routing.mjs'),
+    ['validate-config', '--config', path.join(runtimeRoot, 'config', 'model-routing.json')],
+    fixture,
+    isolatedEnvironment(home)
+  ));
 }
 
 try {
