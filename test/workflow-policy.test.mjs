@@ -156,6 +156,21 @@ test('durable state has deterministic creation triggers', async () => {
   }
 });
 
+test('helper-backed skills resolve the portable using-zimster runtime before plugin-root fallback', async () => {
+  for (const name of [
+    'using-zimster',
+    'owner-driven-development',
+    'risk-adaptive-review',
+    'verification-before-completion'
+  ]) {
+    const content = await read(`skills/${name}/SKILL.md`);
+    assert.match(content, /<zimster-runtime>/);
+    assert.match(content, /using-zimster[\s\S]*scripts|scripts[\s\S]*using-zimster/i);
+    assert.match(content, /plugin root|full plugin/i);
+    assert.match(content, /manual|unavailable/i);
+  }
+});
+
 test('bootstrap policy enforces execution economy and phase-bounded ownership', async () => {
   const bootstrap = await read('skills/using-zimster/SKILL.md');
   assert.match(bootstrap, /logical owner[\s\S]*physical context|physical context[\s\S]*logical owner/i);

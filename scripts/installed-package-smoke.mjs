@@ -51,6 +51,37 @@ function execute(file, args, cwd, env) {
   return String(result.stdout || '').trim();
 }
 
+async function exercisePackagedWorkflow(runtimeRoot, fixture, home) {
+  await mkdir(fixture, { recursive: true });
+  const initialized = spawnSync('git', ['init', '-q', '-b', 'main'], {
+    cwd: fixture,
+    encoding: 'utf8',
+    shell: false
+  });
+  if (initialized.status !== 0) throw new Error(initialized.stderr || 'fixture git init failed');
+  await writeFile(path.join(fixture, 'fixture.txt'), 'packaged helper workflow\n');
+  execute(
+    path.join(runtimeRoot, 'scripts', 'init-run.mjs'),
+    ['--profile', 'micro', '--harness', 'codex', '--audit-path', '.audit/run.md'],
+    fixture,
+    isolatedEnvironment(home)
+  );
+  const run = await readFile(path.join(fixture, '.audit', 'run.md'), 'utf8');
+  if (!run.includes('Profile: Micro') || !run.includes('Harness capability receipt')) {
+    throw new Error('packaged init-run helper did not continue the durable-state workflow');
+  }
+  execute(
+    path.join(runtimeRoot, 'scripts', 'change-snapshot.mjs'),
+    ['--output', '.audit/change-snapshot.md'],
+    fixture,
+    isolatedEnvironment(home)
+  );
+  const snapshot = await readFile(path.join(fixture, '.audit', 'change-snapshot.md'), 'utf8');
+  if (!snapshot.includes('fixture.txt')) {
+    throw new Error('packaged change-snapshot helper did not continue the review workflow');
+  }
+}
+
 try {
   const archives = (await readdir(dist))
     .filter((name) => /^zimster-.*-(claude|codex|openai|portable)\.zip$/.test(name))
@@ -105,6 +136,16 @@ try {
         packageRoot,
         isolatedEnvironment(home)
       ));
+    }
+    if (target === 'codex' || target === 'openai' || target === 'portable') {
+      const runtimeRoot = target === 'codex'
+        ? packageRoot
+        : path.join(packageRoot, 'skills', 'using-zimster');
+      await exercisePackagedWorkflow(
+        runtimeRoot,
+        path.join(temporary, target, 'workflow-fixture'),
+        home
+      );
     }
     if (target === 'openai' || target === 'portable') {
       await readFile(path.join(packageRoot, target === 'openai' ? '.codex-plugin/plugin.json' : 'plugin.json'));

@@ -47,6 +47,23 @@ const operationalScripts = [
   'scripts/lib/tar-reader.mjs',
   'scripts/lib/zip-reader.mjs', 'scripts/lib/zip.mjs'
 ];
+const skillRuntimeFiles = [
+  'scripts/init-run.mjs',
+  'scripts/delegation-record.mjs',
+  'scripts/model-routing.mjs',
+  'scripts/dispatch-record.mjs',
+  'scripts/convergence.mjs',
+  'scripts/plan-conformance.mjs',
+  'scripts/project-commands.mjs',
+  'scripts/evidence.mjs',
+  'scripts/change-snapshot.mjs',
+  'scripts/semantic-assurance.mjs',
+  'scripts/review-integrity.mjs',
+  ...operationalScripts.filter((entry) => entry.startsWith('scripts/lib/')),
+  'config/convergence.json',
+  'config/harness-capabilities.json',
+  'templates/run.md'
+];
 const publicContracts = [
   'schemas/delegation-decision.schema.json', 'schemas/model-proposal.schema.json',
   'schemas/routing-observation.schema.json', 'schemas/convergence-decision.schema.json',
@@ -85,6 +102,13 @@ export async function createPackages(outputDirectory = path.join(root, 'dist')) 
   const outputs = [];
   for (const [target, includes] of definitions) {
     const entries = await collectFiles(root, includes, exclusions);
+    if (target === 'openai' || target === 'portable') {
+      const runtimeEntries = await collectFiles(root, skillRuntimeFiles, exclusions);
+      for (const [relative, source] of runtimeEntries) {
+        entries.push([`skills/using-zimster/${relative}`, source]);
+      }
+      entries.sort(([a], [b]) => a.localeCompare(b));
+    }
     const metadata = Buffer.from(`${JSON.stringify(await buildMetadata(root, target), null, 2)}\n`);
     for (const entry of entries) {
       if (entry[0].endsWith('skills/using-zimster/references/build-metadata.json')) {

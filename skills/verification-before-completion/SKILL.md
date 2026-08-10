@@ -30,6 +30,11 @@ effective routing as `unverified` when the harness cannot expose it.
 
 ## Discover canonical commands first
 
+Resolve `<zimster-runtime>` to the installed `using-zimster` skill root when it
+contains scripts/project-commands.mjs, otherwise to the full plugin root when
+that script exists there. Never resolve it from the target repository; use the
+manual fallback when neither path exists.
+
 Prefer repository-declared commands in this order:
 
 1. repository instructions (`AGENTS.md`, `CLAUDE.md`, contribution docs);
@@ -37,8 +42,8 @@ Prefer repository-declared commands in this order:
 3. Makefile, task runner, or project scripts;
 4. CI workflow commands.
 
-Use `<zimster>/scripts/project-commands.mjs`, resolved from the installed package
-root, as an inventory aid when available. Prefer `npm test` over an
+Use `<zimster-runtime>/scripts/project-commands.mjs` as an inventory aid when
+available. Prefer `npm test` over an
 invented `node --test` command when the repository defines it. Invent direct
 commands or flags only when canonical commands cannot establish the required
 proof; state why and how the direct command differs.
@@ -62,7 +67,7 @@ successful full-suite executions.
 
 ## Evidence receipts and reuse
 
-Record commands with `<zimster>/scripts/evidence.mjs` when available. A receipt binds command, working
+Record commands with `<zimster-runtime>/scripts/evidence.mjs` when available. A receipt binds command, working
 -tree fingerprint, Git head/tree, cwd, environment, exit code, test discovery,
 counts, scope, and timestamps.
 
@@ -86,7 +91,7 @@ git diff
 git diff --cached
 ```
 
-Use `<zimster>/scripts/change-snapshot.mjs` to include all untracked files without
+Use `<zimster-runtime>/scripts/change-snapshot.mjs` to include all untracked files without
 modifying the index, or read every untracked file directly. `git diff` alone is
 not a complete review when new files exist.
 
@@ -114,7 +119,7 @@ passing does not prove every requirement.
 On a clean final checkout, run the dependency-free gate:
 
 ```text
-node <zimster>/scripts/semantic-assurance.mjs complete \
+node <zimster-runtime>/scripts/semantic-assurance.mjs complete \
   --profile <micro|standard|high-risk> --owner-verified \
   --requirements <binding.json> --matrix <matrix.json> \
   --evidence <receipts.jsonl> --reviews <reviews.json> \

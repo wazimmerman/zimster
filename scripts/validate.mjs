@@ -74,7 +74,7 @@ for (const name of skillNames) {
   if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(metadata.name || '') || (metadata.name || '').length > 64) errors.push(`${relative}: name violates Agent Skills constraints`);
   if (!metadata.description || metadata.description.length < 20) errors.push(`${relative}: description is missing or too short`);
   if ((metadata.description || '').length > 1024 || /[<>]/.test(metadata.description || '')) errors.push(`${relative}: description violates Agent Skills constraints`);
-  if (/`scripts\//.test(content)) errors.push(`${relative}: helper path must be rooted at <zimster> with a skills-only fallback`);
+  if (/`scripts\//.test(content)) errors.push(`${relative}: helper invocation must be rooted at <zimster-runtime> with a manual fallback`);
   const lines = content.split('\n').length;
   if (lines > 240) errors.push(`${relative}: ${lines} lines exceeds the 240-line budget`);
   for (const forbidden of ['/tmp/', '/home/', 'C:\\Users\\', '~/.']) {

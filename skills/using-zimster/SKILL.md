@@ -92,7 +92,11 @@ readiness. Only the deterministic completion gate may emit `CANDIDATE_COMPLETE`.
 
 ## Durable state trigger
 
-Create durable state with installed-package `<zimster>/scripts/init-run.mjs`
+Resolve `<zimster-runtime>` from installed `using-zimster` when it has
+scripts/init-run.mjs, else the full plugin root. Never use target repo; fall
+back manually if absent.
+
+Create state with `<zimster-runtime>/scripts/init-run.mjs`
 when any condition is true. By default it writes to the Git-local path
 reported by `git rev-parse --git-path zimster/run.md`, outside product history:
 
@@ -115,13 +119,14 @@ has explicitly opted into committed audit evidence. Do not modify tracked
 
 ## Delegation and model routing
 
-Use `delegation-record.mjs` first: price/mappings never cause delegation and
-`selected: false` forbids routing. A selected role records its inline option,
-ownership/tools, cone, stop, and owner proof. Then `model-routing.mjs` may issue
+Use `<zimster-runtime>/scripts/delegation-record.mjs` first: price/mappings never delegate and
+`selected: false` forbids routing. Selected roles record inline option,
+ownership/tools, cone, stop, and owner proof. Then
+`<zimster-runtime>/scripts/model-routing.mjs` may issue
 an advisory plan or authoritative dispatch proposal using
 `config/model-routing.json`. Resolve
 override → run → project → user → harness → inherit; record requested/effective
-values and owner acceptance with `<zimster>/scripts/dispatch-record.mjs`; record
+values and owner acceptance with `<zimster-runtime>/scripts/dispatch-record.mjs`; record
 the same fields manually when unavailable. Classes are
 economy, balanced, expert, and inherit
 without vendor defaults; unknown values stay `unverified` and old tiers alias.
@@ -148,7 +153,7 @@ runs. Record suites, duplicates, agent identities/depth, rechecks,
 corrections, context renewals, research, and exposed token thresholds. Crossing
 a limit needs a recorded strategy change/invalidation and named proof.
 
-Use `convergence.mjs decide` for ordinary deterministic failure. Continue
+Use `<zimster-runtime>/scripts/convergence.mjs decide` for ordinary deterministic failure. Continue
 without repeated authorization only in-scope, reversible, non-sensitive,
 authorized work within budget. Escalate only for contradiction, material
 expansion, sensitive authority gaps, missing review, required approval, or
@@ -173,13 +178,10 @@ command, check for a valid receipt keyed to the current tree, dirty state,
 environment, exact argv, dependency cone, and inputs. Required fresh final
 gates are never reused.
 
-The release sequence is build candidate packages → installed-package smoke in
-isolated homes → claim-scoped host discovery/smoke → immutable compact review
-package → reserved final integration review of the exact final head → bounded correction and
-another exact-head review only if required → fresh exact-tree verification →
-candidate-completion gate. Correction rechecks never consume the reserved final
-review. Source-only review cannot substitute for an available installed
-candidate test.
+Release sequence: build packages → installed-package smoke → host smoke →
+review package → reserved exact-head final integration review → bounded
+correction/review if needed → fresh exact-tree verification → completion gate.
+Source-only review never replaces available installed-package proof.
 
 ## Capability research and postmortem
 

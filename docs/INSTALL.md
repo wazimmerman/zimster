@@ -66,19 +66,32 @@ Use `/plugins install <path-or-url>`, then `/plugins info zimster` and
 `/plugins reload`. The CLI was unavailable for the 0.7.0 smoke, so follow the
 bounded claims in `KIMI.md`.
 
+## OpenAI Plugin Directory
+
+Submit `zimster-0.7.0-openai.zip` as the final skills bundle. It contains the 12
+skills plus the dependency-free runtime used by helper-backed workflows under
+`skills/using-zimster/scripts/`. The directory ingests the skills and their
+supporting files; it does not install the Git/repo marketplace wrapper from the
+Codex ZIP.
+
 ## Skills-only installation
 
-The OpenAI submission zip and portable zip both contain canonical skills. From
-a full checkout or npm package:
+The OpenAI submission zip and portable Agent Plugin zip contain canonical
+skills and the packaged `using-zimster` runtime. From a full checkout or npm
+package:
 
 ```text
 npm run sync-skills -- --target /path/to/project --dry-run
 npm run sync-skills -- --target /path/to/project
 ```
 
-Without the helper, copy each `skills/<name>/` directory unchanged into a host's
-documented Agent Skills directory. Skills-only mode has no guaranteed scripts,
-receipts, agents, hooks, or model enforcement. See `SKILLS_ONLY.md`.
+Without the synchronization helper, copy each `skills/<name>/` directory
+unchanged into a host's documented Agent Skills directory. Preserve the
+`using-zimster/scripts/`, `using-zimster/config/`, and
+`using-zimster/templates/` support directories when they are present. A source
+tree copy without that packaged runtime uses the documented script-free
+fallback. Skills-only mode never guarantees host agents, hooks, or model
+enforcement. See `SKILLS_ONLY.md`.
 
 ## Update
 

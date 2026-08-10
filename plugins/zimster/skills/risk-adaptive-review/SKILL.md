@@ -45,6 +45,11 @@ load-bearing obligations and final integration approval.
 
 ## Complete review scope
 
+Resolve `<zimster-runtime>` to the installed `using-zimster` skill root when it
+contains scripts/change-snapshot.mjs, otherwise to the full plugin root when
+that script exists there. Never resolve it from the target repository; use the
+manual fallback when neither path exists.
+
 Before any verdict, account for every change, not only tracked unstaged diffs:
 
 ```text
@@ -53,8 +58,7 @@ git diff
 git diff --cached
 ```
 
-Generate `<zimster>/scripts/change-snapshot.mjs --output <path>`, resolved from
-the installed package root, so staged, unstaged, and
+Generate `<zimster-runtime>/scripts/change-snapshot.mjs --output <path>` so staged, unstaged, and
 untracked files are represented without modifying the index. As a manual
 fallback, use `git add -N <untracked paths>` followed by `git diff`, or read
 every untracked file directly. Restore no index state by guessing; record what
@@ -97,10 +101,11 @@ Do not create one reviewer per lens.
 
 Use the pure `integration-reviewer` for code/evidence inspection; it has no
 Bash. Use the `test-reviewer` only for one named focused experiment. A
-test-capable reviewer must run plugin-relative `review-integrity.mjs capture`
+test-capable reviewer must run
+`<zimster-runtime>/scripts/review-integrity.mjs capture`
 with immutable base/head SHAs and `--review-files` naming the mission,
 snapshot, evidence ledger, and other binding inputs before its command, then
-run `review-integrity.mjs verify` afterward. It reports
+run `<zimster-runtime>/scripts/review-integrity.mjs verify` afterward. It reports
 `REVIEW_CHECKOUT_CHANGED` if HEAD, index, tracked, untracked, or review-package
 files change and `REVIEW_CHECKOUT_UNCHANGED` otherwise. Checkout integrity does
 not imply semantic approval. Review inputs may be explicit absolute paths outside the

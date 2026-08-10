@@ -52,7 +52,7 @@ review. Re-run the applicable checks on the corrected tree.
 - the portable Agent Plugin ZIP;
 - the full Codex plugin ZIP;
 - the full Claude plugin ZIP;
-- the OpenAI skills-only submission ZIP; and
+- the OpenAI skills-plugin submission ZIP with bundled supporting code; and
 - the primary npm/Pi package tarball.
 
 Build twice from independent clean checkouts and require byte-identical files

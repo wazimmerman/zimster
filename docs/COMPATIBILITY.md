@@ -30,9 +30,11 @@ OpenCode skill discovery does not prove routing to a requested model.
 ## Portable baseline
 
 Every host can consume the 12 canonical Agent Skills if it implements the
-current Agent Skills format. A skills-only install loses package-root helper
-commands, host agents/hooks, and machine-enforced model settings. Every helper
-reference therefore includes a manual or inline fallback.
+current Agent Skills format. The OpenAI and portable release bundles place the
+referenced dependency-free runtime inside the `using-zimster` skill. A direct
+source-tree skill copy may still lose helpers, and all skills-only installs lose
+host agents/hooks and machine-enforced model settings. Every helper reference
+therefore retains a manual or inline fallback.
 
 ## Native differences
 

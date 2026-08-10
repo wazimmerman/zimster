@@ -74,8 +74,12 @@ inventing commit SHAs.
 
 ## 3. Durable state
 
-Create durable state through `<zimster>/scripts/init-run.mjs`, resolved from the
-installed package root rather than the target repository, when any
+Resolve `<zimster-runtime>` to the installed `using-zimster` skill root when it
+contains scripts/init-run.mjs, otherwise to the full plugin root when that
+contains scripts/init-run.mjs. Never resolve it from the target repository;
+use the manual fallback when neither path exists.
+
+Create durable state through `<zimster-runtime>/scripts/init-run.mjs` when any
 condition is true. Normal state belongs at the worktree-safe Git-local path
 from `git rev-parse --git-path zimster/run.md`, not in product history:
 
@@ -98,7 +102,7 @@ compact record manually at `git rev-parse --git-path zimster/run.md`.
 Classify indexed context as `current_truth`, `proposed_delta`,
 `accepted_decision`, or `unresolved_proposal`. Human approval is required before
 promoting a proposal into durable knowledge. Run
-`<zimster>/scripts/plan-conformance.mjs` at every verified slice boundary and
+`<zimster-runtime>/scripts/plan-conformance.mjs` at every verified slice boundary and
 again before release; use an equivalent manual requirement audit when the helper
 is unavailable.
 

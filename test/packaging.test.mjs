@@ -164,6 +164,21 @@ test('packaging is deterministic and emits the five public channel artifacts', a
     const openaiEntries = storedZipEntries(openaiArchive);
     assert.equal(openaiEntries.has('.codex-plugin/plugin.json'), true);
     assert.equal(openaiEntries.has('skills/using-zimster/SKILL.md'), true);
+    for (const helper of [
+      'init-run.mjs', 'delegation-record.mjs', 'model-routing.mjs',
+      'dispatch-record.mjs', 'convergence.mjs', 'plan-conformance.mjs',
+      'project-commands.mjs', 'evidence.mjs', 'change-snapshot.mjs',
+      'semantic-assurance.mjs', 'review-integrity.mjs'
+    ]) {
+      assert.equal(
+        openaiEntries.has(`skills/using-zimster/scripts/${helper}`),
+        true,
+        `OpenAI skill bundle missing runtime helper ${helper}`
+      );
+    }
+    assert.equal(openaiEntries.has('skills/using-zimster/scripts/lib/runtime.mjs'), true);
+    assert.equal(openaiEntries.has('skills/using-zimster/config/convergence.json'), true);
+    assert.equal(openaiEntries.has('skills/using-zimster/templates/run.md'), true);
     assert.equal(openaiEntries.has('scripts/evidence.mjs'), false);
     assert.equal(openaiEntries.has('hooks/session-start.mjs'), false);
     const portableArchive = await bytes(byName.get(`zimster-${version}-portable.zip`));
@@ -174,6 +189,8 @@ test('packaging is deterministic and emits the five public channel artifacts', a
     assert.equal(portableArchive.includes(Buffer.from('"package_target": "portable"')), true);
     assert.equal(portableArchive.includes(Buffer.from('"release_channel": "public_beta"')), true);
     assert.equal(portableArchive.includes(Buffer.from('"support_policy": "claim_scoped_host_receipts_v1"')), true);
+    assert.equal(portableEntries.has('skills/using-zimster/scripts/init-run.mjs'), true);
+    assert.equal(portableEntries.has('skills/using-zimster/scripts/lib/runtime.mjs'), true);
 
     const npmArtifact = byName.get(`zimster-${version}.tgz`);
     const listing = spawnSync('tar', ['-tzf', npmArtifact], { cwd: root, encoding: 'utf8' });
