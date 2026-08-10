@@ -7,6 +7,9 @@ import path from 'node:path';
 import { root } from './helpers.mjs';
 
 const helper = path.join(root, '.github/scripts/release-signing-key.mjs');
+const linuxGpgIntegration = process.platform === 'linux'
+  ? false
+  : 'Cryptographic integration targets the Linux release runner; macOS and Windows continue to exercise the platform-independent release contract.';
 
 function gpg(home, args, options = {}) {
   return spawnSync('gpg', ['--batch', '--no-options', '--homedir', home, ...args], {
@@ -49,7 +52,7 @@ async function emptyHome(directory, name) {
   return home;
 }
 
-test('release signing helper derives, matches, and only then imports one public primary key', async () => {
+test('release signing helper derives, matches, and only then imports one public primary key', { skip: linuxGpgIntegration }, async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'zimster-release-key-'));
   try {
     const generated = await generatedKey(directory, 'Release Test');
@@ -72,7 +75,7 @@ test('release signing helper derives, matches, and only then imports one public 
   }
 });
 
-test('a mismatching trust anchor fails before the public key is imported', async () => {
+test('a mismatching trust anchor fails before the public key is imported', { skip: linuxGpgIntegration }, async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'zimster-release-key-mismatch-'));
   try {
     const generated = await generatedKey(directory, 'Mismatch Test');
@@ -93,7 +96,7 @@ test('a mismatching trust anchor fails before the public key is imported', async
   }
 });
 
-test('ambiguous or secret key material is rejected without importing a key', async () => {
+test('ambiguous or secret key material is rejected without importing a key', { skip: linuxGpgIntegration }, async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'zimster-release-key-invalid-'));
   try {
     const first = await generatedKey(directory, 'First Test');
@@ -130,7 +133,7 @@ test('ambiguous or secret key material is rejected without importing a key', asy
   }
 });
 
-test('the checked-in owner public key resolves to the configured release fingerprint', async () => {
+test('the checked-in owner public key resolves to the configured release fingerprint', { skip: linuxGpgIntegration }, async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'zimster-owner-release-key-'));
   try {
     const result = runHelper([

@@ -14,6 +14,9 @@ const expectedPublicBeta = {
   prerelease: true,
   latest: false
 };
+const linuxGpgIntegration = process.platform === 'linux'
+  ? false
+  : 'Cryptographic integration targets the Linux release runner; macOS and Windows continue to exercise the platform-independent release contract.';
 
 test('signed public_beta and stable channels map to explicit GitHub release state', () => {
   assert.equal(typeof releaseEvidence.githubReleaseState, 'function');
@@ -55,7 +58,7 @@ function digest(data) {
   return createHash('sha256').update(data).digest('hex');
 }
 
-test('verify-tag emits GitHub state only from the verified canonical signed payload', async () => {
+test('verify-tag emits GitHub state only from the verified canonical signed payload', { skip: linuxGpgIntegration }, async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'zimster-signed-channel-'));
   const home = path.join(directory, 'gnupg');
   const repo = path.join(directory, 'repo');

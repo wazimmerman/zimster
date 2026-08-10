@@ -39,6 +39,18 @@ test('release workflow establishes the configured public-key trust anchor before
   assert.match(workflow, /release:evidence[\s\S]*verify-tag[\s\S]*--trusted-fingerprint/);
 });
 
+test('live GPG fixtures are Linux-only while portable release contracts stay cross-platform', async () => {
+  const channel = await read('test/release-channel.test.mjs');
+  const signing = await read('test/release-signing.test.mjs');
+  const reason = /Linux release runner[\s\S]*macOS and Windows[\s\S]*platform-independent release contract/i;
+  assert.match(channel, reason);
+  assert.match(signing, reason);
+  assert.equal(channel.match(/skip: linuxGpgIntegration/g)?.length, 1);
+  assert.equal(signing.match(/skip: linuxGpgIntegration/g)?.length, 4);
+  assert.match(channel, /test\('signed public_beta and stable channels[\s\S]*\(\) =>/);
+  assert.match(channel, /test\('public beta mapping is independent[\s\S]*\(\) =>/);
+});
+
 test('release workflow publishes npm before exposing an explicitly channel-bound GitHub release', async () => {
   const workflow = await read('.github/workflows/release.yml');
   const authorization = workflow.indexOf('--github-output "$GITHUB_OUTPUT"');
