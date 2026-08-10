@@ -23,7 +23,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/wazimmerman/zimster/releases/tag/v0.6.0"><img alt="Current public-beta release: v0.6.0" src="https://img.shields.io/badge/public_beta-v0.6.0-5b8def"></a>
+  <a href="https://github.com/wazimmerman/zimster/releases/tag/v0.7.0"><img alt="Current public-beta release: v0.7.0" src="https://img.shields.io/badge/public_beta-v0.7.0-5b8def"></a>
   <a href="https://github.com/wazimmerman/zimster/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/wazimmerman/zimster/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-2ea44f"></a>
 </p>
@@ -106,11 +106,11 @@ product, architecture, UX, security, migration, public-contract, or expensive
 choices get deeper collaborative design. Oversized requests are separated into
 bounded workstreams only when one plan would stop being coherent.
 
-The workflow reads relevant project context before asking questions, separates
-current system truth from proposed changes, keeps accepted decisions distinct
-from unresolved proposals, and requires human approval before a proposal becomes
-durable project knowledge. Plans preserve requirement IDs, architecture,
-dependencies, coherent vertical slices, and evidence obligations. Plan
+The workflow reads relevant project context before asking questions. It keeps
+current behavior, proposed changes, accepted decisions, and unresolved choices
+distinct. Human approval is required before a proposal becomes durable project
+knowledge. Plans track requirement IDs, architecture, dependencies, coherent
+vertical slices, and the tests or checks each requirement needs. Plan
 conformance is checked at slice boundaries and before release.
 
 Specification and TDD are complementary: specifications establish what should
@@ -121,8 +121,8 @@ requirements and specification
 → architecture and design where needed
 → implementation plan
 → TDD and implementation
-→ review and integration evidence
-→ requirement and evidence completion
+→ review and integration tests
+→ requirement and verification completion
 ```
 
 ### Implementation and debugging
@@ -134,11 +134,11 @@ implementation is available only for genuinely independent workstreams.
 
 ### Review and verification
 
-Review depth follows risk and concentrates on load-bearing seams. Zimster covers
-review feedback adjudication, requirement-to-evidence mapping, stale-evidence
-detection, exact-head verification, and staged, unstaged, and untracked changes.
-Unavailable service, hardware, human, or reviewer proof narrows the completion
-claim instead of being presented as success.
+Review depth follows risk and concentrates on the interfaces where failures
+would matter most. Zimster tracks review feedback, maps requirements to their
+verification, detects stale results, verifies the final Git state, and accounts
+for staged, unstaged, and untracked changes. When a required service, device, or
+reviewer is unavailable, the completion report states that limitation.
 
 ### Delegation and model use
 
@@ -150,11 +150,11 @@ when the host exposes that information.
 
 ### Continuity and bounded automation
 
-Compact Git-local journals preserve the mission, decisions, evidence, and next
+Compact Git-local journals retain the mission, decisions, test results, and next
 slice across context renewal or compaction. Deterministic corrections can
-continue within explicit evidence and execution budgets. Receipts bind proof to
-the relevant candidate, command, environment, and dependency scope, while build
-metadata preserves package provenance.
+continue within explicit execution limits. Verification receipts record the
+candidate, command, environment, and affected dependencies; build metadata
+records package provenance.
 
 ### Portability
 
@@ -210,8 +210,8 @@ rules, and convergence controls.
 
 ## Supported harnesses
 
-Version 0.7.0 uses claim-scoped support levels. Installation availability and
-structural validation do not imply live, model-backed execution.
+Version 0.7.0 reports support per tested capability. Installation and structural
+validation do not imply live, model-backed execution.
 
 | Harness | Current verification level | Installation path | Principal limitation |
 |---|---|---|---|
@@ -234,8 +234,8 @@ The vocabulary is intentionally narrow:
 - `UNAVAILABLE`: the required host or capability was not present.
 - `UNSUPPORTED`: Zimster does not provide the claimed integration.
 
-For the complete evidence matrix, including what was tested, what was not
-tested, installation availability, and known limitations, see the harness guides in
+For the complete support matrix, including what was tested, what was not tested,
+installation availability, and known limitations, see the harness guides in
 [the documentation](#documentation) and run `npm run doctor -- --json` from a
 checkout or package.
 
@@ -275,26 +275,24 @@ The detailed assurance state machine and operational controls are documented in
 | Terms | [Terms](TERMS.md) |
 | Licensing provenance | [Third-party notices](THIRD_PARTY_NOTICES.md) |
 
-Harness-specific installation and evidence details are available for
+Harness-specific installation and verification details are available for
 [Codex](docs/CODEX.md), [Claude Code](docs/CLAUDE.md),
 [Grok](docs/GROK.md), [Kimi Code](docs/KIMI.md),
 [OpenCode](docs/OPENCODE.md), and [Pi](docs/PI.md).
-The retained [Cursor adapter](docs/CURSOR.md) is an ancillary skills-only
-surface and is not one of the v0.7.0 release-authorization hosts.
+The [Cursor adapter](docs/CURSOR.md) is an ancillary skills-only surface and is
+not one of the v0.7.0 release hosts.
 
-## Public-beta status and known limitations
+## Public beta
 
-Version 0.7.0 is a release candidate. The latest published release remains
-0.6.0 until the signed release authorization succeeds. The core workflow is
-usable, while evidence
-levels differ by harness and live model-backed testing has not been completed
-for every integration. Review the [known limitations](docs/KNOWN_LIMITATIONS.md)
-before adoption.
+Version 0.7.0 is the current public beta. See [Known limitations](docs/KNOWN_LIMITATIONS.md)
+for host-specific support and current constraints.
 
-The completed DeepSWE pilot is historical evidence for pre-change commit
-`95dfedf7d396a7b9faa72ced844a28f70bd6bcef`. It is not a benchmark of the
-changed final v0.7 candidate. See [Evaluation](docs/EVALUATION.md) for the exact
-result and the cost-planned path to future comparative evidence.
+During v0.7 development, Zimster was evaluated in a controlled 24-run DeepSWE
+pilot using Codex. The Zimster condition passed 10 of 12 scored runs (83.33%)
+compared with 9 of 12 (75%) for control. It also used less wall-clock time,
+fewer agent turns, and fewer output tokens on average. Two `designing-work`
+capabilities were added later and tested separately. See
+[Evaluation](docs/EVALUATION.md) for the protocol, full results, and limitations.
 
 Reproducible issue reports should include the Zimster version, harness version,
 selected workflow profile, and relevant `doctor` or postmortem output.
