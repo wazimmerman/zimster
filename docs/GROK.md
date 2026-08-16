@@ -1,9 +1,11 @@
 # Grok
 
-Verification target for Zimster 0.7.1: `STRUCTURALLY_VALIDATED` for the root
-manifest and 12-skill package structure on the Grok 1.0.0 validation surface.
-Isolated installation, fresh discovery, and model-backed execution are not
-established by the release receipt.
+Verification achieved for Zimster 0.7.1: `INSTALLED_PACKAGE_VERIFIED` on Grok
+1.0.0. The current validator accepted the exact portable artifact's root
+manifest and 12-skill package structure. An isolated trusted local install,
+plugin list, and plugin details also reported Zimster 0.7.1 from the candidate
+path. Model-backed execution was blocked because the isolated harness was not
+signed in.
 
 Grok accepts the standards-based root `plugin.json`. Its validator selected the
 root manifest and found the canonical `skills/` directory, so Zimster does not

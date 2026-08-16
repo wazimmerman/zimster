@@ -1,9 +1,12 @@
 # Claude Code
 
-Verification target for Zimster 0.7.1: `STRUCTURALLY_VALIDATED` on Claude Code
-2.1.233. Current strict validation covers 12 skills, 4 agents, and one
-SessionStart hook, plus the package manifest. Isolated discovery and
-authenticated model-backed invocation remain separate release receipts.
+Verification achieved for Zimster 0.7.1: `INSTALLED_PACKAGE_VERIFIED` on Claude
+Code 2.1.233. Current strict validation and an isolated marketplace install
+covered 12 skills, 4 agents, and one SessionStart hook, plus the package
+manifest.
+The installed plugin reported version 0.7.1 and an isolated managed path.
+Authenticated model-backed invocation was blocked because that isolated
+configuration was not logged in.
 
 ## Validate and install
 

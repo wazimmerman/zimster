@@ -1,9 +1,11 @@
 # Kimi Code
 
-Verification target for Zimster 0.7.1: Kimi Code 0.36.1. The native manifest
-uses documented fields, canonical skill paths, exactly one
-`sessionStart.skill`, and plugin-discovered agent files. Managed installation,
-discovery, and model-backed execution remain separately scoped evidence.
+Verification achieved for Zimster 0.7.1: `INSTALLED_PACKAGE_VERIFIED` on Kimi
+Code 0.36.1. In an isolated `KIMI_CODE_HOME`, the current local-plugin flow
+copied the exact candidate into Kimi's managed directory. After reload,
+`/plugins info zimster` reported Zimster 0.7.1 enabled with healthy state,
+`using-zimster` as the session start, and skill instructions present.
+Model-backed execution was unavailable because no provider was configured.
 
 ## Install
 
@@ -38,9 +40,10 @@ affect Kimi's managed copy until reinstall/reload.
 
 ## Verification status
 
-Manifest, skill, and agent structure are `STRUCTURALLY_VALIDATED` on 0.36.1.
-Installation, fresh-session discovery, and model-backed behavior require their
-own receipts.
+The exact candidate is `INSTALLED_PACKAGE_VERIFIED` on 0.36.1. Managed-copy
+installation, reload, manifest health, session-start discovery, and skill
+instructions were observed. Model-backed behavior and effective runtime tool
+restriction remain unverified.
 
 Zimster maps only to Kimi's symbolic `primary`, a host-verified experimental
 `secondary`, or inheritance. Vendor model IDs are not stored in the manifest.

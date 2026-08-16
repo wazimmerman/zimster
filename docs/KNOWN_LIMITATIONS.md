@@ -3,11 +3,13 @@
 Zimster 0.7.1 is a public beta, not a stable 1.0 compatibility guarantee.
 
 - Host evidence is capability-scoped. Only OpenCode discovery is
-  `LIVE_VERIFIED`; Claude and Grok are `STRUCTURALLY_VALIDATED`. None of those
+  `LIVE_VERIFIED`. Codex, Claude, Grok, Kimi Code, and Pi are
+  `INSTALLED_PACKAGE_VERIFIED` for their named package behavior. None of those
   checks establishes model-backed task quality or effective model identity.
-- Codex and Pi are `INSTALLED_PACKAGE_VERIFIED` for the named package behavior.
-- Kimi Code 0.36.1 is available, but managed-copy discovery and authenticated
-  model-backed behavior remain outside the structural claim.
+- The isolated Claude and Grok homes were not logged in, Kimi had no provider
+  configured, and the Codex model-backed probe could not be authorized through
+  the release environment. These unavailable probes do not weaken the exact
+  install/discovery evidence or promote it to model-backed verification.
 - Skills-only installs lack guaranteed scripts, receipts, agents, hooks, and
   machine-enforced routing.
 - A host may accept a requested model without reporting the effective model.

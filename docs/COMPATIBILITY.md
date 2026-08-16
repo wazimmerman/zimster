@@ -17,15 +17,16 @@ Status vocabulary:
 | Host | CLI | Distribution | Verified capabilities | Not established |
 |---|---:|---|---|---|
 | Codex | standalone 0.147.0; managed Desktop 0.147.0-alpha.6.6 | Codex zip / Git marketplace | `INSTALLED_PACKAGE_VERIFIED`: marketplace registration, install, version, generated-mirror integrity; explicit role templates parse in a project layer | Authenticated exact-package prompt task; managed Desktop role binding because its observed schema omitted role/model/effort fields |
-| Claude Code | 2.1.233 | Claude zip / GitHub marketplace | `STRUCTURALLY_VALIDATED`: current strict validator covers exact-package manifest, 12 skills, 4 agents, and 1 SessionStart hook | Isolated authenticated model-backed invocation and effective restriction observation |
-| Grok | 1.0.0 stable | Portable Agent Plugin zip | `STRUCTURALLY_VALIDATED`: root Agent Plugins manifest and 12-skill package structure | Isolated installation, fresh discovery, and model-backed invocation; no separate `.grok` layer was needed |
+| Claude Code | 2.1.233 | Claude zip / GitHub marketplace | `INSTALLED_PACKAGE_VERIFIED`: strict validation plus isolated marketplace registration/install and inventory of the exact 0.7.1 manifest, 12 skills, 4 agents, and 1 SessionStart hook | Authenticated model-backed invocation and effective restriction observation; isolated login was unavailable |
+| Grok | 1.0.0 stable | Portable Agent Plugin zip | `INSTALLED_PACKAGE_VERIFIED`: root Agent Plugins validation plus isolated trusted install, list, and details for exact 0.7.1 | Authenticated model-backed invocation; isolated sign-in was unavailable and no separate `.grok` layer was needed |
 | OpenCode | 1.18.18 | npm tarball / project package | `LIVE_VERIFIED`: exact npm tarball extraction, project adapter load, canonical skill discovery | Model-backed task execution and effective model identity |
 | Pi | 0.84.2 | `zimster` npm package | `INSTALLED_PACKAGE_VERIFIED`: local package installation and listing; structural extension/resource tests | Model-backed session discovery; optional `pi-subagents` 0.50.0 transport execution |
-| Kimi Code | 0.36.1 | `zimster` npm package / local plugin source | `STRUCTURALLY_VALIDATED`: native manifest fields, skill paths, agent discovery contract, one session bootstrap, and `subagents: []` restrictions | Managed-copy discovery, authenticated model-backed execution, and effective restriction observation |
+| Kimi Code | 0.36.1 | `zimster` npm package / local plugin source | `INSTALLED_PACKAGE_VERIFIED`: isolated managed-copy install/reload reported exact 0.7.1 enabled and healthy with `using-zimster` session start and skill instructions | Model-backed execution and effective restriction observation; the isolated harness had no configured provider |
 
 These claims are capability-specific. For example, Claude component inventory
-does not prove that a reviewer restriction survived a model session, and
-OpenCode skill discovery does not prove routing to a requested model.
+does not prove that a reviewer restriction survived a model session, Kimi
+session-start discovery does not prove model behavior, and OpenCode skill
+discovery does not prove routing to a requested model.
 
 ## Portable baseline
 

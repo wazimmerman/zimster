@@ -214,9 +214,9 @@ validation do not imply live, model-backed execution.
 | Harness | Current verification level | Installation path | Principal limitation |
 |---|---|---|---|
 | Codex CLI 0.147.0 | `INSTALLED_PACKAGE_VERIFIED` | Full Codex ZIP or Git/custom marketplace | Exact-package install is verified; role templates require explicit project/user registration and managed Desktop is separately scoped |
-| Claude Code 2.1.233 | `STRUCTURALLY_VALIDATED` | Full Claude ZIP or GitHub marketplace | Current strict validation covers the exact package; model-backed restriction proof remains separate |
-| Grok 1.0.0 | `STRUCTURALLY_VALIDATED` | Portable Agent Plugin ZIP | Current validation covers the root manifest; a repository root is not automatically enabled |
-| Kimi Code 0.36.1 | `STRUCTURALLY_VALIDATED` | Primary npm package or local plugin source | Current manifest, skills, agents, and descendant-tool denial validate; managed discovery/model-backed execution remain separately scoped |
+| Claude Code 2.1.233 | `INSTALLED_PACKAGE_VERIFIED` | Full Claude ZIP or GitHub marketplace | Strict validation plus isolated marketplace install, component inventory, and plugin details passed; model-backed restriction proof remains separate |
+| Grok 1.0.0 | `INSTALLED_PACKAGE_VERIFIED` | Portable Agent Plugin ZIP | Validation plus isolated local install, list, and details passed; a repository root is not automatically enabled |
+| Kimi Code 0.36.1 | `INSTALLED_PACKAGE_VERIFIED` | Primary npm package or local plugin source | Isolated managed-copy installation, reload, enabled/healthy status, `using-zimster` session start, and skill instructions passed; model-backed execution remains separate |
 | OpenCode 1.18.18 | `LIVE_VERIFIED` | Primary npm package or copied skills | Exact npm-package skill discovery is the live claim; model-backed execution is not implied |
 | Pi 0.84.2 | `INSTALLED_PACKAGE_VERIFIED` | Primary npm package | Exact-package installation is the claim; optional 0.50.0 delegation is separate and disabled by default |
 

@@ -53,7 +53,7 @@
       "public_claims": ["adapter_structure", "installation_surface"],
       "structural_observations": ["The exact npm package contains Kimi plugin and Agent Skill surfaces"],
       "capabilities_not_established": ["live_host_execution", "fresh_session_discovery", "model_backed_execution"],
-      "known_limitations": ["Kimi Code 0.36.1 is available; managed-copy discovery and model-backed execution require separate receipts"],
+      "known_limitations": ["The automated fallback is structural; the 0.7.1 release run separately established isolated managed-copy install/reload/discovery on Kimi Code 0.36.1, while model-backed execution remained unavailable"],
       "unavailable_reason": "Kimi Code CLI is not installed."
     },
     {

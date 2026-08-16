@@ -77,7 +77,7 @@ test('BETA-001 and BETA-003: six beta surfaces use claim-scoped states and chann
   for (const version of ['0.147.0', '2.1.233', '1.0.0', '0.36.1', '1.18.18', '0.84.2']) {
     assert.match(compatibility, new RegExp(version.replaceAll('.', '\\.')));
   }
-  assert.match(compatibility, /Kimi[\s\S]*STRUCTURALLY_VALIDATED/i);
+  assert.match(compatibility, /Kimi[\s\S]*INSTALLED_PACKAGE_VERIFIED/i);
 });
 
 test('BETA-002: privacy, diagnostics, contribution, and security contracts are public-beta ready', async () => {

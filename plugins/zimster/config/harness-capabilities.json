@@ -138,7 +138,7 @@
           "url": "https://moonshotai.github.io/kimi-code/en/customization/plugins.html"
         }
       ],
-      "verification": "structurally_validated",
+      "verification": "installed_package_verified",
       "capabilities": {
         "native_skill_loading": "native",
         "plugin_relative_helper_scripts": "native",
