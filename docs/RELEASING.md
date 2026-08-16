@@ -22,7 +22,7 @@ Synchronize versions through the repository command:
 npm run version:bump -- <next-version> --note "Release summary"
 ```
 
-For v0.7.0 the candidate must satisfy the standards lock, canonical/generated
+For v0.7.1 the candidate must satisfy the standards lock, canonical/generated
 mirror equality, current host evidence, benchmark evidence policy, and
 plan-conformance gate. Registry acceptance is a later external event, not a tag
 gate.

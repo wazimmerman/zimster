@@ -289,6 +289,16 @@ export function applyExecutionBudgetEvent(state, {
     : state.usage[metric] || 0;
   const proposed = current + amount;
   const limit = state.limits[metric];
+  if (metric === 'correction_rechecks' && proposed > limit) {
+    return {
+      changed: false,
+      status: 'BUDGET_CONSTRAINED',
+      detail: {
+        metric, scope, current, proposed, limit,
+        reason: 'correction rechecks are a non-overridable one-per-seam lifecycle limit'
+      }
+    };
+  }
   if (proposed > limit && !invalidation && !strategyChange) {
     return {
       changed: false,

@@ -6,6 +6,10 @@ import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { root } from './helpers.mjs';
+import {
+  applyReviewLifecycleEvent,
+  createReviewLifecycle
+} from '../scripts/lib/review-lifecycle.mjs';
 
 const CLEAN_FINGERPRINT = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
@@ -35,6 +39,61 @@ function run(args, cwd = root) {
     path.join(root, 'scripts/semantic-assurance.mjs'),
     ...args
   ], { cwd, encoding: 'utf8' });
+}
+
+async function assuranceFiles(directory, {
+  base, head, tree, semanticContractSha256, reviewPackageId
+}) {
+  const lifecyclePath = path.join(directory, 'review-lifecycle.json');
+  const accountingPath = path.join(directory, 'assurance-accounting.json');
+  const candidate = {
+    base_sha: base,
+    head_sha: head,
+    tree_sha: tree,
+    dirty_tree_fingerprint: CLEAN_FINGERPRINT,
+    semantic_contract_sha256: semanticContractSha256
+  };
+  let lifecycle = createReviewLifecycle({
+    seam_id: 'release-policy', reviewer_identity: 'reviewer-1', candidate
+  });
+  lifecycle = applyReviewLifecycleEvent(lifecycle, {
+    type: 'attempt_started',
+    attempt: {
+      attempt_type: 'initial_review', attempt_id: 'attempt-initial',
+      seam_id: 'release-policy', reviewer_identity: 'reviewer-1',
+      review_package_id: 'package-initial', candidate
+    }
+  });
+  lifecycle = applyReviewLifecycleEvent(lifecycle, {
+    type: 'verdict_recorded', attempt_id: 'attempt-initial', verdict: 'approved', findings: []
+  });
+  lifecycle = applyReviewLifecycleEvent(lifecycle, { type: 'candidate_stabilized' });
+  lifecycle = applyReviewLifecycleEvent(lifecycle, {
+    type: 'attempt_started',
+    attempt: {
+      attempt_type: 'final_integration_review', attempt_id: 'attempt-final',
+      seam_id: 'release-policy', reviewer_identity: 'reviewer-1',
+      review_package_id: reviewPackageId, candidate
+    }
+  });
+  lifecycle = applyReviewLifecycleEvent(lifecycle, {
+    type: 'verdict_recorded', attempt_id: 'attempt-final', verdict: 'approved', findings: []
+  });
+  await writeFile(lifecyclePath, JSON.stringify(lifecycle));
+  await writeFile(accountingPath, JSON.stringify({
+    schema_version: 1,
+    candidate_head: head,
+    candidate_tree: tree,
+    observed_agent_ids: ['reviewer-1'],
+    dispatch_agent_ids: ['reviewer-1'],
+    budget_agent_ids: ['reviewer-1'],
+    observed_review_attempt_ids: ['attempt-initial', 'attempt-final'],
+    recorded_review_attempt_ids: ['attempt-initial', 'attempt-final'],
+    observed_max_depth: 1,
+    allowed_max_depth: 1,
+    reconciliation_complete: true
+  }));
+  return { lifecyclePath, accountingPath };
 }
 
 test('matrix CLI emits machine-readable coverage and a human summary', async () => {
@@ -173,7 +232,7 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
     await writeFile(reviewsPath, JSON.stringify({
       schema_version: 1,
       reviews: [{
-        schema_version: 1,
+        schema_version: 2,
         id: 'review-001',
         review_type: 'independent_review',
         owner_inline: false,
@@ -191,6 +250,10 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
         unverified_obligations: [],
         reviewed_at: '2026-07-30T12:00:00.000Z',
         review_package_id: 'package-001',
+        attempt_type: 'final_integration_review',
+        attempt_id: 'attempt-final',
+        seam_id: 'release-policy',
+        candidate_dirty_tree_fingerprint: CLEAN_FINGERPRINT,
         requirement_matrix_sha256: matrixSha256,
         semantic_contract_sha256: contractSha256,
         checkout_integrity_result: 'REVIEW_CHECKOUT_UNCHANGED'
@@ -209,6 +272,13 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       semantic_contract: { sha256: contractSha256 },
       lenses: ['mission-scope']
     }));
+    const assurance = await assuranceFiles(directory, {
+      base: 'a'.repeat(40),
+      head: candidateHead,
+      tree: candidateTree,
+      semanticContractSha256: contractSha256,
+      reviewPackageId: 'package-001'
+    });
 
     let result = run([
       'complete',
@@ -218,7 +288,9 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       '--matrix', matrixPath,
       '--evidence', evidencePath,
       '--reviews', reviewsPath,
-      '--review-package', reviewPackagePath
+      '--review-package', reviewPackagePath,
+      '--review-lifecycle', assurance.lifecyclePath,
+      '--assurance-accounting', assurance.accountingPath
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const decision = JSON.parse(result.stdout);
@@ -246,7 +318,9 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       '--matrix', matrixPath,
       '--evidence', evidencePath,
       '--reviews', reviewsPath,
-      '--review-package', reviewPackagePath
+      '--review-package', reviewPackagePath,
+      '--review-lifecycle', assurance.lifecyclePath,
+      '--assurance-accounting', assurance.accountingPath
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(JSON.parse(result.stdout).state, 'CANDIDATE_COMPLETE');
@@ -262,7 +336,9 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       '--matrix', matrixPath,
       '--evidence', evidencePath,
       '--reviews', reviewsPath,
-      '--review-package', reviewPackagePath
+      '--review-package', reviewPackagePath,
+      '--review-lifecycle', assurance.lifecyclePath,
+      '--assurance-accounting', assurance.accountingPath
     ], repo);
     assert.equal(result.status, 2, result.stderr || result.stdout);
     const staleDecision = JSON.parse(result.stdout);
@@ -337,7 +413,7 @@ test('completion CLI rejects a review that is not bound to its exact package and
     await writeFile(reviewsPath, JSON.stringify({
       schema_version: 1,
       reviews: [{
-        schema_version: 1,
+        schema_version: 2,
         id: 'review-001',
         review_type: 'independent_review',
         owner_inline: false,
@@ -355,6 +431,10 @@ test('completion CLI rejects a review that is not bound to its exact package and
         unverified_obligations: [],
         reviewed_at: '2026-07-30T12:00:00.000Z',
         review_package_id: 'stale-package',
+        attempt_type: 'final_integration_review',
+        attempt_id: 'attempt-final',
+        seam_id: 'release-policy',
+        candidate_dirty_tree_fingerprint: CLEAN_FINGERPRINT,
         requirement_matrix_sha256: matrixSha256,
         semantic_contract_sha256: contractSha256,
         checkout_integrity_result: 'REVIEW_CHECKOUT_UNCHANGED'
@@ -369,6 +449,13 @@ test('completion CLI rejects a review that is not bound to its exact package and
       semantic_contract: { sha256: contractSha256 },
       lenses: ['mission-scope']
     }));
+    const assurance = await assuranceFiles(directory, {
+      base: 'a'.repeat(40),
+      head: candidateHead,
+      tree: candidateTree,
+      semanticContractSha256: contractSha256,
+      reviewPackageId: 'current-package'
+    });
     const result = run([
       'complete',
       '--profile', 'standard',
@@ -377,7 +464,9 @@ test('completion CLI rejects a review that is not bound to its exact package and
       '--matrix', matrixPath,
       '--evidence', evidencePath,
       '--reviews', reviewsPath,
-      '--review-package', packagePath
+      '--review-package', packagePath,
+      '--review-lifecycle', assurance.lifecyclePath,
+      '--assurance-accounting', assurance.accountingPath
     ], repo);
     assert.equal(result.status, 2, result.stderr || result.stdout);
     assert.match(JSON.parse(result.stdout).reasons.join('\n'), /package/i);

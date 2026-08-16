@@ -25,7 +25,7 @@
     "checkout_integrity_result"
   ],
   "properties": {
-    "schema_version": {"const": 1},
+    "schema_version": {"enum": [1, 2]},
     "id": {"type": "string", "minLength": 1},
     "review_type": {"enum": ["self_review", "independent_review"]},
     "owner_inline": {"type": "boolean"},
@@ -77,6 +77,20 @@
     },
     "reviewed_at": {"type": "string", "format": "date-time"},
     "review_package_id": {"type": "string", "minLength": 1},
+    "attempt_type": {
+      "enum": [
+        "initial_review",
+        "correction_recheck",
+        "new_design_review",
+        "final_integration_review"
+      ]
+    },
+    "attempt_id": {"type": "string", "minLength": 1},
+    "seam_id": {"type": "string", "minLength": 1},
+    "candidate_dirty_tree_fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
     "requirement_matrix_sha256": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
@@ -93,9 +107,24 @@
       ]
     }
   },
-  "anyOf": [
-    {"required": ["reviewer_identity"]},
-    {"required": ["dispatch_record_id"]}
+  "allOf": [
+    {
+      "anyOf": [
+        {"required": ["reviewer_identity"]},
+        {"required": ["dispatch_record_id"]}
+      ]
+    },
+    {
+      "if": {"properties": {"schema_version": {"const": 2}}},
+      "then": {
+        "required": [
+          "attempt_type",
+          "attempt_id",
+          "seam_id",
+          "candidate_dirty_tree_fingerprint"
+        ]
+      }
+    }
   ],
   "additionalProperties": false
 }

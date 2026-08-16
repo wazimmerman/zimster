@@ -8,7 +8,7 @@
     {
       "name": "zimster",
       "description": "Build, debug, refactor, review, and ship software with adaptive planning, test-driven development, selective delegation, and evidence-backed verification.",
-      "version": "0.7.0",
+      "version": "0.7.1",
       "source": "./",
       "author": {
         "name": "William Zimmerman"

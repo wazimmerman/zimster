@@ -1,6 +1,6 @@
 # Grok
 
-Verification level for Zimster 0.7.0: `STRUCTURALLY_VALIDATED` for the root
+Verification target for Zimster 0.7.1: `STRUCTURALLY_VALIDATED` for the root
 manifest and 12-skill package structure on the Grok 1.0.0 validation surface.
 Isolated installation, fresh discovery, and model-backed execution are not
 established by the release receipt.
@@ -8,6 +8,10 @@ established by the release receipt.
 Grok accepts the standards-based root `plugin.json`. Its validator selected the
 root manifest and found the canonical `skills/` directory, so Zimster does not
 ship a separate `.grok` overlay.
+
+A repository root containing `plugin.json` is not automatically enabled.
+Validation and installation are distinct: use `grok plugin install`, a
+configured plugin path, or `--plugin-dir`, then inspect the loaded plugin.
 
 ## Install
 
@@ -38,6 +42,8 @@ artifact. Start a fresh session after an update.
 
 Use Grok's native tools and Agent Skills. Zimster does not require Grok
 subagents; if delegation is useful, keep one owner, prohibit nested subagents,
-and cap parallel implementers at two. Native permissions, model choice, and
+and cap parallel implementers at two. The portable release package makes no
+machine-enforced Grok child-role claim; descendant behavior must be observed,
+accounted, and invalidated on violation. Native permissions, model choice, and
 reasoning effort remain host/session configuration rather than portable plugin
 claims.

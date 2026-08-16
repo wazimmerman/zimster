@@ -93,6 +93,12 @@ test('semantic review schema binds the stable semantic contract separately from 
     type: 'string',
     pattern: '^[0-9a-f]{64}$'
   });
+  assert.deepEqual(schema.properties.attempt_type.enum, [
+    'initial_review',
+    'correction_recheck',
+    'new_design_review',
+    'final_integration_review'
+  ]);
 });
 
 test('requirement matrix schema and template use exact-tree scopes and the pending lifecycle state', async () => {

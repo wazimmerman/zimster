@@ -10,6 +10,10 @@ import {
   validateHostSmokeReceipt,
   validateReviewRecord
 } from '../scripts/lib/semantic-assurance.mjs';
+import {
+  applyReviewLifecycleEvent,
+  createReviewLifecycle
+} from '../scripts/lib/review-lifecycle.mjs';
 
 const SHA_A = 'a'.repeat(40);
 const SHA_B = 'b'.repeat(40);
@@ -21,7 +25,7 @@ const REQUIRED_LENSES = ['mission-scope', 'test-falsifiability'];
 
 function review(overrides = {}) {
   return {
-    schema_version: 1,
+    schema_version: 2,
     id: 'review-001',
     review_type: 'independent_review',
     owner_inline: false,
@@ -39,6 +43,10 @@ function review(overrides = {}) {
     unverified_obligations: [],
     reviewed_at: '2026-07-30T12:00:00.000Z',
     review_package_id: 'package-001',
+    attempt_type: 'final_integration_review',
+    attempt_id: 'attempt-final',
+    seam_id: 'release-policy',
+    candidate_dirty_tree_fingerprint: CLEAN_FINGERPRINT,
     requirement_matrix_sha256: MATRIX_SHA,
     semantic_contract_sha256: CONTRACT_SHA,
     checkout_integrity_result: 'REVIEW_CHECKOUT_UNCHANGED',
@@ -52,6 +60,7 @@ function approvalOptions(overrides = {}) {
     candidateBase: SHA_A,
     candidateHead: SHA_B,
     reviewPackageId: 'package-001',
+    reviewAttemptId: 'attempt-final',
     semanticContractSha256: CONTRACT_SHA,
     requiredLenses: REQUIRED_LENSES,
     reviews: [review({ semantic_lenses: REQUIRED_LENSES })],
@@ -513,6 +522,61 @@ function loadBearingObligations(overrides = {}) {
   };
 }
 
+function approvedLifecycle(candidate, reviewPackageId = 'package-001') {
+  let state = createReviewLifecycle({
+    seam_id: 'release-policy', reviewer_identity: 'reviewer-1', candidate
+  });
+  state = applyReviewLifecycleEvent(state, {
+    type: 'attempt_started',
+    attempt: {
+      attempt_type: 'initial_review', attempt_id: 'attempt-initial',
+      seam_id: 'release-policy', reviewer_identity: 'reviewer-1',
+      review_package_id: 'package-initial', candidate
+    }
+  });
+  state = applyReviewLifecycleEvent(state, {
+    type: 'verdict_recorded', attempt_id: 'attempt-initial', verdict: 'approved', findings: []
+  });
+  state = applyReviewLifecycleEvent(state, { type: 'candidate_stabilized' });
+  state = applyReviewLifecycleEvent(state, {
+    type: 'attempt_started',
+    attempt: {
+      attempt_type: 'final_integration_review', attempt_id: 'attempt-final',
+      seam_id: 'release-policy', reviewer_identity: 'reviewer-1',
+      review_package_id: reviewPackageId, candidate
+    }
+  });
+  return applyReviewLifecycleEvent(state, {
+    type: 'verdict_recorded', attempt_id: 'attempt-final', verdict: 'approved', findings: []
+  });
+}
+
+function completionAssurance({ candidateHead = SHA_B, candidateTree = TREE } = {}) {
+  const candidate = {
+    base_sha: SHA_A,
+    head_sha: candidateHead,
+    tree_sha: candidateTree,
+    dirty_tree_fingerprint: CLEAN_FINGERPRINT,
+    semantic_contract_sha256: CONTRACT_SHA
+  };
+  return {
+    reviewLifecycle: approvedLifecycle(candidate),
+    assuranceAccounting: {
+      schema_version: 1,
+      candidate_head: candidateHead,
+      candidate_tree: candidateTree,
+      observed_agent_ids: ['reviewer-1'],
+      dispatch_agent_ids: ['reviewer-1'],
+      budget_agent_ids: ['reviewer-1'],
+      observed_review_attempt_ids: ['attempt-initial', 'attempt-final'],
+      recorded_review_attempt_ids: ['attempt-initial', 'attempt-final'],
+      observed_max_depth: 1,
+      allowed_max_depth: 1,
+      reconciliation_complete: true
+    }
+  };
+}
+
 test('eligible Micro work can complete owner-only', () => {
   assert.deepEqual(evaluateCandidateCompletion({
     profile: 'micro',
@@ -564,6 +628,7 @@ test('Standard and High-risk work with only self-review remain review pending', 
   for (const profile of ['standard', 'high-risk']) {
     const result = evaluateCandidateCompletion({
       profile,
+      ...completionAssurance(),
       ownerVerified: true,
       reviewUnavailable: false,
       matrixResult: COMPLETE_MATRIX,
@@ -584,6 +649,7 @@ test('Standard and High-risk work with only self-review remain review pending', 
 test('complete Standard proof and exact independent approval reach candidate complete', () => {
   assert.deepEqual(evaluateCandidateCompletion({
     profile: 'standard',
+    ...completionAssurance(),
     ownerVerified: true,
     reviewUnavailable: false,
     matrixResult: COMPLETE_MATRIX,
@@ -695,6 +761,7 @@ test('BETA-003 public beta accepts unavailable optional hosts with one exact-pac
   });
   const base = {
     profile: 'standard', ownerVerified: true, reviewUnavailable: false,
+    ...completionAssurance(),
     matrixResult, reviews: [betaReview], candidateHead: SHA_B, candidateTree: TREE,
     candidateBase: SHA_A, reviewPackageId: 'package-001',
     semanticContractSha256: CONTRACT_SHA, requiredLenses: REQUIRED_LENSES
@@ -798,6 +865,7 @@ test('BETA-003 expired host evidence cannot satisfy the public-beta live floor',
 test('missing or stale matrix proof blocks candidate completion', () => {
   const result = evaluateCandidateCompletion({
     profile: 'standard',
+    ...completionAssurance(),
     ownerVerified: true,
     reviewUnavailable: false,
     matrixResult: {
@@ -821,6 +889,7 @@ test('missing or stale matrix proof blocks candidate completion', () => {
 test('approval for an older head cannot approve a corrected candidate', () => {
   const result = evaluateCandidateCompletion({
     profile: 'standard',
+    ...completionAssurance({ candidateHead: 'e'.repeat(40) }),
     ownerVerified: true,
     reviewUnavailable: false,
     matrixResult: COMPLETE_MATRIX,
@@ -867,9 +936,55 @@ test('a correction invalidates prior approval until the bounded recheck', () => 
   assert.match(result.reasons.join('\n'), /correction.*recheck/i);
 });
 
+test('Standard and High-risk completion fail closed without lifecycle and accounting receipts', () => {
+  const common = {
+    profile: 'standard',
+    ownerVerified: true,
+    matrixResult: COMPLETE_MATRIX,
+    reviews: [review({
+      intended_claims: ['Candidate claim.'],
+      semantic_lenses: REQUIRED_LENSES
+    })],
+    candidateHead: SHA_B,
+    candidateTree: TREE,
+    candidateBase: SHA_A,
+    reviewPackageId: 'package-001',
+    semanticContractSha256: CONTRACT_SHA,
+    requiredLenses: REQUIRED_LENSES
+  };
+  const missingBoth = evaluateCandidateCompletion(common);
+  assert.equal(missingBoth.state, COMPLETION_STATES.REVIEW_PENDING);
+  assert.match(missingBoth.reasons.join('\n'), /lifecycle|accounting/i);
+});
+
+test('an unresolved lifecycle circuit breaker prevents candidate completion', () => {
+  const result = evaluateCandidateCompletion({
+    profile: 'standard',
+    ownerVerified: true,
+    matrixResult: COMPLETE_MATRIX,
+    reviews: [review({ intended_claims: ['Candidate claim.'], semantic_lenses: REQUIRED_LENSES })],
+    candidateHead: SHA_B,
+    candidateTree: TREE,
+    candidateBase: SHA_A,
+    reviewPackageId: 'package-001',
+    semanticContractSha256: CONTRACT_SHA,
+    requiredLenses: REQUIRED_LENSES,
+    reviewLifecycle: {
+      schema_version: 1,
+      seam_id: 'release-policy',
+      status: 'circuit_breaker_active',
+      circuit_breaker_active: true
+    },
+    assuranceAccounting: {}
+  });
+  assert.equal(result.state, COMPLETION_STATES.REVIEW_PENDING);
+  assert.match(result.reasons.join('\n'), /circuit breaker/i);
+});
+
 test('High-risk work fails closed when load-bearing review obligations are not recorded', () => {
   const result = evaluateCandidateCompletion({
     profile: 'high-risk',
+    ...completionAssurance(),
     ownerVerified: true,
     reviewUnavailable: false,
     matrixResult: COMPLETE_MATRIX,
@@ -929,6 +1044,7 @@ test('High-risk completion rejects boolean or stale load-bearing attestations', 
   ]) {
     const result = evaluateCandidateCompletion({
       profile: 'high-risk',
+      ...completionAssurance(),
       ...input,
       ownerVerified: true,
       matrixResult: COMPLETE_MATRIX,

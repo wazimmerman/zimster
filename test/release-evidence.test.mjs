@@ -47,10 +47,12 @@ test('release evidence canonically binds authorization inputs and all five artif
       await writeFile(file, `${JSON.stringify(value)}\n`);
     }
     const output = path.join(directory, 'release-evidence.json');
+    const version = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')).version;
+    const tag = `v${version}`;
     const commit = 'a'.repeat(40);
     const tree = 'b'.repeat(40);
     let result = run([
-      'create', '--version', '0.7.0', '--tag', 'v0.7.0', '--channel', 'public_beta',
+      'create', '--version', version, '--tag', tag, '--channel', 'public_beta',
       '--commit', commit, '--tree', tree, '--standards-lock', 'config/standards-lock.json',
       '--semantic-review', semantic, '--host-matrix', matrix, '--verification', verification,
       '--dist', dist, '--output', output
@@ -61,11 +63,11 @@ test('release evidence canonically binds authorization inputs and all five artif
     assert.equal(evidence.commit, commit);
     assert.equal(evidence.tree, tree);
     assert.deepEqual(evidence.artifacts.map(({ name }) => name), [
-      'zimster-0.7.0-claude.zip', 'zimster-0.7.0-codex.zip',
-      'zimster-0.7.0-openai.zip', 'zimster-0.7.0-portable.zip', 'zimster-0.7.0.tgz'
+      `zimster-${version}-claude.zip`, `zimster-${version}-codex.zip`,
+      `zimster-${version}-openai.zip`, `zimster-${version}-portable.zip`, `zimster-${version}.tgz`
     ]);
     result = run([
-      'verify', '--file', output, '--expected-tag', 'v0.7.0', '--expected-commit', commit,
+      'verify', '--file', output, '--expected-tag', tag, '--expected-commit', commit,
       '--expected-tree', tree, '--standards-lock', 'config/standards-lock.json',
       '--semantic-review', semantic, '--host-matrix', matrix, '--verification', verification,
       '--dist', dist
@@ -74,7 +76,7 @@ test('release evidence canonically binds authorization inputs and all five artif
 
     await writeFile(verification, '{"status":"changed"}\n');
     result = run([
-      'verify', '--file', output, '--expected-tag', 'v0.7.0', '--expected-commit', commit,
+      'verify', '--file', output, '--expected-tag', tag, '--expected-commit', commit,
       '--expected-tree', tree, '--standards-lock', 'config/standards-lock.json',
       '--semantic-review', semantic, '--host-matrix', matrix, '--verification', verification,
       '--dist', dist

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.7.1 - 2026-08-16
+
+- Enforce the one-recheck circuit breaker, immutable typed review attempts, fail-closed assurance accounting, and current harness compatibility.
+
 ## 0.7.0 - 2026-08-07
 
 - Adopt portable Agent Plugin standards, reproducible marketplace artifacts,

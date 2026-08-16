@@ -4,7 +4,7 @@
     "enabled": true,
     "limits": {
       "correction_commits": 2,
-      "correction_rechecks": 2,
+      "correction_rechecks": 1,
       "final_integration_reviews": 2,
       "final_verification_attempts": 2,
       "complete_suite_executions": 3,

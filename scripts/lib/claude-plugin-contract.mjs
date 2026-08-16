@@ -6,7 +6,8 @@ const manifestFields = new Set([
 ]);
 const agentFields = new Set([
   'name', 'description', 'tools', 'disallowedTools', 'model', 'maxTurns',
-  'skills', 'memory', 'background', 'effort', 'isolation', 'color', 'initialPrompt'
+  'skills', 'memory', 'background', 'effort', 'isolation', 'color', 'initialPrompt',
+  'subagents'
 ]);
 const ignoredPluginAgentFields = new Set(['permissionMode', 'hooks', 'mcpServers']);
 
@@ -130,6 +131,9 @@ export async function validateClaudePlugin(root) {
     const relative = `agents/${file}`;
     const metadata = frontmatter(await readFile(path.join(agentsDirectory, file), 'utf8'), relative, errors);
     fields(metadata, agentFields, relative, errors);
+    if (metadata.subagents !== undefined && metadata.subagents !== '[]') {
+      errors.push(`${relative}: shared Kimi subagents restriction must be an empty list`);
+    }
     for (const ignored of ignoredPluginAgentFields) {
       if (Object.hasOwn(metadata, ignored)) errors.push(`${relative}: ${ignored} is ignored for plugin subagents`);
     }

@@ -124,6 +124,8 @@ node <zimster-runtime>/scripts/semantic-assurance.mjs complete \
   --requirements <binding.json> --matrix <matrix.json> \
   --evidence <receipts.jsonl> --reviews <reviews.json> \
   --review-package <review-package.json> \
+  --review-lifecycle <review-lifecycle.json> \
+  --assurance-accounting <assurance-accounting.json> \
   --load-bearing-review-obligations <obligations.json>
 ```
 
@@ -143,6 +145,14 @@ reserved review applies only after the exact candidate head stops changing.
 Owner-inline review is `self_review`. Checkout
 integrity (`REVIEW_CHECKOUT_UNCHANGED` or `REVIEW_CHECKOUT_CHANGED`) never
 implies semantic approval.
+
+Before Standard or High-risk completion, reconcile supported host observations
+with Zimster's dispatch ledger, budget agent identities, and durable typed
+review attempts using `assurance-accounting.mjs reconcile`. Missing host
+lineage is unavailable evidence, not proof. Any observed agent absent from
+dispatch or budget accounting, any missing observed/recorded review attempt,
+any lifecycle reviewer absent from observed accounted agents, or descendant
+depth above one invalidates the dependent completion claim.
 
 ## Honest states
 

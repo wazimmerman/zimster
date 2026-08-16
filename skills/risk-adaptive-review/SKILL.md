@@ -64,8 +64,10 @@ fallback, use `git add -N <untracked paths>` followed by `git diff`, or read
 every untracked file directly. Restore no index state by guessing; record what
 was inspected.
 
-For committed work, include base/head and the complete branch range. For
-no-commit work, the change snapshot is the authoritative review package.
+For committed work, include base/head and the complete branch range. For dirty
+or no-commit work, the change snapshot is an inspection aid; the authoritative
+attempt-specific package is created by `review-package.mjs` and preserves the
+dirty-tree fingerprint, tracked binary patch, and exact untracked payloads.
 
 ## Review lenses
 
@@ -120,8 +122,10 @@ review obligation.
 
 ## Semantic review package
 
-Create one immutable semantic review package. It must provide paths and hashes
-for:
+Create one immutable, attempt-specific semantic review package for every
+`initial_review`, `correction_recheck`, `new_design_review`, and
+`final_integration_review`. Never refresh one mutable package across attempts.
+Each package must provide paths and hashes for:
 
 - mission and binding requirement IDs;
 - stable-ID requirement-to-evidence matrix;
@@ -132,6 +136,19 @@ for:
   invalidation state;
 - known unavailable proof;
 - intended acceptance claims and requested completion state.
+
+Create it with stable attempt and seam identities:
+
+```text
+node <zimster-runtime>/scripts/review-package.mjs \
+  --attempt-type <type> --attempt-id <stable-id> --seam-id <stable-id> \
+  --base <sha> --head <sha> <semantic-input-options>
+```
+
+Then start and persist the matching lifecycle attempt with
+`review-lifecycle.mjs`. The package path must remain beneath the Git-local
+`zimster/reviews/<package-id>/` directory; a package collision or mutation
+fails closed.
 
 The reviewer must attempt to falsify every intended acceptance claim and report
 each unverified obligation. A clean package is necessary but is not approval.
@@ -188,3 +205,11 @@ evidence-backed route:
 5. evidence unavailable: report the strongest partial state.
 
 Silent dismissal is forbidden.
+
+The failed `correction_recheck` persists `circuit_breaker_active` and consumes
+the seam's only recheck. While active, `review-lifecycle.mjs` rejects another
+recheck, a replacement or freshly named reviewer, final integration review,
+and candidate completion. Resolve it only with an evidence-backed supported
+disposition. A `design_revision` resets review accounting only when the
+semantic-contract digest changes and prior attempt approval/evidence is
+invalidated.

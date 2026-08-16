@@ -1,0 +1,112 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/wazimmerman/zimster/schemas/review-lifecycle.schema.json",
+  "title": "Zimster bounded review lifecycle",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "seam_id",
+    "reviewer_identity",
+    "initial_candidate",
+    "candidate",
+    "status",
+    "stable",
+    "circuit_breaker_active",
+    "correction_recheck_consumed",
+    "active_attempt_id",
+    "attempts",
+    "invalidated_attempt_ids",
+    "dispositions",
+    "events"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "seam_id": {"type": "string", "minLength": 1},
+    "reviewer_identity": {"type": "string", "minLength": 1},
+    "initial_candidate": {"$ref": "#/$defs/candidate"},
+    "candidate": {"$ref": "#/$defs/candidate"},
+    "status": {
+      "enum": [
+        "initial_review_required",
+        "review_in_progress",
+        "correction_required",
+        "correction_recheck_required",
+        "new_design_review_required",
+        "approved",
+        "final_review_in_progress",
+        "final_correction_required",
+        "final_approved",
+        "circuit_breaker_active",
+        "blocked",
+        "partial"
+      ]
+    },
+    "stable": {"type": "boolean"},
+    "circuit_breaker_active": {"type": "boolean"},
+    "correction_recheck_consumed": {"type": "boolean"},
+    "active_attempt_id": {"type": ["string", "null"]},
+    "attempts": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/attempt"}
+    },
+    "invalidated_attempt_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
+    "dispositions": {"type": "array", "items": {"type": "object"}},
+    "events": {"type": "array", "items": {"type": "object"}}
+  },
+  "$defs": {
+    "candidate": {
+      "type": "object",
+      "required": [
+        "base_sha",
+        "head_sha",
+        "tree_sha",
+        "dirty_tree_fingerprint",
+        "semantic_contract_sha256"
+      ],
+      "properties": {
+        "base_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "head_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "tree_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+        "dirty_tree_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "semantic_contract_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "attempt": {
+      "type": "object",
+      "required": [
+        "attempt_type",
+        "attempt_id",
+        "seam_id",
+        "reviewer_identity",
+        "review_package_id",
+        "candidate",
+        "verdict",
+        "findings"
+      ],
+      "properties": {
+        "attempt_type": {
+          "enum": [
+            "initial_review",
+            "correction_recheck",
+            "new_design_review",
+            "final_integration_review"
+          ]
+        },
+        "attempt_id": {"type": "string", "minLength": 1},
+        "seam_id": {"type": "string", "minLength": 1},
+        "reviewer_identity": {"type": "string", "minLength": 1},
+        "review_package_id": {"type": "string", "minLength": 1},
+        "candidate": {"$ref": "#/$defs/candidate"},
+        "verdict": {"enum": [null, "approved", "needs_correction"]},
+        "findings": {"type": "array", "items": {"type": "object"}}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false
+}

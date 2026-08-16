@@ -39,6 +39,9 @@ test('Kimi manifest contains only documented fields and one native bootstrap', a
   ]);
   assert.deepEqual(manifest.sessionStart, { skill: 'using-zimster' });
   assert.equal(manifest.skills, './skills/');
+  for (const agent of ['scout', 'diagnostician', 'integration-reviewer', 'test-reviewer']) {
+    assert.match(await read(`agents/${agent}.md`), /^subagents:\s*\[\]$/m);
+  }
 });
 
 test('session bootstrap injects using-zimster, not the full library', async () => {
@@ -96,12 +99,18 @@ test('Pi package declares one skill-loading surface and the adapter injects once
   assert.equal(text.match(/zimster:using-zimster bootstrap for pi/g)?.length, 1);
 });
 
-test('Pi optional delegation uses a pinned, depth-zero capability boundary with inline fallback', async () => {
+test('Pi optional delegation bridges the supported event contract with depth-zero accounting', async () => {
   const contract = await json('config/pi-delegation.json');
-  assert.equal(contract.protocol, 'zimster.pi-delegation.v1');
+  assert.equal(contract.protocol, 'pi-subagents.delegation.v1');
   assert.deepEqual(contract.methods, ['probe', 'launch', 'status', 'cancel', 'collect']);
   assert.equal(contract.transport.package, 'pi-subagents');
-  assert.equal(contract.transport.version, '0.42.1');
+  assert.equal(contract.transport.version, '0.50.0');
+  assert.equal(contract.transport.export, 'pi-subagents/delegation');
+  assert.deepEqual(contract.transport.events, {
+    request: 'prompt-template:subagent:request',
+    response: 'prompt-template:subagent:response',
+    cancel: 'prompt-template:subagent:cancel'
+  });
   assert.equal(contract.max_parallel_implementers, 2);
   assert.equal(contract.max_subagent_depth, 0);
 
@@ -109,11 +118,73 @@ test('Pi optional delegation uses a pinned, depth-zero capability boundary with 
   const capability = module.createPiDelegationCapability();
   assert.deepEqual(await capability.probe(), {
     available: false,
-    protocol: 'zimster.pi-delegation.v1',
+    protocol: 'pi-subagents.delegation.v1',
     reason: 'optional_transport_unavailable'
   });
   assert.equal((await capability.launch({ role: 'scout', depth: 0 })).status, 'inline_required');
   await assert.rejects(capability.launch({ role: 'scout', depth: 1 }), /depth/i);
+
+  const listeners = new Map();
+  const emitted = [];
+  const events = {
+    on(name, listener) {
+      listeners.set(name, listener);
+      return () => listeners.delete(name);
+    },
+    emit(name, payload) {
+      emitted.push({ name, payload });
+    }
+  };
+  const bridged = module.createPiDelegationCapability(events);
+  assert.equal((await bridged.probe()).available, true);
+  const launched = await bridged.launch({
+    ownerRunId: 'owner-run',
+    nodeId: 'review-accuracy',
+    role: 'reviewer',
+    task: 'Review the supplied immutable package.',
+    context: 'fresh',
+    cwd: root,
+    depth: 0
+  });
+  assert.equal(launched.status, 'running');
+  assert.equal(emitted.at(-1).name, 'prompt-template:subagent:request');
+  assert.equal(emitted.at(-1).payload.requestId, launched.requestId);
+  assert.deepEqual(emitted.at(-1).payload.result, { kind: 'text' });
+  assert.equal((await bridged.status({ requestId: launched.requestId })).status, 'running');
+  const second = await bridged.launch({
+    ownerRunId: 'owner-run', nodeId: 'review-security', role: 'reviewer',
+    task: 'Review the second independent seam.', context: 'fresh', cwd: root, depth: 0
+  });
+  assert.equal(second.status, 'running');
+  await assert.rejects(bridged.launch({
+    ownerRunId: 'owner-run', nodeId: 'review-third', role: 'reviewer',
+    task: 'Exceed the bounded leaf limit.', context: 'fresh', cwd: root, depth: 0
+  }), /at most two active owned leaves/i);
+  listeners.get('prompt-template:subagent:response')({
+    requestId: launched.requestId,
+    ownerRunId: 'owner-run',
+    nodeId: 'review-accuracy',
+    status: 'completed',
+    result: { kind: 'text', text: 'approved' }
+  });
+  assert.equal((await bridged.collect({ requestId: launched.requestId })).status, 'completed');
+
+  listeners.get('prompt-template:subagent:response')({
+    requestId: second.requestId,
+    ownerRunId: 'owner-run',
+    nodeId: 'review-security',
+    status: 'completed',
+    result: { kind: 'text', text: 'approved' }
+  });
+
+  const cancellable = await bridged.launch({
+    ownerRunId: 'owner-run', nodeId: 'review-2', role: 'reviewer',
+    task: 'Second bounded review.', context: 'fresh', cwd: root, depth: 0
+  });
+  assert.equal((await bridged.cancel({ requestId: cancellable.requestId })).status, 'cancel_requested');
+  assert.equal(emitted.at(-1).name, 'prompt-template:subagent:cancel');
+  assert.equal(emitted.at(-1).payload.requestId, cancellable.requestId);
+  bridged.dispose();
 });
 
 test('secondary adapter validator accepts the documented package', async () => {
@@ -137,8 +208,8 @@ test('ROUTE-005: harness capability reports distinguish routing enforcement and 
     assert.ok(capabilities.model_routing_enforcement, `${harness} missing routing enforcement capability`);
     assert.ok(capabilities.effective_model_reporting, `${harness} missing effective-model reporting capability`);
   }
-  assert.equal(matrix.harnesses.pi.capabilities.model_routing_enforcement, 'unavailable');
-  assert.equal(matrix.harnesses.pi.capabilities.delegated_runtime, 'unavailable');
+  assert.equal(matrix.harnesses.pi.capabilities.model_routing_enforcement, 'supported_with_constraints');
+  assert.equal(matrix.harnesses.pi.capabilities.delegated_runtime, 'supported_with_constraints');
 });
 
 test('adapter generator writes only explicit owned outputs and removes only matching generated files', async () => {

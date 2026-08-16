@@ -184,7 +184,9 @@ async function completionDecision() {
       : null,
     hostSmokeReceipt,
     releaseChannel: options['release-channel'] ? String(options['release-channel']) : 'public_beta',
-    correctionPending: options['correction-pending'] === true
+    correctionPending: options['correction-pending'] === true,
+    reviewLifecycle: profile === 'micro' ? null : await jsonFile('review-lifecycle'),
+    assuranceAccounting: profile === 'micro' ? null : await jsonFile('assurance-accounting')
   });
   writeLine(JSON.stringify(result));
   writeError(`${result.state} review=${result.review_id || 'none'} claims=${result.allowed_claims.length}`);
@@ -197,5 +199,5 @@ if (action === 'matrix') {
 } else if (action === 'complete') {
   await completionDecision();
 } else {
-  throw new Error('Usage: semantic-assurance.mjs <matrix|complete> --requirements <file> --matrix <file> [--evidence <jsonl>] [--reviews <json>] [--review-package <json>]');
+  throw new Error('Usage: semantic-assurance.mjs <matrix|complete> --requirements <file> --matrix <file> [--evidence <jsonl>] [--reviews <json>] [--review-package <json>] [--review-lifecycle <json>] [--assurance-accounting <json>]');
 }

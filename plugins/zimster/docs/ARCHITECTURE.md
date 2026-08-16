@@ -53,8 +53,13 @@ Dependency-free Node 22 tools turn important policy into inspectable state:
 - `installed-package-smoke.mjs` exercises exact candidate archives in isolated
   homes before review packaging;
 - `review-package.mjs` represents immutable canonical changes and mirror
-  hashes without duplicating generated content, plus binding requirement IDs,
-  matrix state, intended claims, evidence scope, unavailable proof, and lenses;
+  hashes without duplicating generated content, plus typed stable attempt IDs,
+  reconstructable dirty state, binding requirement IDs, matrix state, intended
+  claims, evidence scope, unavailable proof, and lenses;
+- `review-lifecycle.mjs` persists one-reviewer typed attempt transitions and a
+  real circuit breaker after the single correction recheck;
+- `assurance-accounting.mjs` reconciles supported host observations with
+  dispatch, budget, review-attempt, and depth records and fails closed;
 - `semantic-assurance.mjs` validates the requirement-to-evidence matrix and
   deterministically gates candidate completion;
 - `capability-cache.mjs` decides whether one host contract needs refreshed

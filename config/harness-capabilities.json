@@ -10,39 +10,40 @@
   ],
   "harnesses": {
     "codex": {
-      "checked_at": "2026-08-07T00:00:00.000Z",
+      "checked_at": "2026-08-16T00:00:00.000Z",
       "max_age_days": 90,
-      "local_host_version": "codex-cli 0.146.1",
+      "local_host_version": "codex-cli 0.147.0",
+      "managed_host_version": "0.147.0-alpha.6.6",
       "validator_status": "consistent",
       "sources": [
         {
-          "title": "Official Codex plugin manifest specification",
-          "url": "https://github.com/openai/codex/blob/main/codex-rs/skills/src/assets/samples/plugin-creator/references/plugin-json-spec.md"
+          "title": "Official Codex subagent configuration",
+          "url": "https://developers.openai.com/codex/agent-configuration/subagents"
         }
       ],
       "verification": "installed_package_verified",
       "capabilities": {
-        "native_skill_loading": "unverified",
+        "native_skill_loading": "native",
         "plugin_relative_helper_scripts": "native",
-        "named_custom_agents": "native",
-        "read_only_tool_enforcement": "unavailable",
+        "named_custom_agents": "supported_with_constraints",
+        "read_only_tool_enforcement": "supported_with_constraints",
         "isolated_reviewer_worktrees": "inline_fallback",
-        "per_agent_model_selection": "native",
-        "per_agent_reasoning_effort": "native",
+        "per_agent_model_selection": "supported_with_constraints",
+        "per_agent_reasoning_effort": "supported_with_constraints",
         "delegated_runtime": "native",
-        "model_routing_enforcement": "native",
+        "model_routing_enforcement": "supported_with_constraints",
         "effective_model_reporting": "supported_with_constraints",
         "dynamic_model_catalog": "supported_with_constraints",
         "turn_limits": "unverified",
         "agent_resume": "supported_with_constraints",
-        "nested_agent_prohibition": "prompt_constrained",
+        "nested_agent_prohibition": "supported_with_constraints",
         "token_turn_telemetry": "supported_with_constraints"
       }
     },
     "claude": {
-      "checked_at": "2026-08-07T00:00:00.000Z",
+      "checked_at": "2026-08-16T00:00:00.000Z",
       "max_age_days": 90,
-      "local_host_version": "2.1.224",
+      "local_host_version": "2.1.233 isolated",
       "validator_status": "consistent",
       "sources": [
         {
@@ -70,12 +71,12 @@
       }
     },
     "grok": {
-      "checked_at": "2026-08-07T00:00:00.000Z",
+      "checked_at": "2026-08-16T00:00:00.000Z",
       "max_age_days": 90,
       "local_host_version": "1.0.0 stable",
       "validator_status": "consistent",
       "sources": [
-        {"title": "Agent Plugins specification", "url": "https://agent-plugins.org"}
+        {"title": "xAI skills, plugins, and marketplaces", "url": "https://docs.x.ai/build/features/skills-plugins-marketplaces"}
       ],
       "verification": "live_skill_discovery_verified",
       "capabilities": {
@@ -127,10 +128,10 @@
       }
     },
     "kimi": {
-      "checked_at": "2026-08-07T00:00:00.000Z",
+      "checked_at": "2026-08-16T00:00:00.000Z",
       "max_age_days": 90,
-      "local_host_version": null,
-      "validator_status": "not_run",
+      "local_host_version": "0.36.1 isolated",
+      "validator_status": "consistent",
       "sources": [
         {
           "title": "Kimi Code plugin customization",
@@ -141,8 +142,8 @@
       "capabilities": {
         "native_skill_loading": "native",
         "plugin_relative_helper_scripts": "native",
-        "named_custom_agents": "unverified",
-        "read_only_tool_enforcement": "unverified",
+        "named_custom_agents": "native",
+        "read_only_tool_enforcement": "native",
         "isolated_reviewer_worktrees": "unverified",
         "per_agent_model_selection": "supported_with_constraints",
         "per_agent_reasoning_effort": "unverified",
@@ -152,14 +153,14 @@
         "dynamic_model_catalog": "supported_with_constraints",
         "turn_limits": "unverified",
         "agent_resume": "supported_with_constraints",
-        "nested_agent_prohibition": "prompt_constrained",
+        "nested_agent_prohibition": "native",
         "token_turn_telemetry": "unverified"
       }
     },
     "opencode": {
-      "checked_at": "2026-08-07T00:00:00.000Z",
+      "checked_at": "2026-08-16T00:00:00.000Z",
       "max_age_days": 90,
-      "local_host_version": "1.18.13",
+      "local_host_version": "1.18.18 isolated",
       "validator_status": "consistent",
       "sources": [
         {
@@ -187,9 +188,9 @@
       }
     },
     "pi": {
-      "checked_at": "2026-08-07T00:00:00.000Z",
+      "checked_at": "2026-08-16T00:00:00.000Z",
       "max_age_days": 90,
-      "local_host_version": "0.84.1",
+      "local_host_version": "0.84.2 isolated",
       "validator_status": "consistent",
       "sources": [
         {
@@ -204,15 +205,15 @@
         "named_custom_agents": "unavailable",
         "read_only_tool_enforcement": "prompt_constrained",
         "isolated_reviewer_worktrees": "inline_fallback",
-        "per_agent_model_selection": "unavailable",
-        "per_agent_reasoning_effort": "unavailable",
-        "delegated_runtime": "unavailable",
-        "model_routing_enforcement": "unavailable",
-        "effective_model_reporting": "unverified",
+        "per_agent_model_selection": "supported_with_constraints",
+        "per_agent_reasoning_effort": "supported_with_constraints",
+        "delegated_runtime": "supported_with_constraints",
+        "model_routing_enforcement": "supported_with_constraints",
+        "effective_model_reporting": "supported_with_constraints",
         "dynamic_model_catalog": "native",
-        "turn_limits": "unavailable",
+        "turn_limits": "supported_with_constraints",
         "agent_resume": "supported_with_constraints",
-        "nested_agent_prohibition": "prompt_constrained",
+        "nested_agent_prohibition": "supported_with_constraints",
         "token_turn_telemetry": "unverified"
       }
     }

@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "protocol": "zimster.pi-delegation.v1",
+  "protocol": "pi-subagents.delegation.v1",
   "methods": [
     "probe",
     "launch",
@@ -10,7 +10,13 @@
   ],
   "transport": {
     "package": "pi-subagents",
-    "version": "0.42.1",
+    "version": "0.50.0",
+    "export": "pi-subagents/delegation",
+    "events": {
+      "request": "prompt-template:subagent:request",
+      "response": "prompt-template:subagent:response",
+      "cancel": "prompt-template:subagent:cancel"
+    },
     "optional": true,
     "auto_install": false
   },

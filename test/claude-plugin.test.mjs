@@ -225,8 +225,8 @@ test('Claude guide documents local validation, lifecycle, restrictions, and hone
     /SessionStart/,
     /integration-reviewer/,
     /test-reviewer/,
-    /2\.1\.224/,
-    /12 skills, 4 agents, and 1 SessionStart hook/,
+    /2\.1\.233/,
+    /12 skills, 4 agents, and (?:1|one)\s+SessionStart hook/,
     /model-backed.*not|not.*model-backed/is
   ]) {
     assert.match(guide, pattern);

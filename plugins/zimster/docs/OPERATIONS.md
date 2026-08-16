@@ -133,6 +133,49 @@ guard reports exact affected files and never stages, repairs, resets, or
 discards them. Declared inputs may be absolute attachment or Git-local paths
 outside the worktree.
 
+## Immutable review attempts and circuit breaker
+
+Create a separate Git-local package for each typed attempt:
+
+```text
+node <zimster>/scripts/review-package.mjs \
+  --attempt-type initial_review --attempt-id <stable-id> --seam-id <stable-id> \
+  --base <sha> --head <sha> \
+  --binding-requirements <binding.json> --matrix <matrix.json>
+
+node <zimster>/scripts/review-lifecycle.mjs init \
+  --seam-id <stable-id> --reviewer-identity <stable-reviewer-id> \
+  --base <sha> --head <sha> --tree <tree> \
+  --dirty-tree-fingerprint <sha256> --semantic-contract-sha256 <sha256>
+
+node <zimster>/scripts/review-lifecycle.mjs start \
+  --seam-id <stable-id> --attempt-type initial_review \
+  --attempt-id <stable-id> --reviewer-identity <stable-reviewer-id> \
+  --review-package <git-local-review-package.json>
+```
+
+Record `verdict`, one owner `correction`, and the same reviewer's one
+`correction_recheck`. A failed recheck persists the circuit breaker. The CLI
+rejects another recheck, replacement-reviewer shopping, final review, and
+completion until an evidence-backed `disposition` is recorded. A design
+revision must change the semantic-contract digest and invalidates prior
+attempts. `final_integration_review` is a distinct exact-head type after
+`stabilize`; it never expands the correction-recheck allowance.
+
+Reconcile supported host observations before completion:
+
+```text
+node <zimster>/scripts/assurance-accounting.mjs reconcile \
+  --observed <candidate-bound-host-observation.json>
+```
+
+The receipt fails closed unless observed agent IDs exactly match dispatch and
+budget identities, observed attempt IDs exactly match durable lifecycle
+attempts, every lifecycle reviewer is an observed accounted agent, and observed
+depth is at most one. When the host cannot expose
+authoritative activity, report reconciliation unavailable rather than using an
+empty observation as proof.
+
 ## Evidence receipts
 
 Initialize or record supplied evidence:
@@ -218,7 +261,9 @@ npm run assurance -- complete \
   --matrix <requirement-matrix.json> \
   --evidence <receipts.jsonl> \
   --reviews <review-records.json> \
-  --review-package <review-package.json>
+  --review-package <review-package.json> \
+  --review-lifecycle <review-lifecycle.json> \
+  --assurance-accounting <assurance-accounting.json>
 ```
 
 The first command reports coverage and proof/claim blockers. The second also

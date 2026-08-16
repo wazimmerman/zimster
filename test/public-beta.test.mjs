@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { json, read } from './helpers.mjs';
 
-test('REL-001: every public manifest identifies the 0.7.0 release candidate', async () => {
+test('REL-001: every public manifest identifies the 0.7.1 release candidate', async () => {
   const versions = [
     (await json('package.json')).version,
     (await json('package-lock.json')).version,
@@ -12,7 +12,7 @@ test('REL-001: every public manifest identifies the 0.7.0 release candidate', as
     (await json('.kimi-plugin/plugin.json')).version,
     (await json('.claude-plugin/marketplace.json')).plugins[0].version
   ];
-  assert.deepEqual([...new Set(versions)], ['0.7.0']);
+  assert.deepEqual([...new Set(versions)], ['0.7.1']);
 });
 
 test('BETA-002: consolidated beta documentation covers every installation lifecycle and migration contract', async () => {
@@ -74,10 +74,10 @@ test('BETA-001 and BETA-003: six beta surfaces use claim-scoped states and chann
     'installation availability', 'known limitations'
   ]) assert.match(readme, new RegExp(phrase.replaceAll(' ', '\\s+'), 'i'));
   const compatibility = await read('docs/COMPATIBILITY.md');
-  for (const version of ['0.146.1', '2.1.224', '1.0.0', '1.18.13', '0.84.1']) {
+  for (const version of ['0.147.0', '2.1.233', '1.0.0', '0.36.1', '1.18.18', '0.84.2']) {
     assert.match(compatibility, new RegExp(version.replaceAll('.', '\\.')));
   }
-  assert.match(compatibility, /Kimi[\s\S]*UNAVAILABLE/i);
+  assert.match(compatibility, /Kimi[\s\S]*STRUCTURALLY_VALIDATED/i);
 });
 
 test('BETA-002: privacy, diagnostics, contribution, and security contracts are public-beta ready', async () => {

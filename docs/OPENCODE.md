@@ -1,7 +1,7 @@
 # OpenCode
 
-Verification level for Zimster 0.7.0: `LIVE_VERIFIED` for project adapter load
-and canonical skill discovery on OpenCode 1.18.13. The exact npm tarball was
+Verification target for Zimster 0.7.1: `LIVE_VERIFIED` for project adapter load
+and canonical skill discovery on OpenCode 1.18.18. The exact npm tarball was
 extracted into isolated config/data/cache/state paths; `opencode debug skill`
 reported the Zimster skills. No model-backed task was run.
 
@@ -39,7 +39,7 @@ adapter.
 
 ## Verification status
 
-Exact-package skill discovery is `LIVE_VERIFIED` on OpenCode 1.18.13.
+Exact-package skill discovery targets OpenCode 1.18.18.
 Model-backed task execution and effective-model identity are not established.
 
 Optional generated agents use OpenCode's `provider/model-id` syntax. Omitted

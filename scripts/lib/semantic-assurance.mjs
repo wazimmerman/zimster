@@ -1,4 +1,9 @@
 import { createHash } from 'node:crypto';
+import {
+  REVIEW_ATTEMPT_TYPES,
+  validateAssuranceAccounting,
+  validateReviewLifecycle
+} from './review-lifecycle.mjs';
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
@@ -248,6 +253,9 @@ export function validateReviewRecord(record) {
   if (!record || typeof record !== 'object' || Array.isArray(record)) {
     throw new Error('review record must be an object');
   }
+  if (![1, 2].includes(record.schema_version)) {
+    throw new Error('review record schema_version must be 1 or 2');
+  }
   if (!REVIEW_TYPES.includes(record.review_type)) {
     throw new Error('review_type must be self_review or independent_review');
   }
@@ -255,6 +263,18 @@ export function validateReviewRecord(record) {
     throw new Error('owner-inline review must use self_review');
   }
   for (const field of ['id', 'review_package_id']) requireString(record, field);
+  if (record.schema_version === 2) {
+    for (const field of ['attempt_id', 'seam_id']) requireString(record, field);
+    if (!REVIEW_ATTEMPT_TYPES.includes(record.attempt_type)) {
+      throw new Error('review record has an unsupported attempt_type');
+    }
+    if (!SHA256_PATTERN.test(record.candidate_dirty_tree_fingerprint || '')) {
+      throw new Error('review record requires candidate_dirty_tree_fingerprint');
+    }
+    if (record.attempt_type === 'final_integration_review' && record.review_scope !== 'integration') {
+      throw new Error('final_integration_review must use integration review scope');
+    }
+  }
   if (!SHA256_PATTERN.test(record.requirement_matrix_sha256 || '')) {
     throw new Error('review record requires requirement_matrix_sha256');
   }
@@ -313,6 +333,7 @@ export function independentApprovalFor({
   candidateBase,
   candidateHead,
   reviewPackageId,
+  reviewAttemptId = null,
   semanticContractSha256,
   requiredLenses = [],
   reviews,
@@ -372,7 +393,20 @@ export function independentApprovalFor({
       reason: 'independent review does not cover the current review package'
     };
   }
-  const exactContractReviews = exactPackageReviews.filter(
+  const exactAttemptReviews = reviewAttemptId
+    ? exactPackageReviews.filter((record) =>
+      record.schema_version === 2
+      && record.attempt_id === reviewAttemptId
+      && record.attempt_type === 'final_integration_review')
+    : exactPackageReviews;
+  if (!exactAttemptReviews.length) {
+    return {
+      approved: false,
+      state: COMPLETION_STATES.REVIEW_PENDING,
+      reason: 'independent review does not cover the final integration attempt'
+    };
+  }
+  const exactContractReviews = exactAttemptReviews.filter(
     (record) => record.semantic_contract_sha256 === semanticContractSha256
   );
   if (!exactContractReviews.length) {
@@ -696,7 +730,9 @@ export function evaluateCandidateCompletion({
   loadBearingReviewObligations = null,
   hostSmokeReceipt = null,
   releaseChannel = 'public_beta',
-  correctionPending = false
+  correctionPending = false,
+  reviewLifecycle = null,
+  assuranceAccounting = null
 }) {
   if (!['micro', 'standard', 'high-risk'].includes(profile)) {
     throw new Error('profile must be micro, standard, or high-risk');
@@ -767,6 +803,30 @@ export function evaluateCandidateCompletion({
       reasons: ['independent semantic review is unavailable']
     });
   }
+  if (correctionPending && !reviewLifecycle) {
+    return result(COMPLETION_STATES.REVIEW_PENDING, {
+      allowedClaims,
+      reasons: ['correction invalidated prior approval; bounded recheck is required']
+    });
+  }
+  try {
+    validateReviewLifecycle(reviewLifecycle, {
+      candidateHead,
+      candidateTree,
+      requireFinalApproval: true
+    });
+    validateAssuranceAccounting(assuranceAccounting, {
+      candidateHead,
+      candidateTree,
+      recordedReviewAttemptIds: reviewLifecycle.attempts.map(({ attempt_id }) => attempt_id),
+      requiredReviewerIdentities: [reviewLifecycle.reviewer_identity]
+    });
+  } catch (error) {
+    return result(COMPLETION_STATES.REVIEW_PENDING, {
+      allowedClaims,
+      reasons: [error.message]
+    });
+  }
   if (correctionPending) {
     return result(COMPLETION_STATES.REVIEW_PENDING, {
       allowedClaims,
@@ -792,6 +852,7 @@ export function evaluateCandidateCompletion({
     candidateBase,
     candidateHead,
     reviewPackageId,
+    reviewAttemptId: reviewLifecycle.attempts.at(-1)?.attempt_id || null,
     semanticContractSha256,
     requiredLenses,
     reviews,

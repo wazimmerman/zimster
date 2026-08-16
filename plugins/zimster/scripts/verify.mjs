@@ -27,7 +27,11 @@ const commonAfterPackage = [
   nodeStep('secret-scan', 'secret-scan.mjs'),
   nodeStep('installed-package-smoke', 'installed-package-smoke.mjs'),
   nodeStep('host-smoke', 'host-smoke.mjs'),
-  nodeStep('review-package', 'review-package.mjs')
+  nodeStep('review-package', 'review-package.mjs', [
+    '--attempt-type', 'initial_review',
+    '--attempt-id', 'goal-verification',
+    '--seam-id', 'whole-change'
+  ])
 ];
 const BUILTIN_PROFILES = Object.freeze({
   goal: {
@@ -115,7 +119,8 @@ async function selectedPlan() {
   if (profile === 'release' && action === 'run') {
     const requiredSemanticOptions = [
       'requirements', 'binding-requirements', 'matrix', 'reviews', 'review-package',
-      'load-bearing-review-obligations'
+      'review-lifecycle', 'assurance-accounting',
+      'load-bearing-review-obligations', 'attempt-type', 'attempt-id', 'seam-id'
     ];
     const missing = requiredSemanticOptions.filter((name) => !options[name]);
     if (missing.length || options['owner-verified'] !== true) {
@@ -133,7 +138,7 @@ async function selectedPlan() {
     const reviewOptions = [
       'base', 'head', 'requirements', 'binding-requirements', 'matrix',
       'lenses', 'risk-signals', 'intended-claims', 'unavailable-proof',
-      'requested-state', 'interfaces'
+      'requested-state', 'interfaces', 'attempt-type', 'attempt-id', 'seam-id'
     ];
     for (const name of reviewOptions) {
       if (options[name]) reviewStep.args.push(`--${name}`, String(options[name]));
@@ -147,6 +152,8 @@ async function selectedPlan() {
       '--matrix', String(options.matrix),
       '--reviews', String(options.reviews),
       '--review-package', String(options['review-package']),
+      '--review-lifecycle', String(options['review-lifecycle']),
+      '--assurance-accounting', String(options['assurance-accounting']),
       '--load-bearing-review-obligations', String(options['load-bearing-review-obligations']),
       '--release-channel', String(options['release-channel'] || 'public_beta')
     );
