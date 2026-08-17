@@ -86,7 +86,11 @@ test('passed governed verification can be bridged into claim-scoped evidence wit
       steps: [{
         id: 'proof-step',
         command: process.execPath,
-        args: ['-e', "import { writeSync } from 'node:fs'; writeSync(process.stdout.fd, 'verified output\\n');"]
+        args: ['-e', "import { writeSync } from 'node:fs'; writeSync(process.stdout.fd, 'verified output\\n');"],
+        requirement_ids: ['CTRL-EVIDENCE-001'],
+        establishes: ['The authenticated verification step passed.'],
+        does_not_establish: ['Any unselected verification step.'],
+        environment_scopes: ['node-git-local']
       }]
     })}\n`);
     let result = run(process.execPath, [
@@ -115,6 +119,18 @@ test('passed governed verification can be bridged into claim-scoped evidence wit
     assert.deepEqual(evidence.establishes, ['The authenticated verification step passed.']);
     assert.equal(evidence.exit_code, 0);
     assert.equal(await readFile(path.join(repo, 'tracked.txt'), 'utf8'), 'base\n');
+
+    result = run(process.execPath, [
+      path.join(root, 'scripts/evidence.mjs'), 'bridge-verification',
+      '--verification-receipt', verification.id,
+      '--steps', '["proof-step"]',
+      '--kind', 'verification', '--scope', 'overclaim',
+      '--requirement-ids', '["CTRL-EVIDENCE-001"]',
+      '--establishes', '["A broader claim not registered before execution."]',
+      '--environment-scope', 'node-git-local'
+    ], repo);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /not declared by selected verification steps/i);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

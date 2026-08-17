@@ -369,6 +369,25 @@ async function main() {
       }
       return step;
     });
+    const allowedRequirements = new Set(selected.flatMap((step) => step.requirement_ids || []));
+    const allowedEstablishes = new Set(selected.flatMap((step) => step.establishes || []));
+    const allowedExclusions = new Set(selected.flatMap((step) => step.does_not_establish || []));
+    const allowedEnvironments = new Set(selected.flatMap((step) => step.environment_scopes || []));
+    const requestedRequirements = listOption('requirement-ids');
+    const requestedEstablishes = listOption('establishes');
+    const requestedExclusions = listOption('does-not-establish');
+    const requestedEnvironment = String(options['environment-scope']);
+    const undeclared = [
+      ...requestedRequirements.filter((value) => !allowedRequirements.has(value)),
+      ...requestedEstablishes.filter((value) => !allowedEstablishes.has(value)),
+      ...requestedExclusions.filter((value) => !allowedExclusions.has(value)),
+      ...(allowedEnvironments.has(requestedEnvironment) ? [] : [requestedEnvironment])
+    ];
+    if (undeclared.length) {
+      throw new Error(
+        `bridge claim was not declared by selected verification steps: ${undeclared.join('; ')}`
+      );
+    }
     const logRoot = path.resolve(runtime, 'verification', 'logs', verificationId);
     for (const step of selected) {
       const log = path.resolve(step.log || '');
@@ -393,6 +412,13 @@ async function main() {
     receipt.upstream_verification_receipt_id = verificationId;
     receipt.upstream_verification_execution_id = verification.execution_id;
     receipt.upstream_verification_step_ids = requestedSteps;
+    receipt.upstream_verification_step_contracts = selected.map((step) => ({
+      id: step.id,
+      requirement_ids: [...(step.requirement_ids || [])],
+      establishes: [...(step.establishes || [])],
+      does_not_establish: [...(step.does_not_establish || [])],
+      environment_scopes: [...(step.environment_scopes || [])]
+    }));
     receipt.upstream_verification_authenticated = true;
     const bytes = await withControlPlaneMutation(runtime, root, {
       mutationType: 'evidence_bridged_from_verification',

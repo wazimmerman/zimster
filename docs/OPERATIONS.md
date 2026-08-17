@@ -57,6 +57,10 @@ node <zimster>/scripts/evidence.mjs bridge-verification \
 The bridge accepts only a passing exact-candidate governed verification and
 digest-matching selected logs. Its receipt records the upstream verification
 and does not create another execution or consume duplicate-command budget.
+The selected verification steps must declare `requirement_ids`, `establishes`,
+`does_not_establish`, and `environment_scopes` in the plan before execution.
+Every bridged field must be a subset of those declarations, so a passing result
+cannot be used to invent broader evidence afterward.
 
 Start a slice durably before editing, checkpoint meaningful dirty progress, and
 resume from actual repository state:

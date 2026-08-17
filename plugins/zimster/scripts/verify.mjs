@@ -75,6 +75,14 @@ function validatePlan(plan) {
     throw new Error('verification plan requires at least one step');
   }
   const ids = new Set();
+  const claimArray = (step, field) => {
+    if (step[field] === undefined) return [];
+    if (!Array.isArray(step[field])
+      || !step[field].every((value) => typeof value === 'string' && value.trim())) {
+      throw new Error(`verification step ${field} must be an array of non-empty strings`);
+    }
+    return step[field];
+  };
   for (const step of plan.steps) {
     if (
       !step
@@ -103,6 +111,14 @@ function validatePlan(plan) {
       }
     }
     if (ids.has(step.id)) throw new Error(`duplicate verification step id: ${step.id}`);
+    for (const requirementId of claimArray(step, 'requirement_ids')) {
+      if (!/^[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*-[0-9]{3,}$/.test(requirementId)) {
+        throw new Error(`verification step has malformed requirement ID: ${requirementId}`);
+      }
+    }
+    claimArray(step, 'establishes');
+    claimArray(step, 'does_not_establish');
+    claimArray(step, 'environment_scopes');
     ids.add(step.id);
   }
   return plan;
@@ -294,7 +310,11 @@ async function runPlan(plan) {
       exit_code: result.status ?? 1,
       duration_ms: durationMs,
       log: logPath,
-      log_sha256: digest(log)
+      log_sha256: digest(log),
+      requirement_ids: [...(step.requirement_ids || [])],
+      establishes: [...(step.establishes || [])],
+      does_not_establish: [...(step.does_not_establish || [])],
+      environment_scopes: [...(step.environment_scopes || [])]
     });
     if (failed) {
       failedStep = step.id;

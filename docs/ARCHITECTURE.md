@@ -133,8 +133,11 @@ When an exact governed verification has already executed bounded commands,
 re-execution. The bridge authenticates the upstream governed execution,
 candidate, environment, profile, terminal receipt digest, selected passing
 steps, and every selected log digest. The derived receipt names the upstream
-verification and logs as fingerprinted inputs; it cannot bridge a failed,
-stale, handcrafted, or unselected step.
+verification and logs as fingerprinted inputs. Each verification step must
+declare its requirement IDs, positive claims, exclusions, and environment
+scopes before execution. The bridge can derive only a subset of that declared
+contract; it cannot bridge a failed, stale, handcrafted, or unselected step or
+broaden a step's claims after observing its result.
 
 ## Codex source and package flow
 
