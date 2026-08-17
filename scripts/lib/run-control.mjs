@@ -609,6 +609,79 @@ export async function resumeRun(runtime, repo) {
   });
 }
 
+export async function reconcileStartedTransaction(runtime, repo, {
+  transactionId,
+  disposition,
+  reason,
+  evidence
+}) {
+  transactionId = nonEmpty(transactionId, 'transaction id');
+  reason = nonEmpty(reason, 'reconciliation reason');
+  const reconciliationEvidence = stringArray(evidence, 'reconciliation evidence');
+  if (disposition !== 'no_canonical_mutation') {
+    throw new Error('only no_canonical_mutation is supported for a pre-write transaction');
+  }
+  if (!reconciliationEvidence?.length) {
+    throw new Error('reconciliation evidence must contain at least one durable observation');
+  }
+  return withRunStateLock(runtime, async () => {
+    const transactionFile = path.join(runtime, 'transactions', 'current.json');
+    const transaction = await readJsonOptional(transactionFile);
+    if (!transaction || transaction.transaction_id !== transactionId) {
+      throw new Error(`active transaction does not match: ${transactionId}`);
+    }
+    if (transaction.schema_version !== 1 || transaction.phase !== 'started') {
+      throw new Error('no-op reconciliation requires a schema-1 started transaction');
+    }
+    const state = await readRunState(runtime);
+    if (state.state_revision !== transaction.run_state_revision_before) {
+      throw new Error('no-op reconciliation rejected because canonical run revision advanced');
+    }
+    const git = await captureGitState(repo);
+    const candidateAtReconciliation = {
+      head: git.head,
+      tree: git.tree,
+      dirty_tree_fingerprint: git.dirty_tree_fingerprint
+    };
+    const candidateChanged = JSON.stringify(candidateAtReconciliation)
+      !== JSON.stringify(transaction.candidate_before || null);
+    const reconciledAt = new Date().toISOString();
+    const archived = {
+      ...transaction,
+      phase: 'reconciled_no_canonical_mutation',
+      reconciled_at: reconciledAt,
+      reconciliation_reason: reason,
+      reconciliation_evidence: reconciliationEvidence,
+      candidate_changed_during_reconciliation: candidateChanged,
+      candidate_at_reconciliation: candidateAtReconciliation
+    };
+    const archiveFile = path.join(
+      runtime,
+      'transactions',
+      'reconciled',
+      `${transaction.transaction_id}.json`
+    );
+    await writeJsonAtomic(archiveFile, archived);
+    state.state_revision += 1;
+    await writeRunState(runtime, state);
+    await recoveryCheckpoint(runtime, repo, state, {
+      recoveryStatus: 'RECONCILED_CONTROL_PLANE_MUTATION'
+    });
+    await appendRunEvent(runtime, {
+      event_type: 'control_plane_mutation_reconciled_noop',
+      transaction_id: transaction.transaction_id,
+      mutation_type: transaction.mutation_type,
+      disposition,
+      reason,
+      evidence: reconciliationEvidence,
+      run_state_revision: state.state_revision
+    });
+    await refreshRunSummary(runtime, { repo });
+    await rm(transactionFile, { force: true });
+    return { transaction: archived, archiveFile };
+  });
+}
+
 export async function completeSlice(runtime, repo, { verificationReceiptId, nextAction, nextCommand } = {}) {
   return withRunStateLock(runtime, async () => {
     const migration = await migrateRunAndCheckpoint(runtime, repo);

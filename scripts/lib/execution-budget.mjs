@@ -71,6 +71,7 @@ export function createBudgetState(profile, { tokenThreshold = null, limits = {} 
     scoped_usage: {},
     overrides: [],
     proof_obligations: [],
+    proof_identity_reconciliations: [],
     events: []
   };
   if (tokenThreshold !== null) {
@@ -78,6 +79,139 @@ export function createBudgetState(profile, { tokenThreshold = null, limits = {} 
     state.usage.observed_tokens = 0;
   }
   return state;
+}
+
+export function duplicateExecutionBudgetProofIdentities(state) {
+  const counts = new Map();
+  for (const row of state?.proof_obligations || []) {
+    if (typeof row.proof !== 'string' || !row.proof) continue;
+    counts.set(row.proof, (counts.get(row.proof) || 0) + 1);
+  }
+  return [...counts.entries()]
+    .filter(([, count]) => count > 1)
+    .map(([proof]) => proof)
+    .sort();
+}
+
+function proofFingerprint(row) {
+  return createHash('sha256').update(JSON.stringify(row)).digest('hex');
+}
+
+export function analyzeExecutionBudgetProofIdentities(state) {
+  const obligations = state?.proof_obligations || [];
+  const groups = new Map();
+  obligations.forEach((row, index) => {
+    if (typeof row.proof !== 'string' || !row.proof) return;
+    const rows = groups.get(row.proof) || [];
+    rows.push({ row, index, occurrence: rows.length });
+    groups.set(row.proof, rows);
+  });
+  const reconciliations = new Map();
+  const issues = [];
+  for (const reconciliation of state?.proof_identity_reconciliations || []) {
+    if (!reconciliation || typeof reconciliation.proof !== 'string') {
+      issues.push('proof identity reconciliation is malformed');
+      continue;
+    }
+    if (reconciliations.has(reconciliation.proof)) {
+      issues.push(`duplicate proof identity reconciliation: ${reconciliation.proof}`);
+      continue;
+    }
+    reconciliations.set(reconciliation.proof, reconciliation);
+  }
+  for (const [proof, rows] of groups) {
+    if (rows.length < 2) continue;
+    const reconciliation = reconciliations.get(proof);
+    if (!reconciliation) {
+      issues.push(`duplicate proof identity is ambiguous: ${proof}`);
+      continue;
+    }
+    const fingerprints = rows.map(({ row }) => proofFingerprint(row));
+    if (JSON.stringify(reconciliation.occurrence_fingerprints) !== JSON.stringify(fingerprints)) {
+      issues.push(`proof identity reconciliation no longer matches its occurrences: ${proof}`);
+    }
+  }
+  function resolve(proof, sourceType, sourceIndex) {
+    const rows = groups.get(proof) || [];
+    if (rows.length === 1) return rows[0].index;
+    if (rows.length === 0) return null;
+    const reconciliation = reconciliations.get(proof);
+    if (!reconciliation) return null;
+    const binding = (reconciliation.bindings || []).find((row) =>
+      row.source_type === sourceType && row.source_index === sourceIndex
+    );
+    if (!binding || !Number.isInteger(binding.target_occurrence)
+      || binding.target_occurrence < 0 || binding.target_occurrence >= rows.length) {
+      issues.push(
+        `ambiguous proof reference lacks an occurrence binding: ${sourceType}[${sourceIndex}] -> ${proof}`
+      );
+      return null;
+    }
+    return rows[binding.target_occurrence].index;
+  }
+  return { issues, resolve };
+}
+
+export async function reconcileExecutionBudgetProofIdentities(runtimeDirectory, {
+  proof,
+  bindings,
+  reason,
+  recordedAt = new Date().toISOString()
+}) {
+  if (typeof proof !== 'string' || !proof) throw new Error('--proof is required');
+  if (!Array.isArray(bindings) || !bindings.length) {
+    throw new Error('--bindings must be a non-empty JSON array');
+  }
+  if (typeof reason !== 'string' || !reason.trim()) throw new Error('--reason is required');
+  return withBudgetLock(runtimeDirectory, async () => {
+    const budget = await readExecutionBudget(runtimeDirectory);
+    budget.state.proof_identity_reconciliations ||= [];
+    if (budget.state.proof_identity_reconciliations.some((row) => row.proof === proof)) {
+      throw new Error(`proof identity is already reconciled: ${proof}`);
+    }
+    const rows = budget.state.proof_obligations.filter((row) => row.proof === proof);
+    if (rows.length < 2) throw new Error(`duplicate proof identity not found: ${proof}`);
+    if (rows.some((row) => row.status === 'required')) {
+      throw new Error('duplicate proof identities must be terminal before reconciliation');
+    }
+    const normalizedBindings = bindings.map((binding) => {
+      if (!binding || !['override', 'supersession'].includes(binding.source_type)
+        || !Number.isInteger(binding.source_index) || binding.source_index < 0
+        || !Number.isInteger(binding.target_occurrence)
+        || binding.target_occurrence < 0 || binding.target_occurrence >= rows.length) {
+        throw new Error('each binding requires source_type, source_index, and valid target_occurrence');
+      }
+      return {
+        source_type: binding.source_type,
+        source_index: binding.source_index,
+        target_occurrence: binding.target_occurrence
+      };
+    });
+    budget.state.proof_identity_reconciliations.push({
+      proof,
+      occurrence_fingerprints: rows.map(proofFingerprint),
+      bindings: normalizedBindings,
+      reason: reason.trim(),
+      recorded_at: recordedAt
+    });
+    const analysis = analyzeExecutionBudgetProofIdentities(budget.state);
+    const relatedIssues = analysis.issues.filter((issue) => issue.includes(proof));
+    for (const [index, override] of budget.state.overrides.entries()) {
+      if (override.required_proof === proof) analysis.resolve(proof, 'override', index);
+    }
+    for (const [index, obligation] of budget.state.proof_obligations.entries()) {
+      if (obligation.superseded_by === proof) analysis.resolve(proof, 'supersession', index);
+    }
+    relatedIssues.push(...analysis.issues.filter((issue) =>
+      issue.includes(`-> ${proof}`) && !relatedIssues.includes(issue)
+    ));
+    if (relatedIssues.length) throw new Error(relatedIssues.join('; '));
+    await writeExecutionBudget(budget.budgetFile, budget.state);
+    return {
+      status: 'BUDGET_PROOF_IDENTITIES_RECONCILED',
+      detail: { proof, occurrences: rows.length, bindings: normalizedBindings.length }
+    };
+  });
 }
 
 async function writeBudgetAtomically(budgetFile, state) {
@@ -641,9 +775,17 @@ export function applyExecutionBudgetEvent(state, {
       strategy_change: strategyChange,
       required_proof: requiredProof
     });
-    const existingProof = state.proof_obligations.find((row) =>
+    const matchingProofs = state.proof_obligations.filter((row) =>
+      row.proof === requiredProof
+    );
+    const existingProof = matchingProofs.find((row) =>
       row.proof === requiredProof && row.status === 'required'
     );
+    if (!existingProof && matchingProofs.length) {
+      throw new Error(
+        `proof identity already exists and is globally immutable: ${requiredProof}`
+      );
+    }
     if (existingProof) {
       const sameRelationship = existingProof.receipt_type === requiredProofType
         && (existingProof.kind || null) === requiredProofKind

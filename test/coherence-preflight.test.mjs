@@ -258,6 +258,53 @@ test('coherence preflight aggregates malformed canonical components instead of a
   }
 });
 
+test('coherence rejects ambiguous duplicate proof identities instead of applying last-wins lookup', async () => {
+  const { repo, budgetFile } = await fixture({ finalApproved: true });
+  try {
+    const budget = JSON.parse(await readFile(budgetFile, 'utf8'));
+    budget.proof_obligations = [{
+      proof: 'duplicate-proof', status: 'required', metric: 'correction_commits',
+      required_at: '2026-08-16T00:00:00.000Z', receipt_type: 'verification', profile: 'release'
+    }, {
+      proof: 'duplicate-proof', status: 'required', metric: 'complete_suite_executions',
+      required_at: '2026-08-16T00:00:01.000Z', receipt_type: 'verification', profile: 'release'
+    }];
+    await writeFile(budgetFile, `${JSON.stringify(budget, null, 2)}\n`);
+    const result = preflight(repo, 'completion');
+    assert.equal(result.status, 2, result.stderr || result.stdout);
+    assert.match(JSON.parse(result.stdout).issues.join('\n'), /duplicate proof identity.*duplicate-proof/i);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('live coherence rejects assurance that predates a lifecycle attempt', async () => {
+  const { repo } = await fixture({ finalApproved: true });
+  try {
+    const lifecycleFile = runtimePath(repo, 'review-lifecycle', 'whole-release.json');
+    const lifecycle = JSON.parse(await readFile(lifecycleFile, 'utf8'));
+    lifecycle.attempts.push({
+      attempt_type: 'final_integration_review',
+      attempt_id: 'attempt-after-assurance',
+      seam_id: 'whole-release',
+      reviewer_identity: 'reviewer-1',
+      review_package_id: 'package-after-assurance',
+      candidate: lifecycle.candidate,
+      verdict: null,
+      findings: []
+    });
+    await writeFile(lifecycleFile, `${JSON.stringify(lifecycle, null, 2)}\n`);
+    const result = preflight(repo, 'completion');
+    assert.equal(result.status, 2, result.stderr || result.stdout);
+    assert.match(
+      JSON.parse(result.stdout).issues.join('\n'),
+      /assurance|attempt-after-assurance|recorded review attempt/i
+    );
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
 test('final-review start performs coherence admission before recording an attempt', async () => {
   const { repo, lifecycle, budgetFile } = await fixture({ finalApproved: false });
   try {

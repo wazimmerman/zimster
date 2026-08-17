@@ -107,7 +107,26 @@ An interrupted transaction has only two honest recovery paths. A durable
 `canonical_mutation_applied` marker lets `resume` finish the revision,
 checkpoint, event, and summary deterministically. A marker that remains merely
 `started` enters `RECOVERY_RECONCILIATION_REQUIRED`; Zimster preserves it and
-does not guess whether the canonical command succeeded.
+does not guess whether the canonical command succeeded. When the owning store
+proves that argument validation or another pre-write failure made no canonical
+mutation, `run-control.mjs reconcile` archives the original marker with the
+explicit reason, durable evidence, and candidate observed at reconciliation;
+it never silently deletes the ambiguous record.
+
+Execution-budget proof labels are immutable identities. A satisfied or
+superseded label cannot be reused by a later override, and both semantic and
+coherence gates reject ambiguous lookup. A historical duplicate remains in
+place: `run-budget.mjs reconcile-identities` appends occurrence fingerprints
+and source-to-occurrence bindings so validators traverse an explicit graph
+without rewriting history or using last-wins lookup.
+
+Self-host evidence has two layers. Candidate-bound evidence establishes that
+the exact implementation can reconstruct and reconcile durable observations;
+it does not depend on mutable current lifecycle or accounting files. The live
+coherence gate separately requires assurance accounting to match the current
+lifecycle and budget immediately before review, completion, and release. This
+keeps capability proof stable while mutable authorization state still fails
+closed when it advances.
 
 ## Codex source and package flow
 

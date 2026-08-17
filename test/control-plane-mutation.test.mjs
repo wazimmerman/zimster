@@ -164,7 +164,6 @@ test('resume exposes an ambiguous pre-commit mutation without claiming success',
       },
       started_at: '2026-08-16T00:00:00.000Z'
     }, null, 2)}\n`);
-
     const result = run(process.execPath, [
       path.join(root, 'scripts/run-control.mjs'), 'resume'
     ], repo);
@@ -177,6 +176,61 @@ test('resume exposes an ambiguous pre-commit mutation without claiming success',
     assert.equal(JSON.parse(await readFile(
       path.join(runtime, 'transactions', 'current.json'), 'utf8'
     )).phase, 'started');
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('an explicitly evidenced no-op reconciliation archives a pre-write transaction', async () => {
+  const { repo, runtime } = await fixture();
+  try {
+    const state = JSON.parse(await readFile(path.join(runtime, 'run.json'), 'utf8'));
+    const head = run('git', ['rev-parse', 'HEAD'], repo).stdout.trim();
+    const tree = run('git', ['rev-parse', 'HEAD^{tree}'], repo).stdout.trim();
+    await mkdir(path.join(runtime, 'transactions'), { recursive: true });
+    await writeFile(path.join(runtime, 'transactions', 'current.json'), `${JSON.stringify({
+      schema_version: 1,
+      transaction_id: 'rejected-verdict',
+      mutation_type: 'review_verdict_recorded',
+      actor_id: 'root',
+      phase: 'started',
+      run_state_revision_before: state.state_revision,
+      candidate_before: {
+        head, tree,
+        dirty_tree_fingerprint: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+      },
+      started_at: '2026-08-16T00:00:00.000Z'
+    }, null, 2)}\n`);
+    await writeFile(path.join(repo, 'tracked.txt'), 'work continued after the rejected command\n');
+
+    let result = run(process.execPath, [
+      path.join(root, 'scripts/run-control.mjs'), 'reconcile',
+      '--transaction-id', 'rejected-verdict',
+      '--disposition', 'no_canonical_mutation',
+      '--reason', 'CLI validation rejected the verdict before lifecycle mutation.',
+      '--evidence', 'review lifecycle attempt remains active with verdict null'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(JSON.parse(result.stdout).status, 'TRANSACTION_RECONCILED_NOOP');
+    await assert.rejects(readFile(path.join(runtime, 'transactions', 'current.json')), /ENOENT/);
+    const archived = JSON.parse(await readFile(
+      path.join(runtime, 'transactions', 'reconciled', 'rejected-verdict.json'),
+      'utf8'
+    ));
+    assert.equal(archived.phase, 'reconciled_no_canonical_mutation');
+    assert.match(archived.reconciliation_reason, /validation rejected/i);
+    assert.deepEqual(archived.reconciliation_evidence, [
+      'review lifecycle attempt remains active with verdict null'
+    ]);
+    assert.equal(archived.candidate_changed_during_reconciliation, true);
+    assert.notEqual(
+      archived.candidate_at_reconciliation.dirty_tree_fingerprint,
+      archived.candidate_before.dirty_tree_fingerprint
+    );
+    const after = JSON.parse(await readFile(path.join(runtime, 'run.json'), 'utf8'));
+    assert.equal(after.state_revision, state.state_revision + 1);
+    result = run(process.execPath, [path.join(root, 'scripts/run-control.mjs'), 'check'], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

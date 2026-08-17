@@ -10,7 +10,10 @@ import {
 } from './lib/semantic-assurance.mjs';
 import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
 import { evidenceStalenessReason } from './lib/evidence-validity.mjs';
-import { executionBudgetProofReceiptPasses } from './lib/execution-budget.mjs';
+import {
+  analyzeExecutionBudgetProofIdentities,
+  executionBudgetProofReceiptPasses
+} from './lib/execution-budget.mjs';
 import { normalizeConvergenceMetric } from './lib/convergence.mjs';
 import { canonicalPath } from './lib/path-identity.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
@@ -110,17 +113,20 @@ async function executionBudgetIssues(budget, runtimeDirectory) {
     return ['execution budget requires limits, usage, override, and proof-obligation records'];
   }
   const issues = [];
-  const proofs = new Map(budget.proof_obligations.map((proof) => [proof.proof, proof]));
+  const graph = analyzeExecutionBudgetProofIdentities(budget);
   const validSatisfiedProofs = new Set();
-  function satisfied(proofName, seen = new Set()) {
-    if (!proofName || seen.has(proofName)) return false;
-    seen.add(proofName);
-    const proof = proofs.get(proofName);
-    if (proof?.status === 'satisfied') return validSatisfiedProofs.has(proofName);
-    if (proof?.status === 'superseded') return satisfied(proof.superseded_by, seen);
+  function satisfied(proofName, sourceType, sourceIndex, seen = new Set()) {
+    const index = graph.resolve(proofName, sourceType, sourceIndex);
+    if (index === null || seen.has(index)) return false;
+    seen.add(index);
+    const proof = budget.proof_obligations[index];
+    if (proof?.status === 'satisfied') return validSatisfiedProofs.has(index);
+    if (proof?.status === 'superseded') {
+      return satisfied(proof.superseded_by, 'supersession', index, seen);
+    }
     return false;
   }
-  for (const proof of budget.proof_obligations) {
+  for (const [index, proof] of budget.proof_obligations.entries()) {
     if (proof.status === 'required') {
       issues.push(`pending execution-budget proof: ${proof.proof || 'unnamed'}`);
     } else if (proof.status === 'superseded') {
@@ -143,7 +149,7 @@ async function executionBudgetIssues(budget, runtimeDirectory) {
         proof.receipt_id,
         { cwd: root }
       )) {
-        validSatisfiedProofs.add(proof.proof);
+        validSatisfiedProofs.add(index);
       } else {
         issues.push(
           `execution-budget proof receipt ${proof.receipt_id} is absent, invalidated, stale, environment-mismatched, or outside the exact candidate: ${proof.proof || 'unnamed'}`
@@ -151,11 +157,12 @@ async function executionBudgetIssues(budget, runtimeDirectory) {
       }
     }
   }
-  for (const override of budget.overrides) {
-    if (!satisfied(override.required_proof)) {
+  for (const [index, override] of budget.overrides.entries()) {
+    if (!satisfied(override.required_proof, 'override', index)) {
       issues.push(`execution-budget override lacks satisfied proof: ${override.required_proof || 'unnamed'}`);
     }
   }
+  issues.push(...graph.issues.filter((issue) => !issues.includes(issue)));
   for (const [metric, value] of Object.entries(budget.usage)) {
     if (normalizeConvergenceMetric(metric) !== metric) continue;
     const limit = budget.limits[metric];

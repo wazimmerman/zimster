@@ -35,7 +35,11 @@ event stream, and machine-readable execution budget. Use
 `scripts/run-budget.mjs prove` to satisfy a proof-backed override. If a proof
 relationship is later shown to be circular, `scripts/run-budget.mjs supersede`
 preserves the original obligation and links one enforceable replacement; it
-never erases the original override.
+never erases the original override. Proof labels cannot be reused after they
+become satisfied or superseded. If an older ledger already contains duplicate
+labels, `scripts/run-budget.mjs reconcile-identities` requires explicit
+override/supersession occurrence bindings and appends a fingerprinted
+reconciliation record; it does not rename or remove either historical row.
 
 Start a slice durably before editing, checkpoint meaningful dirty progress, and
 resume from actual repository state:
@@ -250,6 +254,22 @@ A canonical-write marker is completed mechanically. A pre-write/ambiguous
 marker remains visible in the checkpoint and `run.md` as
 `RECOVERY_RECONCILIATION_REQUIRED`; do not delete it or claim the operation
 succeeded without reconciling the owning store.
+
+If the owning store proves that a `started` transaction made no canonical
+mutation, archive it through the evidence-required no-op disposition:
+
+```text
+node <zimster>/scripts/run-control.mjs reconcile \
+  --transaction-id <id> \
+  --disposition no_canonical_mutation \
+  --reason <why-the-owning-store-did-not-change> \
+  --evidence <durable-observation>
+```
+
+The command refuses a changed run-state revision, preserves the original
+marker under `transactions/reconciled/`, records whether the candidate changed
+after interruption, advances the canonical revision, and refreshes the
+checkpoint and `run.md`.
 
 Reconcile supported host observations before completion:
 

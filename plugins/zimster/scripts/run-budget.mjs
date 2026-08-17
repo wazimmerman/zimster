@@ -7,6 +7,7 @@ import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 import {
   initializeExecutionBudget,
   normalizeBudgetProfile,
+  reconcileExecutionBudgetProofIdentities,
   recordExecutionBudgetEvent,
   satisfyExecutionBudgetProof,
   supersedeExecutionBudgetProof
@@ -94,6 +95,16 @@ if (action === 'init') {
     requiredProofCommand: options['required-proof-command'] ? String(options['required-proof-command']) : null
   }));
   emit(result.status, result.detail);
+} else if (action === 'reconcile-identities') {
+  const result = await withControlPlaneMutation(runtime, root, {
+    mutationType: 'execution_budget_proof_identities_reconciled',
+    atomicFailure: true
+  }, () => reconcileExecutionBudgetProofIdentities(runtime, {
+    proof: required(options, 'proof'),
+    bindings: JSON.parse(required(options, 'bindings')),
+    reason: required(options, 'reason')
+  }));
+  emit(result.status, result.detail);
 } else {
-  throw new Error('Usage: run-budget.mjs <init|record|prove|supersede> [options]');
+  throw new Error('Usage: run-budget.mjs <init|record|prove|supersede|reconcile-identities> [options]');
 }

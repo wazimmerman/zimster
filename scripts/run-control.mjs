@@ -5,6 +5,7 @@ import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 import {
   checkpointRun,
   completeSlice,
+  reconcileStartedTransaction,
   resumeRun,
   startSlice
 } from './lib/run-control.mjs';
@@ -58,6 +59,18 @@ if (action === 'start') {
   const result = await resumeRun(runtime, repo);
   output(result.checkpoint);
   if (result.recoveryRequired) process.exitCode = 2;
+} else if (action === 'reconcile') {
+  const result = await reconcileStartedTransaction(runtime, repo, {
+    transactionId: required(options, 'transaction-id'),
+    disposition: required(options, 'disposition'),
+    reason: required(options, 'reason'),
+    evidence: [required(options, 'evidence')]
+  });
+  output({
+    status: 'TRANSACTION_RECONCILED_NOOP',
+    transaction_id: result.transaction.transaction_id,
+    archive: result.archiveFile
+  });
 } else if (action === 'complete') {
   const result = await completeSlice(runtime, repo, {
     verificationReceiptId: options['verification-receipt']
@@ -78,5 +91,5 @@ if (action === 'start') {
     process.exitCode = 2;
   }
 } else {
-  throw new Error('Usage: run-control.mjs <start|checkpoint|resume|complete|refresh|check> [options]');
+  throw new Error('Usage: run-control.mjs <start|checkpoint|resume|reconcile|complete|refresh|check> [options]');
 }

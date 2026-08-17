@@ -6,6 +6,7 @@ import { promisify } from 'node:util';
 import os from 'node:os';
 import path from 'node:path';
 import { root } from './helpers.mjs';
+import { analyzeExecutionBudgetProofIdentities } from '../scripts/lib/execution-budget.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -358,6 +359,102 @@ test('a circular budget proof can only be superseded by an auditable enforceable
     assert.equal(state.proof_obligations[1].receipt_id, receipt.id);
     assert.equal(state.proof_obligations[1].superseded_by, 'refreshed exact candidate proof');
     assert.equal(state.proof_obligations[2].status, 'required');
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('a stable proof identity cannot be reused after it is satisfied', async () => {
+  const repo = await tempRepo();
+  try {
+    const budget = path.join(root, 'scripts/run-budget.mjs');
+    const evidence = path.join(root, 'scripts/evidence.mjs');
+    let result = run(process.execPath, [budget, 'init', '--profile', 'standard'], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const proofArgv = [process.execPath, '-e', 'process.exit(0);'];
+    const proofCommand = proofArgv.join(' ');
+    result = run(process.execPath, [
+      evidence, 'run', '--kind', 'test', '--scope', 'focused', '--', ...proofArgv
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const receipt = JSON.parse(result.stdout);
+    const proofOptions = [
+      '--required-proof', 'immutable-proof-id',
+      '--required-proof-type', 'evidence',
+      '--required-proof-kind', 'test',
+      '--required-proof-scope', 'focused',
+      '--required-proof-command', proofCommand
+    ];
+    result = run(process.execPath, [
+      budget, 'record', '--metric', 'complete_suite_executions', '--amount', '4',
+      '--strategy-change', 'first override', ...proofOptions
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    result = run(process.execPath, [
+      budget, 'prove', '--proof', 'immutable-proof-id', '--receipt', receipt.id
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+
+    result = run(process.execPath, [
+      budget, 'record', '--metric', 'correction_commits', '--amount', '3',
+      '--strategy-change', 'second override', ...proofOptions
+    ], repo);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /proof identity.*already exists|globally unique/i);
+    const state = JSON.parse(await readFile(runtimePath(repo, 'budget.json'), 'utf8'));
+    assert.equal(state.proof_obligations.filter(({ proof }) =>
+      proof === 'immutable-proof-id').length, 1);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('historical duplicate proof labels require explicit occurrence-bound reconciliation', async () => {
+  const repo = await tempRepo();
+  try {
+    const budgetCommand = path.join(root, 'scripts/run-budget.mjs');
+    let result = run(process.execPath, [budgetCommand, 'init', '--profile', 'standard'], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const budgetFile = runtimePath(repo, 'budget.json');
+    const state = JSON.parse(await readFile(budgetFile, 'utf8'));
+    state.overrides = [{ required_proof: 'legacy-duplicate' }];
+    state.proof_obligations = [{
+      proof: 'legacy-duplicate', status: 'superseded', superseded_by: 'replacement-a',
+      supersession_reason: 'first chain', superseded_at: '2026-08-16T00:00:01.000Z'
+    }, {
+      proof: 'replacement-a', status: 'satisfied', receipt_id: 'receipt-a'
+    }, {
+      proof: 'earlier-source', status: 'superseded', superseded_by: 'legacy-duplicate',
+      supersession_reason: 'historical link', superseded_at: '2026-08-16T00:00:02.000Z'
+    }, {
+      proof: 'legacy-duplicate', status: 'superseded', superseded_by: 'replacement-b',
+      supersession_reason: 'second chain', superseded_at: '2026-08-16T00:00:03.000Z'
+    }, {
+      proof: 'replacement-b', status: 'satisfied', receipt_id: 'receipt-b'
+    }];
+    await writeFile(budgetFile, `${JSON.stringify(state, null, 2)}\n`);
+    assert.match(
+      analyzeExecutionBudgetProofIdentities(state).issues.join('\n'),
+      /duplicate proof identity.*legacy-duplicate/i
+    );
+    result = run(process.execPath, [
+      budgetCommand, 'reconcile-identities',
+      '--proof', 'legacy-duplicate',
+      '--bindings', JSON.stringify([
+        { source_type: 'override', source_index: 0, target_occurrence: 1 },
+        { source_type: 'supersession', source_index: 2, target_occurrence: 0 }
+      ]),
+      '--reason', 'Bind the preserved historical duplicate occurrences without rewriting them.'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const reconciled = JSON.parse(await readFile(budgetFile, 'utf8'));
+    const analysis = analyzeExecutionBudgetProofIdentities(reconciled);
+    analysis.resolve('legacy-duplicate', 'override', 0);
+    analysis.resolve('legacy-duplicate', 'supersession', 2);
+    assert.deepEqual(analysis.issues, []);
+    assert.equal(reconciled.proof_obligations[0].proof, 'legacy-duplicate');
+    assert.equal(reconciled.proof_obligations[3].proof, 'legacy-duplicate');
+    assert.equal(reconciled.proof_identity_reconciliations.length, 1);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

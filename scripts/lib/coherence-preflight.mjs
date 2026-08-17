@@ -1,6 +1,9 @@
 import { readFile } from 'node:fs/promises';
 import path from 'node:path';
-import { executionBudgetProofReceiptPasses } from './execution-budget.mjs';
+import {
+  analyzeExecutionBudgetProofIdentities,
+  executionBudgetProofReceiptPasses
+} from './execution-budget.mjs';
 import { captureGitState } from './git-state.mjs';
 import { reconcileExecutionAccounting } from './governed-execution.mjs';
 import {
@@ -41,9 +44,10 @@ const CURRENT_RECOVERY_STATUSES = new Set([
 async function budgetProofIssues(runtime, repo, budget) {
   if (!budget || budget.schema_version !== 1) return ['execution budget is unavailable or malformed'];
   const issues = [];
-  const proofs = new Map((budget.proof_obligations || []).map((row) => [row.proof, row]));
+  const obligations = budget.proof_obligations || [];
+  const graph = analyzeExecutionBudgetProofIdentities(budget);
   const valid = new Set();
-  for (const proof of budget.proof_obligations || []) {
+  for (const [index, proof] of obligations.entries()) {
     if (proof.status === 'required') {
       issues.push(`pending execution-budget proof: ${proof.proof || 'unnamed'}`);
     } else if (proof.status === 'satisfied') {
@@ -61,7 +65,7 @@ async function budgetProofIssues(runtime, repo, budget) {
       if (!authenticated) {
         issues.push(`execution-budget proof is stale or unauthenticated: ${proof.proof || 'unnamed'}`);
       } else {
-        valid.add(proof.proof);
+        valid.add(index);
       }
     } else if (proof.status === 'superseded') {
       if (!proof.superseded_by || !proof.supersession_reason || !proof.superseded_at) {
@@ -71,19 +75,23 @@ async function budgetProofIssues(runtime, repo, budget) {
       issues.push(`execution-budget proof has unsupported state: ${proof.proof || 'unnamed'}`);
     }
   }
-  function satisfied(name, seen = new Set()) {
-    if (!name || seen.has(name)) return false;
-    seen.add(name);
-    const proof = proofs.get(name);
-    if (proof?.status === 'satisfied') return valid.has(name);
-    if (proof?.status === 'superseded') return satisfied(proof.superseded_by, seen);
+  function satisfied(name, sourceType, sourceIndex, seen = new Set()) {
+    const index = graph.resolve(name, sourceType, sourceIndex);
+    if (index === null || seen.has(index)) return false;
+    seen.add(index);
+    const proof = obligations[index];
+    if (proof?.status === 'satisfied') return valid.has(index);
+    if (proof?.status === 'superseded') {
+      return satisfied(proof.superseded_by, 'supersession', index, seen);
+    }
     return false;
   }
-  for (const override of budget.overrides || []) {
-    if (!satisfied(override.required_proof)) {
+  for (const [index, override] of (budget.overrides || []).entries()) {
+    if (!satisfied(override.required_proof, 'override', index)) {
       issues.push(`execution-budget override lacks a current authenticated proof: ${override.required_proof || 'unnamed'}`);
     }
   }
+  issues.push(...graph.issues.filter((issue) => !issues.includes(issue)));
   return issues;
 }
 
