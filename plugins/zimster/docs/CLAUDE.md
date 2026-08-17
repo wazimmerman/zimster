@@ -1,8 +1,9 @@
 # Claude Code
 
 Exact-final verification for Zimster 0.7.1 is `STRUCTURALLY_VALIDATED` on
-Claude Code 2.1.226. Strict validation covered the exact Claude archive's 12
-skills, 4 agents, one SessionStart hook, and package manifest. An earlier
+Claude Code 2.1.226. Strict validation covered
+12 skills, 4 agents, and one SessionStart hook in the exact Claude archive,
+plus the package manifest. An earlier
 isolated 2.1.233 marketplace install used an older candidate and is historical
 context, not authorization for the final artifact. Marketplace installation
 and authenticated model-backed invocation remain unverified for the final
