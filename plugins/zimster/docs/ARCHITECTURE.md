@@ -251,6 +251,14 @@ environment scope. Candidate Git tree identity, receipt references, statuses,
 observations, and verification results remain separately validated so final
 proof can advance without invalidating an unchanged reviewed contract.
 
+Review-package risk signals expand deterministically into their combined
+semantic lenses. Public contracts, trust boundaries, external/live services,
+shared adapters, plugin systems, durable state, migration, and release side
+effects cannot silently collapse to only the framework-defaults lens; their
+union includes the applicable scope, state, security, persistence, protocol,
+fallback, falsifiability, resource, external-service, framework, and shared
+control-flow lenses.
+
 Host evidence is independent per harness. Receipt states distinguish live,
 installed-package, structural, authentication-blocked, unavailable, and
 unsupported evidence, and separately record whether model-backed execution

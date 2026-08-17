@@ -1191,5 +1191,37 @@ test('shared adapter or provider branching selects the shared-control-flow lens'
   ]) {
     assert.deepEqual(selectSemanticLenses([signal]), ['shared-control-flow']);
   }
+  assert.deepEqual(selectSemanticLenses(['shared-adapter']), [
+    'api-protocol-compatibility',
+    'error-retry-fallback-semantics',
+    'test-falsifiability-and-edge-cases',
+    'shared-control-flow'
+  ]);
   assert.deepEqual(selectSemanticLenses(['isolated-adapter']), []);
+});
+
+test('high-risk release signals select the complete combined semantic review', () => {
+  assert.deepEqual(selectSemanticLenses([
+    'public-contract',
+    'auth-trust',
+    'external-service',
+    'live-only',
+    'shared-adapter',
+    'plugin-system',
+    'durable-state',
+    'migration',
+    'release-side-effects'
+  ]), [
+    'mission-scope-compliance',
+    'state-authority-and-stale-work',
+    'security-trust-boundaries',
+    'persistence-migration-rollback',
+    'api-protocol-compatibility',
+    'error-retry-fallback-semantics',
+    'test-falsifiability-and-edge-cases',
+    'performance-resource-limits',
+    'os-hardware-external-service-truthfulness',
+    'framework-defaults-and-conventions',
+    'shared-control-flow'
+  ]);
 });

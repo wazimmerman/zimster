@@ -208,6 +208,13 @@ outside the worktree.
 
 Create a separate Git-local package for each typed attempt:
 
+Declare every applicable `--risk-signals` value when creating the package.
+High-risk release signals are additive: `public-contract`, `auth-trust`,
+`external-service`, `live-only`, `shared-adapter`, `plugin-system`,
+`durable-state`, `migration`, and `release-side-effects` select the combined
+semantic review rather than a single lens. The package's selected lens set is
+the completion gate's required lens set.
+
 ```text
 node <zimster>/scripts/review-package.mjs \
   --attempt-type initial_review --attempt-id <stable-id> --seam-id <stable-id> \

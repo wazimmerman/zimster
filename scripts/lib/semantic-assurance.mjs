@@ -923,6 +923,44 @@ export function evaluateCandidateCompletion({
 
 export function selectSemanticLenses(signals = []) {
   const requested = new Set(signals);
+  const semanticSignalGroups = [
+    {
+      lens: 'mission-scope-compliance',
+      signals: ['public-contract', 'release-side-effects']
+    },
+    {
+      lens: 'state-authority-and-stale-work',
+      signals: ['durable-state', 'release-side-effects']
+    },
+    {
+      lens: 'security-trust-boundaries',
+      signals: ['auth-trust']
+    },
+    {
+      lens: 'persistence-migration-rollback',
+      signals: ['durable-state', 'migration', 'release-side-effects']
+    },
+    {
+      lens: 'api-protocol-compatibility',
+      signals: ['public-contract', 'shared-adapter', 'migration']
+    },
+    {
+      lens: 'error-retry-fallback-semantics',
+      signals: ['external-service', 'shared-adapter', 'durable-state', 'migration', 'release-side-effects']
+    },
+    {
+      lens: 'test-falsifiability-and-edge-cases',
+      signals: ['auth-trust', 'external-service', 'live-only', 'shared-adapter', 'durable-state', 'migration', 'release-side-effects']
+    },
+    {
+      lens: 'performance-resource-limits',
+      signals: ['external-service', 'durable-state']
+    },
+    {
+      lens: 'os-hardware-external-service-truthfulness',
+      signals: ['external-service', 'live-only', 'release-side-effects']
+    }
+  ];
   const frameworkSignals = [
     'build-tool',
     'wrapper-adapter',
@@ -936,6 +974,7 @@ export function selectSemanticLenses(signals = []) {
     'convention-heavy-framework'
   ];
   const sharedControlFlowSignals = [
+    'shared-adapter',
     'shared-adapter-control-flow',
     'shared-provider-control-flow',
     'shared-platform-control-flow',
@@ -943,6 +982,9 @@ export function selectSemanticLenses(signals = []) {
     'common-specialized-branching'
   ];
   const lenses = [];
+  for (const { lens, signals: lensSignals } of semanticSignalGroups) {
+    if (lensSignals.some((signal) => requested.has(signal))) lenses.push(lens);
+  }
   if (frameworkSignals.some((signal) => requested.has(signal))) {
     lenses.push('framework-defaults-and-conventions');
   }
