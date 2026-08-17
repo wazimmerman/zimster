@@ -23,6 +23,8 @@
 - Require authenticated exact requirement/claim/input bindings, explicit TDD
   claim status on every matrix row, authentic governed package-smoke RED/GREEN
   receipts, and a current canonical postmortem at every terminal coherence gate.
+- Derive one exact requirement/claim pair per verification-bridge receipt so
+  multi-claim steps cannot create ambiguous Cartesian proof relationships.
 
 ## 0.7.0 - 2026-08-07
 

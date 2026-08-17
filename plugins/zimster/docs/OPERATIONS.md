@@ -66,6 +66,10 @@ bridged field must be a subset of that step's declarations, and every declared
 `does_not_establish` caveat must be retained. A passing result therefore cannot
 be recombined or broadened afterward.
 
+Each bridge receipt binds one exact requirement and one exact claim. Create
+multiple derived receipts when a passing step supports multiple matrix rows;
+the bridge never invents a Cartesian pairing after execution.
+
 Start a slice durably before editing, checkpoint meaningful dirty progress, and
 resume from actual repository state:
 

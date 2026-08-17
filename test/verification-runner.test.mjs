@@ -90,8 +90,11 @@ test('passed governed verification can be bridged into claim-scoped evidence wit
         command: process.execPath,
         args: [externalProgram],
         input_files: [externalProgram],
-        requirement_ids: ['CTRL-EVIDENCE-001'],
-        establishes: ['The authenticated verification step passed.'],
+        requirement_ids: ['CTRL-EVIDENCE-001', 'CTRL-PAIRING-001'],
+        establishes: [
+          'The authenticated verification step passed.',
+          'The second declared claim passed.'
+        ],
         does_not_establish: ['Any unselected verification step.'],
         environment_scopes: ['node-git-local']
       }, {
@@ -146,6 +149,19 @@ test('passed governed verification can be bridged into claim-scoped evidence wit
     assert.ok(evidence.inputs.some((input) => input.endsWith('bridge-helper.mjs')));
     assert.equal(evidence.exit_code, 0);
     assert.equal(await readFile(path.join(repo, 'tracked.txt'), 'utf8'), 'base\n');
+
+    result = run(process.execPath, [
+      path.join(root, 'scripts/evidence.mjs'), 'bridge-verification',
+      '--verification-receipt', verification.id,
+      '--steps', '["proof-step"]',
+      '--kind', 'verification', '--scope', 'ambiguous-pairing',
+      '--requirement-ids', '["CTRL-EVIDENCE-001","CTRL-PAIRING-001"]',
+      '--establishes', '["The authenticated verification step passed.","The second declared claim passed."]',
+      '--does-not-establish', '["Any unselected verification step."]',
+      '--environment-scope', 'node-git-local'
+    ], repo);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /one exact requirement.*claim pair|ambiguous/i);
 
     result = run(process.execPath, [
       path.join(root, 'scripts/evidence.mjs'), 'bridge-verification',

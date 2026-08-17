@@ -461,6 +461,11 @@ async function main() {
     const requestedEstablishes = listOption('establishes');
     const requestedExclusions = listOption('does-not-establish');
     const requestedEnvironment = String(options['environment-scope']);
+    if (requestedRequirements.length !== 1 || requestedEstablishes.length !== 1) {
+      throw new Error(
+        'claim-scoped evidence must bind one exact requirement and claim pair per receipt'
+      );
+    }
     const undeclared = [
       ...requestedRequirements.filter((value) => !allowedRequirements.has(value)),
       ...requestedEstablishes.filter((value) => !allowedEstablishes.has(value)),
