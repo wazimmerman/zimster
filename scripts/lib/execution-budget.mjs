@@ -152,28 +152,48 @@ export function analyzeExecutionBudgetProofIdentities(state) {
   return { issues, resolve };
 }
 
-export function correctionRecheckEpochIssues(state, lifecycle) {
+export function correctionRecheckEpochIssues(state, lifecycles) {
   const issues = [];
   const usage = state?.usage?.correction_rechecks;
-  const attempts = (lifecycle?.attempts || []).filter(
-    ({ attempt_type }) => attempt_type === 'correction_recheck'
+  const lifecycleStates = Array.isArray(lifecycles)
+    ? lifecycles
+    : lifecycles ? [lifecycles] : [];
+  const lifecycleBySeam = new Map();
+  for (const lifecycle of lifecycleStates) {
+    if (typeof lifecycle?.seam_id !== 'string' || !lifecycle.seam_id) {
+      issues.push('correction-recheck epoch accounting requires authoritative review lifecycles');
+      continue;
+    }
+    if (lifecycleBySeam.has(lifecycle.seam_id)) {
+      issues.push(`duplicate authoritative review lifecycle for seam: ${lifecycle.seam_id}`);
+      continue;
+    }
+    lifecycleBySeam.set(lifecycle.seam_id, lifecycle);
+  }
+  const attempts = [...lifecycleBySeam.values()].flatMap((lifecycle) =>
+    (lifecycle.attempts || [])
+      .filter(({ attempt_type }) => attempt_type === 'correction_recheck')
+      .map((attempt) => ({ attempt, seamId: lifecycle.seam_id }))
   );
   if (usage === undefined && attempts.length === 0) return issues;
   if (!Number.isInteger(usage) || usage < 0) {
     return ['execution-budget correction_rechecks usage must be a non-negative integer'];
   }
-  if (typeof lifecycle?.seam_id !== 'string' || !lifecycle.seam_id) {
-    return ['correction-recheck epoch accounting requires an authoritative review lifecycle'];
+  if (lifecycleBySeam.size === 0) {
+    return [...new Set([
+      ...issues,
+      'correction-recheck epoch accounting requires authoritative review lifecycles'
+    ])];
   }
 
   const epochCounts = new Map();
-  for (const attempt of attempts) {
+  for (const { attempt, seamId } of attempts) {
     const semantic = attempt.candidate?.semantic_contract_sha256;
-    if (attempt.seam_id !== lifecycle.seam_id || !/^[0-9a-f]{64}$/.test(semantic || '')) {
+    if (attempt.seam_id !== seamId || !/^[0-9a-f]{64}$/.test(semantic || '')) {
       issues.push(`correction recheck ${attempt.attempt_id || 'unnamed'} lacks an authenticated semantic epoch`);
       continue;
     }
-    const epoch = `${attempt.seam_id}@${semantic}`;
+    const epoch = `${seamId}@${semantic}`;
     epochCounts.set(epoch, (epochCounts.get(epoch) || 0) + 1);
   }
   for (const [epoch, count] of epochCounts) {
@@ -192,7 +212,7 @@ export function correctionRecheckEpochIssues(state, lifecycle) {
     return [...new Set(issues)];
   }
   let scopedTotal = 0;
-  let legacyTotal = 0;
+  const legacyBySeam = new Map();
   const representedEpochs = new Set();
   for (const [scope, value] of Object.entries(scoped)) {
     if (!Number.isInteger(value) || value < 0) {
@@ -202,14 +222,14 @@ export function correctionRecheckEpochIssues(state, lifecycle) {
     scopedTotal += value;
     const epoch = scope.match(/^(.+)@([0-9a-f]{64})$/);
     if (!epoch) {
-      if (scope !== lifecycle.seam_id) {
-        issues.push(`legacy correction-recheck scope does not match lifecycle seam: ${scope}`);
+      if (!lifecycleBySeam.has(scope)) {
+        issues.push(`legacy correction-recheck scope has no authoritative lifecycle: ${scope}`);
       }
-      legacyTotal += value;
+      legacyBySeam.set(scope, (legacyBySeam.get(scope) || 0) + value);
       continue;
     }
-    if (epoch[1] !== lifecycle.seam_id) {
-      issues.push(`semantic correction-recheck scope does not match lifecycle seam: ${scope}`);
+    if (!lifecycleBySeam.has(epoch[1])) {
+      issues.push(`semantic correction-recheck scope has no authoritative lifecycle: ${scope}`);
     }
     representedEpochs.add(scope);
     const observed = epochCounts.get(scope) || 0;
@@ -217,13 +237,17 @@ export function correctionRecheckEpochIssues(state, lifecycle) {
       issues.push(`semantic correction-recheck scope ${scope} records ${value}, lifecycle records ${observed}`);
     }
   }
-  const unmatchedEpochTotal = [...epochCounts.entries()]
-    .filter(([epoch]) => !representedEpochs.has(epoch))
-    .reduce((total, [, count]) => total + count, 0);
-  if (legacyTotal !== unmatchedEpochTotal) {
-    issues.push(
-      `legacy correction-recheck history ${legacyTotal} does not reconcile to ${unmatchedEpochTotal} authenticated historical epochs`
-    );
+  for (const seamId of lifecycleBySeam.keys()) {
+    const prefix = `${seamId}@`;
+    const unmatchedEpochTotal = [...epochCounts.entries()]
+      .filter(([epoch]) => epoch.startsWith(prefix) && !representedEpochs.has(epoch))
+      .reduce((total, [, count]) => total + count, 0);
+    const legacyTotal = legacyBySeam.get(seamId) || 0;
+    if (legacyTotal !== unmatchedEpochTotal) {
+      issues.push(
+        `legacy correction-recheck history for ${seamId} is ${legacyTotal}, not ${unmatchedEpochTotal} authenticated historical epochs`
+      );
+    }
   }
   if (scopedTotal !== usage) {
     issues.push(`scoped correction-recheck usage ${scopedTotal} differs from aggregate usage ${usage}`);

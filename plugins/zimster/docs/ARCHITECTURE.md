@@ -73,8 +73,9 @@ Dependency-free Node 22 tools turn important policy into inspectable state:
 - `run-budget.mjs` admits a post-redesign correction recheck only when its
   explicit semantic-contract digest matches the current lifecycle candidate
   and that lifecycle is in the authorized recheck state, keeping budget scope
-  aligned with the lifecycle's semantic epoch; candidate completion reconciles
-  aggregate history only to distinct authenticated lifecycle epochs;
+  aligned with the lifecycle's semantic epoch; candidate completion loads
+  every canonical seam lifecycle and reconciles run-global aggregate history
+  only to distinct authenticated lifecycle epochs across those seams;
 - `coherence-preflight.mjs` compares the canonical run, checkpoint, derived
   summary, governed accounting, budget proofs, review lifecycle, assurance
   accounting, and exact checkout before final review, completion, or release;

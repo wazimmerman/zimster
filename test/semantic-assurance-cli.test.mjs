@@ -51,7 +51,8 @@ test('aggregate over-limit coverage resolves the explicit covering-override occu
 
 test('completion delegates correction-recheck over-limit accounting to semantic epochs', async () => {
   const source = await readFile(path.join(root, 'scripts/semantic-assurance.mjs'), 'utf8');
-  assert.match(source, /correctionRecheckEpochIssues\(budget, reviewLifecycle\)/);
+  assert.match(source, /correctionRecheckEpochIssues\(budget, reviewLifecycles\)/);
+  assert.match(source, /authoritativeReviewLifecycles\(runtimeDirectory\)/);
   assert.match(
     source,
     /if \(metric === 'correction_rechecks'\) continue;/,
@@ -114,6 +115,38 @@ async function assuranceFiles(directory, {
   });
   await mkdir(path.dirname(lifecyclePath), { recursive: true });
   await writeFile(lifecyclePath, JSON.stringify(lifecycle));
+  const auxiliaryPath = path.join(runtimeDirectory, 'review-lifecycle', 'auxiliary-seam.json');
+  const correctedAuxiliaryCandidate = { ...candidate, head_sha: 'b'.repeat(40) };
+  let auxiliary = createReviewLifecycle({
+    seam_id: 'auxiliary-seam', reviewer_identity: 'reviewer-1', candidate
+  });
+  auxiliary = applyReviewLifecycleEvent(auxiliary, {
+    type: 'attempt_started',
+    attempt: {
+      attempt_type: 'initial_review', attempt_id: 'auxiliary-initial',
+      seam_id: 'auxiliary-seam', reviewer_identity: 'reviewer-1',
+      review_package_id: 'auxiliary-package-initial', candidate
+    }
+  });
+  auxiliary = applyReviewLifecycleEvent(auxiliary, {
+    type: 'verdict_recorded', attempt_id: 'auxiliary-initial', verdict: 'needs_correction',
+    findings: [{ severity: 'Important', summary: 'Exercise aggregate multi-seam accounting.' }]
+  });
+  auxiliary = applyReviewLifecycleEvent(auxiliary, {
+    type: 'correction_recorded', candidate: correctedAuxiliaryCandidate
+  });
+  auxiliary = applyReviewLifecycleEvent(auxiliary, {
+    type: 'attempt_started',
+    attempt: {
+      attempt_type: 'correction_recheck', attempt_id: 'auxiliary-recheck',
+      seam_id: 'auxiliary-seam', reviewer_identity: 'reviewer-1',
+      review_package_id: 'auxiliary-package-recheck', candidate: correctedAuxiliaryCandidate
+    }
+  });
+  auxiliary = applyReviewLifecycleEvent(auxiliary, {
+    type: 'verdict_recorded', attempt_id: 'auxiliary-recheck', verdict: 'approved', findings: []
+  });
+  await writeFile(auxiliaryPath, JSON.stringify(auxiliary));
   await mkdir(path.dirname(accountingPath), { recursive: true });
   await writeFile(accountingPath, JSON.stringify({
     schema_version: 1,
@@ -122,14 +155,18 @@ async function assuranceFiles(directory, {
     observed_agent_ids: ['reviewer-1'],
     dispatch_agent_ids: ['reviewer-1'],
     budget_agent_ids: ['reviewer-1'],
-    observed_review_attempt_ids: ['attempt-initial', 'attempt-final'],
-    recorded_review_attempt_ids: ['attempt-initial', 'attempt-final'],
+    observed_review_attempt_ids: [
+      'attempt-initial', 'attempt-final', 'auxiliary-initial', 'auxiliary-recheck'
+    ],
+    recorded_review_attempt_ids: [
+      'attempt-initial', 'attempt-final', 'auxiliary-initial', 'auxiliary-recheck'
+    ],
     recorded_review_attempt_counts: {
-      correction_rechecks: 0,
+      correction_rechecks: 1,
       final_integration_reviews: 1
     },
     budget_review_attempt_counts: {
-      correction_rechecks: 0,
+      correction_rechecks: 1,
       final_integration_reviews: 1
     },
     observed_max_depth: 1,
@@ -140,14 +177,21 @@ async function assuranceFiles(directory, {
     schema_version: 1,
     profile: 'high-risk',
     limits: {
+      correction_rechecks: 2,
       final_integration_reviews: 2,
       complete_suite_executions: 3,
       exact_duplicate_commands: 2
     },
     usage: {
+      correction_rechecks: 1,
       final_integration_reviews: 1,
       complete_suite_executions: 0,
       exact_duplicate_commands: 0
+    },
+    scoped_usage: {
+      correction_rechecks: {
+        [`auxiliary-seam@${semanticContractSha256}`]: 1
+      }
     },
     overrides: [],
     proof_obligations: [],

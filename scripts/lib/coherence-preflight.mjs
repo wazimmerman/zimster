@@ -1,4 +1,4 @@
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import {
   analyzeExecutionBudgetProofIdentities,
@@ -20,6 +20,22 @@ async function readJsonComponent(file, label, issues) {
     issues.push(`${label} is malformed: ${error.message}`);
     return null;
   }
+}
+
+async function readReviewLifecycles(runtime, issues) {
+  const directory = path.join(runtime, 'review-lifecycle');
+  let files;
+  try {
+    files = (await readdir(directory)).filter((file) => file.endsWith('.json')).sort();
+  } catch (error) {
+    if (error.code === 'ENOENT') return [];
+    issues.push(`review lifecycle directory is unavailable: ${error.message}`);
+    return [];
+  }
+  const states = await Promise.all(files.map((file) =>
+    readJsonComponent(path.join(directory, file), `review lifecycle ${file}`, issues)
+  ));
+  return states.filter(Boolean);
 }
 
 function sameCandidate(checkpoint, git) {
@@ -125,6 +141,7 @@ export async function evaluateCoherence(runtime, repo, {
     'review lifecycle',
     issues
   );
+  const reviewLifecycles = await readReviewLifecycles(runtime, issues);
   const assurance = await readJsonComponent(
     path.join(runtime, 'assurance-accounting', 'latest.json'),
     'assurance accounting',
@@ -229,19 +246,21 @@ export async function evaluateCoherence(runtime, repo, {
       issues.push('assurance accounting is unavailable');
     } else {
       try {
+        for (const state of reviewLifecycles) validateReviewLifecycle(state);
+        const accountingAttempts = reviewLifecycles.flatMap(({ attempts = [] }) => attempts);
         validateAssuranceAccounting(assurance, {
           candidateHead: git.head,
           candidateTree: git.tree,
-          recordedReviewAttemptIds: lifecycle.attempts.map(({ attempt_id }) => attempt_id),
+          recordedReviewAttemptIds: accountingAttempts.map(({ attempt_id }) => attempt_id),
           recordedReviewAttemptCounts: {
-            correction_rechecks: lifecycle.attempts.filter(({ attempt_type }) =>
+            correction_rechecks: accountingAttempts.filter(({ attempt_type }) =>
               attempt_type === 'correction_recheck'
             ).length,
-            final_integration_reviews: lifecycle.attempts.filter(({ attempt_type }) =>
+            final_integration_reviews: accountingAttempts.filter(({ attempt_type }) =>
               attempt_type === 'final_integration_review'
             ).length
           },
-          requiredReviewerIdentities: [lifecycle.reviewer_identity]
+          requiredReviewerIdentities: reviewLifecycles.map(({ reviewer_identity }) => reviewer_identity)
         });
       } catch (error) {
         issues.push(`assurance accounting is incoherent: ${error.message}`);

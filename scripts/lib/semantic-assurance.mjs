@@ -746,6 +746,7 @@ export function evaluateCandidateCompletion({
   releaseChannel = 'public_beta',
   correctionPending = false,
   reviewLifecycle = null,
+  reviewLifecycles = null,
   assuranceAccounting = null
 }) {
   if (!['micro', 'standard', 'high-risk'].includes(profile)) {
@@ -829,11 +830,22 @@ export function evaluateCandidateCompletion({
       candidateTree,
       requireFinalApproval: true
     });
+    const accountingLifecycles = reviewLifecycles || [reviewLifecycle];
+    for (const lifecycle of accountingLifecycles) validateReviewLifecycle(lifecycle);
+    const accountingAttempts = accountingLifecycles.flatMap(({ attempts = [] }) => attempts);
     validateAssuranceAccounting(assuranceAccounting, {
       candidateHead,
       candidateTree,
-      recordedReviewAttemptIds: reviewLifecycle.attempts.map(({ attempt_id }) => attempt_id),
-      requiredReviewerIdentities: [reviewLifecycle.reviewer_identity]
+      recordedReviewAttemptIds: accountingAttempts.map(({ attempt_id }) => attempt_id),
+      recordedReviewAttemptCounts: {
+        correction_rechecks: accountingAttempts.filter(({ attempt_type }) =>
+          attempt_type === 'correction_recheck'
+        ).length,
+        final_integration_reviews: accountingAttempts.filter(({ attempt_type }) =>
+          attempt_type === 'final_integration_review'
+        ).length
+      },
+      requiredReviewerIdentities: accountingLifecycles.map(({ reviewer_identity }) => reviewer_identity)
     });
   } catch (error) {
     return result(COMPLETION_STATES.REVIEW_PENDING, {

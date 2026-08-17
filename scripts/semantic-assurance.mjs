@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { parseOptions, required, writeError, writeLine } from './lib/cli.mjs';
 import {
@@ -20,6 +20,7 @@ import { canonicalPath } from './lib/path-identity.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 import { evaluateCoherence } from './lib/coherence-preflight.mjs';
 import { withControlPlaneMutation } from './lib/control-plane-mutation.mjs';
+import { validateReviewLifecycle } from './lib/review-lifecycle.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
@@ -101,7 +102,21 @@ async function evaluatedMatrix() {
   };
 }
 
-async function executionBudgetIssues(budget, runtimeDirectory, reviewLifecycle) {
+async function authoritativeReviewLifecycles(runtimeDirectory) {
+  const directory = path.join(runtimeDirectory, 'review-lifecycle');
+  let files;
+  try {
+    files = (await readdir(directory)).filter((file) => file.endsWith('.json')).sort();
+  } catch (error) {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  }
+  return Promise.all(files.map(async (file) =>
+    validateReviewLifecycle(JSON.parse(await readFile(path.join(directory, file), 'utf8')))
+  ));
+}
+
+async function executionBudgetIssues(budget, runtimeDirectory, reviewLifecycles) {
   if (!budget || budget.schema_version !== 1) {
     return ['execution budget must be schema v1'];
   }
@@ -158,7 +173,7 @@ async function executionBudgetIssues(budget, runtimeDirectory, reviewLifecycle) 
       }
     }
   }
-  issues.push(...correctionRecheckEpochIssues(budget, reviewLifecycle));
+  issues.push(...correctionRecheckEpochIssues(budget, reviewLifecycles));
   for (const [index, override] of budget.overrides.entries()) {
     if (!satisfied(override.required_proof, 'override', index)) {
       issues.push(`execution-budget override lacks satisfied proof: ${override.required_proof || 'unnamed'}`);
@@ -248,6 +263,9 @@ async function completionDecision() {
     ? null
     : await jsonDocument('assurance-accounting');
   const reviewLifecycle = reviewLifecycleDocument?.value || null;
+  const reviewLifecycles = profile === 'micro'
+    ? []
+    : await authoritativeReviewLifecycles(runtimeDirectory);
   const assuranceAccounting = assuranceAccountingDocument?.value || null;
   const reviewPackage = profile === 'micro'
     ? null
@@ -284,7 +302,7 @@ async function completionDecision() {
     ? ['completion requires the authoritative Git-local assurance accounting receipt']
     : [];
   const budgetIssues = executionBudget
-    ? await executionBudgetIssues(executionBudget, runtimeDirectory, reviewLifecycle)
+    ? await executionBudgetIssues(executionBudget, runtimeDirectory, reviewLifecycles)
     : [];
   const coherence = await evaluateCoherence(runtimeDirectory, root, {
     operation: 'completion',
@@ -329,6 +347,7 @@ async function completionDecision() {
     releaseChannel: options['release-channel'] ? String(options['release-channel']) : 'public_beta',
     correctionPending: options['correction-pending'] === true,
     reviewLifecycle,
+    reviewLifecycles,
     assuranceAccounting
   });
   if (result.state === COMPLETION_STATES.CANDIDATE_COMPLETE) {
