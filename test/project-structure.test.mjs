@@ -27,6 +27,7 @@ const requiredFiles = [
   'docs/CONFIGURATION.md',
   'docs/KNOWN_LIMITATIONS.md',
   'docs/MIGRATING-0.5.0.md',
+  'docs/MIGRATING-0.7.0.md',
   'docs/COMPATIBILITY.md',
   'docs/GROK.md',
   'docs/RELEASING.md',
@@ -54,6 +55,7 @@ const requiredFiles = [
   'scripts/evidence.mjs',
   'scripts/run-budget.mjs',
   'scripts/phase-checkpoint.mjs',
+  'scripts/run-control.mjs',
   'scripts/dispatch-record.mjs',
   'scripts/delegation-record.mjs',
   'scripts/model-routing.mjs',
@@ -69,6 +71,8 @@ const requiredFiles = [
   'scripts/lib/tar-reader.mjs',
   'scripts/lib/runtime.mjs',
   'scripts/lib/run-state.mjs',
+  'scripts/lib/run-control.mjs',
+  'scripts/lib/run-summary.mjs',
   'scripts/lib/semantic-assurance.mjs',
   'scripts/lib/review-lifecycle.mjs',
   'scripts/lib/evidence-validity.mjs',
@@ -94,6 +98,8 @@ const requiredFiles = [
   'schemas/completion-decision.schema.json',
   'schemas/context-index.schema.json',
   'schemas/work-journal.schema.json',
+  'schemas/run-state.schema.json',
+  'schemas/recovery-checkpoint.schema.json',
   'schemas/release-evidence.schema.json',
   'schemas/benchmark-result.schema.json',
   'schemas/benchmark-campaign-result.schema.json',
@@ -149,6 +155,9 @@ test('semantic assurance is exposed as a dependency-free project command', async
   const packageJson = await json('package.json');
   assert.equal(packageJson.scripts.assurance, 'node scripts/semantic-assurance.mjs');
   assert.equal(packageJson.dependencies, undefined);
+  assert.equal(packageJson.scripts['run:control'], 'node scripts/run-control.mjs');
+  assert.equal(packageJson.scripts['run:refresh'], 'node scripts/run-control.mjs refresh');
+  assert.equal(packageJson.scripts['run:check'], 'node scripts/run-control.mjs check');
 });
 
 

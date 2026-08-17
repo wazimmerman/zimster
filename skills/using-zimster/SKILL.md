@@ -97,8 +97,9 @@ scripts/init-run.mjs, else the full plugin root. Never use target repo; fall
 back manually if absent.
 
 Create state with `<zimster-runtime>/scripts/init-run.mjs`
-when any condition is true. By default it writes to the Git-local path
-reported by `git rev-parse --git-path zimster/run.md`, outside product history:
+when any condition is true. By default it writes canonical machine state and a
+derived view beneath the Git-local path reported by
+`git rev-parse --git-path zimster`, outside product history:
 
 - more than one vertical slice;
 - any subagent is dispatched;
@@ -108,10 +109,18 @@ reported by `git rev-parse --git-path zimster/run.md`, outside product history:
 - the work may span compaction;
 - a prior session or interrupted run is being resumed.
 
-A Micro task may omit state only when none apply. Keep the record compact:
-mission, profile/rationale, branch disposition,
-architecture, slice status, evidence IDs, dispatch records, risks, unavailable
-proof, and next action. Do not paste full logs or transcripts.
+A Micro task may omit state only when none apply. Use `run-control.mjs start`
+before substantial slice implementation. Keep current and next slices distinct;
+checkpoint meaningful dirty progress, failures/corrections, evidence/review/
+budget transitions, and intentional renewal. `resume` reconciles actual Git
+state and must preserve touched files, obligations, compact failure, guards,
+receipt validity, and exact next action/command. Do not paste full logs or
+transcripts.
+
+`run.md` is a deterministic derived view, never an independent source. Use
+`run-control.mjs check` to detect `STALE_RUN_SUMMARY` and `refresh` to repair it.
+Treat `RECOVERY_RECONCILIATION_REQUIRED` as ambiguity requiring explicit owner
+reconciliation, not permission to invent an unstarted slice.
 
 Use `--audit-path <project-relative-documentation-path>` only when the project
 has explicitly opted into committed audit evidence. Do not modify tracked
@@ -161,13 +170,14 @@ exhaustion. Host permission prompts remain authoritative.
 
 ## Logical ownership and phase checkpoints
 
-The logical owner is continuous across renewed physical contexts. At each
-vertical-slice boundary, checkpoint only the mission digest, hard invariants,
-architecture, slice
-commits, valid receipt references, findings, unavailable evidence, exact next
-slice/dependency cone, and budget position. Full objectives, passing logs,
-diffs, and transcripts remain outside the checkpoint. On continuation, resume
-from that checkpoint and reload only the next dependency cone.
+The logical owner is continuous across renewed physical contexts. Persist slice
+start before implementation. At material milestones and each vertical-slice
+boundary, checkpoint the compact current execution cone: base and actual Git
+state, touched files, obligations, verification/failure, corrections,
+valid/stale/unavailable receipts, findings, review/budget position, guards, and
+exact continuation. Full objectives, passing logs, diffs, and transcripts remain
+outside the checkpoint. On continuation, resume the current interrupted
+execution before loading later slices.
 
 ## Deterministic verification and evidence reuse
 

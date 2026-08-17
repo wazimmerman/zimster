@@ -81,7 +81,7 @@ use the manual fallback when neither path exists.
 
 Create durable state through `<zimster-runtime>/scripts/init-run.mjs` when any
 condition is true. Normal state belongs at the worktree-safe Git-local path
-from `git rev-parse --git-path zimster/run.md`, not in product history:
+from `git rev-parse --git-path zimster`, not in product history:
 
 - more than one vertical slice;
 - any subagent is dispatched;
@@ -91,13 +91,22 @@ from `git rev-parse --git-path zimster/run.md`, not in product history:
 - work may span compaction;
 - a prior session or interrupted run is being resumed.
 
-Record mission, profile/rationale, branch/worktree, commit policy, current
-slice, evidence receipt IDs, requested/effective model records, open findings,
-unavailable proof, and next action. Keep detailed logs in artifact files.
+Start each slice through `run-control.mjs start` before implementation. Keep
+current and next slices distinct, and checkpoint dirty milestones, failures,
+corrections, evidence/review/budget transitions, and intentional renewal.
+Resume must reconcile actual HEAD/tree, dirty fingerprint, and touched files,
+then return obligations, failure, receipts, review/budget state, guards, and the
+exact next action/command. Keep detailed logs in artifact files.
+
+`run.md` is derived from canonical state. Detect drift with
+`run-control.mjs check` and repair it with `refresh`; do not maintain its facts
+separately. `RECOVERY_RECONCILIATION_REQUIRED` means attribution is ambiguous
+and must be resolved explicitly.
 An audit document inside the project is opt-in through `--audit-path`; do not
 commit normal run state or change tracked `.gitignore` for it.
-If the helper is unavailable in a skills-only installation, create the same
-compact record manually at `git rev-parse --git-path zimster/run.md`.
+If the helper is unavailable in a skills-only installation, record the same
+compact facts manually but mark mechanical synchronization/recovery assurance
+unavailable; do not claim full-runtime parity.
 
 Classify indexed context as `current_truth`, `proposed_delta`,
 `accepted_decision`, or `unresolved_proposal`. Human approval is required before

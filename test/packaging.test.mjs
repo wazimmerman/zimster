@@ -71,6 +71,11 @@ test('packaging is deterministic and emits the five public channel artifacts', a
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/semantic-assurance.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/run-budget.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/phase-checkpoint.mjs')), true);
+    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/run-control.mjs')), true);
+    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/run-control.mjs')), true);
+    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/run-summary.mjs')), true);
+    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/schemas/run-state.schema.json')), true);
+    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/schemas/recovery-checkpoint.schema.json')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/execution-budget.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/verify.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/archive-safety.mjs')), true);

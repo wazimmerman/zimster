@@ -8,6 +8,7 @@ import { parseOptions, writeLine } from './lib/cli.mjs';
 import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
 import { recordExecutionBudgetEvent } from './lib/execution-budget.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
+import { recordVerificationInRecovery } from './lib/run-control.mjs';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const script = (name) => path.join(packageRoot, 'scripts', name);
@@ -204,6 +205,8 @@ async function runPlan(plan) {
   let actionText = null;
   let warnings = 0;
   let budget = { status: 'not_required' };
+  const childEnvironment = { ...process.env };
+  delete childEnvironment.NODE_TEST_CONTEXT;
   if (plan.complete_suite === true) {
     try {
       const result = await recordExecutionBudgetEvent(runtime, {
@@ -247,7 +250,7 @@ async function runPlan(plan) {
     const result = spawnSync(step.command, step.args, {
       cwd: root,
       encoding: 'utf8',
-      env: process.env,
+      env: childEnvironment,
       shell: false,
       maxBuffer: 128 * 1024 * 1024
     });
@@ -310,6 +313,7 @@ async function runPlan(plan) {
     steps
   };
   await writeFile(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, { flag: 'wx' });
+  await recordVerificationInRecovery(runtime, root, receipt);
   const summary = {
     schema_version: 1,
     id,

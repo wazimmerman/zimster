@@ -24,6 +24,7 @@ const operationalScripts = [
   'scripts/evaluate-execution-economy.mjs',
   'scripts/init-run.mjs', 'scripts/installed-package-smoke.mjs',
   'scripts/phase-checkpoint.mjs',
+  'scripts/run-control.mjs',
   'scripts/plan-conformance.mjs',
   'scripts/project-commands.mjs', 'scripts/run-budget.mjs',
   'scripts/release-evidence.mjs',
@@ -41,6 +42,7 @@ const operationalScripts = [
   'scripts/lib/convergence.mjs', 'scripts/lib/proposal-state.mjs',
   'scripts/lib/path-identity.mjs',
   'scripts/lib/run-state.mjs',
+  'scripts/lib/run-control.mjs', 'scripts/lib/run-summary.mjs',
   'scripts/lib/semantic-assurance.mjs',
   'scripts/lib/review-lifecycle.mjs',
   'scripts/lib/evidence-validity.mjs',
@@ -51,6 +53,7 @@ const operationalScripts = [
 ];
 const skillRuntimeFiles = [
   'scripts/init-run.mjs',
+  'scripts/run-control.mjs',
   'scripts/delegation-record.mjs',
   'scripts/model-routing.mjs',
   'scripts/dispatch-record.mjs',
@@ -72,7 +75,7 @@ const publicContracts = [
   'schemas/routing-observation.schema.json', 'schemas/convergence-decision.schema.json',
   'schemas/host-smoke-receipt.schema.json',
   'docs/INSTALL.md', 'docs/CONFIGURATION.md', 'docs/KNOWN_LIMITATIONS.md',
-  'docs/MIGRATING-0.5.0.md'
+  'docs/MIGRATING-0.5.0.md', 'docs/MIGRATING-0.7.0.md'
 ];
 const common = [
   'skills', 'agents', 'templates', 'assets', 'benchmarks', 'docs', 'config', 'schemas',

@@ -26,6 +26,19 @@ export function untrackedFiles(cwd = process.cwd()) {
   return output.toString('utf8').split('\0').filter(Boolean).sort();
 }
 
+export function changedFiles(cwd = process.cwd()) {
+  const root = findRepoRoot(cwd);
+  const files = new Set(untrackedFiles(root));
+  for (const args of [
+    ['diff', '--name-only', '-z'],
+    ['diff', '--cached', '--name-only', '-z']
+  ]) {
+    const output = runGit(args, root, { encoding: 'buffer' }).stdout.toString('utf8');
+    for (const file of output.split('\0').filter(Boolean)) files.add(file);
+  }
+  return [...files].sort();
+}
+
 async function hashPath(absolute) {
   const metadata = await lstat(absolute);
   if (metadata.isSymbolicLink()) {

@@ -15,7 +15,10 @@ node <zimster>/scripts/init-run.mjs \
   --harness codex \
   --reason "public plugin compatibility" \
   --triggers "more than one vertical slice,independent review" \
-  --commit-policy "commit at verified slice boundaries"
+  --commit-policy "commit at verified slice boundaries" \
+  --next-slice-id slice-1 \
+  --next-slice-title "First observable slice" \
+  --next-action "Start Slice 1 before editing"
 ```
 
 The command refuses to overwrite an existing run unless `--force` is explicit.
@@ -34,10 +37,38 @@ relationship is later shown to be circular, `scripts/run-budget.mjs supersede`
 preserves the original obligation and links one enforceable replacement; it
 never erases the original override.
 
-At a coherent slice boundary, create a bounded checkpoint with
-`scripts/phase-checkpoint.mjs create --input <compact-json>`. A continued
-physical context uses `phase-checkpoint.mjs resume`; logical ownership remains
-with the same root owner.
+Start a slice durably before editing, checkpoint meaningful dirty progress, and
+resume from actual repository state:
+
+```text
+node <zimster>/scripts/run-control.mjs start \
+  --slice-id slice-1 --slice-title "First observable slice" \
+  --next-slice-id slice-2 \
+  --remaining-obligations '["focused behavior","affected gate"]' \
+  --next-action "Implement the focused behavior" \
+  --next-command "node --test test/focused.test.mjs"
+
+node <zimster>/scripts/run-control.mjs checkpoint \
+  --status awaiting_verification \
+  --completed-obligations '["focused behavior"]' \
+  --remaining-obligations '["affected gate"]' \
+  --next-action "Run the affected gate" \
+  --next-command "npm test"
+
+node <zimster>/scripts/run-control.mjs resume
+```
+
+The checkpoint derives HEAD/tree, dirty fingerprint, and touched files; it can
+also preserve compact corrections, findings, and generic side-effect guards.
+`resume` reconciles uncheckpointed dirty progress only when a durably started
+current slice supplies attribution. An unexpected HEAD or dirty legacy work
+without a current slice reports `RECOVERY_RECONCILIATION_REQUIRED`.
+
+`run.md` is derived. Use `run-control.mjs check` (or `npm run run:check`) to
+report `STALE_RUN_SUMMARY`, and `run-control.mjs refresh` (or
+`npm run run:refresh`) to regenerate deterministic bytes. Do not resolve drift
+by treating a manual Markdown edit as authoritative. The legacy
+`phase-checkpoint.mjs` compact interface remains readable during migration.
 
 Pass `--convergence-config <path>` to snapshot validated limits. A self-hosting
 candidate instead passes `--self-hosting-candidate <version>`,

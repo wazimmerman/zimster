@@ -46,8 +46,10 @@ Dependency-free Node 22 tools turn important policy into inspectable state:
   changes without touching the index;
 - `evidence.mjs` records local proof receipts and validity fingerprints;
 - `run-budget.mjs` enforces execution limits and proof-backed overrides;
+- `run-control.mjs` owns slice transitions, dirty recovery snapshots, resume
+  reconciliation, and deterministic `run.md` refresh/check;
 - `phase-checkpoint.mjs` separates persistent logical ownership from bounded
-  physical contexts;
+  physical contexts and remains the legacy compact-checkpoint entry point;
 - `verify.mjs` runs profile-selected gates with full Git-local logs and one
   compact receipt;
 - `installed-package-smoke.mjs` exercises exact candidate archives in isolated
@@ -104,20 +106,30 @@ changed, or extra files. Packaging refuses a stale mirror.
 
 ## Execution state
 
-Create the Git-local `zimster/run.md` when there is more than one slice, any subagent or
-independent review, pending external/hardware proof, more than one commit
-boundary, compaction risk, or a resumed session. It stores mission,
-profile/rationale, Git disposition, architecture, current slice, evidence IDs,
-dispatch IDs, open findings, unavailable proof, budget, and next action.
+Create Git-local durable state when there is more than one slice, any subagent
+or independent review, pending external/hardware proof, more than one commit
+boundary, compaction risk, or a resumed session. `run.json` owns run identity
+and workflow position: current slice/status, distinct next slice, completed
+slices, exact next action/command, and guard assertions. Execution, evidence,
+review, dispatch/delegation, and convergence ledgers own their observed facts;
+`budget.json` owns policy and reconciled projections. A checkpoint is a compact
+revision-bound recovery snapshot. `run.md` owns no mutable fact: the centralized
+renderer deterministically derives it from these canonical stores and actual
+Git state.
 
 Detailed logs, diffs, and transcripts remain separate artifacts.
 Projects may opt into a project-defined audit documentation path; normal
 operation never turns approval or run bookkeeping into a standalone commit.
 
-The logical implementation owner persists across physical contexts. A compact
-checkpoint at a coherent slice boundary carries only the next dependency cone,
-valid receipt references, and budget position; it never embeds the full
-objective, passing logs, historical diffs, or transcript.
+The logical implementation owner persists across physical contexts. Record a
+slice start before implementation, then checkpoint material milestones,
+verification failures/corrections, evidence/review/budget transitions, and
+intentional context renewal. Dirty work is valid in-progress state: the
+checkpoint carries base/current Git identity, dirty fingerprint, touched files,
+obligations, compact failure, receipt validity, review/budget position, guards,
+and exact continuation. It never embeds the full objective, passing logs,
+historical diffs, or transcript. Resume reconciles actual Git state; ambiguity
+reports `RECOVERY_RECONCILIATION_REQUIRED` rather than inventing history.
 
 ## Git state and review representation
 

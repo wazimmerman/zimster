@@ -9,6 +9,7 @@ import { harnessCapabilities } from './lib/capabilities.mjs';
 import { initializeExecutionBudget } from './lib/execution-budget.mjs';
 import { validateConvergenceConfig } from './lib/convergence.mjs';
 import { initializeRunState } from './lib/run-state.mjs';
+import { refreshRunSummary } from './lib/run-summary.mjs';
 
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { options } = parseOptions(process.argv.slice(2));
@@ -32,6 +33,12 @@ const capabilityReceipt = {
   harness,
   capabilities: harness ? await harnessCapabilities(harness) : null
 };
+const nextSliceId = options['next-slice-id'] ? String(options['next-slice-id']) : null;
+const nextSliceTitle = options['next-slice-title'] ? String(options['next-slice-title']) : null;
+if (nextSliceTitle && !nextSliceId) throw new Error('--next-slice-title requires --next-slice-id');
+const nextSlice = nextSliceId ? { id: nextSliceId, title: nextSliceTitle || nextSliceId } : null;
+const exactNextAction = options['next-action'] ? String(options['next-action']) : null;
+const exactNextCommand = options['next-command'] ? String(options['next-command']) : null;
 const capabilitySection = `## Harness capability receipt\n\n\`\`\`json\n${JSON.stringify(capabilityReceipt, null, 2)}\n\`\`\``;
 const selfHostingCandidate = options['self-hosting-candidate']
   ? String(options['self-hosting-candidate'])
@@ -68,7 +75,7 @@ if (selfHostingCandidate) {
 function withCapabilityReceipt(contents) {
   const existing = /## Harness capability receipt\n\n```json\n[\s\S]*?\n```/;
   if (existing.test(contents)) return contents.replace(existing, capabilitySection);
-  const architecture = '## Architecture and current slice';
+  const architecture = '## Architecture and state ownership';
   if (contents.includes(architecture)) {
     return contents.replace(architecture, `${capabilitySection}\n\n${architecture}`);
   }
@@ -78,7 +85,7 @@ function withCapabilityReceipt(contents) {
 let template = await readFile(path.join(scriptRoot, 'templates', 'run.md'), 'utf8');
 template = template
   .replace('## Mission and constraints', '## Mission and constraints\n\n[Describe the required outcome and binding constraints.]')
-  .replace('## Architecture and current slice', `## Profile and rationale\n\n- Profile: ${normalizedProfile}\n- Rationale: ${reason}\n- Durable-state triggers: ${triggers.join('; ')}\n\n## Architecture and current slice`)
+  .replace('## Architecture and state ownership', `## Profile and rationale\n\n- Profile: ${normalizedProfile}\n- Rationale: ${reason}\n- Durable-state triggers: ${triggers.join('; ')}\n\n## Architecture and state ownership`)
   .replace('## Completed evidence', `## Git disposition\n\n- Branch: ${branch || 'DETACHED'}\n- Starting head: ${head}\n- Commit policy: ${commitPolicy}\n\n## Dispatch records\n\n[Reference Git-local zimster/dispatches IDs; include requested/effective model or unverified.]\n\n## Completed evidence`);
 template = withCapabilityReceipt(template);
 
@@ -102,17 +109,27 @@ if (!auditPath && options.force !== true) {
     if (error.code !== 'ENOENT') throw error;
   }
 }
-try {
-  await writeFile(target, template, { flag: options.force === true ? 'w' : 'wx' });
-} catch (error) {
-  if (error.code === 'EEXIST') throw new Error(`${target} already exists; pass --force to replace it`);
-  throw error;
+if (auditPath || normalizedProfile === 'Micro') {
+  try {
+    await writeFile(target, template, { flag: options.force === true ? 'w' : 'wx' });
+  } catch (error) {
+    if (error.code === 'EEXIST') throw new Error(`${target} already exists; pass --force to replace it`);
+    throw error;
+  }
 }
 if (!auditPath && normalizedProfile !== 'Micro') {
   await initializeRunState(runtimeDirectory, {
     startingHead: head,
     planId: String(options['plan-id'] || 'unregistered-plan'),
     planSource: String(options['plan-source'] || 'user-approved request'),
+    profile: normalizedProfile.toLowerCase().replace(/\s+/g, '-'),
+    profileRationale: reason,
+    durableStateTriggers: triggers,
+    branch,
+    capabilityReceipt,
+    nextSlice,
+    exactNextAction,
+    exactNextCommand,
     overwrite: options.force === true
   });
   await initializeExecutionBudget(runtimeDirectory, normalizedProfile, {
@@ -136,5 +153,6 @@ if (!auditPath && normalizedProfile !== 'Micro') {
       created_at: new Date().toISOString()
     }, null, 2)}\n`, { flag: options.force === true ? 'w' : 'wx' });
   }
+  await refreshRunSummary(runtimeDirectory, { repo });
 }
 writeLine(target);

@@ -10,8 +10,10 @@ Zimster 0.7.1 is a public beta, not a stable 1.0 compatibility guarantee.
   configured, and the Codex model-backed probe could not be authorized through
   the release environment. These unavailable probes do not weaken the exact
   install/discovery evidence or promote it to model-backed verification.
-- Skills-only installs lack guaranteed scripts, receipts, agents, hooks, and
-  machine-enforced routing.
+- Skills-only installs lack guaranteed scripts, receipts, agents, hooks,
+  machine-enforced routing, and mechanical durable-state synchronization. They
+  must not claim full runtime recovery/accounting parity; claims that require
+  those mechanics remain unavailable.
 - A host may accept a requested model without reporting the effective model.
   Strict-cost routing treats that as unverified.
 - Model catalogs are account- and session-dependent. Zimster has no canonical
