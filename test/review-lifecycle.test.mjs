@@ -78,6 +78,36 @@ test('initial review permits one same-reviewer correction recheck and consumes i
   assert.doesNotThrow(() => validateReviewLifecycle(state));
 });
 
+test('owner may accumulate exact-candidate corrections before the single recheck starts', () => {
+  let state = start(lifecycle(), 'initial_review', 'attempt-initial');
+  state = verdict(state, 'attempt-initial', 'needs_correction', [{
+    severity: 'Important', summary: 'The release gate contradicts deferred proof.'
+  }]);
+  state = applyReviewLifecycleEvent(state, {
+    type: 'correction_recorded',
+    candidate: candidate({ head_sha: CORRECTED_HEAD })
+  });
+  const finalCorrection = candidate({
+    head_sha: '1'.repeat(40),
+    tree_sha: '2'.repeat(40)
+  });
+  state = applyReviewLifecycleEvent(state, {
+    type: 'correction_recorded',
+    candidate: finalCorrection
+  });
+  assert.equal(state.status, 'correction_recheck_required');
+  assert.equal(state.correction_recheck_consumed, false);
+  assert.deepEqual(state.candidate, finalCorrection);
+  assert.throws(() => applyReviewLifecycleEvent(state, {
+    type: 'correction_recorded', candidate: finalCorrection
+  }), /must change the exact candidate identity/i);
+  state = start(state, 'correction_recheck', 'attempt-recheck', {
+    candidate: finalCorrection
+  });
+  assert.equal(state.correction_recheck_consumed, true);
+  assert.doesNotThrow(() => validateReviewLifecycle(state));
+});
+
 test('an approved verdict rejects load-bearing findings', () => {
   const state = start(lifecycle(), 'initial_review', 'attempt-initial');
   assert.throws(() => verdict(state, 'attempt-initial', 'approved', [{

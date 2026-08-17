@@ -220,8 +220,12 @@ function recordVerdict(state, event) {
 }
 
 function recordCorrection(state, event) {
-  if (!['correction_required', 'final_correction_required'].includes(state.status)) {
-    throw new Error('owner correction is allowed only after a needs_correction verdict');
+  if (![
+    'correction_required',
+    'correction_recheck_required',
+    'final_correction_required'
+  ].includes(state.status)) {
+    throw new Error('owner correction is allowed only after a needs_correction verdict and before its recheck');
   }
   validateCandidate(event.candidate);
   if (event.candidate.semantic_contract_sha256 !== state.candidate.semantic_contract_sha256) {

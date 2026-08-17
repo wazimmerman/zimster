@@ -262,11 +262,16 @@ cleaning it.
 ```text
 complete initial finding batch
 → owner fixes Critical/Important findings together
+→ owner may append further exact-candidate corrections before recheck starts
 → same reviewer performs one scoped resumed recheck
 → reserve final integration review until the exact candidate head is stable
 → require another exact-head review after any final-review correction
 → circuit breaker for load-bearing residuals
 ```
+
+Those pre-recheck correction events update one candidate lineage; they do not
+consume or create review attempts. Once the recheck starts, its exact candidate
+is immutable.
 
 Residuals route to technical adjudication, design/requirement blocker,
 explicit deferral, diagnosis, or partial evidence instead of an unbounded
