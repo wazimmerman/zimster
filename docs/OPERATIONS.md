@@ -445,7 +445,10 @@ requirement. Downstream Micro-eligibility and High-risk load-bearing proof
 consumers recheck the same exact requirement, claim, and provenance binding;
 broad receipt arrays never substitute for it. An admitted verification bridge
 always records an authenticated passed or failed terminal receipt. Failure
-receipts are stale diagnostics and cannot establish claims. Every matrix row
+compensation stays within the bridge's active control-plane transaction, and
+terminal finalization resumes an identical partially written result without
+duplicating finish events. Failure receipts are stale diagnostics and cannot
+establish claims. Every matrix row
 declares `tdd_evidence` as `required` or
 `not_claimed`; a prospective TDD claim additionally names `tdd_behavior_ids`
 and requires authenticated governed `red` and `green` evidence for

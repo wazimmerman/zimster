@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { root } from './helpers.mjs';
 import { authenticateGovernedEvidenceReceipt } from '../scripts/lib/governed-terminal-auth.mjs';
+import { finishGovernedExecution } from '../scripts/lib/governed-execution.mjs';
 
 function run(command, args, cwd) {
   return spawnSync(command, args, {
@@ -141,6 +142,57 @@ test('failed RED evidence remains authentically governed without becoming a pass
     assert.equal(await authenticateGovernedEvidenceReceipt(
       runtimePath(repo), { ...receipt, exit_code: 0 }, bytes
     ), false);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('terminalization resumes idempotently after the execution receipt becomes terminal', async () => {
+  const repo = await tempRepo();
+  try {
+    const result = run(process.execPath, [
+      path.join(root, 'scripts/evidence.mjs'), 'run',
+      '--kind', 'command', '--scope', 'terminal-resume',
+      '--', process.execPath, '-e', 'process.exit(0);'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const evidence = JSON.parse(result.stdout);
+    const runtime = runtimePath(repo);
+    const terminalLine = (await readFile(path.join(runtime, 'evidence', 'receipts.jsonl'), 'utf8'))
+      .split('\n').find((line) => line && JSON.parse(line).id === evidence.id);
+    const terminalBytes = `${terminalLine}\n`;
+    const executionFile = path.join(runtime, 'executions', 'receipts', `${evidence.execution_id}.json`);
+    const execution = JSON.parse(await readFile(executionFile, 'utf8'));
+    const executionEventsFile = path.join(runtime, 'executions', 'events.jsonl');
+    const executionEvents = (await readFile(executionEventsFile, 'utf8'))
+      .split('\n').filter(Boolean).map(JSON.parse)
+      .filter((row) => !(row.event_type === 'execution_finished'
+        && row.execution_id === execution.id));
+    await writeFile(executionEventsFile, `${executionEvents.map(JSON.stringify).join('\n')}\n`);
+    const runEventsFile = path.join(runtime, 'events', 'events.jsonl');
+    const runEvents = (await readFile(runEventsFile, 'utf8'))
+      .split('\n').filter(Boolean).map(JSON.parse)
+      .filter((row) => !(row.event_type === 'governed_execution_finished'
+        && row.execution_id === execution.id));
+    await writeFile(runEventsFile, `${runEvents.map(JSON.stringify).join('\n')}\n`);
+
+    await finishGovernedExecution(runtime, repo, {
+      executionId: execution.id,
+      status: execution.status,
+      exitCode: execution.exit_code,
+      terminalReceiptType: execution.terminal_receipt_type,
+      terminalReceiptId: execution.terminal_receipt_id,
+      terminalReceiptBytes: terminalBytes,
+      compactResult: execution.compact_result
+    });
+
+    assert.equal(await authenticateGovernedEvidenceReceipt(
+      runtime, evidence, terminalBytes
+    ), true);
+    const resumedEvents = (await readFile(executionEventsFile, 'utf8'))
+      .split('\n').filter(Boolean).map(JSON.parse);
+    assert.equal(resumedEvents.filter((row) => row.event_type === 'execution_finished'
+      && row.execution_id === execution.id).length, 1);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

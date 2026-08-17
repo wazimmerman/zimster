@@ -41,6 +41,32 @@ function writeLine(value, stream = process.stdout) {
   writeSync(stream.fd, `${value}\n`);
 }
 
+function verificationBridgeTestFault(name) {
+  if (process.env.NODE_TEST_CONTEXT
+    && process.env.ZIMSTER_TEST_BRIDGE_FAULT === name) {
+    throw new Error(`injected verification bridge fault: ${name}`);
+  }
+}
+
+async function resumeWrittenTerminalization(runtime, repo, args) {
+  const file = path.join(runtime, 'executions', 'receipts', `${args.executionId}.json`);
+  let receipt;
+  try {
+    receipt = JSON.parse(await readFile(file, 'utf8'));
+  } catch (error) {
+    if (error.code === 'ENOENT') return false;
+    throw error;
+  }
+  const expectedDigest = createHash('sha256').update(args.terminalReceiptBytes).digest('hex');
+  if (receipt.status !== args.status
+    || receipt.exit_code !== args.exitCode
+    || receipt.terminal_receipt_type !== args.terminalReceiptType
+    || receipt.terminal_receipt_id !== args.terminalReceiptId
+    || receipt.terminal_receipt_sha256 !== expectedDigest) return false;
+  await finishGovernedExecution(runtime, repo, args);
+  return true;
+}
+
 function listOption(name) {
   if (!options[name]) return [];
   const value = String(options[name]).trim();
@@ -574,33 +600,124 @@ async function main() {
       receipt.issuer = 'zimster.evidence';
       receipt.execution_id = governed.receipt.id;
       validateReceipt(receipt);
-      const bytes = await withControlPlaneMutation(runtime, root, {
-        mutationType: 'evidence_bridged_from_verification',
-        checkpointChanges: () => evidenceCheckpointChanges(runtime, {
-          id: receipt.id,
-          status: 'valid'
-        })
-      }, async () => {
-        const terminalBytes = await store(receipt);
-        await finishGovernedExecution(runtime, root, {
-          executionId: governed.receipt.id,
-          status: 'passed',
-          exitCode: 0,
-          terminalReceiptType: 'evidence',
-          terminalReceiptId: receipt.id,
-          terminalReceiptBytes: terminalBytes,
-          compactResult: {
-            kind: receipt.kind,
-            scope: receipt.scope,
-            source: receipt.source,
-            requirement_ids: receipt.requirement_ids,
-            establishes: receipt.establishes
-          }
-        });
-        terminalized = true;
-        return terminalBytes;
+      options.inputs = '[]';
+      options.dependencies = '[]';
+      options['requirement-ids'] = '[]';
+      options.establishes = '[]';
+      options['does-not-establish'] = '[]';
+      options['claim-bindings'] = '[]';
+      options['behavioral-evidence'] = 'false';
+      options['invalidation-reason'] = 'verification bridge failed after admission';
+      options.notes = 'Diagnostic terminal receipt for an admitted verification bridge failure.';
+      for (const name of [
+        'tdd-phase', 'tdd-behavior', 'tdd-red-receipt',
+        'test-discovery', 'tests-discovered', 'tests-passed', 'tests-failed', 'tests-skipped'
+      ]) delete options[name];
+      const failedReceipt = await buildReceipt({
+        startedAt: governed.receipt.started_at,
+        exitCode: 1
       });
-      writeSync(process.stdout.fd, bytes);
+      failedReceipt.issuer = 'zimster.evidence';
+      failedReceipt.execution_id = governed.receipt.id;
+      const result = await withControlPlaneMutation(runtime, root, {
+        mutationType: 'evidence_bridge_terminalized',
+        checkpointChanges: ({ reference }) => evidenceCheckpointChanges(runtime, reference)
+      }, async () => {
+        let terminalBytes;
+        let successFinishAttempted = false;
+        try {
+          verificationBridgeTestFault('before-success-store');
+          terminalBytes = await store(receipt);
+          verificationBridgeTestFault('before-success-finish');
+          const finishArgs = {
+            executionId: governed.receipt.id,
+            status: 'passed',
+            exitCode: 0,
+            terminalReceiptType: 'evidence',
+            terminalReceiptId: receipt.id,
+            terminalReceiptBytes: terminalBytes,
+            compactResult: {
+              kind: receipt.kind,
+              scope: receipt.scope,
+              source: receipt.source,
+              requirement_ids: receipt.requirement_ids,
+              establishes: receipt.establishes
+            }
+          };
+          successFinishAttempted = true;
+          try {
+            await finishGovernedExecution(runtime, root, finishArgs);
+          } catch (error) {
+            if (!(await resumeWrittenTerminalization(runtime, root, finishArgs))) throw error;
+          }
+          terminalized = true;
+          return {
+            bytes: terminalBytes,
+            reference: { id: receipt.id, status: 'valid' },
+            error: null
+          };
+        } catch (error) {
+          if (successFinishAttempted && terminalBytes) {
+            const finishArgs = {
+              executionId: governed.receipt.id,
+              status: 'passed',
+              exitCode: 0,
+              terminalReceiptType: 'evidence',
+              terminalReceiptId: receipt.id,
+              terminalReceiptBytes: terminalBytes,
+              compactResult: {
+                kind: receipt.kind,
+                scope: receipt.scope,
+                source: receipt.source,
+                requirement_ids: receipt.requirement_ids,
+                establishes: receipt.establishes
+              }
+            };
+            if (await resumeWrittenTerminalization(runtime, root, finishArgs)) {
+              terminalized = true;
+              return {
+                bytes: terminalBytes,
+                reference: { id: receipt.id, status: 'valid' },
+                error
+              };
+            }
+          }
+          failedReceipt.invalidation_reason = `verification bridge failed after admission: ${error.message}`;
+          validateReceipt(failedReceipt);
+          const failureBytes = await store(failedReceipt);
+          const failureArgs = {
+            executionId: governed.receipt.id,
+            status: 'failed',
+            exitCode: 1,
+            terminalReceiptType: 'evidence',
+            terminalReceiptId: failedReceipt.id,
+            terminalReceiptBytes: failureBytes,
+            compactResult: {
+              kind: failedReceipt.kind,
+              scope: failedReceipt.scope,
+              source: failedReceipt.source,
+              invalidation_reason: failedReceipt.invalidation_reason
+            }
+          };
+          try {
+            await finishGovernedExecution(runtime, root, failureArgs);
+          } catch (finishError) {
+            if (!(await resumeWrittenTerminalization(runtime, root, failureArgs))) throw finishError;
+          }
+          terminalized = true;
+          return {
+            bytes: failureBytes,
+            reference: {
+              id: failedReceipt.id,
+              status: 'stale',
+              invalidation_reason: failedReceipt.invalidation_reason
+            },
+            error
+          };
+        }
+      });
+      if (result.error) throw result.error;
+      writeSync(process.stdout.fd, result.bytes);
       return;
     } catch (error) {
       if (terminalized) throw error;

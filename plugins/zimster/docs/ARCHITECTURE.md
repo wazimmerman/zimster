@@ -149,7 +149,10 @@ candidate, environment, profile, terminal receipt digest, selected passing
 steps, and every selected log digest. The bridge operation also records its own
 governed begin/finish lifecycle, so the derived receipt's exact terminal bytes
 authenticate independently rather than borrowing the upstream execution's
-identity. The derived receipt names the upstream verification and logs as
+identity. Success and post-admission failure compensation share one
+control-plane transaction. An identical terminal result can resume after a
+partial receipt or event write, while conflicting terminal results fail closed.
+The derived receipt names the upstream verification and logs as
 fingerprinted inputs. Each verification step must
 declare its requirement IDs, positive claims, exclusions, and environment
 scopes before execution. Executed helper programs are declared as

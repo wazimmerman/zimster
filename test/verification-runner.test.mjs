@@ -7,8 +7,8 @@ import path from 'node:path';
 import { root } from './helpers.mjs';
 import { authenticateGovernedEvidenceReceipt } from '../scripts/lib/governed-terminal-auth.mjs';
 
-function run(command, args, cwd) {
-  return spawnSync(command, args, { cwd, encoding: 'utf8' });
+function run(command, args, cwd, overrides = {}) {
+  return spawnSync(command, args, { cwd, encoding: 'utf8', ...overrides });
 }
 
 async function tempRepo() {
@@ -79,6 +79,12 @@ test('verification runner preserves step order and full logs while emitting one 
 test('passed governed verification can be bridged into claim-scoped evidence without re-execution', async () => {
   const repo = await tempRepo();
   try {
+    const initialized = run(process.execPath, [
+      path.join(root, 'scripts/init-run.mjs'),
+      '--profile', 'high-risk',
+      '--reason', 'verification bridge terminalization fixture'
+    ], repo);
+    assert.equal(initialized.status, 0, initialized.stderr || initialized.stdout);
     const planFile = path.join(repo, 'plan.json');
     const externalProgram = path.join(repo, '.git', 'bridge-helper.mjs');
     await writeFile(externalProgram, "process.stdout.write('verified output\\n');\n");
@@ -195,6 +201,53 @@ test('passed governed verification can be bridged into claim-scoped evidence wit
       failedEvidence,
       `${failedLine}\n`
     ), true);
+
+    for (const fault of ['before-success-store', 'before-success-finish']) {
+      result = run(process.execPath, [
+        path.join(root, 'scripts/evidence.mjs'), 'bridge-verification',
+        '--verification-receipt', verification.id,
+        '--steps', '["proof-step"]',
+        '--kind', 'verification', '--scope', `in-transaction-${fault}`,
+        '--requirement-ids', '["CTRL-EVIDENCE-001"]',
+        '--establishes', '["The authenticated verification step passed."]',
+        '--does-not-establish', '["Any unselected verification step."]',
+        '--environment-scope', 'node-git-local'
+      ], repo, {
+        env: {
+          ...process.env,
+          NODE_TEST_CONTEXT: 'child-v8',
+          ZIMSTER_TEST_BRIDGE_FAULT: fault
+        }
+      });
+      assert.notEqual(result.status, 0, result.stderr || result.stdout);
+      assert.match(result.stderr, new RegExp(`injected.*${fault}`, 'i'));
+      const faultExecutions = await Promise.all(
+        (await readdir(path.join(runtime, 'executions', 'receipts'))).map(async (file) =>
+          JSON.parse(await readFile(path.join(runtime, 'executions', 'receipts', file), 'utf8'))
+        )
+      );
+      const faultExecution = faultExecutions.find(
+        ({ context }) => context?.scope === `in-transaction-${fault}`
+      );
+      assert.equal(faultExecution.status, 'failed');
+      const currentEvidenceLines = (await readFile(
+        path.join(runtime, 'evidence', 'receipts.jsonl'), 'utf8'
+      )).split('\n').filter(Boolean);
+      const faultLine = currentEvidenceLines.find((line) =>
+        JSON.parse(line).id === faultExecution.terminal_receipt_id
+      );
+      const faultEvidence = JSON.parse(faultLine);
+      assert.equal(faultEvidence.exit_code, 1);
+      assert.equal(await authenticateGovernedEvidenceReceipt(
+        runtime,
+        faultEvidence,
+        `${faultLine}\n`
+      ), true);
+      await assert.rejects(
+        readFile(path.join(runtime, 'transactions', 'current.json'), 'utf8'),
+        /ENOENT/
+      );
+    }
 
     result = run(process.execPath, [
       path.join(root, 'scripts/evidence.mjs'), 'bridge-verification',

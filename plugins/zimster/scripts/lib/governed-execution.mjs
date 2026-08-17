@@ -399,16 +399,25 @@ export async function finishGovernedExecution(runtime, repo, {
     const file = path.join(runtime, 'executions', 'receipts', `${executionId}.json`);
     const receipt = await readJsonOptional(file);
     if (!receipt) throw new Error(`governed execution receipt not found: ${executionId}`);
-    if (receipt.status !== 'running') throw new Error(`governed execution ${executionId} is already terminal`);
-    receipt.status = status;
-    receipt.ended_at = new Date().toISOString();
-    receipt.exit_code = exitCode;
-    receipt.terminal_receipt_type = terminalReceiptType;
-    receipt.terminal_receipt_id = terminalReceiptId;
-    receipt.terminal_receipt_sha256 = digest(terminalReceiptBytes);
-    receipt.compact_result = compactResult;
-    await writeJsonAtomic(file, receipt);
-    await appendExecutionEvent(runtime, {
+    const terminalReceiptSha256 = digest(terminalReceiptBytes);
+    if (receipt.status === 'running') {
+      receipt.status = status;
+      receipt.ended_at = new Date().toISOString();
+      receipt.exit_code = exitCode;
+      receipt.terminal_receipt_type = terminalReceiptType;
+      receipt.terminal_receipt_id = terminalReceiptId;
+      receipt.terminal_receipt_sha256 = terminalReceiptSha256;
+      receipt.compact_result = compactResult;
+      await writeJsonAtomic(file, receipt);
+    } else if (receipt.status !== status
+      || receipt.exit_code !== exitCode
+      || receipt.terminal_receipt_type !== terminalReceiptType
+      || receipt.terminal_receipt_id !== terminalReceiptId
+      || receipt.terminal_receipt_sha256 !== terminalReceiptSha256
+      || JSON.stringify(receipt.compact_result) !== JSON.stringify(compactResult)) {
+      throw new Error(`governed execution ${executionId} is already terminal with a different result`);
+    }
+    const finishEvent = {
       event_type: 'execution_finished',
       execution_id: executionId,
       issuer: receipt.issuer,
@@ -417,13 +426,47 @@ export async function finishGovernedExecution(runtime, repo, {
       terminal_receipt_type: terminalReceiptType,
       terminal_receipt_id: terminalReceiptId,
       terminal_receipt_sha256: receipt.terminal_receipt_sha256
-    });
-    await appendRunEvent(runtime, {
+    };
+    let executionEvents = [];
+    try {
+      executionEvents = (await readFile(path.join(runtime, 'executions', 'events.jsonl'), 'utf8'))
+        .split('\n').filter(Boolean).map((line) => JSON.parse(line));
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    const existingFinishes = executionEvents.filter((row) =>
+      row.event_type === 'execution_finished' && row.execution_id === executionId
+    );
+    if (existingFinishes.length > 1
+      || (existingFinishes.length === 1 && Object.entries(finishEvent).some(
+        ([key, value]) => existingFinishes[0][key] !== value
+      ))) {
+      throw new Error(`governed execution ${executionId} has inconsistent terminal events`);
+    }
+    if (!existingFinishes.length) await appendExecutionEvent(runtime, finishEvent);
+    const runFinishEvent = {
       event_type: 'governed_execution_finished',
       execution_id: executionId,
       status,
       terminal_receipt_id: terminalReceiptId
-    });
+    };
+    let runEvents = [];
+    try {
+      runEvents = (await readFile(path.join(runtime, 'events', 'events.jsonl'), 'utf8'))
+        .split('\n').filter(Boolean).map((line) => JSON.parse(line));
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+    const existingRunFinishes = runEvents.filter((row) =>
+      row.event_type === 'governed_execution_finished' && row.execution_id === executionId
+    );
+    if (existingRunFinishes.length > 1
+      || (existingRunFinishes.length === 1 && Object.entries(runFinishEvent).some(
+        ([key, value]) => existingRunFinishes[0][key] !== value
+      ))) {
+      throw new Error(`governed execution ${executionId} has inconsistent run terminal events`);
+    }
+    if (!existingRunFinishes.length) await appendRunEvent(runtime, runFinishEvent);
     await reconcileExecutionAccounting(runtime, repo, { mutate: true });
     return receipt;
   });
