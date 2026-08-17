@@ -144,6 +144,9 @@ function recordVerdict(state, event) {
     throw new Error('review verdict must be approved or needs_correction');
   }
   if (!Array.isArray(event.findings || [])) throw new Error('review findings must be an array');
+  if (event.verdict === 'approved' && loadBearing(event.findings || [])) {
+    throw new Error('approved verdict cannot carry Critical or Important load-bearing findings');
+  }
   const next = copy(state);
   const attempt = next.attempts.find(({ attempt_id }) => attempt_id === event.attempt_id);
   attempt.verdict = event.verdict;
@@ -374,6 +377,7 @@ export function validateAssuranceAccounting(receipt, {
   candidateHead,
   candidateTree,
   recordedReviewAttemptIds = null,
+  recordedReviewAttemptCounts = null,
   requiredReviewerIdentities = []
 }) {
   if (!receipt || receipt.schema_version !== 1) {
@@ -398,6 +402,27 @@ export function validateAssuranceAccounting(receipt, {
   if (recordedReviewAttemptIds
     && !exactSet(receipt.recorded_review_attempt_ids, recordedReviewAttemptIds)) {
     throw new Error('assurance accounting review attempts differ from the review lifecycle attempts');
+  }
+  for (const field of ['recorded_review_attempt_counts', 'budget_review_attempt_counts']) {
+    const counts = receipt[field];
+    if (!counts || typeof counts !== 'object' || Array.isArray(counts)) {
+      throw new Error(`assurance accounting requires ${field}`);
+    }
+    for (const metric of ['correction_rechecks', 'final_integration_reviews']) {
+      if (!Number.isInteger(counts[metric]) || counts[metric] < 0) {
+        throw new Error(`assurance accounting requires a non-negative ${field}.${metric}`);
+      }
+    }
+  }
+  for (const metric of ['correction_rechecks', 'final_integration_reviews']) {
+    if (receipt.recorded_review_attempt_counts[metric]
+      !== receipt.budget_review_attempt_counts[metric]) {
+      throw new Error(`${metric.replaceAll('_', ' ')} must reconcile with budget usage`);
+    }
+    if (recordedReviewAttemptCounts
+      && receipt.recorded_review_attempt_counts[metric] !== recordedReviewAttemptCounts[metric]) {
+      throw new Error(`${metric.replaceAll('_', ' ')} differs from review lifecycle accounting`);
+    }
   }
   const observedAgents = new Set(receipt.observed_agent_ids);
   if (requiredReviewerIdentities.some((identity) => !observedAgents.has(identity))) {

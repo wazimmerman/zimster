@@ -77,6 +77,13 @@ test('initial review permits one same-reviewer correction recheck and consumes i
   assert.doesNotThrow(() => validateReviewLifecycle(state));
 });
 
+test('an approved verdict rejects load-bearing findings', () => {
+  const state = start(lifecycle(), 'initial_review', 'attempt-initial');
+  assert.throws(() => verdict(state, 'attempt-initial', 'approved', [{
+    severity: 'Important', summary: 'The approved path still has a bypass.'
+  }]), /approved.*load-bearing|load-bearing.*approved/i);
+});
+
 test('a failed recheck persists the circuit breaker and rejects every shopping path', () => {
   let state = start(lifecycle(), 'initial_review', 'attempt-initial');
   state = verdict(state, 'attempt-initial', 'needs_correction', [{
@@ -251,6 +258,14 @@ test('assurance accounting fails closed for missing agents, attempts, budgets, o
     budget_agent_ids: ['agent-reviewer'],
     observed_review_attempt_ids: ['attempt-final'],
     recorded_review_attempt_ids: ['attempt-final'],
+    recorded_review_attempt_counts: {
+      correction_rechecks: 0,
+      final_integration_reviews: 1
+    },
+    budget_review_attempt_counts: {
+      correction_rechecks: 0,
+      final_integration_reviews: 1
+    },
     observed_max_depth: 1,
     allowed_max_depth: 1,
     reconciliation_complete: true
@@ -259,12 +274,17 @@ test('assurance accounting fails closed for missing agents, attempts, budgets, o
     candidateHead: HEAD,
     candidateTree: TREE,
     recordedReviewAttemptIds: ['attempt-final'],
+    recordedReviewAttemptCounts: {
+      correction_rechecks: 0,
+      final_integration_reviews: 1
+    },
     requiredReviewerIdentities: ['agent-reviewer']
   }));
   for (const mutation of [
     (row) => { row.dispatch_agent_ids = []; },
     (row) => { row.budget_agent_ids = []; },
     (row) => { row.recorded_review_attempt_ids = []; },
+    (row) => { row.budget_review_attempt_counts.final_integration_reviews = 0; },
     (row) => { row.observed_max_depth = 2; },
     (row) => { row.allowed_max_depth = 2; row.observed_max_depth = 2; },
     (row) => { row.reconciliation_complete = false; }
@@ -275,6 +295,10 @@ test('assurance accounting fails closed for missing agents, attempts, budgets, o
       candidateHead: HEAD,
       candidateTree: TREE,
       recordedReviewAttemptIds: ['attempt-final'],
+      recordedReviewAttemptCounts: {
+        correction_rechecks: 0,
+        final_integration_reviews: 1
+      },
       requiredReviewerIdentities: ['agent-reviewer']
     }), /reconcil|account|nest|depth|complete/i);
   }
@@ -282,12 +306,20 @@ test('assurance accounting fails closed for missing agents, attempts, budgets, o
     candidateHead: HEAD,
     candidateTree: TREE,
     recordedReviewAttemptIds: ['different-attempt'],
+    recordedReviewAttemptCounts: {
+      correction_rechecks: 0,
+      final_integration_reviews: 1
+    },
     requiredReviewerIdentities: ['agent-reviewer']
   }), /lifecycle.*attempt|attempt.*lifecycle/i);
   assert.throws(() => validateAssuranceAccounting(valid, {
     candidateHead: HEAD,
     candidateTree: TREE,
     recordedReviewAttemptIds: ['attempt-final'],
+    recordedReviewAttemptCounts: {
+      correction_rechecks: 0,
+      final_integration_reviews: 1
+    },
     requiredReviewerIdentities: ['unobserved-reviewer']
   }), /reviewer.*observed|observed.*reviewer/i);
 });

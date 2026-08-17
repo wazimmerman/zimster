@@ -570,6 +570,14 @@ function completionAssurance({ candidateHead = SHA_B, candidateTree = TREE } = {
       budget_agent_ids: ['reviewer-1'],
       observed_review_attempt_ids: ['attempt-initial', 'attempt-final'],
       recorded_review_attempt_ids: ['attempt-initial', 'attempt-final'],
+      recorded_review_attempt_counts: {
+        correction_rechecks: 0,
+        final_integration_reviews: 1
+      },
+      budget_review_attempt_counts: {
+        correction_rechecks: 0,
+        final_integration_reviews: 1
+      },
       observed_max_depth: 1,
       allowed_max_depth: 1,
       reconciliation_complete: true

@@ -30,7 +30,9 @@ test('assurance accounting reconciles host observations with durable ledgers', a
       schema_version: 2, agent_id: 'agent-reviewer'
     })}\n`);
     await writeFile(path.join(runtime, 'budget.json'), JSON.stringify({
-      schema_version: 1, optional_agent_identities: ['agent-reviewer']
+      schema_version: 1,
+      optional_agent_identities: ['agent-reviewer'],
+      usage: { correction_rechecks: 0, final_integration_reviews: 1 }
     }));
     const candidate = {
       base_sha: head,
@@ -45,7 +47,21 @@ test('assurance accounting reconciles host observations with durable ledgers', a
     lifecycle = applyReviewLifecycleEvent(lifecycle, {
       type: 'attempt_started',
       attempt: {
-        attempt_type: 'initial_review', attempt_id: 'attempt-final',
+        attempt_type: 'initial_review', attempt_id: 'attempt-initial',
+        seam_id: 'release-policy', reviewer_identity: 'agent-reviewer',
+        review_package_id: 'package-initial', candidate
+      }
+    });
+    lifecycle = applyReviewLifecycleEvent(lifecycle, {
+      type: 'verdict_recorded', attempt_id: 'attempt-initial', verdict: 'approved', findings: []
+    });
+    lifecycle = applyReviewLifecycleEvent(lifecycle, {
+      type: 'candidate_stabilized'
+    });
+    lifecycle = applyReviewLifecycleEvent(lifecycle, {
+      type: 'attempt_started',
+      attempt: {
+        attempt_type: 'final_integration_review', attempt_id: 'attempt-final',
         seam_id: 'release-policy', reviewer_identity: 'agent-reviewer',
         review_package_id: 'package-final', candidate
       }
@@ -63,7 +79,7 @@ test('assurance accounting reconciles host observations with durable ledgers', a
       candidate_head: head,
       candidate_tree: tree,
       observed_agent_ids: ['agent-reviewer'],
-      observed_review_attempt_ids: ['attempt-final'],
+      observed_review_attempt_ids: ['attempt-initial', 'attempt-final'],
       observed_max_depth: 1,
       allowed_max_depth: 1,
       observation_complete: true
@@ -78,19 +94,23 @@ test('assurance accounting reconciles host observations with durable ledgers', a
     assert.equal(receipt.reconciliation_complete, true);
     assert.deepEqual(receipt.dispatch_agent_ids, ['agent-reviewer']);
     assert.deepEqual(receipt.budget_agent_ids, ['agent-reviewer']);
-    assert.deepEqual(receipt.recorded_review_attempt_ids, ['attempt-final']);
+    assert.deepEqual(receipt.recorded_review_attempt_ids, ['attempt-final', 'attempt-initial']);
     assert.equal(JSON.parse(await readFile(
       path.join(runtime, 'assurance-accounting/latest.json'), 'utf8'
     )).candidate_head, head);
 
-    await writeFile(path.join(runtime, 'dispatches/dispatches.jsonl'), '');
+    await writeFile(path.join(runtime, 'budget.json'), JSON.stringify({
+      schema_version: 1,
+      optional_agent_identities: ['agent-reviewer'],
+      usage: { correction_rechecks: 0, final_integration_reviews: 0 }
+    }));
     result = spawnSync(process.execPath, [
       path.join(root, 'scripts/assurance-accounting.mjs'), 'reconcile',
       '--observed', observed
     ], { cwd: repo, encoding: 'utf8' });
     assert.equal(result.status, 2, result.stderr || result.stdout);
     assert.equal(JSON.parse(result.stdout).reconciliation_complete, false);
-    assert.match(result.stderr, /unreconciled|dispatch/i);
+    assert.match(result.stderr, /budget|final integration review/i);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

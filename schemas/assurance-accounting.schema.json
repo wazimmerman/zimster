@@ -12,6 +12,8 @@
     "budget_agent_ids",
     "observed_review_attempt_ids",
     "recorded_review_attempt_ids",
+    "recorded_review_attempt_counts",
+    "budget_review_attempt_counts",
     "observed_max_depth",
     "allowed_max_depth",
     "reconciliation_complete"
@@ -25,6 +27,8 @@
     "budget_agent_ids": {"$ref": "#/$defs/ids"},
     "observed_review_attempt_ids": {"$ref": "#/$defs/ids"},
     "recorded_review_attempt_ids": {"$ref": "#/$defs/ids"},
+    "recorded_review_attempt_counts": {"$ref": "#/$defs/reviewAttemptCounts"},
+    "budget_review_attempt_counts": {"$ref": "#/$defs/reviewAttemptCounts"},
     "observed_max_depth": {"type": "integer", "minimum": 0},
     "allowed_max_depth": {"type": "integer", "minimum": 0},
     "reconciliation_complete": {"type": "boolean"},
@@ -37,6 +41,15 @@
       "type": "array",
       "uniqueItems": true,
       "items": {"type": "string", "minLength": 1}
+    },
+    "reviewAttemptCounts": {
+      "type": "object",
+      "required": ["correction_rechecks", "final_integration_reviews"],
+      "properties": {
+        "correction_rechecks": {"type": "integer", "minimum": 0},
+        "final_integration_reviews": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
     }
   },
   "additionalProperties": false

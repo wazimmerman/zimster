@@ -54,6 +54,13 @@ function sortedUnique(values) {
   return [...new Set(values.filter((value) => typeof value === 'string' && value))].sort();
 }
 
+const recordedReviewAttemptCounts = {
+  correction_rechecks: lifecycleStates.flatMap(({ attempts = [] }) => attempts)
+    .filter(({ attempt_type }) => attempt_type === 'correction_recheck').length,
+  final_integration_reviews: lifecycleStates.flatMap(({ attempts = [] }) => attempts)
+    .filter(({ attempt_type }) => attempt_type === 'final_integration_review').length
+};
+
 const receipt = {
   schema_version: 1,
   candidate_head: observed.candidate_head,
@@ -65,6 +72,11 @@ const receipt = {
   recorded_review_attempt_ids: sortedUnique(lifecycleStates.flatMap((state) =>
     (state.attempts || []).map(({ attempt_id }) => attempt_id)
   )),
+  recorded_review_attempt_counts: recordedReviewAttemptCounts,
+  budget_review_attempt_counts: {
+    correction_rechecks: budget.usage?.correction_rechecks ?? 0,
+    final_integration_reviews: budget.usage?.final_integration_reviews ?? 0
+  },
   observed_max_depth: observed.observed_max_depth,
   allowed_max_depth: observed.allowed_max_depth,
   reconciliation_complete: observed.observation_complete === true,
@@ -83,6 +95,7 @@ try {
     recordedReviewAttemptIds: lifecycleStates.flatMap((state) =>
       (state.attempts || []).map(({ attempt_id }) => attempt_id)
     ),
+    recordedReviewAttemptCounts,
     requiredReviewerIdentities: lifecycleStates.map(({ reviewer_identity }) => reviewer_identity)
   });
 } catch (error) {
