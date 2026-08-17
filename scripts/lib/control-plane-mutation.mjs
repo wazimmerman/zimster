@@ -80,12 +80,16 @@ export async function withControlPlaneMutation(runtime, repo, {
   actorId = 'root',
   checkpointChanges = null,
   didMutate = () => true,
-  atomicFailure = false
+  atomicFailure = false,
+  preflight = null
 }, operation) {
   if (typeof mutationType !== 'string' || !mutationType.trim()) {
     throw new Error('control-plane mutation type is required');
   }
   if (typeof operation !== 'function') throw new Error('control-plane mutation operation is required');
+  if (preflight !== null && typeof preflight !== 'function') {
+    throw new Error('control-plane mutation preflight must be a function');
+  }
   const initial = await readRunState(runtime);
   if (!initial || initial.schema_version !== 3) return operation();
 
@@ -97,6 +101,7 @@ export async function withControlPlaneMutation(runtime, repo, {
     if (await readControlPlaneTransaction(runtime)) {
       throw new Error('a prior control-plane mutation requires resume or reconciliation');
     }
+    if (preflight) await preflight({ state: before });
     const candidate = await captureGitState(repo);
     const marker = {
       schema_version: 1,

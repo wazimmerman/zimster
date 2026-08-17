@@ -150,6 +150,49 @@ test('coherence preflight admits a stable review candidate and an exact final-ap
   }
 });
 
+test('final review admission runs coherence before creating its own transaction marker', async () => {
+  const { repo, lifecycle } = await fixture({ finalApproved: false });
+  try {
+    const reviewPackageId = 'a'.repeat(24);
+    const reviewDirectory = runtimePath(repo, 'reviews', reviewPackageId);
+    const reviewPackage = path.join(reviewDirectory, 'review-package.json');
+    await mkdir(reviewDirectory, { recursive: true });
+    await writeFile(reviewPackage, `${JSON.stringify({
+      schema_version: 2,
+      id: reviewPackageId,
+      attempt_type: 'final_integration_review',
+      attempt_id: 'attempt-final-admission',
+      seam_id: 'whole-release',
+      base: lifecycle.candidate.base_sha,
+      head: lifecycle.candidate.head_sha,
+      candidate_checkout: {
+        head: lifecycle.candidate.head_sha,
+        tree: lifecycle.candidate.tree_sha,
+        dirty_tree_fingerprint: CLEAN
+      },
+      semantic_contract: { sha256: CONTRACT }
+    }, null, 2)}\n`);
+
+    const result = run(process.execPath, [
+      path.join(root, 'scripts/review-lifecycle.mjs'), 'start',
+      '--seam-id', 'whole-release',
+      '--attempt-type', 'final_integration_review',
+      '--attempt-id', 'attempt-final-admission',
+      '--reviewer-identity', 'reviewer-1',
+      '--review-package', reviewPackage
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const state = JSON.parse(result.stdout);
+    assert.equal(state.active_attempt_id, 'attempt-final-admission');
+    await assert.rejects(
+      readFile(runtimePath(repo, 'transactions', 'current.json')),
+      /ENOENT/
+    );
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
 test('Micro completion checks canonical coherence without inventing review state', async () => {
   const { repo } = await fixture({ finalApproved: false, withReview: false });
   try {

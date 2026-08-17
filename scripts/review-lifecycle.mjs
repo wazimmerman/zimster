@@ -124,12 +124,13 @@ async function mutate(eventFactory) {
   });
 }
 
-function coordinated(mutationType, operation) {
+function coordinated(mutationType, operation, preflight = null) {
   return withControlPlaneMutation(runtime, root, {
     mutationType,
     // Seam state and the aggregate attempt ledger are separate durable stores.
     // Preserve the transaction marker if either write fails after the other.
-    atomicFailure: false
+    atomicFailure: false,
+    preflight
   }, operation);
 }
 
@@ -176,12 +177,24 @@ if (action === 'init') {
     return initial;
   }));
 } else if (action === 'start') {
+  const attemptType = required(options, 'attempt-type');
+  const coherencePreflight = attemptType === 'final_integration_review'
+    ? async () => {
+        const coherence = await evaluateCoherence(runtime, root, {
+          operation: 'review',
+          seamId
+        });
+        if (coherence.status !== 'COHERENCE_CURRENT') {
+          throw new Error(`COHERENCE_BLOCKED: ${coherence.issues.join('; ')}`);
+        }
+      }
+    : null;
   state = await coordinated('review_attempt_started', () => mutate(async (current) => {
     const reviewPackage = await boundReviewPackage(current);
     const event = {
       type: 'attempt_started',
       attempt: {
-        attempt_type: required(options, 'attempt-type'),
+        attempt_type: attemptType,
         attempt_id: required(options, 'attempt-id'),
         seam_id: seamId,
         reviewer_identity: required(options, 'reviewer-identity'),
@@ -190,17 +203,8 @@ if (action === 'init') {
       }
     };
     applyReviewLifecycleEvent(current, event);
-    if (event.attempt.attempt_type === 'final_integration_review') {
-      const coherence = await evaluateCoherence(runtime, root, {
-        operation: 'review',
-        seamId
-      });
-      if (coherence.status !== 'COHERENCE_CURRENT') {
-        throw new Error(`COHERENCE_BLOCKED: ${coherence.issues.join('; ')}`);
-      }
-    }
     return event;
-  }));
+  }), coherencePreflight);
 } else if (action === 'verdict') {
   state = await coordinated('review_verdict_recorded', () => mutate(() => ({
     type: 'verdict_recorded',
