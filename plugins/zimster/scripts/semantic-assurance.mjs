@@ -338,6 +338,7 @@ async function completionDecision() {
     candidateHead: matrix.candidate_head,
     candidateTree: matrix.candidate_tree,
     reviewPackageId: reviewPackage?.id,
+    reviewPackageSeamId: reviewPackage?.seam_id,
     semanticContractSha256,
     requiredLenses: reviewPackage?.lenses || [],
     loadBearingReviewObligations: options['load-bearing-review-obligations']

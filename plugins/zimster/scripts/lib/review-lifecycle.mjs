@@ -563,6 +563,10 @@ function exactSet(left, right) {
   return JSON.stringify([...new Set(left)].sort()) === JSON.stringify([...new Set(right)].sort());
 }
 
+function hasDuplicates(values) {
+  return new Set(values).size !== values.length;
+}
+
 export function validateAssuranceAccounting(receipt, {
   candidateHead,
   candidateTree,
@@ -581,6 +585,12 @@ export function validateAssuranceAccounting(receipt, {
     'observed_review_attempt_ids', 'recorded_review_attempt_ids'
   ]) {
     if (!Array.isArray(receipt[field])) throw new Error(`assurance accounting requires ${field}`);
+    if (hasDuplicates(receipt[field])) {
+      throw new Error(`assurance accounting ${field} identities must be globally unique`);
+    }
+  }
+  if (recordedReviewAttemptIds && hasDuplicates(recordedReviewAttemptIds)) {
+    throw new Error('review attempt IDs must be globally unique across lifecycle seams');
   }
   if (!exactSet(receipt.observed_agent_ids, receipt.dispatch_agent_ids)
     || !exactSet(receipt.observed_agent_ids, receipt.budget_agent_ids)) {

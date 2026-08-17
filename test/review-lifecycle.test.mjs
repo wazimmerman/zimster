@@ -545,6 +545,16 @@ test('assurance accounting fails closed for missing agents, attempts, budgets, o
     },
     requiredReviewerIdentities: ['unobserved-reviewer']
   }), /reviewer.*observed|observed.*reviewer/i);
+  assert.throws(() => validateAssuranceAccounting(valid, {
+    candidateHead: HEAD,
+    candidateTree: TREE,
+    recordedReviewAttemptIds: ['attempt-final', 'attempt-final'],
+    recordedReviewAttemptCounts: {
+      correction_rechecks: 0,
+      final_integration_reviews: 2
+    },
+    requiredReviewerIdentities: ['agent-reviewer']
+  }), /attempt.*globally unique|duplicate.*attempt/i);
 });
 
 test('lifecycle validation rejects hand-edited breaker and approval state', () => {

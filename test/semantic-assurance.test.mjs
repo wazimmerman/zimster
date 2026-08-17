@@ -61,6 +61,7 @@ function approvalOptions(overrides = {}) {
     candidateHead: SHA_B,
     reviewPackageId: 'package-001',
     reviewAttemptId: 'attempt-final',
+    reviewSeamId: 'release-policy',
     semanticContractSha256: CONTRACT_SHA,
     requiredLenses: REQUIRED_LENSES,
     reviews: [review({ semantic_lenses: REQUIRED_LENSES })],
@@ -121,6 +122,12 @@ test('approved clean-context independent review satisfies the exact Standard can
       reviewId: 'review-001'
     }
   );
+});
+
+test('independent approval is bound to the selected review seam', () => {
+  const result = independentApprovalFor(approvalOptions({ reviewSeamId: 'whole-release' }));
+  assert.equal(result.approved, false);
+  assert.match(result.reason, /seam/i);
 });
 
 test('an approved review cannot carry load-bearing findings or unresolved obligations', () => {
@@ -612,6 +619,7 @@ function completionAssurance({ candidateHead = SHA_B, candidateTree = TREE } = {
   };
   return {
     reviewLifecycle: approvedLifecycle(candidate),
+    reviewPackageSeamId: 'release-policy',
     assuranceAccounting: {
       schema_version: 1,
       candidate_head: candidateHead,
@@ -728,6 +736,38 @@ test('complete Standard proof and exact independent approval reach candidate com
     review_id: 'review-001',
     reasons: []
   });
+});
+
+test('candidate completion binds selected final approval to the package seam and package ID', () => {
+  const assurance = completionAssurance();
+  const mismatchedLifecycle = approvedLifecycle({
+    base_sha: SHA_A,
+    head_sha: SHA_B,
+    tree_sha: TREE,
+    dirty_tree_fingerprint: CLEAN_FINGERPRINT,
+    semantic_contract_sha256: CONTRACT_SHA
+  }, 'different-package');
+  for (const override of [
+    { reviewPackageSeamId: 'whole-release' },
+    { reviewLifecycle: mismatchedLifecycle }
+  ]) {
+    const result = evaluateCandidateCompletion({
+      profile: 'standard',
+      ...assurance,
+      ...override,
+      ownerVerified: true,
+      matrixResult: COMPLETE_MATRIX,
+      reviews: [review({ intended_claims: ['Candidate claim.'], semantic_lenses: REQUIRED_LENSES })],
+      candidateHead: SHA_B,
+      candidateTree: TREE,
+      candidateBase: SHA_A,
+      reviewPackageId: 'package-001',
+      semanticContractSha256: CONTRACT_SHA,
+      requiredLenses: REQUIRED_LENSES
+    });
+    assert.equal(result.state, COMPLETION_STATES.REVIEW_PENDING);
+    assert.match(result.reasons.join('\n'), /seam|package/i);
+  }
 });
 
 function hostVerificationReceipt({

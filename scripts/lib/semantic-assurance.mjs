@@ -333,6 +333,7 @@ export function independentApprovalFor({
   candidateHead,
   reviewPackageId,
   reviewAttemptId = null,
+  reviewSeamId,
   semanticContractSha256,
   requiredLenses = [],
   reviews,
@@ -345,8 +346,8 @@ export function independentApprovalFor({
   if (!SHA_PATTERN.test(candidateBase || '')) {
     throw new Error('independentApprovalFor requires an immutable candidate base');
   }
-  if (!reviewPackageId || !SHA256_PATTERN.test(semanticContractSha256 || '')) {
-    throw new Error('independentApprovalFor requires the review package and semantic contract identity');
+  if (!reviewPackageId || !reviewSeamId || !SHA256_PATTERN.test(semanticContractSha256 || '')) {
+    throw new Error('independentApprovalFor requires the review package, seam, and semantic contract identity');
   }
   if (!Array.isArray(requiredLenses) || !requiredLenses.length) {
     throw new Error('independentApprovalFor requires semantic lenses from the review package');
@@ -405,7 +406,17 @@ export function independentApprovalFor({
       reason: 'independent review does not cover the final integration attempt'
     };
   }
-  const exactContractReviews = exactAttemptReviews.filter(
+  const exactSeamReviews = exactAttemptReviews.filter(
+    (record) => record.seam_id === reviewSeamId
+  );
+  if (!exactSeamReviews.length) {
+    return {
+      approved: false,
+      state: COMPLETION_STATES.REVIEW_PENDING,
+      reason: 'independent review does not cover the selected review seam'
+    };
+  }
+  const exactContractReviews = exactSeamReviews.filter(
     (record) => record.semantic_contract_sha256 === semanticContractSha256
   );
   if (!exactContractReviews.length) {
@@ -739,6 +750,7 @@ export function evaluateCandidateCompletion({
   candidateHead,
   candidateTree,
   reviewPackageId,
+  reviewPackageSeamId,
   semanticContractSha256,
   requiredLenses = [],
   loadBearingReviewObligations = null,
@@ -830,6 +842,17 @@ export function evaluateCandidateCompletion({
       candidateTree,
       requireFinalApproval: true
     });
+    const activeAttempts = reviewLifecycle.attempts.filter(({ attempt_id }) =>
+      !reviewLifecycle.invalidated_attempt_ids.includes(attempt_id)
+    );
+    const selectedFinalAttempt = activeAttempts.at(-1);
+    if (!reviewPackageSeamId || reviewPackageSeamId !== reviewLifecycle.seam_id) {
+      throw new Error('review package seam does not match the selected review lifecycle');
+    }
+    if (selectedFinalAttempt?.seam_id !== reviewLifecycle.seam_id
+      || selectedFinalAttempt?.review_package_id !== reviewPackageId) {
+      throw new Error('selected final approval does not bind the current review package and seam');
+    }
     const accountingLifecycles = reviewLifecycles || [reviewLifecycle];
     for (const lifecycle of accountingLifecycles) validateReviewLifecycle(lifecycle);
     const accountingAttempts = accountingLifecycles.flatMap(({ attempts = [] }) => attempts);
@@ -879,6 +902,7 @@ export function evaluateCandidateCompletion({
     candidateHead,
     reviewPackageId,
     reviewAttemptId: reviewLifecycle.attempts.at(-1)?.attempt_id || null,
+    reviewSeamId: reviewLifecycle.seam_id,
     semanticContractSha256,
     requiredLenses,
     reviews,

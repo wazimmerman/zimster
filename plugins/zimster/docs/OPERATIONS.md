@@ -237,6 +237,12 @@ final integration attempts. A second failed final attempt enters durable
 `strategy_escalation_required`; neither a new attempt ID nor a generic budget
 override can reset that hard limit.
 
+Attempt IDs are run-global identities, not merely seam-local labels. Assurance
+reconciliation rejects an ID repeated in any canonical lifecycle. Candidate
+completion also requires the approved final attempt, semantic review record,
+and immutable review package to agree on the exact seam, attempt ID, and
+package ID.
+
 When a genuine design revision has created a new semantic review epoch, reserve
 its correction recheck with the lifecycle-authenticated digest:
 

@@ -370,6 +370,7 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
     await writeFile(reviewPackagePath, JSON.stringify({
       schema_version: 1,
       id: 'package-001',
+      seam_id: 'release-policy',
       base: 'a'.repeat(40),
       head: candidateHead,
       requirement_matrix: {
