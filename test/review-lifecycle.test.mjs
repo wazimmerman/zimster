@@ -387,6 +387,43 @@ test('approved semantics may advance before final review and revoke prior stabil
   }), /approved|active|before final/i);
 });
 
+test('an approved candidate may record a genuine design revision before final review', () => {
+  let state = start(lifecycle(), 'initial_review', 'attempt-initial');
+  state = verdict(state, 'attempt-initial', 'approved');
+  state = applyReviewLifecycleEvent(state, { type: 'candidate_stabilized' });
+
+  state = applyReviewLifecycleEvent(state, {
+    type: 'breaker_disposition_recorded',
+    disposition: 'design_revision',
+    reason: 'The user added binding acceptance requirements before final review.',
+    candidate: candidate({
+      head_sha: CORRECTED_HEAD,
+      tree_sha: '1'.repeat(40),
+      semantic_contract_sha256: REVISED_CONTRACT
+    }),
+    evidence_refs: ['requirements:user-added-acceptance']
+  });
+
+  assert.equal(state.status, 'new_design_review_required');
+  assert.equal(state.stable, false);
+  assert.equal(state.correction_recheck_consumed, false);
+  assert.deepEqual(state.invalidated_attempt_ids, ['attempt-initial']);
+  assert.equal(state.candidate.semantic_contract_sha256, REVISED_CONTRACT);
+  assert.doesNotThrow(() => validateReviewLifecycle(state));
+
+  assert.throws(() => applyReviewLifecycleEvent(state, {
+    type: 'breaker_disposition_recorded',
+    disposition: 'design_revision',
+    reason: 'Attempt to replace the immutable release base.',
+    candidate: candidate({
+      base_sha: '5'.repeat(40),
+      head_sha: '6'.repeat(40),
+      semantic_contract_sha256: '7'.repeat(64)
+    }),
+    evidence_refs: ['requirements:invalid-base-change']
+  }), /immutable base/i);
+});
+
 test('a final-review correction invalidates stability but does not expand the seam recheck budget', () => {
   let state = start(lifecycle(), 'initial_review', 'attempt-initial');
   state = verdict(state, 'attempt-initial', 'approved');

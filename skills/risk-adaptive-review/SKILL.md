@@ -201,6 +201,10 @@ recheck, and two final integration reviews. The second failed final review
 enters durable strategy escalation. A generic execution-budget override or a
 fresh attempt ID cannot create a third final review.
 
+For user-added binding acceptance requirements after primary approval but before
+final review, record `design_revision` from the approved state. Preserve the base,
+invalidate the old epoch, and never hide it behind an update or replacement seam.
+
 ## Circuit breaker
 
 If a load-bearing finding remains after the recheck, stop the loop. Choose one

@@ -13,7 +13,9 @@
   using that evidence reconcile into circuit-breaker or strategy-escalation
   state without losing history. A pre-review semantic-digest correction is also
   recoverable without consuming an attempt, while Git ancestry enforces the
-  immutable release base.
+  immutable release base. A user-added binding acceptance change may likewise
+  open a genuine new semantic epoch from an approved candidate before final
+  review, without creating a replacement seam.
 - Distinguish diagnostic receipts from fingerprint-backed claim evidence, bind
   postmortems to the durable state they summarize and embed a current report in
   release authorization, and require authentic prospective RED/GREEN receipts

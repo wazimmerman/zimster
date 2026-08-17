@@ -303,6 +303,11 @@ in a contract change; changed semantics still require `design_revision`.
 A mistaken pre-review design digest may be corrected with another explicit
 `design_revision` before any attempt starts; it consumes no attempt, preserves
 the immutable base, and records both semantic candidates in lifecycle history.
+If binding acceptance requirements change after primary approval but before a
+final-review attempt starts, record the genuine `design_revision` directly from
+the approved state. It preserves the immutable release base, invalidates the
+prior semantic epoch, and requires a new-design review; starting a replacement
+seam or silently retaining the prior digest is not an equivalent transition.
 
 A load-bearing final integration finding may also require `design_revision`
 when its correction changes the stable semantic contract. That disposition is
