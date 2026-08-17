@@ -52,6 +52,7 @@ const operationalScripts = [
   'scripts/lib/control-plane-mutation.mjs',
   'scripts/lib/semantic-assurance.mjs',
   'scripts/lib/review-lifecycle.mjs',
+  'scripts/lib/review-authorization.mjs',
   'scripts/lib/evidence-validity.mjs',
   'scripts/lib/release-evidence.mjs',
   'scripts/lib/tar.mjs',

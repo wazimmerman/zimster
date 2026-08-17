@@ -7,7 +7,10 @@
   centralized state transactions, coherence preflight, and exact-package
   control-plane smoke alongside the issue #6 review corrections. Explicit
   assurance reconciliation can also audit-repair stale budget projections from
-  authoritative lifecycle and dispatch ledgers.
+  authoritative lifecycle and dispatch ledgers. Exhausted-review approval now
+  requires a typed same-reviewer disposition whose accepted dispatch, routing
+  observation, immutable package, candidate, and finding resolutions are
+  reauthenticated; caller-authored verification claims cannot authorize it.
 
 ## 0.7.0 - 2026-08-07
 

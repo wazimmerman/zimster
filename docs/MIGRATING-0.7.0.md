@@ -45,6 +45,12 @@ evidence-backed disposition or a material design revision with a new semantic
 contract digest; renaming an attempt or making a trivial edit does not reset
 cardinality.
 
+Legacy approval dispositions that contain only caller-supplied evidence
+references do not acquire release authority during migration. Record a new
+typed same-reviewer disposition bound to an accepted `review-disposition`
+dispatch and routing observation, or choose a material design revision. The
+old event remains preserved as history while final authorization fails closed.
+
 `run.md` is regenerated from canonical machine state after migration. Manual
 legacy prose remains historical context only and cannot outrank `run.json`,
 receipts, ledgers, checkpoints, budgets, or actual Git state.

@@ -7,7 +7,8 @@ import path from 'node:path';
 import { root } from './helpers.mjs';
 import {
   applyReviewLifecycleEvent,
-  createReviewLifecycle
+  createReviewLifecycle,
+  reviewFindingFingerprint
 } from '../scripts/lib/review-lifecycle.mjs';
 
 const CLEAN = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
@@ -131,6 +132,7 @@ test('review lifecycle CLI durably records the consumed recheck and breaker', as
     delete legacy.review_policy;
     delete legacy.strategy_escalation;
     delete legacy.historical_excess_attempt_ids;
+    delete legacy.reviewer_dispositions;
     await writeFile(stateFile, `${JSON.stringify(legacy, null, 2)}\n`);
     result = run(repo, 'show', '--seam-id', 'release-policy');
     assert.notEqual(result.status, 0);
@@ -231,16 +233,262 @@ test('review lifecycle CLI refuses nonexistent evidence for exhausted-review app
       `${JSON.stringify(state, null, 2)}\n`
     );
 
-    const result = run(repo, 'disposition', '--seam-id', 'release-policy',
+    let result = run(repo, 'disposition', '--seam-id', 'release-policy',
       '--disposition', 'reviewer_rebutted_with_evidence',
       '--reason', 'A forged reference must not authorize the candidate.',
       '--evidence-refs', JSON.stringify(['does-not-exist']));
     assert.notEqual(result.status, 0, result.stderr || result.stdout);
-    assert.match(result.stderr, /evidence.*not.*authenticated|receipt.*not.*found/i);
+    assert.match(result.stderr, /caller-supplied|reviewer disposition|not authoritative/i);
     const persisted = JSON.parse(await readFile(
       path.join(lifecycleDirectory, 'release-policy.json'), 'utf8'
     ));
     assert.equal(persisted.status, 'strategy_escalation_required');
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('review lifecycle CLI rejects a governed plan that self-asserts finding coverage', async () => {
+  const repo = await mkdtemp(path.join(os.tmpdir(), 'zimster-review-self-asserted-'));
+  try {
+    assert.equal(spawnSync('git', ['init', '-b', 'main'], { cwd: repo }).status, 0);
+    assert.equal(spawnSync('git', ['config', 'user.name', 'Zimster Test'], { cwd: repo }).status, 0);
+    assert.equal(spawnSync('git', ['config', 'user.email', 'test@example.com'], { cwd: repo }).status, 0);
+    await writeFile(path.join(repo, 'tracked.txt'), 'base\n');
+    assert.equal(spawnSync('git', ['add', '.'], { cwd: repo }).status, 0);
+    assert.equal(spawnSync('git', ['commit', '-m', 'base'], { cwd: repo }).status, 0);
+    const base = spawnSync('git', ['rev-parse', 'HEAD'], {
+      cwd: repo, encoding: 'utf8'
+    }).stdout.trim();
+    const baseTree = spawnSync('git', ['rev-parse', 'HEAD^{tree}'], {
+      cwd: repo, encoding: 'utf8'
+    }).stdout.trim();
+    await writeFile(path.join(repo, 'tracked.txt'), 'corrected\n');
+    assert.equal(spawnSync('git', ['add', '.'], { cwd: repo }).status, 0);
+    assert.equal(spawnSync('git', ['commit', '-m', 'correction'], { cwd: repo }).status, 0);
+    const corrected = spawnSync('git', ['rev-parse', 'HEAD'], {
+      cwd: repo, encoding: 'utf8'
+    }).stdout.trim();
+    const correctedTree = spawnSync('git', ['rev-parse', 'HEAD^{tree}'], {
+      cwd: repo, encoding: 'utf8'
+    }).stdout.trim();
+    const initialCandidate = {
+      base_sha: base,
+      head_sha: base,
+      tree_sha: baseTree,
+      dirty_tree_fingerprint: CLEAN,
+      semantic_contract_sha256: CONTRACT
+    };
+    const correctedCandidate = {
+      ...initialCandidate,
+      head_sha: corrected,
+      tree_sha: correctedTree
+    };
+    const finding = {
+      severity: 'Critical', summary: 'Final authorization remains bypassable.'
+    };
+    let state = createReviewLifecycle({
+      seam_id: 'release-policy', reviewer_identity: 'reviewer-1', candidate: initialCandidate
+    });
+    const start = (current, attempt_type, attempt_id, candidate = current.candidate) =>
+      applyReviewLifecycleEvent(current, {
+        type: 'attempt_started',
+        attempt: {
+          attempt_type,
+          attempt_id,
+          seam_id: 'release-policy',
+          reviewer_identity: 'reviewer-1',
+          review_package_id: attempt_id === 'attempt-final-2'
+            ? 'f'.repeat(24)
+            : `package-${attempt_id}`,
+          candidate
+        }
+      });
+    const verdict = (current, attempt_id, value, findings = []) =>
+      applyReviewLifecycleEvent(current, {
+        type: 'verdict_recorded', attempt_id, verdict: value, findings
+      });
+    state = start(state, 'initial_review', 'attempt-initial');
+    state = verdict(state, 'attempt-initial', 'approved');
+    state = applyReviewLifecycleEvent(state, { type: 'candidate_stabilized' });
+    state = start(state, 'final_integration_review', 'attempt-final-1');
+    state = verdict(state, 'attempt-final-1', 'needs_correction', [{
+      severity: 'Important', summary: 'First final defect.'
+    }]);
+    state = applyReviewLifecycleEvent(state, {
+      type: 'correction_recorded', candidate: correctedCandidate
+    });
+    state = applyReviewLifecycleEvent(state, { type: 'candidate_stabilized' });
+    state = start(state, 'final_integration_review', 'attempt-final-2', correctedCandidate);
+    state = verdict(state, 'attempt-final-2', 'needs_correction', [finding]);
+
+    const runtime = spawnSync('git', [
+      'rev-parse', '--path-format=absolute', '--git-path', 'zimster'
+    ], { cwd: repo, encoding: 'utf8' }).stdout.trim();
+    const lifecycleDirectory = path.join(runtime, 'review-lifecycle');
+    await mkdir(lifecycleDirectory, { recursive: true });
+    await writeFile(
+      path.join(lifecycleDirectory, 'release-policy.json'),
+      `${JSON.stringify(state, null, 2)}\n`
+    );
+    const planFile = path.join(runtime, 'self-asserted-plan.json');
+    await writeFile(planFile, `${JSON.stringify({
+      schema_version: 1,
+      profile: 'self-asserted-review-proof',
+      complete_suite: false,
+      steps: [{
+        id: 'trivial-command',
+        command: process.execPath,
+        args: ['-e', 'process.exit(0)'],
+        establishes: [
+          `review-finding:attempt-final-2:${reviewFindingFingerprint('attempt-final-2', finding)}`
+        ]
+      }]
+    }, null, 2)}\n`);
+    const verification = spawnSync(process.execPath, [
+      path.join(root, 'scripts/verify.mjs'), 'run', '--plan', planFile
+    ], { cwd: repo, encoding: 'utf8' });
+    assert.equal(verification.status, 0, verification.stderr || verification.stdout);
+    const receiptId = JSON.parse(verification.stdout).id;
+
+    let result = run(repo, 'disposition', '--seam-id', 'release-policy',
+      '--disposition', 'reviewer_rebutted_with_evidence',
+      '--reason', 'A trivial plan must not authorize the candidate.',
+      '--evidence-refs', JSON.stringify([receiptId]));
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /caller-supplied|reviewer disposition|self-asserted|not authoritative/i);
+
+    const finalPackageDirectory = path.join(runtime, 'reviews', 'f'.repeat(24));
+    const finalPackage = path.join(finalPackageDirectory, 'review-package.json');
+    await mkdir(finalPackageDirectory, { recursive: true });
+    await writeFile(finalPackage, `${JSON.stringify({
+      schema_version: 2,
+      id: 'f'.repeat(24),
+      attempt_type: 'final_integration_review',
+      attempt_id: 'attempt-final-2',
+      seam_id: 'release-policy',
+      base,
+      head: corrected,
+      candidate_checkout: {
+        head: corrected,
+        tree: correctedTree,
+        dirty_tree_fingerprint: CLEAN
+      },
+      semantic_contract: { sha256: CONTRACT }
+    }, null, 2)}\n`);
+    const resolutions = [{
+      finding_fingerprint: reviewFindingFingerprint('attempt-final-2', finding),
+      outcome: 'rebutted',
+      evidence_refs: ['review-result:reviewer-cited-proof']
+    }];
+    result = run(repo, 'reviewer-disposition', '--seam-id', 'release-policy',
+      '--disposition-id', 'reviewer-resolution-1',
+      '--attempt-id', 'attempt-final-2', '--reviewer-identity', 'reviewer-1',
+      '--review-package', finalPackage,
+      '--conclusion', 'reviewer_rebutted_with_evidence',
+      '--dispatch-id', 'dispatch-reviewer-resolution',
+      '--routing-observation-id', 'observation-reviewer-resolution',
+      '--resolutions', JSON.stringify(resolutions));
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /dispatch|routing observation|authoritative reviewer/i);
+
+    const dispatchDirectory = path.join(runtime, 'dispatches');
+    const routingDirectory = path.join(runtime, 'routing');
+    await mkdir(dispatchDirectory, { recursive: true });
+    await mkdir(routingDirectory, { recursive: true });
+    await writeFile(path.join(dispatchDirectory, 'dispatches.jsonl'), `${JSON.stringify({
+      schema_version: 2,
+      id: 'dispatch-reviewer-resolution',
+      role: 'integration-reviewer',
+      agent_id: 'reviewer-1',
+      dependency_cone: [
+        `.git/zimster/reviews/${'f'.repeat(24)}/review-package.json`
+      ],
+      task_signature: {
+        role: 'integration-reviewer',
+        risk: 'high',
+        traits: ['strategy-disposition'],
+        proof_kind: 'review-disposition'
+      },
+      owner_acceptance: {
+        status: 'accepted',
+        proof: 'reviewer-resolution-1',
+        accepted_at: new Date().toISOString()
+      },
+      completed_at: new Date().toISOString()
+    })}\n`);
+    await writeFile(path.join(routingDirectory, 'observations.jsonl'), `${JSON.stringify({
+      schema_version: 1,
+      id: 'observation-reviewer-resolution',
+      dispatch_id: 'dispatch-reviewer-resolution',
+      role: 'integration-reviewer',
+      proof_kind: 'review-disposition',
+      owner_acceptance: 'accepted',
+      evidence_references: ['reviewer-resolution-1']
+    })}\n`);
+
+    result = run(repo, 'reviewer-disposition', '--seam-id', 'release-policy',
+      '--disposition-id', 'reviewer-resolution-1',
+      '--attempt-id', 'attempt-final-2', '--reviewer-identity', 'reviewer-1',
+      '--review-package', finalPackage,
+      '--conclusion', 'reviewer_rebutted_with_evidence',
+      '--dispatch-id', 'dispatch-reviewer-resolution',
+      '--routing-observation-id', 'observation-reviewer-resolution',
+      '--resolutions', JSON.stringify(resolutions));
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    let persisted = JSON.parse(result.stdout);
+    assert.equal(persisted.status, 'strategy_escalation_required');
+    assert.equal(persisted.reviewer_dispositions.at(-1).disposition_id,
+      'reviewer-resolution-1');
+
+    result = run(repo, 'disposition', '--seam-id', 'release-policy',
+      '--disposition', 'reviewer_rebutted_with_evidence',
+      '--reviewer-disposition-id', 'reviewer-resolution-1',
+      '--reason', 'The same reviewer resolved the exact final finding.');
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    persisted = JSON.parse(result.stdout);
+    assert.equal(persisted.status, 'final_approved');
+    assert.equal(persisted.dispositions.at(-1).reviewer_disposition_id,
+      'reviewer-resolution-1');
+
+    result = run(repo, 'show', '--seam-id', 'release-policy');
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const dispatchFile = path.join(dispatchDirectory, 'dispatches.jsonl');
+    const dispatch = JSON.parse((await readFile(dispatchFile, 'utf8')).trim());
+    dispatch.owner_acceptance.proof = 'different-reviewer-disposition';
+    await writeFile(dispatchFile, `${JSON.stringify(dispatch)}\n`);
+    result = run(repo, 'show', '--seam-id', 'release-policy');
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /accepted authoritative reviewer dispatch/i);
+    dispatch.owner_acceptance.proof = 'reviewer-resolution-1';
+    await writeFile(dispatchFile, `${JSON.stringify(dispatch)}\n`);
+    result = run(repo, 'show', '--seam-id', 'release-policy');
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    await writeFile(dispatchFile, `${JSON.stringify(dispatch)}\n${JSON.stringify(dispatch)}\n`);
+    result = run(repo, 'show', '--seam-id', 'release-policy');
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /accepted authoritative reviewer dispatch/i);
+    await writeFile(dispatchFile, `${JSON.stringify(dispatch)}\n`);
+    dispatch.owner_acceptance.status = 'rejected';
+    await writeFile(dispatchFile, `${JSON.stringify(dispatch)}\n`);
+    result = run(repo, 'show', '--seam-id', 'release-policy');
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /accepted authoritative reviewer dispatch/i);
+    dispatch.owner_acceptance.status = 'accepted';
+    await writeFile(dispatchFile, `${JSON.stringify(dispatch)}\n`);
+    result = run(repo, 'show', '--seam-id', 'release-policy');
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const observationFile = path.join(routingDirectory, 'observations.jsonl');
+    const observation = JSON.parse((await readFile(observationFile, 'utf8')).trim());
+    observation.evidence_references = ['different-reviewer-disposition'];
+    await writeFile(observationFile, `${JSON.stringify(observation)}\n`);
+    result = run(repo, 'show', '--seam-id', 'release-policy');
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /accepted routing observation/i);
+    await writeFile(observationFile, '');
+    result = run(repo, 'show', '--seam-id', 'release-policy');
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /accepted routing observation/i);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

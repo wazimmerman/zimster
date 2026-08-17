@@ -222,6 +222,15 @@ disposition. A `design_revision` resets review accounting only when the
 semantic-contract digest changes and prior attempt approval/evidence is
 invalidated.
 
+For `reviewer_rebutted_with_evidence` or `non_load_bearing_deferral`, do not
+use a verification plan's caller-authored `establishes` labels as authority.
+The same reviewer must return a typed resolution for every load-bearing
+finding, bound to the exhausted attempt/package/candidate. Record it with
+`reviewer-disposition` only after its dedicated high-risk dispatch is accepted
+and observed with the exact disposition ID as the acceptance proof and
+observation evidence reference. Final authorization rechecks that dispatch, routing observation,
+immutable package, and current checkout; missing or edited records fail closed.
+
 Before starting a final integration review, run
 `coherence-preflight.mjs check --operation review --seam-id <stable-id>`.
 Proceed only on `COHERENCE_CURRENT`; the check is read-only and every reported

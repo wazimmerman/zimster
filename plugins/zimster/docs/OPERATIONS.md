@@ -244,6 +244,37 @@ final integration attempts. A second failed final attempt enters durable
 `strategy_escalation_required`; neither a new attempt ID nor a generic budget
 override can reset that hard limit.
 
+An approval disposition is not a verification-plan escape hatch. A passed
+command may not authorize itself by declaring a `review-finding:*` value. The
+same reviewer first returns a structured resolution for every load-bearing
+finding. Record it through an accepted high-risk dispatch whose proof kind is
+`review-disposition`, whose traits include `strategy-disposition`, and whose
+dependency cone contains the exhausted attempt's immutable package:
+
+```text
+node <zimster>/scripts/review-lifecycle.mjs reviewer-disposition \
+  --seam-id <stable-id> --disposition-id <stable-id> \
+  --attempt-id <exhausted-attempt-id> --reviewer-identity <same-reviewer-id> \
+  --review-package <canonical-review-package.json> \
+  --conclusion reviewer_rebutted_with_evidence \
+  --dispatch-id <accepted-dispatch-id> \
+  --routing-observation-id <accepted-observation-id> \
+  --resolutions '<finding-resolution-json-array>'
+
+node <zimster>/scripts/review-lifecycle.mjs disposition \
+  --seam-id <stable-id> \
+  --disposition reviewer_rebutted_with_evidence \
+  --reviewer-disposition-id <stable-id> --reason <technical-ruling>
+```
+
+Each resolution binds the canonical finding fingerprint, an outcome of
+`rebutted` or `non_load_bearing` matching the conclusion, and the reviewer's
+evidence citations. The dispatch acceptance proof and routing observation
+evidence references must name the exact disposition ID. Lifecycle replay proves that this reviewer decision
+preceded approval. CLI reads, coherence preflight, and semantic completion
+then reauthenticate its package/dispatch/observation ledgers and current
+checkout. Missing or edited external records invalidate the approval.
+
 After semantic approval and before a final integration attempt is active,
 `candidate` may advance the exact head/tree only while retaining the approved
 semantic-contract digest and immutable base. Any such advance clears

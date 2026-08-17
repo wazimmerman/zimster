@@ -177,11 +177,36 @@ test('only explicit supported breaker dispositions resolve a failed recheck', ()
     type: 'breaker_disposition_recorded', disposition: 'waived', reason: 'ship it'
   }), /unsupported.*disposition/i);
 
-  const rebutted = applyReviewLifecycleEvent(broken(), {
+  function reviewerResolved(conclusion, id) {
+    const current = broken();
+    const attempt = current.attempts.at(-1);
+    return applyReviewLifecycleEvent(current, {
+      type: 'reviewer_disposition_recorded',
+      disposition_id: id,
+      attempt_id: attempt.attempt_id,
+      reviewer_identity: current.reviewer_identity,
+      review_package_id: attempt.review_package_id,
+      candidate: current.candidate,
+      conclusion,
+      dispatch_id: `dispatch-${id}`,
+      routing_observation_id: `observation-${id}`,
+      resolutions: attempt.findings.map((finding) => ({
+        finding_fingerprint: findingFingerprint(attempt.attempt_id, finding),
+        outcome: conclusion === 'non_load_bearing_deferral'
+          ? 'non_load_bearing'
+          : 'rebutted',
+        evidence_refs: [`review-result:${id}`]
+      }))
+    });
+  }
+
+  const rebutted = applyReviewLifecycleEvent(
+    reviewerResolved('reviewer_rebutted_with_evidence', 'rebuttal'), {
     type: 'breaker_disposition_recorded',
     disposition: 'reviewer_rebutted_with_evidence',
+    reviewer_disposition_id: 'rebuttal',
     reason: 'The reported path is unreachable under the exact candidate.',
-    evidence_refs: ['receipt-rebuttal']
+    evidence_refs: ['reviewer-disposition:rebuttal']
   });
   assert.equal(rebutted.status, 'approved');
 
@@ -193,11 +218,13 @@ test('only explicit supported breaker dispositions resolve a failed recheck', ()
   });
   assert.equal(blocked.status, 'blocked');
 
-  const deferred = applyReviewLifecycleEvent(broken(), {
+  const deferred = applyReviewLifecycleEvent(
+    reviewerResolved('non_load_bearing_deferral', 'deferral'), {
     type: 'breaker_disposition_recorded',
     disposition: 'non_load_bearing_deferral',
+    reviewer_disposition_id: 'deferral',
     reason: 'The remaining observation cannot affect an acceptance claim.',
-    evidence_refs: ['decision-deferral']
+    evidence_refs: ['reviewer-disposition:deferral']
   });
   assert.equal(deferred.status, 'approved');
 
@@ -394,7 +421,7 @@ test('a second failed final review exhausts the hard lifecycle and persists stra
   assert.doesNotThrow(() => validateReviewLifecycle(state));
 });
 
-test('evidence-backed approval dispositions resolve exhausted final review as final approval', () => {
+test('same-reviewer disposition events resolve exhausted final review without another attempt', () => {
   function exhausted() {
     let state = start(lifecycle(), 'initial_review', 'attempt-initial');
     state = verdict(state, 'attempt-initial', 'approved');
@@ -418,39 +445,38 @@ test('evidence-backed approval dispositions resolve exhausted final review as fi
   const finding = {
     severity: 'Important', summary: 'Exact-head evidence was incomplete.'
   };
-  const authenticatedEvidence = {
-    receipt_type: 'verification',
-    receipt_id: 'verification-current-candidate',
-    execution_id: 'execution-current-candidate',
-    authentication: 'governed-execution-v1',
+  const reviewerDisposition = (conclusion = 'reviewer_rebutted_with_evidence') => ({
+    type: 'reviewer_disposition_recorded',
+    disposition_id: `disposition-${conclusion}`,
+    attempt_id: 'attempt-final-2',
+    reviewer_identity: 'reviewer-1',
+    review_package_id: 'package-attempt-final-2',
     candidate: candidate({ head_sha: CORRECTED_HEAD }),
-    environment: { platform: 'linux', arch: 'x64', node: process.version },
-    step_ids: ['rebut-final-finding'],
-    finding_fingerprints: [findingFingerprint('attempt-final-2', finding)]
-  };
+    conclusion,
+    dispatch_id: 'dispatch-reviewer-disposition',
+    routing_observation_id: 'observation-reviewer-disposition',
+    resolutions: [{
+      finding_fingerprint: findingFingerprint('attempt-final-2', finding),
+      outcome: conclusion === 'non_load_bearing_deferral'
+        ? 'non_load_bearing'
+        : 'rebutted',
+      evidence_refs: ['verification:verification-current-candidate']
+    }]
+  });
 
   assert.throws(() => applyReviewLifecycleEvent(exhausted(), {
-    type: 'breaker_disposition_recorded',
-    disposition: 'reviewer_rebutted_with_evidence',
-    reason: 'A forged string must not authorize release.',
-    evidence_refs: ['does-not-exist']
-  }), /authenticated.*evidence|evidence.*authenticated/i);
+    ...reviewerDisposition(),
+    reviewer_identity: 'replacement-reviewer'
+  }), /same reviewer|reviewer identity/i);
   assert.throws(() => applyReviewLifecycleEvent(exhausted(), {
-    type: 'breaker_disposition_recorded',
-    disposition: 'reviewer_rebutted_with_evidence',
-    reason: 'Evidence for another candidate must not authorize release.',
-    evidence_refs: [{
-      ...authenticatedEvidence,
-      candidate: candidate()
-    }]
+    ...reviewerDisposition(),
+    candidate: candidate()
   }), /candidate/i);
   assert.throws(() => applyReviewLifecycleEvent(exhausted(), {
-    type: 'breaker_disposition_recorded',
-    disposition: 'reviewer_rebutted_with_evidence',
-    reason: 'Evidence must rebut every load-bearing finding.',
-    evidence_refs: [{
-      ...authenticatedEvidence,
-      finding_fingerprints: ['0'.repeat(64)]
+    ...reviewerDisposition(),
+    resolutions: [{
+      ...reviewerDisposition().resolutions[0],
+      finding_fingerprint: '0'.repeat(64)
     }]
   }), /finding/i);
 
@@ -458,21 +484,71 @@ test('evidence-backed approval dispositions resolve exhausted final review as fi
     'reviewer_rebutted_with_evidence',
     'non_load_bearing_deferral'
   ]) {
-    const state = applyReviewLifecycleEvent(exhausted(), {
+    let state = applyReviewLifecycleEvent(exhausted(), reviewerDisposition(disposition));
+    assert.equal(state.status, 'strategy_escalation_required');
+    assert.equal(state.attempts.length, 3);
+    state = applyReviewLifecycleEvent(state, {
       type: 'breaker_disposition_recorded',
       disposition,
-      reason: 'Candidate-bound evidence resolves the final finding without a source change.',
-      evidence_refs: [authenticatedEvidence]
+      reviewer_disposition_id: `disposition-${disposition}`,
+      reason: 'The same reviewer resolved every load-bearing final finding.',
+      evidence_refs: [`reviewer-disposition:disposition-${disposition}`]
     });
     assert.equal(state.status, 'final_approved');
     assert.equal(state.stable, true);
     assert.equal(state.strategy_escalation.status, 'resolved');
-    assert.deepEqual(state.dispositions.at(-1).candidate, candidate({ head_sha: CORRECTED_HEAD }));
-    assert.doesNotThrow(() => validateReviewLifecycle(state, { requireFinalApproval: true }));
+    assert.equal(state.dispositions.at(-1).reviewer_disposition_id,
+      `disposition-${disposition}`);
+    assert.deepEqual(state.dispositions.at(-1).candidate,
+      candidate({ head_sha: CORRECTED_HEAD }));
+    assert.throws(() => validateReviewLifecycle(state, {
+      requireFinalApproval: true
+    }), /reviewer disposition.*authentication|authentication.*reviewer disposition/i);
+    assert.doesNotThrow(() => validateReviewLifecycle(state, {
+      requireFinalApproval: true,
+      authenticatedReviewerDispositionIds: [`disposition-${disposition}`]
+    }));
     assert.throws(() => start(state, 'final_integration_review', 'attempt-final-3', {
-      candidate: candidate({ head_sha: CORRECTED_HEAD })
+      candidate: candidate()
     }), /exhausted|not allowed|final.*approval/i);
   }
+});
+
+test('exhausted-review approval rejects self-asserted governed receipt metadata', () => {
+  let state = start(lifecycle(), 'initial_review', 'attempt-initial');
+  state = verdict(state, 'attempt-initial', 'approved');
+  state = applyReviewLifecycleEvent(state, { type: 'candidate_stabilized' });
+  state = start(state, 'final_integration_review', 'attempt-final-1');
+  state = verdict(state, 'attempt-final-1', 'needs_correction', [{
+    severity: 'Important', summary: 'First exact-head defect.'
+  }]);
+  state = applyReviewLifecycleEvent(state, {
+    type: 'correction_recorded', candidate: candidate({ head_sha: CORRECTED_HEAD })
+  });
+  state = applyReviewLifecycleEvent(state, { type: 'candidate_stabilized' });
+  state = start(state, 'final_integration_review', 'attempt-final-2', {
+    candidate: candidate({ head_sha: CORRECTED_HEAD })
+  });
+  const finding = {
+    severity: 'Critical', summary: 'Final authorization remains bypassable.'
+  };
+  state = verdict(state, 'attempt-final-2', 'needs_correction', [finding]);
+
+  assert.throws(() => applyReviewLifecycleEvent(state, {
+    type: 'breaker_disposition_recorded',
+    disposition: 'reviewer_rebutted_with_evidence',
+    reason: 'Self-asserted receipt fields are not an authoritative reviewer decision.',
+    evidence_refs: [{
+      receipt_type: 'verification',
+      receipt_id: 'does-not-exist',
+      execution_id: 'does-not-exist',
+      authentication: 'governed-execution-v1',
+      candidate: candidate({ head_sha: CORRECTED_HEAD }),
+      environment: { platform: 'linux', arch: 'x64', node: process.version },
+      step_ids: ['trivial-command'],
+      finding_fingerprints: [findingFingerprint('attempt-final-2', finding)]
+    }]
+  }), /reviewer disposition|authoritative reviewer/i);
 });
 
 test('only a material semantic design revision resets an exhausted review epoch', () => {
@@ -545,6 +621,7 @@ test('legacy excess attempts migrate losslessly into durable strategy escalation
   delete legacy.review_policy;
   delete legacy.strategy_escalation;
   delete legacy.historical_excess_attempt_ids;
+  delete legacy.reviewer_dispositions;
   legacy.status = 'final_correction_required';
   const thirdCandidate = candidate({ head_sha: '1'.repeat(40) });
   legacy.candidate = thirdCandidate;

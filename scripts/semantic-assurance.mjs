@@ -21,6 +21,7 @@ import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 import { evaluateCoherence } from './lib/coherence-preflight.mjs';
 import { withControlPlaneMutation } from './lib/control-plane-mutation.mjs';
 import { validateReviewLifecycle } from './lib/review-lifecycle.mjs';
+import { authenticateFinalReviewAuthorization } from './lib/review-authorization.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
@@ -304,6 +305,22 @@ async function completionDecision() {
   const budgetIssues = executionBudget
     ? await executionBudgetIssues(executionBudget, runtimeDirectory, reviewLifecycles)
     : [];
+  const reviewerAuthorizationIssues = [];
+  const authenticatedReviewerDispositionIds = [];
+  if (reviewLifecycle) {
+    try {
+      const authorization = await authenticateFinalReviewAuthorization(
+        runtimeDirectory,
+        reviewLifecycle,
+        { cwd: root }
+      );
+      if (authorization.type === 'reviewer_disposition') {
+        authenticatedReviewerDispositionIds.push(authorization.disposition_id);
+      }
+    } catch (error) {
+      reviewerAuthorizationIssues.push(error.message);
+    }
+  }
   const coherence = await evaluateCoherence(runtimeDirectory, root, {
     operation: 'completion',
     seamId: reviewLifecycle?.seam_id || 'whole-release',
@@ -315,6 +332,7 @@ async function completionDecision() {
     ...lifecyclePathIssues,
     ...accountingPathIssues,
     ...budgetIssues,
+    ...reviewerAuthorizationIssues,
     ...coherence.issues
   ];
   const finalMatrixResult = completionInputIssues.length
@@ -349,7 +367,8 @@ async function completionDecision() {
     correctionPending: options['correction-pending'] === true,
     reviewLifecycle,
     reviewLifecycles,
-    assuranceAccounting
+    assuranceAccounting,
+    authenticatedReviewerDispositionIds
   });
   if (result.state === COMPLETION_STATES.CANDIDATE_COMPLETE) {
     await withControlPlaneMutation(runtimeDirectory, root, {

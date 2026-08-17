@@ -70,6 +70,12 @@ Dependency-free Node 22 tools turn important policy into inspectable state:
   hard cardinality of one primary review, one correction recheck, and two
   final integration reviews per semantic contract; exhaustion enters durable
   strategy escalation rather than opening another attempt;
+- `review-authorization.mjs` makes approval dispositions a typed reviewer
+  decision rather than a caller-authored verification claim. It rechecks the
+  same reviewer, exhausted attempt, immutable package, exact candidate,
+  accepted high-risk `review-disposition` dispatch, and its routing observation
+  whenever disposition-based final approval is consumed. Dispatch acceptance
+  and observation evidence both bind the exact reviewer-disposition ID;
 - review attempt IDs are globally unique across canonical seam lifecycles, and
   final completion binds the approved lifecycle attempt to the immutable
   review package's exact seam and package identity;

@@ -201,12 +201,35 @@ if (state.status !== 'strategy_escalation_required') throw new Error('missing du
 let rejected = false;
 try { state = start('final_integration_review', 'final-3', 'e'.repeat(40)); } catch { rejected = true; }
 if (!rejected) throw new Error('third final review was admitted');
-writeFileSync(${JSON.stringify(lifecycleOutput)}, JSON.stringify({ status: state.status }));
+let selfAssertedRejected = false;
+try {
+  state = apply(state, {
+    type: 'breaker_disposition_recorded',
+    disposition: 'reviewer_rebutted_with_evidence',
+    reason: 'caller-authored verification claims are not reviewer decisions',
+    evidence_refs: [{
+      receipt_type: 'verification',
+      receipt_id: 'forged',
+      execution_id: 'forged',
+      authentication: 'governed-execution-v1',
+      candidate: candidate('e'.repeat(40)),
+      environment: {},
+      step_ids: ['trivial'],
+      finding_fingerprints: ['f'.repeat(64)]
+    }]
+  });
+} catch { selfAssertedRejected = true; }
+if (!selfAssertedRejected) throw new Error('self-asserted review proof was admitted');
+writeFileSync(${JSON.stringify(lifecycleOutput)}, JSON.stringify({
+  status: state.status,
+  self_asserted_review_proof_rejected: selfAssertedRejected
+}));
 `;
   execute('--input-type=module', ['-e', lifecycleProbe], fixture, env);
   const lifecycle = JSON.parse(await readFile(lifecycleOutput, 'utf8'));
   await rm(lifecycleOutput, { force: true });
-  if (lifecycle.status !== 'strategy_escalation_required') {
+  if (lifecycle.status !== 'strategy_escalation_required'
+    || lifecycle.self_asserted_review_proof_rejected !== true) {
     throw new Error('packaged hard lifecycle did not enter strategy escalation');
   }
 

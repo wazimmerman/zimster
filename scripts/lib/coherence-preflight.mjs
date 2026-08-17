@@ -10,6 +10,7 @@ import {
   validateAssuranceAccounting,
   validateReviewLifecycle
 } from './review-lifecycle.mjs';
+import { authenticateFinalReviewAuthorization } from './review-authorization.mjs';
 import { checkRunSummary } from './run-summary.mjs';
 
 async function readJsonComponent(file, label, issues) {
@@ -216,10 +217,22 @@ export async function evaluateCoherence(runtime, repo, {
     issues.push(`review lifecycle is unavailable for seam ${seamId}`);
   } else if (lifecycle) {
     try {
+      const authenticatedReviewerDispositionIds = [];
+      if (operation !== 'review') {
+        const authorization = await authenticateFinalReviewAuthorization(
+          runtime,
+          lifecycle,
+          { cwd: repo }
+        );
+        if (authorization.type === 'reviewer_disposition') {
+          authenticatedReviewerDispositionIds.push(authorization.disposition_id);
+        }
+      }
       validateReviewLifecycle(lifecycle, {
         candidateHead: git.head,
         candidateTree: git.tree,
-        requireFinalApproval: operation !== 'review'
+        requireFinalApproval: operation !== 'review',
+        authenticatedReviewerDispositionIds
       });
       if (operation === 'review') {
         const finalAttempts = lifecycle.attempts.filter(({ attempt_id, attempt_type }) =>
