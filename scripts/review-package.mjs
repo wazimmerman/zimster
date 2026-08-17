@@ -191,7 +191,7 @@ if (bindingFile) {
     throw new Error('binding requirements contain duplicate IDs');
   }
   for (const id of requirementIds) {
-    if (!/^[A-Z][A-Z0-9]*-[0-9]{3,}$/.test(id)) {
+    if (!/^[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*-[0-9]{3,}$/.test(id)) {
       throw new Error(`binding requirements contain malformed ID ${id}`);
     }
   }

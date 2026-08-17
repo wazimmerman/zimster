@@ -145,7 +145,7 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
   const dependencies = await canonicalInputIdentities(listOption('dependencies'), root);
   const requirementIds = listOption('requirement-ids');
   for (const id of requirementIds) {
-    if (!/^[A-Z][A-Z0-9]*-[0-9]{3,}$/.test(id)) {
+    if (!/^[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*-[0-9]{3,}$/.test(id)) {
       throw new Error(`malformed requirement ID: ${id}`);
     }
   }

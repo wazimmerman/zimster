@@ -37,7 +37,7 @@
     "reviewed_requirement_ids": {
       "type": "array",
       "uniqueItems": true,
-      "items": {"type": "string", "pattern": "^[A-Z][A-Z0-9]*-[0-9]{3,}$"}
+      "items": {"type": "string", "pattern": "^[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*-[0-9]{3,}$"}
     },
     "intended_claims": {
       "type": "array",

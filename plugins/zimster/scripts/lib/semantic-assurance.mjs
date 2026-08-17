@@ -8,7 +8,7 @@ import {
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const CLEAN_DIRTY_TREE_FINGERPRINT = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
-const REQUIREMENT_ID_PATTERN = /^[A-Z][A-Z0-9]*-[0-9]{3,}$/;
+const REQUIREMENT_ID_PATTERN = /^[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*-[0-9]{3,}$/;
 const REQUIREMENT_STATES = Object.freeze([
   'pending',
   'verified',

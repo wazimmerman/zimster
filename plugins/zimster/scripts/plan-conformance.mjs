@@ -28,7 +28,7 @@ const requirementStates = new Set([
   'blocked_by_environment', 'blocked_by_requirement', 'not_applicable'
 ]);
 const observationStates = new Set(['valid', 'stale', 'invalidated', 'unavailable']);
-const requirementIdPattern = /^[A-Z][A-Z0-9]*-[0-9]{3,}$/;
+const requirementIdPattern = /^[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*-[0-9]{3,}$/;
 const stringList = (value) => Array.isArray(value)
   && new Set(value).size === value.length
   && value.every((item) => typeof item === 'string' && item.length > 0);
