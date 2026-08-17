@@ -280,3 +280,37 @@ test('host smoke runs a configured command from the extracted exact candidate', 
     await rm(directory, { recursive: true, force: true });
   }
 });
+
+test('host smoke rejects an available CLI whose observed version differs from the documented release target', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'zimster-host-version-'));
+  try {
+    const dist = path.join(directory, 'dist');
+    await createExactPortableArchive(dist);
+    const config = path.join(directory, 'host-smoke.json');
+    await writeFile(config, `${JSON.stringify({
+      schema_version: 1,
+      hosts: [{
+        id: 'versioned-host',
+        candidate: 'portable',
+        proof_kind: 'exact_package_install_and_fresh_session_discovery',
+        command: process.execPath,
+        version_args: ['--version'],
+        expected_version_pattern: '^documented-host-9\\.9\\.9$',
+        args: ['-e', '']
+      }]
+    })}\n`);
+    const result = run(process.execPath, [
+      path.join(root, 'scripts/host-smoke.mjs'),
+      '--config', config, '--dist', dist,
+      '--candidate-head', 'a'.repeat(40), '--candidate-tree', 'b'.repeat(40),
+      '--dirty-tree-fingerprint', CLEAN_FINGERPRINT
+    ], root);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    const summary = JSON.parse(result.stdout);
+    assert.equal(summary.status, 'failed');
+    assert.match(summary.failures[0].action, /observed host version.*documented release target/i);
+    assert.equal(summary.hosts[0].verification_state, 'UNAVAILABLE');
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});

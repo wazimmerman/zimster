@@ -10,7 +10,7 @@
   ],
   "harnesses": {
     "codex": {
-      "checked_at": "2026-08-16T00:00:00.000Z",
+      "checked_at": "2026-08-17T00:00:00.000Z",
       "max_age_days": 90,
       "local_host_version": "codex-cli 0.147.0",
       "managed_host_version": "0.147.0-alpha.6.6",
@@ -41,9 +41,9 @@
       }
     },
     "claude": {
-      "checked_at": "2026-08-16T00:00:00.000Z",
+      "checked_at": "2026-08-17T00:00:00.000Z",
       "max_age_days": 90,
-      "local_host_version": "2.1.233 isolated",
+      "local_host_version": "2.1.226 exact-final",
       "validator_status": "consistent",
       "sources": [
         {
@@ -51,7 +51,7 @@
           "url": "https://code.claude.com/docs/en/plugins-reference"
         }
       ],
-      "verification": "live_component_inventory_verified",
+      "verification": "structurally_validated",
       "capabilities": {
         "native_skill_loading": "native",
         "plugin_relative_helper_scripts": "native",
@@ -71,14 +71,14 @@
       }
     },
     "grok": {
-      "checked_at": "2026-08-16T00:00:00.000Z",
+      "checked_at": "2026-08-17T00:00:00.000Z",
       "max_age_days": 90,
       "local_host_version": "1.0.0 stable",
       "validator_status": "consistent",
       "sources": [
         {"title": "xAI skills, plugins, and marketplaces", "url": "https://docs.x.ai/build/features/skills-plugins-marketplaces"}
       ],
-      "verification": "live_skill_discovery_verified",
+      "verification": "structurally_validated",
       "capabilities": {
         "native_skill_loading": "native",
         "plugin_relative_helper_scripts": "supported_with_constraints",
@@ -128,9 +128,9 @@
       }
     },
     "kimi": {
-      "checked_at": "2026-08-16T00:00:00.000Z",
+      "checked_at": "2026-08-17T00:00:00.000Z",
       "max_age_days": 90,
-      "local_host_version": "0.36.1 isolated",
+      "local_host_version": null,
       "validator_status": "consistent",
       "sources": [
         {
@@ -138,7 +138,7 @@
           "url": "https://moonshotai.github.io/kimi-code/en/customization/plugins.html"
         }
       ],
-      "verification": "installed_package_verified",
+      "verification": "structurally_validated",
       "capabilities": {
         "native_skill_loading": "native",
         "plugin_relative_helper_scripts": "native",
@@ -158,9 +158,9 @@
       }
     },
     "opencode": {
-      "checked_at": "2026-08-16T00:00:00.000Z",
+      "checked_at": "2026-08-17T00:00:00.000Z",
       "max_age_days": 90,
-      "local_host_version": "1.18.18 isolated",
+      "local_host_version": "1.18.13 exact-final isolated",
       "validator_status": "consistent",
       "sources": [
         {
@@ -188,9 +188,9 @@
       }
     },
     "pi": {
-      "checked_at": "2026-08-16T00:00:00.000Z",
+      "checked_at": "2026-08-17T00:00:00.000Z",
       "max_age_days": 90,
-      "local_host_version": "0.84.2 isolated",
+      "local_host_version": "0.84.1 exact-final isolated",
       "validator_status": "consistent",
       "sources": [
         {

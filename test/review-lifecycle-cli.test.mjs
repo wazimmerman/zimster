@@ -57,6 +57,13 @@ test('review lifecycle CLI durably records the consumed recheck and breaker', as
       '--semantic-contract-sha256', CONTRACT);
     assert.equal(result.status, 0, result.stderr || result.stdout);
 
+    const nonexistentHead = 'f'.repeat(40);
+    result = run(repo, 'candidate', '--seam-id', 'release-policy',
+      '--base', base, '--head', nonexistentHead, '--tree', tree,
+      '--dirty-tree-fingerprint', CLEAN, '--semantic-contract-sha256', CONTRACT);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /head.*commit|commit.*head|git object/i);
+
     const initialPackage = await reviewPackage(
       '1'.repeat(24), 'initial_review', 'attempt-initial', base, tree
     );

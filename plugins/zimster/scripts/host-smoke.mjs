@@ -319,11 +319,37 @@ try {
       ...(modelBackedExecution ? ['model_backed_execution'] : [])
     ];
     let hostVersion = host.host_version || null;
+    let versionFailure = null;
     if (Array.isArray(host.version_args)) {
       const versionResult = spawnSync(String(host.command), host.version_args, {
         encoding: 'utf8', shell: false, env: process.env
       });
       if (versionResult.status === 0) hostVersion = String(versionResult.stdout || '').trim() || hostVersion;
+      else if (host.expected_version_pattern) {
+        versionFailure = 'the configured host version command did not succeed';
+      }
+    }
+    if (host.expected_version_pattern) {
+      let expectedVersion;
+      try {
+        expectedVersion = new RegExp(String(host.expected_version_pattern));
+      } catch {
+        throw new Error(`host ${host.id} expected_version_pattern must be a valid regular expression`);
+      }
+      if (!versionFailure && !expectedVersion.test(hostVersion || '')) {
+        versionFailure = `observed host version ${hostVersion || '(unavailable)'} differs from the documented release target`;
+      }
+    }
+    if (versionFailure) {
+      failures.push({ id: host.id, exit_code: 1, action: versionFailure });
+      hostResults.push(hostRecord(host, {
+        verificationState: 'UNAVAILABLE',
+        candidate,
+        hostVersion,
+        commandsOrObservations: [[host.command, ...(host.args || [])].join(' ')],
+        knownLimitations: [versionFailure]
+      }));
+      continue;
     }
     const liveRecord = hostRecord(host, {
       verificationState: successVerificationState,

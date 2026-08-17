@@ -17,9 +17,9 @@
       "live_capabilities_established": ["adapter_structure", "package_manifest", "live_host_execution"],
       "live_public_claims": ["adapter_structure", "package_manifest"],
       "capabilities_not_established": ["model_backed_execution", "fresh_session_discovery"],
-      "known_limitations": ["Automated smoke validates the exact Claude package; isolated install inventory is documented separately"],
+      "known_limitations": ["Exact-final evidence is structural validation only; the older-candidate isolated install inventory is historical"],
       "success_verification_state": "STRUCTURALLY_VALIDATED",
-      "command": "claude", "version_args": ["--version"], "args": ["plugin", "validate", "."],
+      "command": "claude", "version_args": ["--version"], "expected_version_pattern": "^2\\.1\\.226(?:\\s|$)", "args": ["plugin", "validate", "."],
       "expected_output": "Validation passed", "unavailable_reason": "Claude Code CLI is not installed."
     },
     {
@@ -41,9 +41,9 @@
       "live_capabilities_established": ["adapter_structure", "package_manifest", "live_host_execution"],
       "live_public_claims": ["adapter_structure", "package_manifest"],
       "capabilities_not_established": ["model_backed_execution", "fresh_session_discovery"],
-      "known_limitations": ["Automated smoke validates the exact portable package; isolated install discovery is documented separately"],
+      "known_limitations": ["Exact-final evidence is structural validation only; the older-candidate isolated install discovery is historical"],
       "success_verification_state": "STRUCTURALLY_VALIDATED",
-      "command": "grok", "version_args": ["--version"], "args": ["plugin", "validate", "."],
+      "command": "grok", "version_args": ["--version"], "expected_version_pattern": "^grok 1\\.0\\.0(?:\\s|$)", "args": ["plugin", "validate", "."],
       "expected_output": "Plugin manifest is valid", "unavailable_reason": "Grok CLI is not installed."
     },
     {
@@ -53,7 +53,7 @@
       "public_claims": ["adapter_structure", "installation_surface"],
       "structural_observations": ["The exact npm package contains Kimi plugin and Agent Skill surfaces"],
       "capabilities_not_established": ["live_host_execution", "fresh_session_discovery", "model_backed_execution"],
-      "known_limitations": ["The automated fallback is structural; the 0.7.1 release run separately established isolated managed-copy install/reload/discovery on Kimi Code 0.36.1, while model-backed execution remained unavailable"],
+      "known_limitations": ["Exact-final evidence is structural because the Kimi CLI is unavailable; the older-candidate 0.36.1 managed-copy observation is historical"],
       "unavailable_reason": "Kimi Code CLI is not installed."
     },
     {
@@ -65,7 +65,7 @@
       "live_public_claims": ["exact_package_skill_discovery", "fresh_session_discovery"],
       "capabilities_not_established": ["model_backed_execution"],
       "known_limitations": ["Live smoke establishes exact npm-package skill discovery, not model-backed task execution"],
-      "command": "opencode", "version_args": ["--version"], "args": ["debug", "skill"],
+      "command": "opencode", "version_args": ["--version"], "expected_version_pattern": "^1\\.18\\.13$", "args": ["debug", "skill"],
       "env": {"OPENCODE_DISABLE_AUTOUPDATE": "1", "OPENCODE_DISABLE_MODELS_FETCH": "1", "OPENCODE_DISABLE_LSP_DOWNLOAD": "1"},
       "expected_output": "using-zimster", "unavailable_reason": "OpenCode CLI is not installed."
     },
@@ -79,7 +79,7 @@
       "capabilities_not_established": ["fresh_session_discovery", "model_backed_execution", "optional_delegation"],
       "known_limitations": ["The smoke installs the exact npm package; model-backed execution and optional delegation are not exercised"],
       "success_verification_state": "INSTALLED_PACKAGE_VERIFIED",
-      "command": "pi", "version_args": ["--version"], "args": ["install", "."],
+      "command": "pi", "version_args": ["--version"], "expected_version_pattern": "^0\\.84\\.1$", "args": ["install", "."],
       "expected_output": "Installed", "unavailable_reason": "Pi CLI is not installed."
     }
   ]

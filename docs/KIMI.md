@@ -1,11 +1,11 @@
 # Kimi Code
 
-Verification achieved for Zimster 0.7.1: `INSTALLED_PACKAGE_VERIFIED` on Kimi
-Code 0.36.1. In an isolated `KIMI_CODE_HOME`, the current local-plugin flow
-copied the exact candidate into Kimi's managed directory. After reload,
-`/plugins info zimster` reported Zimster 0.7.1 enabled with healthy state,
-`using-zimster` as the session start, and skill instructions present.
-Model-backed execution was unavailable because no provider was configured.
+Exact-final verification for Zimster 0.7.1 is `STRUCTURALLY_VALIDATED` because
+the Kimi CLI was unavailable. The exact npm package contains the Kimi manifest,
+session-start surface, and canonical skills. An earlier Kimi Code 0.36.1
+managed-copy install used an older candidate and remains historical context;
+managed-copy installation, reload, and model-backed execution are not
+established for the final artifact.
 
 ## Install
 
@@ -40,9 +40,8 @@ affect Kimi's managed copy until reinstall/reload.
 
 ## Verification status
 
-The exact candidate is `INSTALLED_PACKAGE_VERIFIED` on 0.36.1. Managed-copy
-installation, reload, manifest health, session-start discovery, and skill
-instructions were observed. Model-backed behavior and effective runtime tool
+The exact final candidate is `STRUCTURALLY_VALIDATED`. Managed-copy
+installation, reload, model-backed behavior, and effective runtime tool
 restriction remain unverified.
 
 Zimster maps only to Kimi's symbolic `primary`, a host-verified experimental

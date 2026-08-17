@@ -74,10 +74,10 @@ test('BETA-001 and BETA-003: six beta surfaces use claim-scoped states and chann
     'installation availability', 'known limitations'
   ]) assert.match(readme, new RegExp(phrase.replaceAll(' ', '\\s+'), 'i'));
   const compatibility = await read('docs/COMPATIBILITY.md');
-  for (const version of ['0.147.0', '2.1.233', '1.0.0', '0.36.1', '1.18.18', '0.84.2']) {
+  for (const version of ['0.147.0', '2.1.226', '1.0.0', '1.18.13', '0.84.1']) {
     assert.match(compatibility, new RegExp(version.replaceAll('.', '\\.')));
   }
-  assert.match(compatibility, /Kimi[\s\S]*INSTALLED_PACKAGE_VERIFIED/i);
+  assert.match(compatibility, /Kimi[\s\S]*CLI unavailable[\s\S]*STRUCTURALLY_VALIDATED/i);
 });
 
 test('BETA-002: privacy, diagnostics, contribution, and security contracts are public-beta ready', async () => {

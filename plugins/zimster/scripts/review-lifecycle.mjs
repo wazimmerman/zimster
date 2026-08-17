@@ -1,7 +1,7 @@
 import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseOptions, required, writeLine } from './lib/cli.mjs';
-import { findRepoRoot } from './lib/git-state.mjs';
+import { findRepoRoot, gitValue, runGit } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 import { evaluateCoherence } from './lib/coherence-preflight.mjs';
 import { withControlPlaneMutation } from './lib/control-plane-mutation.mjs';
@@ -25,13 +25,26 @@ const stateFile = path.join(directory, `${seamId}.json`);
 const attemptsFile = path.join(directory, 'attempts.jsonl');
 
 function candidateFromOptions() {
-  return {
+  const candidate = {
     base_sha: required(options, 'base'),
     head_sha: required(options, 'head'),
     tree_sha: required(options, 'tree'),
     dirty_tree_fingerprint: required(options, 'dirty-tree-fingerprint'),
     semantic_contract_sha256: required(options, 'semantic-contract-sha256')
   };
+  for (const field of ['base_sha', 'head_sha']) {
+    const result = runGit(['cat-file', '-e', `${candidate[field]}^{commit}`], root, {
+      allowFailure: true
+    });
+    if (result.status !== 0) {
+      throw new Error(`${field} must identify an existing immutable Git commit`);
+    }
+  }
+  const actualTree = gitValue(['rev-parse', `${candidate.head_sha}^{tree}`], root, null);
+  if (actualTree !== candidate.tree_sha) {
+    throw new Error('candidate tree_sha must equal the immutable head commit tree');
+  }
+  return candidate;
 }
 
 function jsonOption(name, fallback = null) {

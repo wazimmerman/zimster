@@ -8,7 +8,7 @@ canonical skills.
 Status vocabulary:
 
 - `LIVE_VERIFIED`: the named behavior was observed with the listed CLI and
-  isolated configuration on 2026-08-16.
+  isolated configuration against the exact final candidate on 2026-08-17.
 - `INSTALLED_PACKAGE_VERIFIED`: installation and package inventory passed, but
   fresh model-backed execution was not run.
 - `STRUCTURALLY_VALIDATED`: schemas and dependency-free fixtures passed.
@@ -17,16 +17,21 @@ Status vocabulary:
 | Host | CLI | Distribution | Verified capabilities | Not established |
 |---|---:|---|---|---|
 | Codex | standalone 0.147.0; managed Desktop 0.147.0-alpha.6.6 | Codex zip / Git marketplace | `INSTALLED_PACKAGE_VERIFIED`: marketplace registration, install, version, generated-mirror integrity; explicit role templates parse in a project layer | Authenticated exact-package prompt task; managed Desktop role binding because its observed schema omitted role/model/effort fields |
-| Claude Code | 2.1.233 | Claude zip / GitHub marketplace | `INSTALLED_PACKAGE_VERIFIED`: strict validation plus isolated marketplace registration/install and inventory of the exact 0.7.1 manifest, 12 skills, 4 agents, and 1 SessionStart hook | Authenticated model-backed invocation and effective restriction observation; isolated login was unavailable |
-| Grok | 1.0.0 stable | Portable Agent Plugin zip | `INSTALLED_PACKAGE_VERIFIED`: root Agent Plugins validation plus isolated trusted install, list, and details for exact 0.7.1 | Authenticated model-backed invocation; isolated sign-in was unavailable and no separate `.grok` layer was needed |
-| OpenCode | 1.18.18 | npm tarball / project package | `LIVE_VERIFIED`: exact npm tarball extraction, project adapter load, canonical skill discovery | Model-backed task execution and effective model identity |
-| Pi | 0.84.2 | `zimster` npm package | `INSTALLED_PACKAGE_VERIFIED`: local package installation and listing; structural extension/resource tests | Model-backed session discovery; optional `pi-subagents` 0.50.0 transport execution |
-| Kimi Code | 0.36.1 | `zimster` npm package / local plugin source | `INSTALLED_PACKAGE_VERIFIED`: isolated managed-copy install/reload reported exact 0.7.1 enabled and healthy with `using-zimster` session start and skill instructions | Model-backed execution and effective restriction observation; the isolated harness had no configured provider |
+| Claude Code | 2.1.226 | Claude zip / GitHub marketplace | `STRUCTURALLY_VALIDATED`: strict validation of the exact Claude archive, including its manifest, skills, agents, and hook | Marketplace installation, authenticated model-backed invocation, and effective restriction observation |
+| Grok | 1.0.0 stable | Portable Agent Plugin zip | `STRUCTURALLY_VALIDATED`: root Agent Plugins validation of the exact portable archive and its 12 canonical skills | Isolated trusted installation and authenticated model-backed invocation |
+| OpenCode | 1.18.13 | npm tarball / project package | `LIVE_VERIFIED`: exact npm tarball extraction, isolated project adapter load, and canonical skill discovery | Model-backed task execution and effective model identity |
+| Pi | 0.84.1 | `zimster` npm package | `INSTALLED_PACKAGE_VERIFIED`: isolated exact npm-package installation; structural extension/resource tests | Model-backed session discovery; optional `pi-subagents` 0.50.0 transport execution |
+| Kimi Code | CLI unavailable | `zimster` npm package / local plugin source | `STRUCTURALLY_VALIDATED`: exact npm package contains the Kimi manifest, session-start surface, and canonical skill installation surface | Managed-copy installation/reload, model-backed execution, and effective restriction observation |
 
 These claims are capability-specific. For example, Claude component inventory
 does not prove that a reviewer restriction survived a model session, Kimi
 session-start discovery does not prove model behavior, and OpenCode skill
 discovery does not prove routing to a requested model.
+
+Earlier 2026-08-16 isolated observations used Claude 2.1.233, OpenCode 1.18.18,
+Pi 0.84.2, and Kimi Code 0.36.1 against an older candidate. They remain useful
+historical compatibility observations, but they do not authorize claims about
+the exact final artifacts and are therefore excluded from the table above.
 
 ## Portable baseline
 
