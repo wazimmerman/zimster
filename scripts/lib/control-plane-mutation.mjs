@@ -4,6 +4,7 @@ import path from 'node:path';
 import { captureGitState } from './git-state.mjs';
 import { recoveryCheckpoint } from './run-control.mjs';
 import {
+  applyRecoveryInstruction,
   appendRunEvent,
   readRunState,
   withRunStateLock,
@@ -43,6 +44,22 @@ async function validateSynchronizedState(runtime, repo, state, checkpoint) {
   }
 }
 
+function normalizeRecoveryInstruction(instruction) {
+  if (instruction === null) return null;
+  if (!instruction || typeof instruction !== 'object' || Array.isArray(instruction)) {
+    throw new Error('control-plane recovery instruction must resolve to an object');
+  }
+  const normalized = {};
+  for (const [field, stateField] of [
+    ['nextAction', 'exact_next_action'],
+    ['nextCommand', 'exact_next_command']
+  ]) {
+    if (Object.hasOwn(instruction, field)) normalized[stateField] = instruction[field];
+  }
+  applyRecoveryInstruction({}, normalized);
+  return normalized;
+}
+
 export async function readControlPlaneTransaction(runtime) {
   try {
     return JSON.parse(await readFile(path.join(runtime, 'transactions', 'current.json'), 'utf8'));
@@ -79,6 +96,7 @@ export async function withControlPlaneMutation(runtime, repo, {
   mutationType,
   actorId = 'root',
   checkpointChanges = null,
+  recoveryInstruction = null,
   didMutate = () => true,
   atomicFailure = false,
   preflight = null
@@ -89,6 +107,11 @@ export async function withControlPlaneMutation(runtime, repo, {
   if (typeof operation !== 'function') throw new Error('control-plane mutation operation is required');
   if (preflight !== null && typeof preflight !== 'function') {
     throw new Error('control-plane mutation preflight must be a function');
+  }
+  if (recoveryInstruction !== null
+    && typeof recoveryInstruction !== 'function'
+    && (typeof recoveryInstruction !== 'object' || Array.isArray(recoveryInstruction))) {
+    throw new Error('control-plane recovery instruction must be an object or function');
   }
   const initial = await readRunState(runtime);
   if (!initial || initial.schema_version !== 3) return operation();
@@ -153,15 +176,22 @@ export async function withControlPlaneMutation(runtime, repo, {
       await rm(markerFile, { force: true });
       return result;
     }
+    const instruction = normalizeRecoveryInstruction(
+      typeof recoveryInstruction === 'function'
+        ? await recoveryInstruction(result)
+        : recoveryInstruction
+    );
     await writeJsonAtomic(markerFile, {
       ...marker,
       phase: 'canonical_mutation_applied',
-      canonical_mutation_applied_at: new Date().toISOString()
+      canonical_mutation_applied_at: new Date().toISOString(),
+      ...(instruction ? { recovery_instruction: instruction } : {})
     });
     const state = await readRunState(runtime);
     if (state.state_revision !== before.state_revision) {
       throw new Error('control-plane mutation unexpectedly changed run state outside its coordinator');
     }
+    applyRecoveryInstruction(state, instruction);
     state.state_revision += 1;
     await writeRunState(runtime, state);
     const changes = typeof checkpointChanges === 'function'

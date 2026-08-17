@@ -23,6 +23,26 @@ export async function writeRunState(runtime, state) {
   return state;
 }
 
+export function applyRecoveryInstruction(state, instruction) {
+  if (instruction === null || instruction === undefined) return state;
+  if (!instruction || typeof instruction !== 'object' || Array.isArray(instruction)) {
+    throw new Error('recovery instruction must be an object');
+  }
+  const allowed = new Set(['exact_next_action', 'exact_next_command']);
+  const fields = Object.keys(instruction);
+  if (!fields.length || fields.some((field) => !allowed.has(field))) {
+    throw new Error('recovery instruction contains unsupported fields');
+  }
+  for (const field of fields) {
+    const value = instruction[field];
+    if (value !== null && (typeof value !== 'string' || !value.trim())) {
+      throw new Error(`recovery instruction ${field} must be text or null`);
+    }
+    state[field] = value;
+  }
+  return state;
+}
+
 export async function withRunStateLock(runtime, operation) {
   const lock = path.join(runtime, 'state.lock');
   let acquired = false;

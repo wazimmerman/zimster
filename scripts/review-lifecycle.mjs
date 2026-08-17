@@ -145,13 +145,63 @@ async function mutate(eventFactory) {
   });
 }
 
-function coordinated(mutationType, operation, preflight = null) {
+function lifecycleRecoveryInstruction(current) {
+  const active = current.attempts.find(({ attempt_id }) =>
+    attempt_id === current.active_attempt_id);
+  if (current.status === 'review_in_progress' || current.status === 'final_review_in_progress') {
+    if (!active) throw new Error('active review attempt is missing from lifecycle state');
+    return {
+      nextAction: `Await the bound reviewer verdict for ${active.attempt_type} attempt ${active.attempt_id} on seam ${seamId}.`,
+      nextCommand: null
+    };
+  }
+  if (current.status === 'approved') {
+    if (current.stable) {
+      return {
+        nextAction: `Prepare the final integration review for stable seam ${seamId}.`,
+        nextCommand: null
+      };
+    }
+    return {
+      nextAction: `Stabilize the approved candidate for seam ${seamId} before final integration review.`,
+      nextCommand: `node scripts/review-lifecycle.mjs stabilize --seam-id ${seamId}`
+    };
+  }
+  if (current.status === 'final_approved') {
+    return {
+      nextAction: `Run completion coherence for the approved final candidate on seam ${seamId}.`,
+      nextCommand: `node scripts/coherence-preflight.mjs check --operation completion --seam-id ${seamId}`
+    };
+  }
+  const actions = {
+    initial_review_required: `Prepare and start the initial review for seam ${seamId}.`,
+    new_design_review_required: `Prepare and start the new-design review for seam ${seamId}.`,
+    correction_required: `Apply the consolidated owner correction for seam ${seamId}, then record the corrected candidate.`,
+    correction_recheck_required: `Prepare and start the single correction recheck for seam ${seamId}.`,
+    final_correction_required: `Apply the consolidated final-review correction for seam ${seamId}, then record the corrected candidate.`,
+    circuit_breaker_active: `Record a supported circuit-breaker disposition for seam ${seamId}.`,
+    strategy_escalation_required: `Record a supported strategy-escalation disposition for seam ${seamId}.`,
+    blocked: `Resolve the recorded requirement blocker for seam ${seamId}.`,
+    partial: `Resolve or explicitly retain the partial lifecycle disposition for seam ${seamId}.`
+  };
+  const nextAction = actions[current.status];
+  if (!nextAction) throw new Error(`review lifecycle has no recovery instruction for ${current.status}`);
+  return { nextAction, nextCommand: null };
+}
+
+function coordinated(
+  mutationType,
+  operation,
+  preflight = null,
+  recoveryInstruction = lifecycleRecoveryInstruction
+) {
   return withControlPlaneMutation(runtime, root, {
     mutationType,
     // Seam state and the aggregate attempt ledger are separate durable stores.
     // Preserve the transaction marker if either write fails after the other.
     atomicFailure: false,
-    preflight
+    preflight,
+    recoveryInstruction
   }, operation);
 }
 

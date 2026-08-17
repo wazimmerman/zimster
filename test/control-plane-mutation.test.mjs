@@ -145,6 +145,53 @@ test('fresh-process resume finishes a mutation interrupted after its canonical w
   }
 });
 
+test('fresh-process resume applies a transaction-bound recovery instruction', async () => {
+  const { repo, runtime } = await fixture();
+  try {
+    const stateFile = path.join(runtime, 'run.json');
+    const state = JSON.parse(await readFile(stateFile, 'utf8'));
+    state.exact_next_action = 'Start a review attempt that is already active.';
+    state.exact_next_command = 'node scripts/review-lifecycle.mjs start --attempt-id active-review';
+    await writeFile(stateFile, `${JSON.stringify(state, null, 2)}\n`);
+    await mkdir(path.join(runtime, 'transactions'), { recursive: true });
+    await writeFile(path.join(runtime, 'transactions', 'current.json'), `${JSON.stringify({
+      schema_version: 1,
+      transaction_id: 'interrupted-review-start',
+      mutation_type: 'review_attempt_started',
+      actor_id: 'root',
+      phase: 'canonical_mutation_applied',
+      run_state_revision_before: state.state_revision,
+      candidate_before: {
+        head: run('git', ['rev-parse', 'HEAD'], repo).stdout.trim(),
+        tree: run('git', ['rev-parse', 'HEAD^{tree}'], repo).stdout.trim(),
+        dirty_tree_fingerprint: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855'
+      },
+      recovery_instruction: {
+        exact_next_action: 'Await the bound reviewer verdict for active-review.',
+        exact_next_command: null
+      },
+      started_at: '2026-08-16T00:00:00.000Z',
+      canonical_mutation_applied_at: '2026-08-16T00:00:01.000Z'
+    }, null, 2)}\n`);
+
+    const result = run(process.execPath, [
+      path.join(root, 'scripts/run-control.mjs'), 'resume'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const resumed = JSON.parse(result.stdout);
+    const after = JSON.parse(await readFile(stateFile, 'utf8'));
+    assert.equal(after.exact_next_action, 'Await the bound reviewer verdict for active-review.');
+    assert.equal(after.exact_next_command, null);
+    assert.equal(resumed.exact_next_action, after.exact_next_action);
+    assert.equal(resumed.exact_next_command, null);
+    const summary = await readFile(path.join(runtime, 'run.md'), 'utf8');
+    assert.match(summary, /Await the bound reviewer verdict for active-review\./);
+    assert.doesNotMatch(summary, /review-lifecycle\.mjs start --attempt-id active-review/);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
 test('resume exposes an ambiguous pre-commit mutation without claiming success', async () => {
   const { repo, runtime } = await fixture();
   try {

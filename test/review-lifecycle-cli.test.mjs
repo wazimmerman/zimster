@@ -20,6 +20,106 @@ function run(repo, ...args) {
   });
 }
 
+test('review start advances the canonical recovery instruction past the consumed command', async () => {
+  const repo = await mkdtemp(path.join(os.tmpdir(), 'zimster-review-recovery-'));
+  try {
+    assert.equal(spawnSync('git', ['init', '-b', 'main'], { cwd: repo }).status, 0);
+    assert.equal(spawnSync('git', ['config', 'user.name', 'Zimster Test'], { cwd: repo }).status, 0);
+    assert.equal(spawnSync('git', ['config', 'user.email', 'test@example.com'], { cwd: repo }).status, 0);
+    await writeFile(path.join(repo, 'tracked.txt'), 'base\n');
+    assert.equal(spawnSync('git', ['add', '.'], { cwd: repo }).status, 0);
+    assert.equal(spawnSync('git', ['commit', '-m', 'base'], { cwd: repo }).status, 0);
+    const head = spawnSync('git', ['rev-parse', 'HEAD'], {
+      cwd: repo, encoding: 'utf8'
+    }).stdout.trim();
+    const tree = spawnSync('git', ['rev-parse', 'HEAD^{tree}'], {
+      cwd: repo, encoding: 'utf8'
+    }).stdout.trim();
+    const runtime = spawnSync('git', [
+      'rev-parse', '--path-format=absolute', '--git-path', 'zimster'
+    ], { cwd: repo, encoding: 'utf8' }).stdout.trim();
+    const consumed = 'node scripts/review-lifecycle.mjs start --seam-id release-policy --attempt-id attempt-initial';
+    let result = spawnSync(process.execPath, [
+      path.join(root, 'scripts/init-run.mjs'),
+      '--profile', 'high-risk', '--reason', 'review recovery fixture',
+      '--next-action', 'Start initial review attempt attempt-initial.',
+      '--next-command', consumed
+    ], { cwd: repo, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+
+    result = run(repo, 'init', '--seam-id', 'release-policy',
+      '--reviewer-identity', 'reviewer-1', '--base', head, '--head', head,
+      '--tree', tree, '--dirty-tree-fingerprint', CLEAN,
+      '--semantic-contract-sha256', CONTRACT);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+
+    const packageId = '1'.repeat(24);
+    const packageDirectory = path.join(runtime, 'reviews', packageId);
+    const packageFile = path.join(packageDirectory, 'review-package.json');
+    await mkdir(packageDirectory, { recursive: true });
+    await writeFile(packageFile, JSON.stringify({
+      schema_version: 2,
+      id: packageId,
+      attempt_type: 'initial_review',
+      attempt_id: 'attempt-initial',
+      seam_id: 'release-policy',
+      base: head,
+      head,
+      candidate_checkout: {
+        head,
+        tree,
+        dirty_tree_fingerprint: CLEAN
+      },
+      semantic_contract: { sha256: CONTRACT }
+    }));
+    result = run(repo, 'start', '--seam-id', 'release-policy',
+      '--attempt-type', 'initial_review', '--attempt-id', 'attempt-initial',
+      '--reviewer-identity', 'reviewer-1', '--review-package', packageFile);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+
+    const expectedAction = 'Await the bound reviewer verdict for initial_review attempt attempt-initial on seam release-policy.';
+    const state = JSON.parse(await readFile(path.join(runtime, 'run.json'), 'utf8'));
+    const checkpoint = JSON.parse(await readFile(
+      path.join(runtime, 'checkpoints', 'current.json'), 'utf8'
+    ));
+    const summary = await readFile(path.join(runtime, 'run.md'), 'utf8');
+    assert.equal(state.exact_next_action, expectedAction);
+    assert.equal(state.exact_next_command, null);
+    assert.equal(checkpoint.exact_next_action, expectedAction);
+    assert.equal(checkpoint.exact_next_command, null);
+    assert.match(summary, new RegExp(expectedAction.replaceAll('.', '\\.')));
+    assert.doesNotMatch(summary, new RegExp(consumed.replaceAll('.', '\\.')));
+
+    result = run(repo, 'verdict', '--seam-id', 'release-policy',
+      '--attempt-id', 'attempt-initial', '--verdict', 'approved', '--findings', '[]');
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const stabilize = 'node scripts/review-lifecycle.mjs stabilize --seam-id release-policy';
+    let updatedState = JSON.parse(await readFile(path.join(runtime, 'run.json'), 'utf8'));
+    assert.equal(
+      updatedState.exact_next_action,
+      'Stabilize the approved candidate for seam release-policy before final integration review.'
+    );
+    assert.equal(updatedState.exact_next_command, stabilize);
+
+    result = run(repo, 'stabilize', '--seam-id', 'release-policy');
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    updatedState = JSON.parse(await readFile(path.join(runtime, 'run.json'), 'utf8'));
+    const updatedCheckpoint = JSON.parse(await readFile(
+      path.join(runtime, 'checkpoints', 'current.json'), 'utf8'
+    ));
+    const updatedSummary = await readFile(path.join(runtime, 'run.md'), 'utf8');
+    const finalAction = 'Prepare the final integration review for stable seam release-policy.';
+    assert.equal(updatedState.exact_next_action, finalAction);
+    assert.equal(updatedState.exact_next_command, null);
+    assert.equal(updatedCheckpoint.exact_next_action, finalAction);
+    assert.equal(updatedCheckpoint.exact_next_command, null);
+    assert.match(updatedSummary, new RegExp(finalAction.replaceAll('.', '\\.')));
+    assert.doesNotMatch(updatedSummary, new RegExp(stabilize.replaceAll('.', '\\.')));
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
 test('review lifecycle CLI durably records the consumed recheck and breaker', async () => {
   const repo = await mkdtemp(path.join(os.tmpdir(), 'zimster-review-lifecycle-'));
   try {

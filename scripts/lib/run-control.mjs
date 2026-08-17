@@ -5,6 +5,7 @@ import path from 'node:path';
 import { captureGitState, changedFiles } from './git-state.mjs';
 import { evidenceStalenessReason } from './evidence-validity.mjs';
 import {
+  applyRecoveryInstruction,
   appendRunEvent,
   readRunState,
   withRunStateLock,
@@ -527,6 +528,7 @@ export async function resumeRun(runtime, repo) {
       }
       const beforeRevision = transaction.run_state_revision_before;
       if (state.state_revision === beforeRevision) {
+        applyRecoveryInstruction(state, transaction.recovery_instruction);
         state.state_revision += 1;
         await writeRunState(runtime, state);
       } else if (state.state_revision !== beforeRevision + 1) {
