@@ -3,9 +3,11 @@ import path from 'node:path';
 import { parseOptions, required, writeLine } from './lib/cli.mjs';
 import { findRepoRoot } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
+import { evaluateCoherence } from './lib/coherence-preflight.mjs';
 import {
   applyReviewLifecycleEvent,
   createReviewLifecycle,
+  reconcileReviewLifecycle,
   validateReviewLifecycle
 } from './lib/review-lifecycle.mjs';
 
@@ -43,6 +45,15 @@ function jsonOption(name, fallback = null) {
 async function readState() {
   try {
     return validateReviewLifecycle(JSON.parse(await readFile(stateFile, 'utf8')));
+  } catch (error) {
+    if (error.code === 'ENOENT') throw new Error(`review lifecycle is not initialized: ${seamId}`);
+    throw error;
+  }
+}
+
+async function readRawState() {
+  try {
+    return JSON.parse(await readFile(stateFile, 'utf8'));
   } catch (error) {
     if (error.code === 'ENOENT') throw new Error(`review lifecycle is not initialized: ${seamId}`);
     throw error;
@@ -157,7 +168,7 @@ if (action === 'init') {
 } else if (action === 'start') {
   state = await mutate(async (current) => {
     const reviewPackage = await boundReviewPackage(current);
-    return {
+    const event = {
       type: 'attempt_started',
       attempt: {
         attempt_type: required(options, 'attempt-type'),
@@ -168,6 +179,17 @@ if (action === 'init') {
         candidate: current.candidate
       }
     };
+    applyReviewLifecycleEvent(current, event);
+    if (event.attempt.attempt_type === 'final_integration_review') {
+      const coherence = await evaluateCoherence(runtime, root, {
+        operation: 'review',
+        seamId
+      });
+      if (coherence.status !== 'COHERENCE_CURRENT') {
+        throw new Error(`COHERENCE_BLOCKED: ${coherence.issues.join('; ')}`);
+      }
+    }
+    return event;
   });
 } else if (action === 'verdict') {
   state = await mutate(() => ({
@@ -188,10 +210,16 @@ if (action === 'init') {
     evidence_refs: jsonOption('evidence-refs', []),
     ...(options.head ? { candidate: candidateFromOptions() } : {})
   }));
+} else if (action === 'reconcile') {
+  state = await withLock(async () => {
+    const reconciled = reconcileReviewLifecycle(await readRawState());
+    await persist(reconciled);
+    return reconciled;
+  });
 } else if (action === 'show') {
   state = await readState();
 } else {
-  throw new Error('Usage: review-lifecycle.mjs <init|start|verdict|correction|stabilize|disposition|show> --seam-id <id> [options]');
+  throw new Error('Usage: review-lifecycle.mjs <init|start|verdict|correction|stabilize|disposition|reconcile|show> --seam-id <id> [options]');
 }
 
 writeLine(JSON.stringify(state));

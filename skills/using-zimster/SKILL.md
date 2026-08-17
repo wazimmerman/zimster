@@ -122,9 +122,9 @@ transcripts.
 Treat `RECOVERY_RECONCILIATION_REQUIRED` as ambiguity requiring explicit owner
 reconciliation, not permission to invent an unstarted slice.
 
-Use `--audit-path <project-relative-documentation-path>` only when the project
-has explicitly opted into committed audit evidence. Do not modify tracked
-`.gitignore` merely for operational state.
+Canonical Git-local state must pass `coherence-preflight.mjs check` for the intended final-review, completion, or release operation; it never repairs drift.
+
+Use `--audit-path <project-relative-documentation-path>` only for an explicit committed-audit opt-in. Do not modify tracked `.gitignore` for operational state.
 
 ## Delegation and model routing
 

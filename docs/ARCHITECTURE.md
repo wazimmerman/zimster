@@ -63,7 +63,12 @@ Dependency-free Node 22 tools turn important policy into inspectable state:
   reconstructable dirty state, binding requirement IDs, matrix state, intended
   claims, evidence scope, unavailable proof, and lenses;
 - `review-lifecycle.mjs` persists one-reviewer typed attempt transitions and a
-  real circuit breaker after the single correction recheck;
+  hard cardinality of one primary review, one correction recheck, and two
+  final integration reviews per semantic contract; exhaustion enters durable
+  strategy escalation rather than opening another attempt;
+- `coherence-preflight.mjs` compares the canonical run, checkpoint, derived
+  summary, governed accounting, budget proofs, review lifecycle, assurance
+  accounting, and exact checkout before final review, completion, or release;
 - `assurance-accounting.mjs` reconciles supported host observations with
   dispatch, budget, review-attempt, and depth records and fails closed;
 - `semantic-assurance.mjs` validates the requirement-to-evidence matrix,

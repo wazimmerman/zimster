@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   applyReviewLifecycleEvent,
   createReviewLifecycle,
+  reconcileReviewLifecycle,
   validateAssuranceAccounting,
   validateReviewLifecycle
 } from '../scripts/lib/review-lifecycle.mjs';
@@ -246,6 +247,152 @@ test('a final-review correction invalidates stability but does not expand the se
   });
   state = verdict(state, 'attempt-final-2', 'approved');
   assert.equal(state.status, 'final_approved');
+});
+
+test('a second failed final review exhausts the hard lifecycle and persists strategy escalation', () => {
+  let state = start(lifecycle(), 'initial_review', 'attempt-initial');
+  state = verdict(state, 'attempt-initial', 'approved');
+  state = applyReviewLifecycleEvent(state, { type: 'candidate_stabilized' });
+  state = start(state, 'final_integration_review', 'attempt-final-1');
+  state = verdict(state, 'attempt-final-1', 'needs_correction', [{
+    severity: 'Important', summary: 'First exact-head defect.'
+  }]);
+  state = applyReviewLifecycleEvent(state, {
+    type: 'correction_recorded', candidate: candidate({ head_sha: CORRECTED_HEAD })
+  });
+  state = applyReviewLifecycleEvent(state, { type: 'candidate_stabilized' });
+  state = start(state, 'final_integration_review', 'attempt-final-2', {
+    candidate: candidate({ head_sha: CORRECTED_HEAD })
+  });
+  state = verdict(state, 'attempt-final-2', 'needs_correction', [{
+    severity: 'Important', summary: 'Distinct second exact-head defect.'
+  }]);
+
+  assert.equal(state.status, 'strategy_escalation_required');
+  assert.deepEqual(state.strategy_escalation, {
+    status: 'required',
+    trigger: 'final_review_attempts_exhausted',
+    attempt_id: 'attempt-final-2',
+    observed_final_attempts: 2,
+    hard_limit: 2
+  });
+  assert.throws(() => applyReviewLifecycleEvent(state, {
+    type: 'correction_recorded', candidate: candidate({ head_sha: '1'.repeat(40) })
+  }), /strategy escalation|exhausted|correction/i);
+  assert.throws(() => start(state, 'final_integration_review', 'attempt-final-3', {
+    candidate: candidate({ head_sha: CORRECTED_HEAD })
+  }), /strategy escalation|exhausted|not allowed/i);
+  assert.doesNotThrow(() => validateReviewLifecycle(state));
+});
+
+test('only a material semantic design revision resets an exhausted review epoch', () => {
+  let state = start(lifecycle(), 'initial_review', 'attempt-initial');
+  state = verdict(state, 'attempt-initial', 'approved');
+  state = applyReviewLifecycleEvent(state, { type: 'candidate_stabilized' });
+  for (const [index, head] of [[1, HEAD], [2, CORRECTED_HEAD]]) {
+    state = start(state, 'final_integration_review', `attempt-final-${index}`, {
+      candidate: candidate({ head_sha: head })
+    });
+    state = verdict(state, `attempt-final-${index}`, 'needs_correction', [{
+      severity: 'Important', summary: `Final defect ${index}.`
+    }]);
+    if (index === 1) {
+      state = applyReviewLifecycleEvent(state, {
+        type: 'correction_recorded', candidate: candidate({ head_sha: CORRECTED_HEAD })
+      });
+      state = applyReviewLifecycleEvent(state, { type: 'candidate_stabilized' });
+    }
+  }
+  assert.equal(state.status, 'strategy_escalation_required');
+  assert.throws(() => applyReviewLifecycleEvent(state, {
+    type: 'breaker_disposition_recorded',
+    disposition: 'design_revision',
+    reason: 'Rename the same contract.',
+    candidate: candidate({ head_sha: '1'.repeat(40) }),
+    evidence_refs: ['revision-note']
+  }), /semantic candidate.*change|contract.*change/i);
+
+  state = applyReviewLifecycleEvent(state, {
+    type: 'breaker_disposition_recorded',
+    disposition: 'design_revision',
+    reason: 'Binding semantics materially changed.',
+    candidate: candidate({
+      head_sha: '1'.repeat(40),
+      semantic_contract_sha256: REVISED_CONTRACT
+    }),
+    evidence_refs: ['material-contract-diff']
+  });
+  assert.equal(state.status, 'new_design_review_required');
+  assert.equal(state.strategy_escalation, null);
+  assert.equal(state.invalidated_attempt_ids.length, 3);
+  state = start(state, 'new_design_review', 'attempt-new-epoch', {
+    candidate: candidate({
+      head_sha: '1'.repeat(40), semantic_contract_sha256: REVISED_CONTRACT
+    })
+  });
+  assert.equal(state.attempts.at(-1).attempt_type, 'new_design_review');
+});
+
+test('legacy excess attempts migrate losslessly into durable strategy escalation', () => {
+  let legacy = start(lifecycle(), 'initial_review', 'attempt-initial');
+  legacy = verdict(legacy, 'attempt-initial', 'approved');
+  legacy = applyReviewLifecycleEvent(legacy, { type: 'candidate_stabilized' });
+  legacy = start(legacy, 'final_integration_review', 'attempt-final-1');
+  legacy = verdict(legacy, 'attempt-final-1', 'needs_correction', [{
+    severity: 'Important', summary: 'First legacy final defect.'
+  }]);
+  legacy = applyReviewLifecycleEvent(legacy, {
+    type: 'correction_recorded', candidate: candidate({ head_sha: CORRECTED_HEAD })
+  });
+  legacy = applyReviewLifecycleEvent(legacy, { type: 'candidate_stabilized' });
+  legacy = start(legacy, 'final_integration_review', 'attempt-final-2', {
+    candidate: candidate({ head_sha: CORRECTED_HEAD })
+  });
+  legacy = verdict(legacy, 'attempt-final-2', 'needs_correction', [{
+    severity: 'Important', summary: 'Second legacy final defect.'
+  }]);
+
+  delete legacy.review_policy;
+  delete legacy.strategy_escalation;
+  delete legacy.historical_excess_attempt_ids;
+  legacy.status = 'final_correction_required';
+  const thirdCandidate = candidate({ head_sha: '1'.repeat(40) });
+  legacy.candidate = thirdCandidate;
+  legacy.status = 'approved';
+  legacy.events.push({ type: 'correction_recorded', candidate: thirdCandidate });
+  legacy.stable = true;
+  legacy.events.push({ type: 'candidate_stabilized' });
+  const thirdAttempt = {
+    attempt_type: 'final_integration_review',
+    attempt_id: 'attempt-final-3',
+    seam_id: 'release-policy',
+    reviewer_identity: 'reviewer-1',
+    review_package_id: 'package-attempt-final-3',
+    candidate: thirdCandidate
+  };
+  legacy.attempts.push({ ...thirdAttempt, verdict: 'approved', findings: [] });
+  legacy.events.push({ type: 'attempt_started', attempt: thirdAttempt });
+  legacy.events.push({
+    type: 'verdict_recorded',
+    attempt_id: 'attempt-final-3',
+    verdict: 'approved',
+    findings: []
+  });
+  legacy.status = 'final_approved';
+
+  const migrated = reconcileReviewLifecycle(legacy);
+  assert.equal(migrated.attempts.length, 4);
+  assert.equal(migrated.status, 'strategy_escalation_required');
+  assert.deepEqual(migrated.historical_excess_attempt_ids, ['attempt-final-3']);
+  assert.equal(
+    migrated.strategy_escalation.trigger,
+    'historical_review_attempts_exceeded_hard_limit'
+  );
+  assert.equal(migrated.events.at(-1).type, 'policy_reconciled');
+  assert.doesNotThrow(() => validateReviewLifecycle(migrated));
+  assert.throws(() => start(migrated, 'final_integration_review', 'attempt-final-4', {
+    candidate: thirdCandidate
+  }), /strategy escalation|exhausted|not allowed/i);
 });
 
 test('a final-review correction that changes semantic meaning requires explicit design revision', () => {

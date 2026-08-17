@@ -100,6 +100,18 @@ Use `<zimster-runtime>/scripts/change-snapshot.mjs` to include all untracked fil
 modifying the index, or read every untracked file directly. `git diff` alone is
 not a complete review when new files exist.
 
+Run the read-only canonical coherence check before final-review admission and
+again for completion:
+
+```text
+node <zimster-runtime>/scripts/coherence-preflight.mjs check \
+  --operation completion --seam-id <stable-id>
+```
+
+Do not continue from `COHERENCE_BLOCKED`. Reconcile each named canonical owner,
+refresh the derived `run.md`, and obtain fresh evidence where the report marks
+receipts or proofs stale. The check must not be used as a repair command.
+
 ## Verification ladder
 
 - behavior-specific RED/GREEN proof;
@@ -134,6 +146,11 @@ node <zimster-runtime>/scripts/semantic-assurance.mjs complete \
   --load-bearing-review-obligations <obligations.json> \
   --execution-budget .git/zimster/budget.json
 ```
+
+`semantic-assurance.mjs complete` invokes the same canonical completion
+preflight. Its lifecycle, assurance-accounting, and execution-budget inputs
+must resolve to their authoritative Git-local files; copied snapshots cannot
+substitute for canonical state.
 
 Eligible Micro work may complete owner-only when deterministic eligibility is
 supplied with `--micro-eligibility <eligibility.json>`. The record binds the

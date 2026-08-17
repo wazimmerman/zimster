@@ -114,6 +114,26 @@ test('review lifecycle CLI durably records the consumed recheck and breaker', as
     assert.deepEqual(ledger.map(({ attempt_id }) => attempt_id), [
       'attempt-initial', 'attempt-recheck'
     ]);
+
+    const stateFile = path.join(runtime, 'review-lifecycle', 'release-policy.json');
+    const legacy = JSON.parse(await readFile(stateFile, 'utf8'));
+    delete legacy.review_policy;
+    delete legacy.strategy_escalation;
+    delete legacy.historical_excess_attempt_ids;
+    await writeFile(stateFile, `${JSON.stringify(legacy, null, 2)}\n`);
+    result = run(repo, 'show', '--seam-id', 'release-policy');
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /cardinality policy|review policy|reconcil/i);
+
+    result = run(repo, 'reconcile', '--seam-id', 'release-policy');
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const reconciled = JSON.parse(result.stdout);
+    assert.equal(reconciled.review_policy.final_integration_reviews, 2);
+    assert.deepEqual(reconciled.historical_excess_attempt_ids, []);
+    assert.equal(reconciled.events.at(-1).type, 'policy_reconciled');
+    assert.deepEqual(reconciled.attempts.map(({ attempt_id }) => attempt_id), [
+      'attempt-initial', 'attempt-recheck'
+    ]);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

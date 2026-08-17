@@ -43,10 +43,22 @@ function run(args, cwd = root) {
 async function assuranceFiles(directory, {
   repo, base, head, tree, semanticContractSha256, reviewPackageId
 }) {
-  const lifecyclePath = path.join(directory, 'review-lifecycle.json');
-  const accountingPath = path.join(directory, 'assurance-accounting.json');
   const runtimeDirectory = path.join(repo, '.git', 'zimster');
-  await mkdir(runtimeDirectory, { recursive: true });
+  let initialized = spawnSync(process.execPath, [
+    path.join(root, 'scripts/init-run.mjs'),
+    '--profile', 'high-risk', '--reason', 'semantic assurance fixture'
+  ], { cwd: repo, encoding: 'utf8' });
+  assert.equal(initialized.status, 0, initialized.stderr || initialized.stdout);
+  initialized = spawnSync(process.execPath, [
+    path.join(root, 'scripts/run-control.mjs'), 'start',
+    '--slice-id', 'completion-candidate',
+    '--remaining-obligations', '[]',
+    '--next-action', 'Evaluate completion',
+    '--next-command', 'node scripts/semantic-assurance.mjs complete'
+  ], { cwd: repo, encoding: 'utf8' });
+  assert.equal(initialized.status, 0, initialized.stderr || initialized.stdout);
+  const lifecyclePath = path.join(runtimeDirectory, 'review-lifecycle', 'release-policy.json');
+  const accountingPath = path.join(runtimeDirectory, 'assurance-accounting', 'latest.json');
   const executionBudgetPath = path.join(runtimeDirectory, 'budget.json');
   const candidate = {
     base_sha: base,
@@ -81,7 +93,9 @@ async function assuranceFiles(directory, {
   lifecycle = applyReviewLifecycleEvent(lifecycle, {
     type: 'verdict_recorded', attempt_id: 'attempt-final', verdict: 'approved', findings: []
   });
+  await mkdir(path.dirname(lifecyclePath), { recursive: true });
   await writeFile(lifecyclePath, JSON.stringify(lifecycle));
+  await mkdir(path.dirname(accountingPath), { recursive: true });
   await writeFile(accountingPath, JSON.stringify({
     schema_version: 1,
     candidate_head: head,
@@ -106,11 +120,24 @@ async function assuranceFiles(directory, {
   await writeFile(executionBudgetPath, JSON.stringify({
     schema_version: 1,
     profile: 'high-risk',
-    limits: { final_integration_reviews: 2 },
-    usage: { final_integration_reviews: 1 },
+    limits: {
+      final_integration_reviews: 2,
+      complete_suite_executions: 3,
+      exact_duplicate_commands: 2
+    },
+    usage: {
+      final_integration_reviews: 1,
+      complete_suite_executions: 0,
+      exact_duplicate_commands: 0
+    },
     overrides: [],
-    proof_obligations: []
+    proof_obligations: [],
+    events: []
   }));
+  const refreshed = spawnSync(process.execPath, [
+    path.join(root, 'scripts/run-control.mjs'), 'refresh'
+  ], { cwd: repo, encoding: 'utf8' });
+  assert.equal(refreshed.status, 0, refreshed.stderr || refreshed.stdout);
   return { lifecyclePath, accountingPath, executionBudgetPath };
 }
 
@@ -318,6 +345,27 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
     assert.deepEqual(decision.allowed_claims, ['Candidate completion is gated.']);
     assert.match(result.stderr, /CANDIDATE_COMPLETE.*review=review-001/i);
 
+    await writeFile(path.join(repo, '.git', 'zimster', 'run.md'), '# stale summary\n');
+    result = run([
+      'complete',
+      '--profile', 'standard',
+      '--owner-verified',
+      '--requirements', requirementsPath,
+      '--matrix', matrixPath,
+      '--evidence', evidencePath,
+      '--reviews', reviewsPath,
+      '--review-package', reviewPackagePath,
+      '--review-lifecycle', assurance.lifecyclePath,
+      '--assurance-accounting', assurance.accountingPath,
+      '--execution-budget', assurance.executionBudgetPath
+    ], repo);
+    assert.equal(result.status, 2, result.stderr || result.stdout);
+    assert.match(JSON.parse(result.stdout).reasons.join('\n'), /STALE_RUN_SUMMARY/i);
+    const refreshed = spawnSync(process.execPath, [
+      path.join(root, 'scripts/run-control.mjs'), 'refresh'
+    ], { cwd: repo, encoding: 'utf8' });
+    assert.equal(refreshed.status, 0, refreshed.stderr || refreshed.stdout);
+
     const forgedBudgetPath = path.join(directory, 'forged-execution-budget.json');
     await writeFile(forgedBudgetPath, JSON.stringify({
       schema_version: 1,
@@ -481,8 +529,11 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       '--assurance-accounting', assurance.accountingPath,
       '--execution-budget', assurance.executionBudgetPath
     ], repo);
-    assert.equal(result.status, 0, result.stderr || result.stdout);
-    assert.equal(JSON.parse(result.stdout).state, 'CANDIDATE_COMPLETE');
+    assert.equal(result.status, 2, result.stderr || result.stdout);
+    assert.match(
+      JSON.parse(result.stdout).reasons.join('\n'),
+      /stale or unauthenticated|governed|proof receipt/i
+    );
 
     await writeFile(path.join(repo, 'tracked.txt'), 'corrected\n');
     assert.equal(spawnSync('git', ['add', 'tracked.txt'], { cwd: repo }).status, 0);

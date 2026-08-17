@@ -3,7 +3,9 @@ import { appendFile, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/p
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { parseOptions, required, writeLine } from './lib/cli.mjs';
-import { findRepoRoot } from './lib/git-state.mjs';
+import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
+import { evaluateCoherence } from './lib/coherence-preflight.mjs';
+import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 import {
   githubReleaseState,
   normalizeReleaseSignerFingerprint,
@@ -132,6 +134,18 @@ async function verifyEvidence(evidence) {
 }
 
 if (action === 'create') {
+  const root = findRepoRoot(process.cwd());
+  const coherence = await evaluateCoherence(await ensureRuntimeDirectory(root), root, {
+    operation: 'release',
+    seamId: options['seam-id'] ? String(options['seam-id']) : 'whole-release'
+  });
+  if (coherence.status !== 'COHERENCE_CURRENT') {
+    throw new Error(`COHERENCE_BLOCKED: ${coherence.issues.join('; ')}`);
+  }
+  const candidate = await captureGitState(root);
+  if (required(options, 'commit') !== candidate.head || required(options, 'tree') !== candidate.tree) {
+    throw new Error('release evidence commit/tree must bind the exact coherent candidate checkout');
+  }
   const version = required(options, 'version');
   const evidence = {
     schema_version: 2,

@@ -16,6 +16,12 @@ export const BREAKER_DISPOSITIONS = Object.freeze([
   'partial_or_blocked'
 ]);
 
+export const HARD_REVIEW_LIMITS = Object.freeze({
+  primary_reviews_per_semantic_contract: 1,
+  correction_rechecks: 1,
+  final_integration_reviews: 2
+});
+
 function requireString(value, label) {
   if (typeof value !== 'string' || !value.trim()) throw new Error(`${label} is required`);
   return value;
@@ -56,6 +62,14 @@ function appendEvent(state, event) {
   return state;
 }
 
+function createLegacyReviewLifecycle({ seam_id, reviewer_identity, candidate }) {
+  const current = createReviewLifecycle({ seam_id, reviewer_identity, candidate });
+  delete current.review_policy;
+  delete current.strategy_escalation;
+  delete current.historical_excess_attempt_ids;
+  return current;
+}
+
 export function createReviewLifecycle({ seam_id, reviewer_identity, candidate }) {
   return {
     schema_version: 1,
@@ -67,6 +81,9 @@ export function createReviewLifecycle({ seam_id, reviewer_identity, candidate })
     stable: false,
     circuit_breaker_active: false,
     correction_recheck_consumed: false,
+    review_policy: { ...HARD_REVIEW_LIMITS },
+    strategy_escalation: null,
+    historical_excess_attempt_ids: [],
     active_attempt_id: null,
     attempts: [],
     invalidated_attempt_ids: [],
@@ -101,6 +118,16 @@ function startAttempt(state, attempt) {
     throw new Error('circuit breaker is active; record a supported disposition before another review');
   }
   if (state.active_attempt_id) throw new Error('a review attempt is already active');
+  const activeAttempts = state.attempts.filter(({ attempt_id }) =>
+    !state.invalidated_attempt_ids.includes(attempt_id)
+  );
+  if (attempt.attempt_type === 'final_integration_review'
+    && state.review_policy
+    && activeAttempts.filter(({ attempt_type }) =>
+      attempt_type === 'final_integration_review'
+    ).length >= state.review_policy.final_integration_reviews) {
+    throw new Error('final integration review hard limit is exhausted; strategy escalation is required');
+  }
 
   const expected = {
     initial_review_required: 'initial_review',
@@ -159,8 +186,24 @@ function recordVerdict(state, event) {
       throw new Error('needs_correction requires a Critical or Important load-bearing finding');
     }
     if (attempt.attempt_type === 'final_integration_review') {
-      next.status = 'final_correction_required';
       next.stable = false;
+      const finalAttempts = next.attempts.filter(({ attempt_id, attempt_type }) =>
+        attempt_type === 'final_integration_review'
+        && !next.invalidated_attempt_ids.includes(attempt_id)
+      ).length;
+      if (next.review_policy
+        && finalAttempts >= next.review_policy.final_integration_reviews) {
+        next.status = 'strategy_escalation_required';
+        next.strategy_escalation = {
+          status: 'required',
+          trigger: 'final_review_attempts_exhausted',
+          attempt_id: event.attempt_id,
+          observed_final_attempts: finalAttempts,
+          hard_limit: next.review_policy.final_integration_reviews
+        };
+      } else {
+        next.status = 'final_correction_required';
+      }
     } else if (attempt.attempt_type === 'correction_recheck') {
       next.status = 'circuit_breaker_active';
       next.circuit_breaker_active = true;
@@ -199,9 +242,12 @@ function recordDisposition(state, event) {
   const finalDesignRevision = event.disposition === 'design_revision'
     && state.status === 'final_correction_required'
     && state.circuit_breaker_active === false;
+  const strategyDisposition = state.status === 'strategy_escalation_required'
+    && state.strategy_escalation?.status === 'required';
   if ((!state.circuit_breaker_active || state.status !== 'circuit_breaker_active')
-    && !finalDesignRevision) {
-    throw new Error('breaker disposition requires an active circuit breaker');
+    && !finalDesignRevision
+    && !strategyDisposition) {
+    throw new Error('breaker disposition requires an active circuit breaker or strategy escalation');
   }
   if (!BREAKER_DISPOSITIONS.includes(event.disposition)) {
     throw new Error(`unsupported breaker disposition: ${event.disposition}`);
@@ -230,6 +276,7 @@ function recordDisposition(state, event) {
     next.correction_recheck_consumed = false;
     next.stable = false;
     next.status = 'new_design_review_required';
+    if (Object.hasOwn(next, 'strategy_escalation')) next.strategy_escalation = null;
   } else if (event.disposition === 'reviewer_rebutted_with_evidence'
     || event.disposition === 'non_load_bearing_deferral') {
     next.status = 'approved';
@@ -237,6 +284,13 @@ function recordDisposition(state, event) {
     next.status = 'blocked';
   } else {
     next.status = 'partial';
+  }
+  if (strategyDisposition && event.disposition !== 'design_revision') {
+    next.strategy_escalation = {
+      ...next.strategy_escalation,
+      status: 'resolved',
+      disposition: event.disposition
+    };
   }
   next.circuit_breaker_active = false;
   next.dispositions.push(disposition);
@@ -250,7 +304,9 @@ function recordDisposition(state, event) {
 }
 
 function replayLifecycle(state) {
-  let replayed = createReviewLifecycle({
+  const migratedLegacy = !state.review_policy
+    || state.events.some(({ type }) => type === 'policy_reconciled');
+  let replayed = (migratedLegacy ? createLegacyReviewLifecycle : createReviewLifecycle)({
     seam_id: state.seam_id,
     reviewer_identity: state.reviewer_identity,
     candidate: state.initial_candidate
@@ -268,11 +324,81 @@ function replayLifecycle(state) {
       const next = copy(replayed);
       next.stable = true;
       replayed = appendEvent(next, { type: 'candidate_stabilized' });
+    } else if (event.type === 'policy_reconciled') {
+      replayed = applyPolicyReconciliation(replayed, event);
     } else {
       throw new Error(`review lifecycle contains unsupported event: ${event.type}`);
     }
   }
   return replayed;
+}
+
+function policyReconciliationEvent(state) {
+  const activeAttempts = state.attempts.filter(({ attempt_id }) =>
+    !state.invalidated_attempt_ids.includes(attempt_id)
+  );
+  const primary = activeAttempts.filter(({ attempt_type }) =>
+    attempt_type === 'initial_review' || attempt_type === 'new_design_review'
+  );
+  const finals = activeAttempts.filter(({ attempt_type }) =>
+    attempt_type === 'final_integration_review'
+  );
+  const excess = [
+    ...primary.slice(HARD_REVIEW_LIMITS.primary_reviews_per_semantic_contract),
+    ...finals.slice(HARD_REVIEW_LIMITS.final_integration_reviews)
+  ].map(({ attempt_id }) => attempt_id);
+  return {
+    type: 'policy_reconciled',
+    review_policy: { ...HARD_REVIEW_LIMITS },
+    prior_status: state.status,
+    observed_attempt_counts: {
+      primary_reviews: primary.length,
+      correction_rechecks: activeAttempts.filter(({ attempt_type }) =>
+        attempt_type === 'correction_recheck'
+      ).length,
+      final_integration_reviews: finals.length
+    },
+    historical_excess_attempt_ids: excess
+  };
+}
+
+function applyPolicyReconciliation(state, event) {
+  if (state.review_policy) throw new Error('review lifecycle policy is already reconciled');
+  const expected = policyReconciliationEvent(state);
+  if (JSON.stringify(event) !== JSON.stringify(expected)) {
+    throw new Error('review lifecycle policy reconciliation event is inconsistent');
+  }
+  const next = copy(state);
+  next.review_policy = { ...HARD_REVIEW_LIMITS };
+  next.historical_excess_attempt_ids = [...event.historical_excess_attempt_ids];
+  next.strategy_escalation = null;
+  if (event.historical_excess_attempt_ids.length) {
+    next.status = 'strategy_escalation_required';
+    next.stable = false;
+    next.strategy_escalation = {
+      status: 'required',
+      trigger: 'historical_review_attempts_exceeded_hard_limit',
+      attempt_id: event.historical_excess_attempt_ids.at(-1),
+      observed_final_attempts: event.observed_attempt_counts.final_integration_reviews,
+      hard_limit: HARD_REVIEW_LIMITS.final_integration_reviews
+    };
+  }
+  return appendEvent(next, event);
+}
+
+export function reconcileReviewLifecycle(state) {
+  if (state?.review_policy) return validateReviewLifecycle(state);
+  if (!state || state.schema_version !== 1) throw new Error('legacy review lifecycle must be schema v1');
+  let replayed;
+  try {
+    replayed = replayLifecycle(state);
+  } catch (error) {
+    throw new Error(`legacy review lifecycle event integrity failed: ${error.message}`);
+  }
+  if (JSON.stringify(replayed) !== JSON.stringify(state)) {
+    throw new Error('legacy review lifecycle state is inconsistent with its durable event history');
+  }
+  return applyPolicyReconciliation(state, policyReconciliationEvent(state));
 }
 
 export function applyReviewLifecycleEvent(state, event) {
@@ -314,6 +440,16 @@ export function validateReviewLifecycle(state, {
     || typeof state.stable !== 'boolean') {
     throw new Error('review lifecycle requires boolean breaker, recheck, and stable state');
   }
+  if (JSON.stringify(state.review_policy) !== JSON.stringify(HARD_REVIEW_LIMITS)) {
+    throw new Error('review lifecycle requires the hard review-attempt cardinality policy');
+  }
+  if (state.strategy_escalation !== null
+    && (!state.strategy_escalation || typeof state.strategy_escalation !== 'object')) {
+    throw new Error('review lifecycle strategy escalation must be an object or null');
+  }
+  if (!Array.isArray(state.historical_excess_attempt_ids)) {
+    throw new Error('review lifecycle requires historical_excess_attempt_ids');
+  }
   const attemptIds = state.attempts.map(({ attempt_id }) => attempt_id);
   if (new Set(attemptIds).size !== attemptIds.length) throw new Error('review attempt IDs must be unique');
   const activeAttempts = state.attempts.filter(({ attempt_id }) =>
@@ -337,6 +473,23 @@ export function validateReviewLifecycle(state, {
   }
   if (activeAttempts.filter(({ attempt_type }) => attempt_type === 'correction_recheck').length > 1) {
     throw new Error('only one correction recheck is permitted per reviewed seam');
+  }
+  const policyActiveAttempts = activeAttempts.filter(({ attempt_id }) =>
+    !state.historical_excess_attempt_ids.includes(attempt_id)
+  );
+  if (policyActiveAttempts.filter(({ attempt_type }) =>
+    attempt_type === 'initial_review' || attempt_type === 'new_design_review'
+  ).length > state.review_policy.primary_reviews_per_semantic_contract) {
+    throw new Error('only one primary review is permitted per semantic contract');
+  }
+  if (policyActiveAttempts.filter(({ attempt_type }) =>
+    attempt_type === 'final_integration_review'
+  ).length > state.review_policy.final_integration_reviews) {
+    throw new Error('final integration review hard limit is exceeded');
+  }
+  if ((state.status === 'strategy_escalation_required')
+    !== (state.strategy_escalation?.status === 'required')) {
+    throw new Error('strategy escalation status is inconsistent');
   }
   if (state.circuit_breaker_active !== (state.status === 'circuit_breaker_active')) {
     throw new Error('circuit breaker status is inconsistent');

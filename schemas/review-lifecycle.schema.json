@@ -13,6 +13,9 @@
     "stable",
     "circuit_breaker_active",
     "correction_recheck_consumed",
+    "review_policy",
+    "strategy_escalation",
+    "historical_excess_attempt_ids",
     "active_attempt_id",
     "attempts",
     "invalidated_attempt_ids",
@@ -37,6 +40,7 @@
         "final_correction_required",
         "final_approved",
         "circuit_breaker_active",
+        "strategy_escalation_required",
         "blocked",
         "partial"
       ]
@@ -44,6 +48,54 @@
     "stable": {"type": "boolean"},
     "circuit_breaker_active": {"type": "boolean"},
     "correction_recheck_consumed": {"type": "boolean"},
+    "review_policy": {
+      "type": "object",
+      "required": [
+        "primary_reviews_per_semantic_contract",
+        "correction_rechecks",
+        "final_integration_reviews"
+      ],
+      "properties": {
+        "primary_reviews_per_semantic_contract": {"const": 1},
+        "correction_rechecks": {"const": 1},
+        "final_integration_reviews": {"const": 2}
+      },
+      "additionalProperties": false
+    },
+    "strategy_escalation": {
+      "anyOf": [
+        {"type": "null"},
+        {
+          "type": "object",
+          "required": [
+            "status",
+            "trigger",
+            "attempt_id",
+            "observed_final_attempts",
+            "hard_limit"
+          ],
+          "properties": {
+            "status": {"enum": ["required", "resolved"]},
+            "trigger": {
+              "enum": [
+                "final_review_attempts_exhausted",
+                "historical_review_attempts_exceeded_hard_limit"
+              ]
+            },
+            "attempt_id": {"type": "string", "minLength": 1},
+            "observed_final_attempts": {"type": "integer", "minimum": 2},
+            "hard_limit": {"const": 2},
+            "disposition": {"type": "string", "minLength": 1}
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "historical_excess_attempt_ids": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {"type": "string", "minLength": 1}
+    },
     "active_attempt_id": {"type": ["string", "null"]},
     "attempts": {
       "type": "array",

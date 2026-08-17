@@ -28,6 +28,28 @@ suite/duplicate counters with any governed 0.7.1 execution receipts. An audited
 `reconcile` may correct those two projections. Historical direct shell commands
 remain `not_observable`; migration never invents execution IDs for them.
 
+Reconcile a legacy review lifecycle before attempting another review:
+
+```text
+node <zimster>/scripts/review-lifecycle.mjs reconcile \
+  --seam-id <stable-id>
+```
+
+The reconciliation replays and preserves every legacy event and attempt,
+attaches the 0.7.1 hard review policy, and records a `policy_reconciled` event.
+If legacy history exceeds one primary review, one correction recheck, or two
+final integration reviews for the same semantic contract, the excess attempt
+IDs remain enumerated and the lifecycle enters durable strategy escalation.
+Migration never deletes or silently relabels them. Continue only through an
+evidence-backed disposition or a material design revision with a new semantic
+contract digest; renaming an attempt or making a trivial edit does not reset
+cardinality.
+
 `run.md` is regenerated from canonical machine state after migration. Manual
 legacy prose remains historical context only and cannot outrank `run.json`,
 receipts, ledgers, checkpoints, budgets, or actual Git state.
+
+After resolving migration ambiguity, run `coherence-preflight.mjs check` for
+the intended `review`, `completion`, or `release` operation. The preflight is
+read-only and reports all remaining drift; it does not repair or conceal
+unknown historical facts.

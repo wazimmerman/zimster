@@ -196,6 +196,10 @@ approval and requires a new exact-head review within finalization budget. When
 the final correction changes stable semantic meaning, record an explicit
 `design_revision` with evidence, invalidate prior attempts, and complete the
 new-design review before reserving the replacement final integration review.
+The hard per-contract cardinality is one primary review, one correction
+recheck, and two final integration reviews. The second failed final review
+enters durable strategy escalation. A generic execution-budget override or a
+fresh attempt ID cannot create a third final review.
 
 ## Circuit breaker
 
@@ -217,3 +221,8 @@ and candidate completion. Resolve it only with an evidence-backed supported
 disposition. A `design_revision` resets review accounting only when the
 semantic-contract digest changes and prior attempt approval/evidence is
 invalidated.
+
+Before starting a final integration review, run
+`coherence-preflight.mjs check --operation review --seam-id <stable-id>`.
+Proceed only on `COHERENCE_CURRENT`; the check is read-only and every reported
+drift remains visible until its canonical owner is reconciled.

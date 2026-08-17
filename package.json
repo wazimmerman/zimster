@@ -31,6 +31,7 @@
     "run:check": "node scripts/run-control.mjs check",
     "accounting:check": "node scripts/accounting-reconcile.mjs check",
     "accounting:reconcile": "node scripts/accounting-reconcile.mjs reconcile",
+    "coherence:check": "node scripts/coherence-preflight.mjs check",
     "context:index": "node scripts/context-index.mjs",
     "plan:conformance": "node scripts/plan-conformance.mjs",
     "sync:codex": "node scripts/sync-codex-plugin.mjs",

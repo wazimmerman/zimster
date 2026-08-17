@@ -194,12 +194,28 @@ rejects another recheck, replacement-reviewer shopping, final review, and
 completion until an evidence-backed `disposition` is recorded. A design
 revision must change the semantic-contract digest and invalidates prior
 attempts. `final_integration_review` is a distinct exact-head type after
-`stabilize`; it never expands the correction-recheck allowance.
+`stabilize`; it never expands the correction-recheck allowance. Each semantic
+contract permits at most one primary attempt, one correction recheck, and two
+final integration attempts. A second failed final attempt enters durable
+`strategy_escalation_required`; neither a new attempt ID nor a generic budget
+override can reset that hard limit.
 
 A load-bearing final integration finding may also require `design_revision`
 when its correction changes the stable semantic contract. That disposition is
 recorded directly from `final_correction_required`, invalidates prior attempts,
 and requires new-design approval before another final integration review.
+
+Before admitting a final integration attempt, inspect the whole canonical
+control plane without repairing it:
+
+```text
+node <zimster>/scripts/coherence-preflight.mjs check \
+  --operation review --seam-id <stable-id>
+```
+
+`COHERENCE_BLOCKED` reports every detected drift or stale dependency. Repair
+the owning state through its normal command, regenerate `run.md`, and rerun the
+check. Do not edit the derived summary or copy state into alternate paths.
 
 Reconcile supported host observations before completion:
 
@@ -307,7 +323,8 @@ npm run assurance -- complete \
 ```
 
 The first command reports coverage and proof/claim blockers. The second also
-requires a clean current checkout and profile-appropriate review. Owner-inline
+performs the same canonical coherence preflight and requires a clean current
+checkout and profile-appropriate review. Owner-inline
 inspection is `self_review`; Standard and High-risk need clean-context
 `independent_review` for the exact base/head, package ID, stable
 semantic-contract digest, required lens set, and a reconciled execution budget
@@ -335,6 +352,11 @@ candidate-bound deterministic proof references with the same exact
 requirement-and-claim linkage. Boolean eligibility or
 load-bearing switches are not accepted. Review unavailable produces
 `OWNER_VERIFIED_REVIEW_UNAVAILABLE` or another non-candidate state.
+
+Release-evidence creation repeats the preflight for `release` and binds its
+requested commit and tree to the coherent checkout. A successful earlier
+completion receipt cannot authorize release after any run, checkpoint,
+accounting, lifecycle, proof, summary, or checkout drift.
 
 ## Release controls
 

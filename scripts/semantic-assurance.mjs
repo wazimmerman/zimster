@@ -14,6 +14,7 @@ import { executionBudgetProofReceiptPasses } from './lib/execution-budget.mjs';
 import { normalizeConvergenceMetric } from './lib/convergence.mjs';
 import { canonicalPath } from './lib/path-identity.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
+import { evaluateCoherence } from './lib/coherence-preflight.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
@@ -228,6 +229,14 @@ async function completionDecision() {
     ? null
     : await jsonDocument('execution-budget');
   const executionBudget = executionBudgetDocument?.value || null;
+  const reviewLifecycleDocument = profile === 'micro'
+    ? null
+    : await jsonDocument('review-lifecycle');
+  const assuranceAccountingDocument = profile === 'micro'
+    ? null
+    : await jsonDocument('assurance-accounting');
+  const reviewLifecycle = reviewLifecycleDocument?.value || null;
+  const assuranceAccounting = assuranceAccountingDocument?.value || null;
   const reviewPackage = profile === 'micro'
     ? null
     : await jsonFile('review-package');
@@ -245,10 +254,39 @@ async function completionDecision() {
       !== await canonicalPath(path.join(runtimeDirectory, 'budget.json'))
     ? ['completion requires the authoritative Git-local execution budget']
     : [];
+  const lifecyclePathIssues = reviewLifecycleDocument
+    && await canonicalPath(reviewLifecycleDocument.file)
+      !== await canonicalPath(path.join(
+        runtimeDirectory,
+        'review-lifecycle',
+        `${reviewLifecycle.seam_id}.json`
+      ), { allowMissing: true })
+    ? ['completion requires the authoritative Git-local review lifecycle']
+    : [];
+  const accountingPathIssues = assuranceAccountingDocument
+    && await canonicalPath(assuranceAccountingDocument.file)
+      !== await canonicalPath(
+        path.join(runtimeDirectory, 'assurance-accounting', 'latest.json'),
+        { allowMissing: true }
+      )
+    ? ['completion requires the authoritative Git-local assurance accounting receipt']
+    : [];
   const budgetIssues = executionBudget
     ? await executionBudgetIssues(executionBudget, runtimeDirectory)
     : [];
-  const completionInputIssues = [...packageIssues, ...budgetPathIssues, ...budgetIssues];
+  const coherence = await evaluateCoherence(runtimeDirectory, root, {
+    operation: 'completion',
+    seamId: reviewLifecycle?.seam_id || 'whole-release',
+    profile
+  });
+  const completionInputIssues = [
+    ...packageIssues,
+    ...budgetPathIssues,
+    ...lifecyclePathIssues,
+    ...accountingPathIssues,
+    ...budgetIssues,
+    ...coherence.issues
+  ];
   const finalMatrixResult = completionInputIssues.length
     ? {
         ...matrixResult,
@@ -278,8 +316,8 @@ async function completionDecision() {
     hostSmokeReceipt,
     releaseChannel: options['release-channel'] ? String(options['release-channel']) : 'public_beta',
     correctionPending: options['correction-pending'] === true,
-    reviewLifecycle: profile === 'micro' ? null : await jsonFile('review-lifecycle'),
-    assuranceAccounting: profile === 'micro' ? null : await jsonFile('assurance-accounting')
+    reviewLifecycle,
+    assuranceAccounting
   });
   writeLine(JSON.stringify(result));
   writeError(`${result.state} review=${result.review_id || 'none'} claims=${result.allowed_claims.length}`);
