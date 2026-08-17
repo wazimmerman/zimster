@@ -10,6 +10,7 @@ import { beginGovernedExecution, finishGovernedExecution } from './lib/governed-
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 import { recordVerificationInRecovery } from './lib/run-control.mjs';
 import { withControlPlaneMutation } from './lib/control-plane-mutation.mjs';
+import { inputDigest } from './lib/evidence-validity.mjs';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const script = (name) => path.join(packageRoot, 'scripts', name);
@@ -119,6 +120,7 @@ function validatePlan(plan) {
     claimArray(step, 'establishes');
     claimArray(step, 'does_not_establish');
     claimArray(step, 'environment_scopes');
+    claimArray(step, 'input_files');
     ids.add(step.id);
   }
   return plan;
@@ -278,6 +280,13 @@ async function runPlan(plan) {
       continue;
     }
     const started = performance.now();
+    const inputFingerprints = await Promise.all((step.input_files || []).map(async (input) => ({
+      input,
+      digest: await inputDigest(path.resolve(root, input))
+    })));
+    if (inputFingerprints.some(({ digest: value }) => value === 'missing')) {
+      throw new Error(`verification step executed input is missing: ${step.id}`);
+    }
     const result = spawnSync(step.command, step.args, {
       cwd: root,
       encoding: 'utf8',
@@ -286,6 +295,10 @@ async function runPlan(plan) {
       maxBuffer: 128 * 1024 * 1024
     });
     const durationMs = Math.round((performance.now() - started) * 1000) / 1000;
+    const changedInput = (await Promise.all(inputFingerprints.map(async ({ input, digest: prior }) => ({
+      input,
+      changed: await inputDigest(path.resolve(root, input)) !== prior
+    })))).find(({ changed }) => changed);
     const log = logText(step, result);
     const logPath = path.join(logDirectory, `${step.id}.log`);
     await writeFile(logPath, log);
@@ -295,12 +308,14 @@ async function runPlan(plan) {
       : false;
     const unexpectedStderr = (result.status ?? 1) === 0 && stderr.trim() !== '' && !expectedStderr;
     if (unexpectedStderr) warnings += 1;
-    const failed = (result.status ?? 1) !== 0 || unexpectedStderr;
+    const failed = (result.status ?? 1) !== 0 || unexpectedStderr || Boolean(changedInput);
     const reason = unexpectedStderr
       ? 'unexpected_stderr'
-      : failed
-        ? 'nonzero_exit'
-        : null;
+      : changedInput
+        ? 'executed_input_changed'
+        : failed
+          ? 'nonzero_exit'
+          : null;
     steps.push({
       id: step.id,
       command_argv: [step.command, ...step.args],
@@ -314,7 +329,8 @@ async function runPlan(plan) {
       requirement_ids: [...(step.requirement_ids || [])],
       establishes: [...(step.establishes || [])],
       does_not_establish: [...(step.does_not_establish || [])],
-      environment_scopes: [...(step.environment_scopes || [])]
+      environment_scopes: [...(step.environment_scopes || [])],
+      input_fingerprints: inputFingerprints
     });
     if (failed) {
       failedStep = step.id;

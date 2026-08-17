@@ -135,9 +135,18 @@ candidate, environment, profile, terminal receipt digest, selected passing
 steps, and every selected log digest. The derived receipt names the upstream
 verification and logs as fingerprinted inputs. Each verification step must
 declare its requirement IDs, positive claims, exclusions, and environment
-scopes before execution. The bridge can derive only a subset of that declared
-contract; it cannot bridge a failed, stale, handcrafted, or unselected step or
-broaden a step's claims after observing its result.
+scopes before execution. Executed helper programs are declared as
+`input_files`, fingerprinted before execution, checked again afterward, and
+carried into derived evidence. Each bridge receipt derives from one step only,
+can select only a subset of its positive contract, and must preserve every
+declared exclusion. It cannot bridge a failed, stale, handcrafted, changed, or
+unselected step or broaden a step's claims after observing its result.
+
+Exact release reconstruction uses tracked helpers. Clean-checkout
+reproducibility builds and secret-scans the artifact set in two independent
+detached clones. Self-host reconstruction runs the durable accounting,
+recovery, transaction, and coherence integration fixtures in a fresh detached
+clone; it does not read the live review lifecycle or assurance projection.
 
 ## Codex source and package flow
 

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -17,6 +17,17 @@ test('checksum manifest covers every generated archive deterministically', async
     const manifest = await readFile(path.join(output, `zimster-${version}-SHA256SUMS.txt`), 'utf8');
     for (const archive of archives) assert.match(manifest, new RegExp(`${path.basename(archive).replaceAll('.', '\\.')}$`, 'm'));
     assert.equal(manifest.trim().split('\n').length, archives.length);
+
+    let check = spawnSync(process.execPath, ['scripts/checksums.mjs', '--check', output], {
+      cwd: root, encoding: 'utf8'
+    });
+    assert.equal(check.status, 0, check.stderr || check.stdout);
+    await writeFile(archives[0], 'tampered\n');
+    check = spawnSync(process.execPath, ['scripts/checksums.mjs', '--check', output], {
+      cwd: root, encoding: 'utf8'
+    });
+    assert.notEqual(check.status, 0, check.stderr || check.stdout);
+    assert.match(check.stderr, /checksum mismatch/i);
   } finally {
     await rm(output, { recursive: true, force: true });
   }

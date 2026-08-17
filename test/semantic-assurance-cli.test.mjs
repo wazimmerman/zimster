@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -39,6 +39,15 @@ function run(args, cwd = root) {
     ...args
   ], { cwd, encoding: 'utf8' });
 }
+
+test('aggregate over-limit coverage resolves the explicit covering-override occurrence', async () => {
+  const source = await readFile(path.join(root, 'scripts/semantic-assurance.mjs'), 'utf8');
+  assert.match(
+    source,
+    /budget\.overrides\.find\(\(override, index\)[\s\S]*satisfied\(override\.required_proof, 'override', index\)/,
+    'covering override proof resolution must retain its occurrence source and index'
+  );
+});
 
 async function assuranceFiles(directory, {
   repo, base, head, tree, semanticContractSha256, reviewPackageId

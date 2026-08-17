@@ -16,7 +16,8 @@ import { canonicalPath, repositoryRelativeIdentity, reviewFileIdentity } from '.
 import {
   evidenceStalenessReason,
   fingerprintJson,
-  fingerprintPathIdentities
+  fingerprintPathIdentities,
+  inputDigest
 } from './lib/evidence-validity.mjs';
 import { ensureRuntimeDirectory, migrateLegacyJsonlStore } from './lib/runtime.mjs';
 import { harnessCapabilities } from './lib/capabilities.mjs';
@@ -336,8 +337,8 @@ async function main() {
       throw new Error('--verification-receipt must be a safe receipt id');
     }
     const requestedSteps = listOption('steps');
-    if (!requestedSteps.length || new Set(requestedSteps).size !== requestedSteps.length) {
-      throw new Error('--steps must name at least one unique verification step');
+    if (requestedSteps.length !== 1) {
+      throw new Error('claim-scoped evidence must derive from a single selected step contract');
     }
     required(options, 'kind');
     required(options, 'scope');
@@ -369,10 +370,11 @@ async function main() {
       }
       return step;
     });
-    const allowedRequirements = new Set(selected.flatMap((step) => step.requirement_ids || []));
-    const allowedEstablishes = new Set(selected.flatMap((step) => step.establishes || []));
-    const allowedExclusions = new Set(selected.flatMap((step) => step.does_not_establish || []));
-    const allowedEnvironments = new Set(selected.flatMap((step) => step.environment_scopes || []));
+    const [contract] = selected;
+    const allowedRequirements = new Set(contract.requirement_ids || []);
+    const allowedEstablishes = new Set(contract.establishes || []);
+    const allowedExclusions = new Set(contract.does_not_establish || []);
+    const allowedEnvironments = new Set(contract.environment_scopes || []);
     const requestedRequirements = listOption('requirement-ids');
     const requestedEstablishes = listOption('establishes');
     const requestedExclusions = listOption('does-not-establish');
@@ -388,6 +390,13 @@ async function main() {
         `bridge claim was not declared by selected verification steps: ${undeclared.join('; ')}`
       );
     }
+    const omittedCaveats = [...allowedExclusions]
+      .filter((value) => !requestedExclusions.includes(value));
+    if (omittedCaveats.length) {
+      throw new Error(
+        `bridge omitted required does_not_establish caveat: ${omittedCaveats.join('; ')}`
+      );
+    }
     const logRoot = path.resolve(runtime, 'verification', 'logs', verificationId);
     for (const step of selected) {
       const log = path.resolve(step.log || '');
@@ -398,6 +407,12 @@ async function main() {
       if (digest !== step.log_sha256) {
         throw new Error(`verification step log digest does not match: ${step.id}`);
       }
+      for (const input of step.input_fingerprints || []) {
+        const current = await inputDigest(path.resolve(root, input.input));
+        if (current !== input.digest) {
+          throw new Error(`verification step executed input fingerprint changed: ${input.input}`);
+        }
+      }
     }
     options.command = `verification:${verificationId}#${requestedSteps.join(',')}`;
     options['command-argv'] = JSON.stringify([
@@ -406,7 +421,8 @@ async function main() {
     options.source = 'verification-bridge';
     options.inputs = JSON.stringify([
       verificationFile,
-      ...selected.map(({ log }) => log)
+      ...selected.map(({ log }) => log),
+      ...selected.flatMap((step) => (step.input_fingerprints || []).map(({ input }) => input))
     ]);
     const receipt = await buildReceipt({ exitCode: 0 });
     receipt.upstream_verification_receipt_id = verificationId;
@@ -417,7 +433,8 @@ async function main() {
       requirement_ids: [...(step.requirement_ids || [])],
       establishes: [...(step.establishes || [])],
       does_not_establish: [...(step.does_not_establish || [])],
-      environment_scopes: [...(step.environment_scopes || [])]
+      environment_scopes: [...(step.environment_scopes || [])],
+      input_fingerprints: [...(step.input_fingerprints || [])]
     }));
     receipt.upstream_verification_authenticated = true;
     const bytes = await withControlPlaneMutation(runtime, root, {

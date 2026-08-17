@@ -59,8 +59,12 @@ digest-matching selected logs. Its receipt records the upstream verification
 and does not create another execution or consume duplicate-command budget.
 The selected verification steps must declare `requirement_ids`, `establishes`,
 `does_not_establish`, and `environment_scopes` in the plan before execution.
-Every bridged field must be a subset of those declarations, so a passing result
-cannot be used to invent broader evidence afterward.
+An executed helper is also declared in `input_files`. The verifier fingerprints
+those bytes before and after execution, and the bridge carries them into the
+evidence dependency set. A bridge selects exactly one passing step, every
+bridged field must be a subset of that step's declarations, and every declared
+`does_not_establish` caveat must be retained. A passing result therefore cannot
+be recombined or broadened afterward.
 
 Start a slice durably before editing, checkpoint meaningful dirty progress, and
 resume from actual repository state:

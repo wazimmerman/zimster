@@ -11,6 +11,20 @@ import { root } from './helpers.mjs';
 
 const CLEAN_FINGERPRINT = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
+test('release reconstruction helpers are exact-candidate programs with fresh-checkout boundaries', async () => {
+  const reproducibility = await readFile(
+    path.join(root, 'scripts/clean-checkout-reproducibility.mjs'), 'utf8'
+  );
+  const selfHost = await readFile(path.join(root, 'scripts/selfhost-reconstruction.mjs'), 'utf8');
+  assert.match(reproducibility, /clone/);
+  assert.match(reproducibility, /checkout/);
+  assert.match(reproducibility, /secret-scan\.mjs/);
+  assert.match(selfHost, /clone/);
+  assert.match(selfHost, /checkout/);
+  assert.match(selfHost, /governed-execution\.test\.mjs/);
+  assert.doesNotMatch(selfHost, /assurance-accounting\/latest\.json|review-lifecycle\/whole-release\.json/);
+});
+
 async function createExactPortableArchive(dist, head = 'a'.repeat(40), tree = 'b'.repeat(40)) {
   await mkdir(dist, { recursive: true });
   await createZip(path.join(dist, 'zimster-0.6.0-portable.zip'), [

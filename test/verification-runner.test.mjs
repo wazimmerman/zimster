@@ -79,6 +79,8 @@ test('passed governed verification can be bridged into claim-scoped evidence wit
   const repo = await tempRepo();
   try {
     const planFile = path.join(repo, 'plan.json');
+    const externalProgram = path.join(repo, '.git', 'bridge-helper.mjs');
+    await writeFile(externalProgram, "process.stdout.write('verified output\\n');\n");
     await writeFile(planFile, `${JSON.stringify({
       schema_version: 1,
       profile: 'bridge-source',
@@ -86,11 +88,20 @@ test('passed governed verification can be bridged into claim-scoped evidence wit
       steps: [{
         id: 'proof-step',
         command: process.execPath,
-        args: ['-e', "import { writeSync } from 'node:fs'; writeSync(process.stdout.fd, 'verified output\\n');"],
+        args: [externalProgram],
+        input_files: [externalProgram],
         requirement_ids: ['CTRL-EVIDENCE-001'],
         establishes: ['The authenticated verification step passed.'],
         does_not_establish: ['Any unselected verification step.'],
         environment_scopes: ['node-git-local']
+      }, {
+        id: 'other-step',
+        command: process.execPath,
+        args: ['-e', "process.stdout.write('other output\\n');"],
+        requirement_ids: ['CTRL-OTHER-001'],
+        establishes: ['The other verification step passed.'],
+        does_not_establish: ['The proof step result.'],
+        environment_scopes: ['other-environment']
       }]
     })}\n`);
     let result = run(process.execPath, [
@@ -117,8 +128,39 @@ test('passed governed verification can be bridged into claim-scoped evidence wit
     assert.equal(evidence.upstream_verification_authenticated, true);
     assert.deepEqual(evidence.requirement_ids, ['CTRL-EVIDENCE-001']);
     assert.deepEqual(evidence.establishes, ['The authenticated verification step passed.']);
+    const fullVerification = JSON.parse(await readFile(verification.receipt, 'utf8'));
+    assert.deepEqual(
+      evidence.upstream_verification_step_contracts[0].input_fingerprints,
+      fullVerification.steps.find(({ id }) => id === 'proof-step').input_fingerprints
+    );
+    assert.ok(evidence.inputs.some((input) => input.endsWith('bridge-helper.mjs')));
     assert.equal(evidence.exit_code, 0);
     assert.equal(await readFile(path.join(repo, 'tracked.txt'), 'utf8'), 'base\n');
+
+    result = run(process.execPath, [
+      path.join(root, 'scripts/evidence.mjs'), 'bridge-verification',
+      '--verification-receipt', verification.id,
+      '--steps', '["proof-step","other-step"]',
+      '--kind', 'verification', '--scope', 'cross-step-synthesis',
+      '--requirement-ids', '["CTRL-EVIDENCE-001"]',
+      '--establishes', '["The other verification step passed."]',
+      '--does-not-establish', '["Any unselected verification step.","The proof step result."]',
+      '--environment-scope', 'node-git-local'
+    ], repo);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /single selected step contract|cross-step/i);
+
+    result = run(process.execPath, [
+      path.join(root, 'scripts/evidence.mjs'), 'bridge-verification',
+      '--verification-receipt', verification.id,
+      '--steps', '["proof-step"]',
+      '--kind', 'verification', '--scope', 'omitted-caveat',
+      '--requirement-ids', '["CTRL-EVIDENCE-001"]',
+      '--establishes', '["The authenticated verification step passed."]',
+      '--environment-scope', 'node-git-local'
+    ], repo);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /required caveat|does_not_establish/i);
 
     result = run(process.execPath, [
       path.join(root, 'scripts/evidence.mjs'), 'bridge-verification',
@@ -131,6 +173,20 @@ test('passed governed verification can be bridged into claim-scoped evidence wit
     ], repo);
     assert.notEqual(result.status, 0, result.stderr || result.stdout);
     assert.match(result.stderr, /not declared by selected verification steps/i);
+
+    await writeFile(externalProgram, "process.stdout.write('changed after verification\\n');\n");
+    result = run(process.execPath, [
+      path.join(root, 'scripts/evidence.mjs'), 'bridge-verification',
+      '--verification-receipt', verification.id,
+      '--steps', '["proof-step"]',
+      '--kind', 'verification', '--scope', 'changed-program',
+      '--requirement-ids', '["CTRL-EVIDENCE-001"]',
+      '--establishes', '["The authenticated verification step passed."]',
+      '--does-not-establish', '["Any unselected verification step."]',
+      '--environment-scope', 'node-git-local'
+    ], repo);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /executed input.*changed|input fingerprint/i);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

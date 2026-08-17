@@ -167,11 +167,11 @@ async function executionBudgetIssues(budget, runtimeDirectory) {
     if (normalizeConvergenceMetric(metric) !== metric) continue;
     const limit = budget.limits[metric];
     if (!Number.isInteger(value) || !Number.isInteger(limit) || value <= limit) continue;
-    const coveringOverride = budget.overrides.find((override) =>
+    const coveringOverride = budget.overrides.find((override, index) =>
       normalizeConvergenceMetric(override.metric) === metric
       && Number.isInteger(override.value)
       && override.value >= value
-      && satisfied(override.required_proof)
+      && satisfied(override.required_proof, 'override', index)
     );
     if (!coveringOverride) {
       issues.push(`execution-budget usage exceeds its limit without a proof-backed override: ${metric}=${value}/${limit}`);
