@@ -303,6 +303,59 @@ test('a design revision resets accounting only for a genuinely new semantic cand
   assert.equal(state.attempts.at(-1).attempt_type, 'new_design_review');
 });
 
+test('a pre-review design revision may correct its semantic candidate without consuming an attempt', () => {
+  let state = start(lifecycle(), 'initial_review', 'attempt-initial');
+  state = verdict(state, 'attempt-initial', 'needs_correction', [{
+    severity: 'Important', summary: 'The design contract is internally inconsistent.'
+  }]);
+  state = applyReviewLifecycleEvent(state, {
+    type: 'correction_recorded', candidate: candidate({ head_sha: CORRECTED_HEAD })
+  });
+  state = start(state, 'correction_recheck', 'attempt-recheck', {
+    candidate: candidate({ head_sha: CORRECTED_HEAD })
+  });
+  state = verdict(state, 'attempt-recheck', 'needs_correction', [{
+    severity: 'Important', summary: 'The design remains inconsistent.'
+  }]);
+  state = applyReviewLifecycleEvent(state, {
+    type: 'breaker_disposition_recorded',
+    disposition: 'design_revision',
+    reason: 'The binding design changed.',
+    candidate: candidate({
+      head_sha: '1'.repeat(40), semantic_contract_sha256: REVISED_CONTRACT
+    }),
+    evidence_refs: ['revision-note']
+  });
+  const attemptsBeforeCorrection = state.attempts.length;
+  const invalidatedBeforeCorrection = [...state.invalidated_attempt_ids];
+
+  state = applyReviewLifecycleEvent(state, {
+    type: 'breaker_disposition_recorded',
+    disposition: 'design_revision',
+    reason: 'Correct the pre-review semantic candidate digest.',
+    candidate: candidate({
+      head_sha: '2'.repeat(40), semantic_contract_sha256: '4'.repeat(64)
+    }),
+    evidence_refs: ['digest-correction']
+  });
+
+  assert.equal(state.status, 'new_design_review_required');
+  assert.equal(state.attempts.length, attemptsBeforeCorrection);
+  assert.deepEqual(state.invalidated_attempt_ids, invalidatedBeforeCorrection);
+  assert.equal(state.candidate.semantic_contract_sha256, '4'.repeat(64));
+  assert.throws(() => applyReviewLifecycleEvent(state, {
+    type: 'breaker_disposition_recorded',
+    disposition: 'design_revision',
+    reason: 'Attempt to replace the release base.',
+    candidate: candidate({
+      base_sha: '5'.repeat(40),
+      head_sha: '3'.repeat(40),
+      semantic_contract_sha256: '6'.repeat(64)
+    }),
+    evidence_refs: ['invalid-base-change']
+  }), /immutable base/i);
+});
+
 test('final integration review is separate and requires a stable breaker-free candidate', () => {
   let state = start(lifecycle(), 'initial_review', 'attempt-initial');
   state = verdict(state, 'attempt-initial', 'approved');

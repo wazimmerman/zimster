@@ -314,6 +314,9 @@ Before the required primary attempt starts, `review-lifecycle.mjs candidate`
 may update the exact head/tree/dirty identity while preserving the same
 semantic-contract digest. It consumes no attempt and cannot be used to smuggle
 in a contract change; changed semantics still require `design_revision`.
+A mistaken pre-review design digest may be corrected with another explicit
+`design_revision` before any attempt starts; it consumes no attempt, preserves
+the immutable base, and records both semantic candidates in lifecycle history.
 
 A load-bearing final integration finding may also require `design_revision`
 when its correction changes the stable semantic contract. That disposition is

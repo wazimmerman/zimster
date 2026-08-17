@@ -11,6 +11,8 @@
   requires a typed same-reviewer disposition whose accepted dispatch, routing
   observation, immutable package, candidate, and finding resolutions are
   reauthenticated; caller-authored verification claims cannot authorize it.
+  A pre-review semantic-digest correction is also recoverable without consuming
+  a review attempt or permitting the immutable release base to change.
 
 ## 0.7.0 - 2026-08-07
 

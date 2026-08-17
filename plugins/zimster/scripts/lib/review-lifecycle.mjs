@@ -432,10 +432,14 @@ function recordDisposition(state, event) {
   const finalDesignRevision = event.disposition === 'design_revision'
     && state.status === 'final_correction_required'
     && state.circuit_breaker_active === false;
+  const preReviewDesignRevision = event.disposition === 'design_revision'
+    && state.status === 'new_design_review_required'
+    && !state.active_attempt_id;
   const strategyDisposition = state.status === 'strategy_escalation_required'
     && state.strategy_escalation?.status === 'required';
   if ((!state.circuit_breaker_active || state.status !== 'circuit_breaker_active')
     && !finalDesignRevision
+    && !preReviewDesignRevision
     && !strategyDisposition) {
     throw new Error('breaker disposition requires an active circuit breaker or strategy escalation');
   }
@@ -462,6 +466,10 @@ function recordDisposition(state, event) {
   };
   if (event.disposition === 'design_revision') {
     validateCandidate(event.candidate, 'design revision candidate');
+    if (preReviewDesignRevision
+      && event.candidate.base_sha !== state.candidate.base_sha) {
+      throw new Error('pre-review design revision cannot change the immutable base');
+    }
     if (event.candidate.semantic_contract_sha256 === state.candidate.semantic_contract_sha256) {
       throw new Error('semantic candidate contract must change for a design revision');
     }
