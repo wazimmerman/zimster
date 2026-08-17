@@ -278,6 +278,11 @@ export async function migrateRunAndCheckpoint(runtime, repo) {
   return { state, migrated: true, recoveryRequired: ambiguous };
 }
 
+function clearTransientRecoveryDiagnostics(checkpoint) {
+  delete checkpoint.active_transaction;
+  delete checkpoint.reconciliation_reason;
+}
+
 export async function recoveryCheckpoint(runtime, repo, state, changes = {}) {
   const prior = await readJsonOptional(path.join(runtime, 'checkpoints', 'current.json')) || {};
   const git = await captureGitState(repo);
@@ -340,6 +345,7 @@ export async function recoveryCheckpoint(runtime, repo, state, changes = {}) {
     environment: environment(),
     recovery_status: changes.recoveryStatus || 'CHECKPOINT_CURRENT'
   };
+  clearTransientRecoveryDiagnostics(checkpoint);
   const serialized = `${JSON.stringify(checkpoint, null, 2)}\n`;
   if (Buffer.byteLength(serialized) > 32 * 1024) {
     throw new Error('recovery checkpoint exceeds compact 32768-byte limit');
@@ -544,6 +550,7 @@ export async function resumeRun(runtime, repo) {
       });
       await rm(transactionFile, { force: true });
     }
+    clearTransientRecoveryDiagnostics(checkpoint);
     if (checkpoint.run_state_revision !== state.state_revision) {
       const priorRevision = checkpoint.run_state_revision ?? null;
       checkpoint = await recoveryCheckpoint(runtime, repo, state, {

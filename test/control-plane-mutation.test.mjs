@@ -181,6 +181,39 @@ test('resume exposes an ambiguous pre-commit mutation without claiming success',
   }
 });
 
+test('resume clears orphaned transaction diagnostics when no transaction marker exists', async () => {
+  const { repo, runtime } = await fixture();
+  try {
+    const checkpointFile = path.join(runtime, 'checkpoints', 'current.json');
+    const checkpoint = JSON.parse(await readFile(checkpointFile, 'utf8'));
+    checkpoint.active_transaction = {
+      schema_version: 1,
+      transaction_id: 'already-reconciled',
+      mutation_type: 'review_verdict_recorded',
+      actor_id: 'root',
+      phase: 'started',
+      run_state_revision_before: checkpoint.run_state_revision,
+      started_at: '2026-08-16T00:00:00.000Z'
+    };
+    checkpoint.reconciliation_reason = 'stale ambiguity from an already archived transaction';
+    await writeFile(checkpointFile, `${JSON.stringify(checkpoint, null, 2)}\n`);
+    await assert.rejects(readFile(path.join(runtime, 'transactions', 'current.json')), /ENOENT/);
+
+    const result = run(process.execPath, [
+      path.join(root, 'scripts/run-control.mjs'), 'resume'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const resumed = JSON.parse(result.stdout);
+    assert.equal(resumed.active_transaction, undefined);
+    assert.equal(resumed.reconciliation_reason, undefined);
+    const summary = await readFile(path.join(runtime, 'run.md'), 'utf8');
+    assert.doesNotMatch(summary, /already-reconciled/);
+    assert.doesNotMatch(summary, /stale ambiguity from an already archived transaction/);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
 test('an explicitly evidenced no-op reconciliation archives a pre-write transaction', async () => {
   const { repo, runtime } = await fixture();
   try {
@@ -204,6 +237,14 @@ test('an explicitly evidenced no-op reconciliation archives a pre-write transact
     await writeFile(path.join(repo, 'tracked.txt'), 'work continued after the rejected command\n');
 
     let result = run(process.execPath, [
+      path.join(root, 'scripts/run-control.mjs'), 'resume'
+    ], repo);
+    assert.equal(result.status, 2, result.stderr || result.stdout);
+    const ambiguous = JSON.parse(result.stdout);
+    assert.equal(ambiguous.active_transaction.transaction_id, 'rejected-verdict');
+    assert.match(ambiguous.reconciliation_reason, /interrupted before canonical success/i);
+
+    result = run(process.execPath, [
       path.join(root, 'scripts/run-control.mjs'), 'reconcile',
       '--transaction-id', 'rejected-verdict',
       '--disposition', 'no_canonical_mutation',
@@ -229,6 +270,15 @@ test('an explicitly evidenced no-op reconciliation archives a pre-write transact
     );
     const after = JSON.parse(await readFile(path.join(runtime, 'run.json'), 'utf8'));
     assert.equal(after.state_revision, state.state_revision + 1);
+    const checkpoint = JSON.parse(await readFile(
+      path.join(runtime, 'checkpoints', 'current.json'), 'utf8'
+    ));
+    assert.equal(checkpoint.recovery_status, 'RECONCILED_CONTROL_PLANE_MUTATION');
+    assert.equal(checkpoint.active_transaction, undefined);
+    assert.equal(checkpoint.reconciliation_reason, undefined);
+    const summary = await readFile(path.join(runtime, 'run.md'), 'utf8');
+    assert.doesNotMatch(summary, /Active transaction: rejected-verdict/);
+    assert.doesNotMatch(summary, /interrupted before canonical success/i);
     result = run(process.execPath, [path.join(root, 'scripts/run-control.mjs'), 'check'], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
   } finally {
