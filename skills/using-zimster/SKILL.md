@@ -36,7 +36,7 @@ Always report the selected profile and its risk rationale before implementation.
 
 ### Micro
 
-Use Micro only when every dimension is Low: one local slice, no public contract
+Use Micro only when all dimensions are Low: one coherent slice, no public contract
 or meaningful concurrency, security, data, service, OS, or hardware boundary;
 deterministic automated proof; and no independent review.
 
@@ -65,7 +65,7 @@ a receipt to tree, cone, environment, and claim; `self_review` is owner-inline;
 `independent_review` is bounded-context falsification.
 
 Owner-inline review is always `self_review` and cannot satisfy Standard or
-High-risk independent review. Micro needs eligibility and a passing matrix.
+High-risk independent review. Micro owner-only needs deterministic eligibility and a passing matrix.
 Standard/High-risk need approved exact-head `independent_review`; High-risk also
 needs all load-bearing obligations and final integration review. If unavailable,
 report `OWNER_VERIFIED_REVIEW_UNAVAILABLE`, never readiness. Only the deterministic completion gate may
@@ -76,9 +76,9 @@ emit `CANDIDATE_COMPLETE`.
 Resolve `<zimster-runtime>` from installed `using-zimster` when it contains
 scripts/init-run.mjs, else the plugin root; never the target repo.
 
-Use `<zimster-runtime>/scripts/init-run.mjs` for multiple slices or commits,
-delegation, independent review, external/hardware evidence, compaction, or
-resume. It writes canonical state and a derived view under the path from
+Use `<zimster-runtime>/scripts/init-run.mjs` for more than one vertical slice, any subagent,
+independent review, external or hardware evidence, more than one commit boundary,
+compaction, or resume. It writes canonical state under the path from
 `git rev-parse --git-path zimster`, outside product history.
 
 A Micro task may omit state only when none apply. Start before implementation;
@@ -144,7 +144,7 @@ exhaustion. Host permission prompts remain authoritative.
 
 ## Logical ownership and phase checkpoints
 
-The logical owner is continuous across renewed contexts. Persist slice start.
+The logical owner is continuous across renewed physical contexts. Persist slice start.
 At milestones, checkpoint Git state, files, obligations, verification/failure,
 corrections, receipts, findings, review/budget, guards, and exact continuation.
 Keep logs/diffs outside; resume the interrupted slice before later work.
