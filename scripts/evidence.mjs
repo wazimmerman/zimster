@@ -532,73 +532,128 @@ async function main() {
       error.code = 'BUDGET_CONSTRAINED';
       throw error;
     }
-    options.command = `verification:${verificationId}#${requestedSteps.join(',')}`;
-    options['command-argv'] = JSON.stringify(bridgeCommandArgv);
-    options.source = 'verification-bridge';
-    options.inputs = JSON.stringify([
-      verificationFile,
-      ...selected.map(({ log }) => log),
-      ...selected.flatMap((step) => (step.input_fingerprints || []).map(({ input }) => input))
-    ]);
-    const receipt = await buildReceipt({ exitCode: 0 });
-    const stepInputDigests = new Set(
-      (contract.input_fingerprints || []).map(({ digest }) => digest)
-    );
-    const boundFingerprints = stepInputDigests.size
-      ? receipt.input_fingerprints.filter(({ digest }) => stepInputDigests.has(digest))
-      : receipt.input_fingerprints;
-    if ((requestedRequirements.length || requestedEstablishes.length) && !boundFingerprints.length) {
-      throw new Error('claim-scoped verification step has no fingerprinted executed provenance');
-    }
-    receipt.claim_bindings = requestedRequirements.flatMap((requirementId) =>
-      requestedEstablishes.map((claim) => ({
-        requirement_id: requirementId,
-        claim,
-        input_fingerprints: boundFingerprints.map((row) => ({ ...row }))
-      }))
-    );
-    receipt.upstream_verification_receipt_id = verificationId;
-    receipt.upstream_verification_execution_id = verification.execution_id;
-    receipt.upstream_verification_step_ids = requestedSteps;
-    receipt.upstream_verification_step_contracts = selected.map((step) => ({
-      id: step.id,
-      requirement_ids: [...(step.requirement_ids || [])],
-      establishes: [...(step.establishes || [])],
-      does_not_establish: [...(step.does_not_establish || [])],
-      environment_scopes: [...(step.environment_scopes || [])],
-      input_fingerprints: [...(step.input_fingerprints || [])]
-    }));
-    receipt.upstream_verification_authenticated = true;
-    receipt.issuer = 'zimster.evidence';
-    receipt.execution_id = governed.receipt.id;
-    validateReceipt(receipt);
-    const bytes = await withControlPlaneMutation(runtime, root, {
-      mutationType: 'evidence_bridged_from_verification',
-      checkpointChanges: () => evidenceCheckpointChanges(runtime, {
-        id: receipt.id,
-        status: 'valid'
-      })
-    }, async () => {
-      const terminalBytes = await store(receipt);
-      await finishGovernedExecution(runtime, root, {
-        executionId: governed.receipt.id,
-        status: 'passed',
-        exitCode: 0,
-        terminalReceiptType: 'evidence',
-        terminalReceiptId: receipt.id,
-        terminalReceiptBytes: terminalBytes,
-        compactResult: {
-          kind: receipt.kind,
-          scope: receipt.scope,
-          source: receipt.source,
-          requirement_ids: receipt.requirement_ids,
-          establishes: receipt.establishes
-        }
+    let terminalized = false;
+    try {
+      options.command = `verification:${verificationId}#${requestedSteps.join(',')}`;
+      options['command-argv'] = JSON.stringify(bridgeCommandArgv);
+      options.source = 'verification-bridge';
+      options.inputs = JSON.stringify([
+        verificationFile,
+        ...selected.map(({ log }) => log),
+        ...selected.flatMap((step) => (step.input_fingerprints || []).map(({ input }) => input))
+      ]);
+      const receipt = await buildReceipt({ exitCode: 0 });
+      const stepInputDigests = new Set(
+        (contract.input_fingerprints || []).map(({ digest }) => digest)
+      );
+      const boundFingerprints = stepInputDigests.size
+        ? receipt.input_fingerprints.filter(({ digest }) => stepInputDigests.has(digest))
+        : receipt.input_fingerprints;
+      if ((requestedRequirements.length || requestedEstablishes.length) && !boundFingerprints.length) {
+        throw new Error('claim-scoped verification step has no fingerprinted executed provenance');
+      }
+      receipt.claim_bindings = requestedRequirements.flatMap((requirementId) =>
+        requestedEstablishes.map((claim) => ({
+          requirement_id: requirementId,
+          claim,
+          input_fingerprints: boundFingerprints.map((row) => ({ ...row }))
+        }))
+      );
+      receipt.upstream_verification_receipt_id = verificationId;
+      receipt.upstream_verification_execution_id = verification.execution_id;
+      receipt.upstream_verification_step_ids = requestedSteps;
+      receipt.upstream_verification_step_contracts = selected.map((step) => ({
+        id: step.id,
+        requirement_ids: [...(step.requirement_ids || [])],
+        establishes: [...(step.establishes || [])],
+        does_not_establish: [...(step.does_not_establish || [])],
+        environment_scopes: [...(step.environment_scopes || [])],
+        input_fingerprints: [...(step.input_fingerprints || [])]
+      }));
+      receipt.upstream_verification_authenticated = true;
+      receipt.issuer = 'zimster.evidence';
+      receipt.execution_id = governed.receipt.id;
+      validateReceipt(receipt);
+      const bytes = await withControlPlaneMutation(runtime, root, {
+        mutationType: 'evidence_bridged_from_verification',
+        checkpointChanges: () => evidenceCheckpointChanges(runtime, {
+          id: receipt.id,
+          status: 'valid'
+        })
+      }, async () => {
+        const terminalBytes = await store(receipt);
+        await finishGovernedExecution(runtime, root, {
+          executionId: governed.receipt.id,
+          status: 'passed',
+          exitCode: 0,
+          terminalReceiptType: 'evidence',
+          terminalReceiptId: receipt.id,
+          terminalReceiptBytes: terminalBytes,
+          compactResult: {
+            kind: receipt.kind,
+            scope: receipt.scope,
+            source: receipt.source,
+            requirement_ids: receipt.requirement_ids,
+            establishes: receipt.establishes
+          }
+        });
+        terminalized = true;
+        return terminalBytes;
       });
-      return terminalBytes;
-    });
-    writeSync(process.stdout.fd, bytes);
-    return;
+      writeSync(process.stdout.fd, bytes);
+      return;
+    } catch (error) {
+      if (terminalized) throw error;
+      options.command = `verification:${verificationId}#${requestedSteps.join(',')}`;
+      options['command-argv'] = JSON.stringify(bridgeCommandArgv);
+      options.source = 'verification-bridge';
+      options.inputs = '[]';
+      options.dependencies = '[]';
+      options['requirement-ids'] = '[]';
+      options.establishes = '[]';
+      options['does-not-establish'] = '[]';
+      options['claim-bindings'] = '[]';
+      options['behavioral-evidence'] = 'false';
+      options['invalidation-reason'] = `verification bridge failed after admission: ${error.message}`;
+      options.notes = 'Diagnostic terminal receipt for an admitted verification bridge failure.';
+      for (const name of [
+        'tdd-phase', 'tdd-behavior', 'tdd-red-receipt',
+        'test-discovery', 'tests-discovered', 'tests-passed', 'tests-failed', 'tests-skipped'
+      ]) delete options[name];
+      const failedReceipt = await buildReceipt({
+        startedAt: governed.receipt.started_at,
+        exitCode: 1
+      });
+      failedReceipt.issuer = 'zimster.evidence';
+      failedReceipt.execution_id = governed.receipt.id;
+      const failureBytes = await withControlPlaneMutation(runtime, root, {
+        mutationType: 'governed_evidence_bridge_failed',
+        checkpointChanges: () => evidenceCheckpointChanges(runtime, {
+          id: failedReceipt.id,
+          status: 'stale',
+          invalidation_reason: failedReceipt.invalidation_reason
+        })
+      }, async () => {
+        const terminalBytes = await store(failedReceipt);
+        await finishGovernedExecution(runtime, root, {
+          executionId: governed.receipt.id,
+          status: 'failed',
+          exitCode: 1,
+          terminalReceiptType: 'evidence',
+          terminalReceiptId: failedReceipt.id,
+          terminalReceiptBytes: terminalBytes,
+          compactResult: {
+            kind: failedReceipt.kind,
+            scope: failedReceipt.scope,
+            source: failedReceipt.source,
+            invalidation_reason: failedReceipt.invalidation_reason
+          }
+        });
+        return terminalBytes;
+      });
+      terminalized = failureBytes.length > 0;
+      throw error;
+    }
   }
   if (commandName === 'check') {
     await init();

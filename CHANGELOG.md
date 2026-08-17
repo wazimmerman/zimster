@@ -26,6 +26,8 @@
 - Derive one exact requirement/claim pair per verification-bridge receipt so
   multi-claim steps cannot create ambiguous Cartesian proof relationships, and
   govern each derived receipt through its own authenticated terminal execution.
+  Require that exact binding again in every completion-proof consumer and
+  terminalize post-admission bridge failures as authenticated stale diagnostics.
 
 ## 0.7.0 - 2026-08-07
 

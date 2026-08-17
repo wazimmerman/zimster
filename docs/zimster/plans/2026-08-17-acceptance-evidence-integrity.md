@@ -21,6 +21,12 @@ Make requirement proof, generated postmortems, and prospective TDD claims truthf
 - RED: a TDD claim with no RED receipt, a passing RED, a failed GREEN, mismatched behavior, reversed timestamps, or unauthenticated governed execution is unavailable.
 - GREEN: require every matrix row to declare `tdd_evidence` as `required` or `not_claimed`, record explicit TDD phase/behavior/predecessor metadata, and validate an authenticated behavior-specific RED→GREEN pair without inferring historical compliance.
 
+## Slice D: Completion-consumer and bridge terminal integrity
+
+- RED: Micro eligibility and High-risk load-bearing proof reject a receipt whose broad requirement and claim arrays match but whose authenticated claim binding names a different pair.
+- RED: a verification bridge error after governed admission leaves no `running` execution; it emits a stale diagnostic failure receipt and authenticates that exact terminal outcome.
+- GREEN: preserve validated exact bindings in matrix support, require the matching binding in every completion-proof consumer, and terminalize admitted bridge failures without turning them into claim evidence.
+
 ## Verification and commit boundary
 
 - Run only focused RED/GREEN tests during implementation, then the repository-required gates and one exact-package 0.7.1 release verification after the final source change.

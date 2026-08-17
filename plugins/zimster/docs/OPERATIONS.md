@@ -441,7 +441,12 @@ selected step's authenticated input fingerprints.
 Completion classifies a receipt as `claim_establishing` only when it binds at
 least one requirement and established claim to fingerprinted inputs or
 dependencies. Other receipts remain useful diagnostics but cannot satisfy a
-requirement. Every matrix row declares `tdd_evidence` as `required` or
+requirement. Downstream Micro-eligibility and High-risk load-bearing proof
+consumers recheck the same exact requirement, claim, and provenance binding;
+broad receipt arrays never substitute for it. An admitted verification bridge
+always records an authenticated passed or failed terminal receipt. Failure
+receipts are stale diagnostics and cannot establish claims. Every matrix row
+declares `tdd_evidence` as `required` or
 `not_claimed`; a prospective TDD claim additionally names `tdd_behavior_ids`
 and requires authenticated governed `red` and `green` evidence for
 the same behavior in chronological order. If the RED receipt was never

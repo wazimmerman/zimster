@@ -161,6 +161,45 @@ test('passed governed verification can be bridged into claim-scoped evidence wit
       path.join(root, 'scripts/evidence.mjs'), 'bridge-verification',
       '--verification-receipt', verification.id,
       '--steps', '["proof-step"]',
+      '--kind', 'verification', '--scope', 'post-admission-failure',
+      '--requirement-ids', '["CTRL-EVIDENCE-001"]',
+      '--establishes', '["The authenticated verification step passed."]',
+      '--does-not-establish', '["Any unselected verification step."]',
+      '--environment-scope', 'node-git-local',
+      '--tdd-phase', 'invalid'
+    ], repo);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /tdd-phase must be red or green/i);
+    const runtime = path.dirname(verificationRuntime(repo));
+    const executionFiles = await readdir(path.join(runtime, 'executions', 'receipts'));
+    const executions = await Promise.all(executionFiles.map(async (file) =>
+      JSON.parse(await readFile(path.join(runtime, 'executions', 'receipts', file), 'utf8'))
+    ));
+    const failedExecution = executions.find(
+      ({ context }) => context?.scope === 'post-admission-failure'
+    );
+    assert.equal(failedExecution.status, 'failed');
+    assert.equal(failedExecution.exit_code, 1);
+    assert.equal(failedExecution.terminal_receipt_type, 'evidence');
+    const evidenceLines = (await readFile(
+      path.join(runtime, 'evidence', 'receipts.jsonl'), 'utf8'
+    )).split('\n').filter(Boolean);
+    const failedLine = evidenceLines.find((line) =>
+      JSON.parse(line).id === failedExecution.terminal_receipt_id
+    );
+    const failedEvidence = JSON.parse(failedLine);
+    assert.equal(failedEvidence.exit_code, 1);
+    assert.match(failedEvidence.invalidation_reason, /failed after admission.*tdd-phase/i);
+    assert.equal(await authenticateGovernedEvidenceReceipt(
+      runtime,
+      failedEvidence,
+      `${failedLine}\n`
+    ), true);
+
+    result = run(process.execPath, [
+      path.join(root, 'scripts/evidence.mjs'), 'bridge-verification',
+      '--verification-receipt', verification.id,
+      '--steps', '["proof-step"]',
       '--kind', 'verification', '--scope', 'ambiguous-pairing',
       '--requirement-ids', '["CTRL-EVIDENCE-001","CTRL-PAIRING-001"]',
       '--establishes', '["The authenticated verification step passed.","The second declared claim passed."]',

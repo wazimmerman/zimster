@@ -704,13 +704,23 @@ const COMPLETE_MATRIX = Object.freeze({
       id: 'evidence-micro',
       requirement_ids: ['GATE-001'],
       establishes: ['Micro eligibility is deterministically established.'],
-      does_not_establish: []
+      does_not_establish: [],
+      claim_bindings: [{
+        requirement_id: 'GATE-001',
+        claim: 'Micro eligibility is deterministically established.',
+        input_fingerprints: [{ input: 'micro-proof.json', digest: '1'.repeat(64) }]
+      }]
     },
     {
       id: 'evidence-load-bearing',
       requirement_ids: ['GATE-002'],
       establishes: ['High-risk load-bearing architecture is satisfied.'],
-      does_not_establish: []
+      does_not_establish: [],
+      claim_bindings: [{
+        requirement_id: 'GATE-002',
+        claim: 'High-risk load-bearing architecture is satisfied.',
+        input_fingerprints: [{ input: 'load-bearing-proof.json', digest: '2'.repeat(64) }]
+      }]
     }
   ],
   counts: {
@@ -870,6 +880,25 @@ test('Micro completion rejects boolean self-attestation and stale eligibility re
     assert.equal(result.state, COMPLETION_STATES.PARTIALLY_VERIFIED);
     assert.match(result.reasons.join('\n'), /Micro.*eligibility/i);
   }
+});
+
+test('Micro completion requires an exact claim binding in every proof reference', () => {
+  const matrixResult = structuredClone(COMPLETE_MATRIX);
+  matrixResult.evidence_support[0].claim_bindings = [{
+    requirement_id: 'GATE-002',
+    claim: 'Micro eligibility is deterministically established.',
+    input_fingerprints: [{ input: 'micro-proof.json', digest: '1'.repeat(64) }]
+  }];
+  const result = evaluateCandidateCompletion({
+    profile: 'micro',
+    microEligibility: microEligibility(),
+    ownerVerified: true,
+    matrixResult,
+    candidateHead: SHA_B,
+    candidateTree: TREE
+  });
+  assert.equal(result.state, COMPLETION_STATES.PARTIALLY_VERIFIED);
+  assert.match(result.reasons.join('\n'), /Micro.*eligibility/i);
 });
 
 test('Standard and High-risk work with only self-review remain review pending', () => {
@@ -1347,6 +1376,34 @@ test('High-risk completion rejects boolean or stale load-bearing attestations', 
     assert.equal(result.state, COMPLETION_STATES.REVIEW_PENDING);
     assert.match(result.reasons.join('\n'), /load-bearing review obligations/i);
   }
+});
+
+test('High-risk load-bearing completion requires an exact claim binding in every proof reference', () => {
+  const matrixResult = structuredClone(COMPLETE_MATRIX);
+  matrixResult.evidence_support[1].claim_bindings = [{
+    requirement_id: 'GATE-001',
+    claim: 'High-risk load-bearing architecture is satisfied.',
+    input_fingerprints: [{ input: 'load-bearing-proof.json', digest: '2'.repeat(64) }]
+  }];
+  const result = evaluateCandidateCompletion({
+    profile: 'high-risk',
+    ...completionAssurance(),
+    ownerVerified: true,
+    matrixResult,
+    reviews: [review({
+      intended_claims: ['Candidate claim.'],
+      semantic_lenses: REQUIRED_LENSES
+    })],
+    candidateHead: SHA_B,
+    candidateTree: TREE,
+    candidateBase: SHA_A,
+    reviewPackageId: 'package-001',
+    semanticContractSha256: CONTRACT_SHA,
+    requiredLenses: REQUIRED_LENSES,
+    loadBearingReviewObligations: loadBearingObligations()
+  });
+  assert.equal(result.state, COMPLETION_STATES.REVIEW_PENDING);
+  assert.match(result.reasons.join('\n'), /load-bearing review obligations/i);
 });
 
 test('convention-heavy framework signals select the framework-defaults lens', () => {

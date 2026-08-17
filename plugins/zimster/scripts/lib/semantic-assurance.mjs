@@ -767,7 +767,13 @@ export function evaluateRequirementMatrix({
           requirement_ids: [...(item.requirement_ids || [])].sort(),
           establishes: [...(item.establishes || [])].sort(),
           does_not_establish: [...(item.does_not_establish || [])].sort(),
-          claim_bindings: [...(item.claim_bindings || [])]
+          claim_bindings: validClaimBindings(item).map((binding) => ({
+            requirement_id: binding.requirement_id,
+            claim: binding.claim,
+            input_fingerprints: binding.input_fingerprints.map((fingerprint) => ({
+              ...fingerprint
+            }))
+          }))
         });
       }
     }
@@ -881,7 +887,13 @@ function proofRefsSupport(references, requirementId, claim, matrixResult) {
       return item
         && item.requirement_ids.includes(requirementId)
         && item.establishes.includes(claim)
-        && !item.does_not_establish.includes(claim);
+        && !item.does_not_establish.includes(claim)
+        && item.claim_bindings?.some((binding) =>
+          binding.requirement_id === requirementId
+          && binding.claim === claim
+          && Array.isArray(binding.input_fingerprints)
+          && binding.input_fingerprints.length > 0
+        );
     });
 }
 
