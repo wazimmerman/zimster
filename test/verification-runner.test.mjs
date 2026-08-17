@@ -238,6 +238,52 @@ test('verification runner stops after failure and returns a concise actionable s
   }
 });
 
+test('missing declared input fails the step and terminalizes its governed execution', async () => {
+  const repo = await tempRepo();
+  try {
+    const planFile = path.join(repo, 'plan.json');
+    await writeFile(planFile, `${JSON.stringify({
+      schema_version: 1,
+      profile: 'missing-input-fixture',
+      complete_suite: true,
+      steps: [{
+        id: 'generated-input',
+        command: process.execPath,
+        args: ['-e', 'process.exit(0);'],
+        input_files: ['generated-but-missing.txt']
+      }]
+    })}\n`);
+
+    const result = run(process.execPath, [
+      path.join(root, 'scripts/verify.mjs'), 'run', '--plan', planFile
+    ], repo);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.equal(result.stderr, '');
+    const summary = JSON.parse(result.stdout);
+    assert.equal(summary.status, 'failed');
+    assert.equal(summary.failed_step, 'generated-input');
+    assert.equal(summary.steps[0].reason, 'missing_input');
+    assert.match(summary.action, /generated-but-missing\.txt/);
+
+    const verification = JSON.parse(await readFile(summary.receipt, 'utf8'));
+    assert.equal(verification.status, 'failed');
+    const executionDirectory = path.join(
+      path.dirname(verificationRuntime(repo)), 'executions', 'receipts'
+    );
+    const executionFiles = await readdir(executionDirectory);
+    assert.equal(executionFiles.length, 1);
+    const execution = JSON.parse(await readFile(
+      path.join(executionDirectory, executionFiles[0]), 'utf8'
+    ));
+    assert.equal(execution.status, 'failed');
+    assert.equal(execution.exit_code, 1);
+    assert.equal(execution.terminal_receipt_type, 'verification');
+    assert.equal(execution.terminal_receipt_id, summary.id);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
 test('verification runner rejects warnings from otherwise successful steps', async () => {
   const repo = await tempRepo();
   try {

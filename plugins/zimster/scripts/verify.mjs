@@ -284,21 +284,27 @@ async function runPlan(plan) {
       input,
       digest: await inputDigest(path.resolve(root, input))
     })));
-    if (inputFingerprints.some(({ digest: value }) => value === 'missing')) {
-      throw new Error(`verification step executed input is missing: ${step.id}`);
-    }
-    const result = spawnSync(step.command, step.args, {
-      cwd: root,
-      encoding: 'utf8',
-      env: childEnvironment,
-      shell: false,
-      maxBuffer: 128 * 1024 * 1024
-    });
+    const missingInput = inputFingerprints.find(({ digest: value }) => value === 'missing');
+    const result = missingInput
+      ? {
+          status: 1,
+          stdout: '',
+          stderr: `verification step executed input is missing: ${missingInput.input}\n`
+        }
+      : spawnSync(step.command, step.args, {
+          cwd: root,
+          encoding: 'utf8',
+          env: childEnvironment,
+          shell: false,
+          maxBuffer: 128 * 1024 * 1024
+        });
     const durationMs = Math.round((performance.now() - started) * 1000) / 1000;
-    const changedInput = (await Promise.all(inputFingerprints.map(async ({ input, digest: prior }) => ({
-      input,
-      changed: await inputDigest(path.resolve(root, input)) !== prior
-    })))).find(({ changed }) => changed);
+    const changedInput = missingInput ? null : (await Promise.all(inputFingerprints.map(
+      async ({ input, digest: prior }) => ({
+        input,
+        changed: await inputDigest(path.resolve(root, input)) !== prior
+      })
+    ))).find(({ changed }) => changed);
     const log = logText(step, result);
     const logPath = path.join(logDirectory, `${step.id}.log`);
     await writeFile(logPath, log);
@@ -309,7 +315,9 @@ async function runPlan(plan) {
     const unexpectedStderr = (result.status ?? 1) === 0 && stderr.trim() !== '' && !expectedStderr;
     if (unexpectedStderr) warnings += 1;
     const failed = (result.status ?? 1) !== 0 || unexpectedStderr || Boolean(changedInput);
-    const reason = unexpectedStderr
+    const reason = missingInput
+      ? 'missing_input'
+      : unexpectedStderr
       ? 'unexpected_stderr'
       : changedInput
         ? 'executed_input_changed'
