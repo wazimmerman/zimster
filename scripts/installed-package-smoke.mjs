@@ -233,6 +233,41 @@ writeFileSync(${JSON.stringify(lifecycleOutput)}, JSON.stringify({
     throw new Error('packaged hard lifecycle did not enter strategy escalation');
   }
 
+  const semanticModule = pathToFileURL(path.join(
+    runtimeRoot, 'scripts', 'lib', 'semantic-assurance.mjs'
+  )).href;
+  const postmortemModule = pathToFileURL(path.join(
+    runtimeRoot, 'scripts', 'lib', 'postmortem-state.mjs'
+  )).href;
+  const acceptanceProbeRoot = path.join(home, 'acceptance-evidence-probe');
+  const acceptanceOutput = path.join(home, 'acceptance-evidence-probe.json');
+  const acceptanceProbe = `
+import { mkdir, writeFile } from 'node:fs/promises';
+import { classifyEvidencePurpose as classify, evaluateTddEvidencePair as tdd } from ${JSON.stringify(semanticModule)};
+import { postmortemStateBinding as bind, validatePostmortemState as validate } from ${JSON.stringify(postmortemModule)};
+const diagnostic = classify({ status: 'valid', requirement_ids: [], establishes: ['claim'], dependency_cone: [], dependency_fingerprints: [] });
+if (diagnostic.purpose !== 'diagnostic') throw new Error('unbound evidence established a claim');
+const command = 'a'.repeat(64);
+const red = { id: 'red', kind: 'red', exit_code: 1, requirement_ids: ['TDD-001'], environment_scope: 'node', command_identity: command, governed_execution_authenticated: true, tdd_phase: 'red', tdd_behavior_id: 'packaged-behavior', tdd_red_receipt_id: null, ended_at: '2026-08-17T10:01:00.000Z', tests: { discovery: 'tests_executed', failed: 1 } };
+const green = { id: 'green', exit_code: 0, environment_scope: 'node', command_identity: command, governed_execution_authenticated: true, tdd_phase: 'green', tdd_behavior_id: 'packaged-behavior', tdd_red_receipt_id: 'red', started_at: '2026-08-17T10:02:00.000Z', tests: { discovery: 'tests_executed', passed: 1 } };
+if (tdd({ requirementId: 'TDD-001', behaviorId: 'packaged-behavior', greenEvidence: [green], allEvidence: [red, green] }).status !== 'verified') throw new Error('authentic packaged RED/GREEN pair was rejected');
+if (tdd({ requirementId: 'TDD-001', behaviorId: 'packaged-behavior', greenEvidence: [green], allEvidence: [green] }).status !== 'unavailable') throw new Error('missing packaged RED was reconstructed');
+const runtime = ${JSON.stringify(acceptanceProbeRoot)};
+await mkdir(runtime, { recursive: true });
+await writeFile(runtime + '/budget.json', '{"usage":{"complete_suite_executions":1}}\\n');
+const report = { source_state: await bind(runtime) };
+if (!(await validate(report, runtime)).current) throw new Error('fresh packaged postmortem binding was rejected');
+await writeFile(runtime + '/budget.json', '{"usage":{"complete_suite_executions":2}}\\n');
+if ((await validate(report, runtime)).current) throw new Error('stale packaged postmortem binding was accepted');
+await writeFile(${JSON.stringify(acceptanceOutput)}, JSON.stringify({ diagnostic: true, tdd: true, postmortem_staleness: true }));
+`;
+  execute('--input-type=module', ['-e', acceptanceProbe], fixture, env);
+  const acceptance = JSON.parse(await readFile(acceptanceOutput, 'utf8'));
+  await rm(acceptanceOutput, { force: true });
+  if (!acceptance.diagnostic || !acceptance.tdd || !acceptance.postmortem_staleness) {
+    throw new Error('packaged acceptance evidence probe was incomplete');
+  }
+
   checked = executeResult(
     path.join(runtimeRoot, 'scripts', 'coherence-preflight.mjs'),
     ['check', '--operation', 'completion', '--profile', 'high-risk'],

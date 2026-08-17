@@ -130,6 +130,7 @@ for (const relative of [
   'scripts/semantic-assurance.mjs', 'scripts/lib/semantic-assurance.mjs',
   'scripts/lib/review-lifecycle.mjs',
   'scripts/lib/evidence-validity.mjs', 'scripts/lib/config-layers.mjs',
+  'scripts/lib/governed-terminal-auth.mjs', 'scripts/lib/postmortem-state.mjs',
   'scripts/lib/tar-reader.mjs',
   'scripts/lib/model-routing.mjs',
   'scripts/lib/proposal-state.mjs',

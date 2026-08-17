@@ -103,7 +103,8 @@ test('verify-tag emits GitHub state only from the verified canonical signed payl
       ['standards.json', 'standards_lock_sha256'],
       ['semantic.json', 'semantic_review_sha256'],
       ['hosts.json', 'host_matrix_sha256'],
-      ['verification.json', 'verification_sha256']
+      ['verification.json', 'verification_sha256'],
+      ['postmortem.json', 'postmortem_sha256']
     ]) {
       const data = Buffer.from(`{"fixture":"${option}"}\n`);
       await writeFile(path.join(repo, option), data);
@@ -112,13 +113,14 @@ test('verify-tag emits GitHub state only from the verified canonical signed payl
         const embeddedField = {
           'semantic.json': 'semantic_review_base64',
           'hosts.json': 'host_matrix_base64',
-          'verification.json': 'verification_base64'
+          'verification.json': 'verification_base64',
+          'postmortem.json': 'postmortem_base64'
         }[option];
         embeddedInputs[embeddedField] = data.toString('base64');
       }
     }
     const evidence = {
-      schema_version: 2,
+      schema_version: 3,
       version: '0.7.0',
       tag: 'v0.7.0',
       channel: 'public_beta',
@@ -138,7 +140,7 @@ test('verify-tag emits GitHub state only from the verified canonical signed payl
     ], repo, signedEnv);
     assert.equal(result.status, 0, result.stderr || result.stdout);
 
-    for (const file of ['semantic.json', 'hosts.json', 'verification.json']) {
+    for (const file of ['semantic.json', 'hosts.json', 'verification.json', 'postmortem.json']) {
       await rm(path.join(repo, file));
     }
     result = command(process.execPath, [
@@ -154,6 +156,7 @@ test('verify-tag emits GitHub state only from the verified canonical signed payl
       '--tag', 'v0.7.0', '--trusted-fingerprint', fingerprint,
       '--standards-lock', 'standards.json', '--semantic-review', 'release/evidence/semantic-review.json',
       '--host-matrix', 'release/evidence/host-matrix.json', '--verification', 'release/evidence/verification.json',
+      '--postmortem', 'release/evidence/postmortem.json',
       '--dist', 'dist', '--github-output', githubOutput
     ], repo, signedEnv);
     assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -174,6 +177,7 @@ test('verify-tag emits GitHub state only from the verified canonical signed payl
       '--tag', 'v0.7.0', '--trusted-fingerprint', 'A'.repeat(40),
       '--standards-lock', 'standards.json', '--semantic-review', 'release/evidence/semantic-review.json',
       '--host-matrix', 'release/evidence/host-matrix.json', '--verification', 'release/evidence/verification.json',
+      '--postmortem', 'release/evidence/postmortem.json',
       '--dist', 'dist', '--github-output', rejectedOutput
     ], repo, signedEnv);
     assert.notEqual(result.status, 0);

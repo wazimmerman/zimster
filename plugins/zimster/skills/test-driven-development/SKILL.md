@@ -54,6 +54,18 @@ Write the least production code that makes the focused RED pass. Do not add
 speculative options or unrelated refactors. Run the focused proof, then the
 smallest affected repository-declared test group.
 
+When Zimster will make a TDD compliance claim, record both phases through the
+governed evidence runner with one stable behavior ID. RED uses `--tdd-phase red`
+and a nonzero test result; GREEN uses `--tdd-phase green` plus the exact
+`--tdd-red-receipt`. If the RED receipt was not captured, state `TDD evidence
+unavailable`. Never reconstruct historical RED from commits, logs, or memory.
+
+When Zimster will make a TDD compliance claim, record both phases through the
+governed evidence runner with one stable behavior ID. RED uses `--tdd-phase red`
+and a nonzero test result; GREEN uses `--tdd-phase green` plus the exact
+`--tdd-red-receipt`. If the RED receipt was not captured, state `TDD evidence
+unavailable`. Never reconstruct historical RED from commits, logs, or memory.
+
 ## REFACTOR
 
 Only after GREEN:

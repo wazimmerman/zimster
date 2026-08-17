@@ -6,6 +6,7 @@ import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { root } from './helpers.mjs';
+import { authenticateGovernedEvidenceReceipt } from '../scripts/lib/governed-terminal-auth.mjs';
 
 function run(command, args, cwd) {
   return spawnSync(command, args, {
@@ -110,6 +111,36 @@ test('three governed complete suites derive count three with start and finish re
       .trim().split('\n').map((line) => JSON.parse(line));
     assert.equal(ledger.filter(({ event_type }) => event_type === 'execution_started').length, 3);
     assert.equal(ledger.filter(({ event_type }) => event_type === 'execution_finished').length, 3);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('failed RED evidence remains authentically governed without becoming a passing claim receipt', async () => {
+  const repo = await tempRepo();
+  try {
+    const result = run(process.execPath, [
+      path.join(root, 'scripts/evidence.mjs'), 'run',
+      '--kind', 'red', '--scope', 'focused',
+      '--test-discovery', 'tests_executed',
+      '--tests-discovered', '1', '--tests-passed', '0',
+      '--tests-failed', '1', '--tests-skipped', '0',
+      '--tdd-phase', 'red', '--tdd-behavior', 'claim-binding',
+      '--', process.execPath, '-e', 'process.exit(1);'
+    ], repo);
+    assert.equal(result.status, 1, result.stderr || result.stdout);
+    const receipt = JSON.parse(result.stdout);
+    assert.equal(receipt.tdd_phase, 'red');
+    assert.equal(receipt.exit_code, 1);
+    const ledger = (await readFile(runtimePath(repo, 'evidence', 'receipts.jsonl'), 'utf8'))
+      .split('\n').filter(Boolean);
+    const bytes = `${ledger.find((line) => JSON.parse(line).id === receipt.id)}\n`;
+    assert.equal(await authenticateGovernedEvidenceReceipt(
+      runtimePath(repo), receipt, bytes
+    ), true);
+    assert.equal(await authenticateGovernedEvidenceReceipt(
+      runtimePath(repo), { ...receipt, exit_code: 0 }, bytes
+    ), false);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

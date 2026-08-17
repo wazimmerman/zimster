@@ -232,6 +232,12 @@ An evidence receipt includes:
   harness scope;
 - whether it was a final gate.
 
+Semantic completion derives evidence purpose rather than trusting schema
+presence: only requirement/claim-bound receipts with fingerprinted input or
+dependency provenance establish claims. Unbound receipts are diagnostic.
+Prospective TDD proof uses explicit behavior-matched, governed RED/GREEN receipt
+pairs; absent historical RED evidence remains unavailable.
+
 Focused evidence may be reused only on the same fingerprint. Documentation-only
 changes rerun only affected provenance/packaging proof until the final gate is
 due. Final gates are always fresh. Duplicate evidence is surfaced instead of

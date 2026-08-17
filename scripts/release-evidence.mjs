@@ -7,6 +7,7 @@ import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
 import { evaluateCoherence } from './lib/coherence-preflight.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 import { withControlPlaneMutation } from './lib/control-plane-mutation.mjs';
+import { validatePostmortemState } from './lib/postmortem-state.mjs';
 import {
   githubReleaseState,
   normalizeReleaseSignerFingerprint,
@@ -16,10 +17,14 @@ import {
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
 const artifactPattern = /^zimster-\d+\.\d+\.\d+(?:-(?:claude|codex|openai|portable))?(?:\.zip|\.tgz)$/;
-const embeddedInputOptions = Object.freeze([
+const embeddedInputOptionsV2 = Object.freeze([
   ['semantic_review_base64', 'semantic-review', 'semantic-review.json'],
   ['host_matrix_base64', 'host-matrix', 'host-matrix.json'],
   ['verification_base64', 'verification', 'verification.json']
+]);
+const embeddedInputOptionsV3 = Object.freeze([
+  ...embeddedInputOptionsV2,
+  ['postmortem_base64', 'postmortem', 'postmortem.json']
 ]);
 const maximumEmbeddedInputBytes = 1024 * 1024;
 const maximumSignedTagBytes = 8 * 1024 * 1024;
@@ -28,12 +33,17 @@ async function digestFile(file) {
   return createHash('sha256').update(await readFile(file)).digest('hex');
 }
 
-async function inputDigests() {
+function embeddedOptions(schemaVersion) {
+  return schemaVersion >= 3 ? embeddedInputOptionsV3 : embeddedInputOptionsV2;
+}
+
+async function inputDigests(schemaVersion) {
   const rows = [
     ['standards_lock_sha256', 'standards-lock'],
     ['semantic_review_sha256', 'semantic-review'],
     ['host_matrix_sha256', 'host-matrix'],
-    ['verification_sha256', 'verification']
+    ['verification_sha256', 'verification'],
+    ...(schemaVersion >= 3 ? [['postmortem_sha256', 'postmortem']] : [])
   ];
   return Object.fromEntries(await Promise.all(rows.map(async ([field, option]) => [
     field,
@@ -41,8 +51,8 @@ async function inputDigests() {
   ])));
 }
 
-async function embeddedInputs() {
-  return Object.fromEntries(await Promise.all(embeddedInputOptions.map(async ([field, option]) => {
+async function embeddedInputs(schemaVersion) {
+  return Object.fromEntries(await Promise.all(embeddedOptions(schemaVersion).map(async ([field, option]) => {
     const contents = await readFile(path.resolve(process.cwd(), required(options, option)));
     if (contents.length > maximumEmbeddedInputBytes) {
       throw new Error(`${option} exceeds the ${maximumEmbeddedInputBytes}-byte signed-tag input limit`);
@@ -52,15 +62,16 @@ async function embeddedInputs() {
 }
 
 function decodeEmbeddedInputs(evidence) {
-  if (evidence.schema_version !== 2) {
-    throw new Error('release evidence schema_version 2 is required to materialize signed inputs');
+  if (![2, 3].includes(evidence.schema_version)) {
+    throw new Error('release evidence schema_version 2 or 3 is required to materialize signed inputs');
   }
-  const expectedFields = embeddedInputOptions.map(([field]) => field).sort();
+  const optionsForVersion = embeddedOptions(evidence.schema_version);
+  const expectedFields = optionsForVersion.map(([field]) => field).sort();
   const actualFields = Object.keys(evidence.embedded_inputs || {}).sort();
   if (JSON.stringify(actualFields) !== JSON.stringify(expectedFields)) {
     throw new Error('release evidence embedded_inputs has an invalid inventory');
   }
-  return Object.fromEntries(embeddedInputOptions.map(([field, option, filename]) => {
+  return Object.fromEntries(optionsForVersion.map(([field, option, filename]) => {
     const encoded = evidence.embedded_inputs[field];
     if (typeof encoded !== 'string' || !encoded.length) {
       throw new Error(`${field} must be non-empty canonical base64`);
@@ -74,12 +85,13 @@ function decodeEmbeddedInputs(evidence) {
 }
 
 function verifyEmbeddedInputDigests(evidence) {
-  if (evidence.schema_version !== 2) return;
+  if (evidence.schema_version < 2) return;
   const decoded = decodeEmbeddedInputs(evidence);
   for (const [field, option] of [
     ['semantic_review_sha256', 'semantic-review'],
     ['host_matrix_sha256', 'host-matrix'],
-    ['verification_sha256', 'verification']
+    ['verification_sha256', 'verification'],
+    ...(evidence.schema_version >= 3 ? [['postmortem_sha256', 'postmortem']] : [])
   ]) {
     const digest = createHash('sha256').update(decoded[option].contents).digest('hex');
     if (evidence[field] !== digest) throw new Error(`${option.replace('-', ' ')} embedded digest mismatch`);
@@ -109,8 +121,9 @@ function validateShape(evidence) {
     'standards_lock_sha256', 'semantic_review_sha256', 'host_matrix_sha256',
     'verification_sha256', 'artifacts'
   ];
-  if (![1, 2].includes(evidence.schema_version)) throw new Error('release evidence requires schema_version 1 or 2');
-  if (evidence.schema_version === 2) keys.push('embedded_inputs');
+  if (![1, 2, 3].includes(evidence.schema_version)) throw new Error('release evidence requires schema_version 1, 2, or 3');
+  if (evidence.schema_version >= 2) keys.push('embedded_inputs');
+  if (evidence.schema_version >= 3) keys.push('postmortem_sha256');
   if (!/^\d+\.\d+\.\d+$/.test(evidence.version) || evidence.tag !== `v${evidence.version}`) throw new Error('release version and tag must be matching strict semver');
   if (!['public_beta', 'stable'].includes(evidence.channel)) throw new Error('release channel must be public_beta or stable');
   assertHex(evidence.commit, 40, 'commit');
@@ -126,7 +139,7 @@ async function verifyEvidence(evidence) {
   if (options['expected-tag'] && evidence.tag !== String(options['expected-tag'])) throw new Error('tag does not match release evidence');
   if (options['expected-commit'] && evidence.commit !== String(options['expected-commit'])) throw new Error('commit does not match release evidence');
   if (options['expected-tree'] && evidence.tree !== String(options['expected-tree'])) throw new Error('tree does not match release evidence');
-  const expectedInputs = await inputDigests();
+  const expectedInputs = await inputDigests(evidence.schema_version);
   for (const [field, digest] of Object.entries(expectedInputs)) {
     if (evidence[field] !== digest) throw new Error(`${field.replace('_sha256', '').replaceAll('_', ' ')} digest mismatch`);
   }
@@ -135,8 +148,17 @@ async function verifyEvidence(evidence) {
   return evidence;
 }
 
+async function requireCurrentPostmortem(runtime) {
+  const file = path.resolve(process.cwd(), required(options, 'postmortem'));
+  const report = JSON.parse(await readFile(file, 'utf8'));
+  const validation = await validatePostmortemState(report, runtime);
+  if (!validation.current) throw new Error(`postmortem is stale or disproven: ${validation.reason}`);
+}
+
 if (action === 'create') {
   const root = findRepoRoot(process.cwd());
+  const runtime = await ensureRuntimeDirectory(root);
+  await requireCurrentPostmortem(runtime);
   const coherence = await evaluateCoherence(await ensureRuntimeDirectory(root), root, {
     operation: 'release',
     seamId: options['seam-id'] ? String(options['seam-id']) : 'whole-release'
@@ -150,25 +172,28 @@ if (action === 'create') {
   }
   const version = required(options, 'version');
   const evidence = {
-    schema_version: 2,
+    schema_version: 3,
     version,
     tag: required(options, 'tag'),
     channel: required(options, 'channel'),
     commit: required(options, 'commit'),
     tree: required(options, 'tree'),
-    ...await inputDigests(),
-    embedded_inputs: await embeddedInputs(),
+    ...await inputDigests(3),
+    embedded_inputs: await embeddedInputs(3),
     artifacts: await artifacts(path.resolve(process.cwd(), required(options, 'dist')), version)
   };
   validateShape(evidence);
   const output = path.resolve(process.cwd(), required(options, 'output'));
-  const runtime = await ensureRuntimeDirectory(root);
   await withControlPlaneMutation(runtime, root, {
     mutationType: 'release_evidence_created'
   }, () => writeFile(output, `${JSON.stringify(evidence, null, 2)}\n`));
   writeLine(output);
 } else if (action === 'verify') {
   const evidence = JSON.parse(await readFile(path.resolve(process.cwd(), required(options, 'file')), 'utf8'));
+  if (evidence.schema_version >= 3) {
+    const root = findRepoRoot(process.cwd());
+    await requireCurrentPostmortem(await ensureRuntimeDirectory(root));
+  }
   await verifyEvidence(evidence);
   writeLine(JSON.stringify({ status: 'RELEASE_EVIDENCE_VERIFIED', tag: evidence.tag, artifacts: evidence.artifacts.length }));
 } else if (action === 'extract-tag') {

@@ -5,13 +5,31 @@ import { parseOptions, writeLine } from './lib/cli.mjs';
 import { findRepoRoot } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 import { readRunState } from './lib/run-state.mjs';
+import {
+  postmortemStateBinding,
+  validatePostmortemState
+} from './lib/postmortem-state.mjs';
 
-const { options } = parseOptions(process.argv.slice(2));
+const { positional, options } = parseOptions(process.argv.slice(2));
 const runtime = options.runtime
   ? path.resolve(process.cwd(), String(options.runtime))
   : await ensureRuntimeDirectory(findRepoRoot(process.cwd()));
 const generatedAt = options.now ? new Date(String(options.now)) : new Date();
 if (!Number.isFinite(generatedAt.getTime())) throw new Error('--now must be an ISO-8601 timestamp');
+
+if (positional[0] === 'check') {
+  const file = path.resolve(process.cwd(), String(options.file || ''));
+  if (!options.file) throw new Error('postmortem check requires --file');
+  const report = JSON.parse(await readFile(file, 'utf8'));
+  const validation = await validatePostmortemState(report, runtime);
+  writeLine(JSON.stringify({
+    schema_version: 1,
+    status: validation.current ? 'POSTMORTEM_CURRENT' : 'POSTMORTEM_STALE',
+    report: file,
+    reason: validation.reason
+  }));
+  if (!validation.current) process.exitCode = 2;
+} else {
 
 async function optionalJson(relative) {
   try {
@@ -321,7 +339,8 @@ if (!budget) {
 const report = {
   schema_version: 1,
   generated_at: generatedAt.toISOString(),
-  runtime,
+  runtime: 'git-local:zimster',
+  source_state: await postmortemStateBinding(runtime),
   metrics: {
     identities: metric('identities', identities),
     starts_and_resumes: metric('starts_and_resumes', startsAndResumes),
@@ -396,3 +415,4 @@ writeLine(JSON.stringify({
   unavailable_metrics: report.unavailable_metrics.length,
   report: reportPath
 }));
+}

@@ -84,9 +84,12 @@ checksums.
 
 The canonical payload conforms to `schemas/release-evidence.schema.json` and
 binds the version, tag, channel, commit, tree, standards-lock hash,
-semantic-review hash, host-matrix hash, verification results, artifact names,
-and SHA-256 digests. Schema version 2 also embeds the exact semantic-review,
-host-matrix, and verification inputs. Release CI materializes those signed
+semantic-review hash, host-matrix hash, verification results, current
+postmortem, artifact names, and SHA-256 digests. Schema version 3 embeds the
+exact semantic-review, host-matrix, verification, and durable-state-bound
+postmortem inputs. Release-evidence creation rejects a postmortem whose
+relevant budget, dispatch, review, correction, suite, or evidence source state
+has changed. Release CI materializes those signed
 inputs before verifying their digests, so publication never depends on files
 that cannot be part of the exact reviewed tree. Generate and validate the
 payload with the release-evidence tools, then place that exact JSON in a signed
@@ -94,6 +97,11 @@ annotated tag targeting the reviewed commit.
 
 Never move, delete, or recreate a published tag. Correct a released defect with
 a patch version.
+
+The release verification profile exercises postmortem generation, but its own
+terminal suite receipt changes relevant durable state. Regenerate the
+postmortem after the final exact suite, validate it once, and pass that current
+report to `release:evidence create`.
 
 ## Verification-only CI
 

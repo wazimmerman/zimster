@@ -14,6 +14,10 @@
   state without losing history. A pre-review semantic-digest correction is also
   recoverable without consuming an attempt, while Git ancestry enforces the
   immutable release base.
+- Distinguish diagnostic receipts from fingerprint-backed claim evidence, bind
+  postmortems to the durable state they summarize and embed a current report in
+  release authorization, and require authentic prospective RED/GREEN receipts
+  for any explicit TDD compliance claim instead of reconstructing history.
 
 ## 0.7.0 - 2026-08-07
 

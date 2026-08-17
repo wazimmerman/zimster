@@ -5,6 +5,10 @@ import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { root } from './helpers.mjs';
+import {
+  postmortemStateBinding,
+  validatePostmortemState
+} from '../scripts/lib/postmortem-state.mjs';
 
 function run(args, cwd = root) {
   return spawnSync(process.execPath, [
@@ -224,6 +228,10 @@ test('run postmortem aggregates observed execution economy without mixing token 
     assert.equal(summary.status, 'created');
     const report = JSON.parse(await readFile(summary.report, 'utf8'));
 
+    assert.equal(report.source_state.schema_version, 1);
+    assert.match(report.source_state.sha256, /^[0-9a-f]{64}$/);
+    assert.equal(report.source_state.status, 'supported');
+
     assert.equal(report.metrics.identities.observation, 'observed');
     assert.deepEqual(report.metrics.identities.root, ['root']);
     assert.deepEqual(report.metrics.identities.subagents, ['reviewer-1']);
@@ -257,6 +265,17 @@ test('run postmortem aggregates observed execution economy without mixing token 
     assert.equal(Object.hasOwn(report.metrics.tokens, 'total'), false);
     assert.equal(report.metrics.budget_compliance.status, 'noncompliant');
     assert.deepEqual(report.unavailable_metrics, ['research_events', 'support_matrix']);
+
+    const current = run(['check', '--runtime', runtime, '--file', summary.report]);
+    assert.equal(current.status, 0, current.stderr || current.stdout);
+    assert.match(current.stdout, /POSTMORTEM_CURRENT/);
+
+    const changedBudget = JSON.parse(await readFile(path.join(runtime, 'budget.json'), 'utf8'));
+    changedBudget.usage.complete_suite_executions += 1;
+    await json(path.join(runtime, 'budget.json'), changedBudget);
+    const stale = run(['check', '--runtime', runtime, '--file', summary.report]);
+    assert.equal(stale.status, 2, stale.stderr || stale.stdout);
+    assert.match(stale.stdout, /POSTMORTEM_STALE/);
   } finally {
     await rm(runtime, { recursive: true, force: true });
   }
@@ -275,6 +294,44 @@ test('run postmortem labels absent measurements unavailable instead of inferring
     assert.equal(report.metrics.commands.observation, 'unavailable');
     assert.ok(report.unavailable_metrics.includes('tokens'));
     assert.ok(report.unavailable_metrics.includes('commands'));
+  } finally {
+    await rm(runtime, { recursive: true, force: true });
+  }
+});
+
+test('postmortem binding covers budgets, dispatches, reviews, evidence, and suites', async () => {
+  const runtime = await mkdtemp(path.join(os.tmpdir(), 'zimster-postmortem-binding-'));
+  try {
+    const fixtures = [
+      ['budget.json', { usage: { complete_suite_executions: 1 } }],
+      ['dispatches/dispatches.jsonl', [{ id: 'dispatch-1', role: 'reviewer' }]],
+      ['review-lifecycle/whole-release.json', { seam_id: 'whole-release', state: 'approved' }],
+      ['evidence/receipts.jsonl', [{ id: 'evidence-1', exit_code: 0 }]],
+      ['verification/receipts/suite.json', { id: 'suite-1', status: 'passed' }]
+    ];
+    for (const [relative, value] of fixtures) {
+      const file = path.join(runtime, relative);
+      if (relative.endsWith('.jsonl')) await jsonl(file, value);
+      else await json(file, value);
+    }
+    const report = { source_state: await postmortemStateBinding(runtime) };
+    assert.equal((await validatePostmortemState(report, runtime)).current, true);
+
+    for (const [relative, value] of fixtures) {
+      const file = path.join(runtime, relative);
+      const changed = relative.endsWith('.jsonl')
+        ? [...value, { id: `changed-${relative}` }]
+        : { ...value, changed: true };
+      if (relative.endsWith('.jsonl')) await jsonl(file, changed);
+      else await json(file, changed);
+      assert.equal(
+        (await validatePostmortemState(report, runtime)).current,
+        false,
+        relative
+      );
+      if (relative.endsWith('.jsonl')) await jsonl(file, value);
+      else await json(file, value);
+    }
   } finally {
     await rm(runtime, { recursive: true, force: true });
   }

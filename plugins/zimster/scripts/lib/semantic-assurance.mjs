@@ -215,7 +215,10 @@ export function semanticContractDigest({ bindingRequirements, matrix }) {
       },
       intended_acceptance_claims: [
         ...(entry.intended_acceptance_claims || [])
-      ].sort()
+      ].sort(),
+      ...(entry.tdd_behavior_ids
+        ? { tdd_behavior_ids: [...entry.tdd_behavior_ids].sort() }
+        : {})
     })).sort(byId)
   };
   return createHash('sha256').update(JSON.stringify(contract)).digest('hex');
@@ -500,9 +503,107 @@ function uniqueIds(records, label, issues) {
   return seen;
 }
 
+function completeFingerprintBinding(items, fingerprints) {
+  return Array.isArray(items)
+    && items.length > 0
+    && Array.isArray(fingerprints)
+    && fingerprints.length === items.length
+    && items.every((input, index) =>
+      fingerprints[index]?.input === input
+      && typeof fingerprints[index]?.digest === 'string'
+      && fingerprints[index].digest.length > 0
+    );
+}
+
+export function classifyEvidencePurpose(item) {
+  if (item?.kind === 'postmortem') {
+    return {
+      purpose: 'diagnostic',
+      reason: 'postmortems are durable-state-bound release inputs, not requirement receipts'
+    };
+  }
+  const requirementBound = Array.isArray(item?.requirement_ids)
+    && item.requirement_ids.length > 0;
+  const claimBound = Array.isArray(item?.establishes)
+    && item.establishes.length > 0;
+  const dependencyBound = completeFingerprintBinding(
+    item?.dependency_cone,
+    item?.dependency_fingerprints
+  ) || completeFingerprintBinding(item?.inputs, item?.input_fingerprints);
+  if (item?.status === 'valid' && requirementBound && claimBound && dependencyBound) {
+    return {
+      purpose: 'claim_establishing',
+      reason: null
+    };
+  }
+  const missing = [
+    ...(requirementBound ? [] : ['requirement IDs']),
+    ...(claimBound ? [] : ['established claims']),
+    ...(dependencyBound ? [] : ['fingerprinted input or dependency provenance'])
+  ];
+  return {
+    purpose: 'diagnostic',
+    reason: missing.length
+      ? `missing ${missing.join(', ')}`
+      : `receipt status is ${item?.status || 'unavailable'}`
+  };
+}
+
+export function evaluateTddEvidencePair({
+  requirementId,
+  behaviorId,
+  greenEvidence = [],
+  allEvidence = []
+}) {
+  const green = greenEvidence.find((item) =>
+    item.tdd_phase === 'green'
+    && item.tdd_behavior_id === behaviorId
+    && typeof item.tdd_red_receipt_id === 'string'
+  );
+  const red = green
+    ? allEvidence.find((item) => item.id === green.tdd_red_receipt_id)
+    : null;
+  const redEnded = Date.parse(red?.ended_at);
+  const greenStarted = Date.parse(green?.started_at);
+  const redValid = red
+    && red.governed_execution_authenticated === true
+    && red.tdd_phase === 'red'
+    && red.tdd_behavior_id === behaviorId
+    && red.tdd_red_receipt_id === null
+    && red.requirement_ids?.includes(requirementId)
+    && red.kind === 'red'
+    && Number.isInteger(red.exit_code)
+    && red.exit_code !== 0
+    && red.tests?.discovery === 'tests_executed'
+    && Number.isInteger(red.tests?.failed)
+    && red.tests.failed > 0;
+  const greenValid = green
+    && green.governed_execution_authenticated === true
+    && green.exit_code === 0
+    && green.tests?.discovery === 'tests_executed'
+    && Number.isInteger(green.tests?.passed)
+    && green.tests.passed > 0
+    && typeof green.command_identity === 'string'
+    && red?.command_identity === green.command_identity
+    && red?.environment_scope === green.environment_scope;
+  const chronologyValid = Number.isFinite(redEnded)
+    && Number.isFinite(greenStarted)
+    && redEnded <= greenStarted;
+  return {
+    behavior_id: behaviorId,
+    green_receipt_id: green?.id || null,
+    red_receipt_id: red?.id || green?.tdd_red_receipt_id || null,
+    status: redValid && greenValid && chronologyValid ? 'verified' : 'unavailable'
+  };
+}
+
 function evidenceIssue(entry, item, matrix) {
   if (!item) return 'referenced evidence is missing';
   if (item.status !== 'valid') return `evidence ${item.id} is ${item.status || 'not valid'}`;
+  const classification = classifyEvidencePurpose(item);
+  if (classification.purpose !== 'claim_establishing') {
+    return `diagnostic evidence ${item.id} cannot establish requirement ${entry.id}: ${classification.reason}`;
+  }
   if (!item.requirement_ids?.includes(entry.id)) {
     return `evidence ${item.id} does not support requirement ${entry.id}`;
   }
@@ -540,6 +641,7 @@ export function evaluateRequirementMatrix({
   const allowedClaims = new Set();
   const validEvidenceIds = new Set();
   const evidenceSupport = new Map();
+  const tddEvidence = [];
   const counts = Object.fromEntries(REQUIREMENT_STATES.map((state) => [state, 0]));
   if (!matrix || matrix.schema_version !== 1) issues.push('matrix schema_version must be 1');
   if (!SHA_PATTERN.test(matrix?.candidate_head || '')) {
@@ -571,6 +673,9 @@ export function evaluateRequirementMatrix({
     if (evidenceById.has(item.id)) issues.push(`duplicate evidence ID ${item.id}`);
     evidenceById.set(item.id, item);
   }
+  const classifications = new Map(
+    [...evidenceById].map(([id, item]) => [id, classifyEvidencePurpose(item)])
+  );
   const bindingById = new Map(bindings.map((item) => [item.id, item]));
   for (const entry of entries) {
     if (!REQUIREMENT_STATES.includes(entry.status)) {
@@ -593,6 +698,15 @@ export function evaluateRequirementMatrix({
     }
     if (!Array.isArray(entry.intended_acceptance_claims)) {
       issues.push(`${entry.id}: intended_acceptance_claims must be an array`);
+    }
+    if (entry.tdd_behavior_ids !== undefined && (
+      !Array.isArray(entry.tdd_behavior_ids)
+      || !entry.tdd_behavior_ids.length
+      || !entry.tdd_behavior_ids.every((id) =>
+        typeof id === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)
+      )
+    )) {
+      issues.push(`${entry.id}: tdd_behavior_ids must contain stable kebab-case behavior IDs`);
     }
     const references = Array.isArray(entry.evidence_refs) ? entry.evidence_refs : [];
     const usableEvidence = [];
@@ -639,6 +753,21 @@ export function evaluateRequirementMatrix({
           allowedClaims.add(claim);
         }
       }
+      for (const behaviorId of entry.tdd_behavior_ids || []) {
+        const tdd = evaluateTddEvidencePair({
+          requirementId: entry.id,
+          behaviorId,
+          greenEvidence: usableEvidence,
+          allEvidence: evidenceRecords
+        });
+        if (tdd.status !== 'verified') {
+          const reason = `${entry.id}: TDD evidence unavailable for behavior ${behaviorId}`;
+          issues.push(reason);
+          unverified.push(reason);
+          for (const claim of entry.intended_acceptance_claims || []) allowedClaims.delete(claim);
+        }
+        tddEvidence.push(tdd);
+      }
     } else if (entry.status === 'not_applicable') {
       if (typeof entry.not_applicable_reason !== 'string' || !entry.not_applicable_reason.trim()) {
         issues.push(`${entry.id}: not_applicable status requires a reason`);
@@ -664,11 +793,20 @@ export function evaluateRequirementMatrix({
     valid: issues.length === 0 && unverified.length === 0,
     binding_requirement_ids: [...bindingIds].sort(),
     valid_evidence_ids: [...validEvidenceIds].sort(),
+    claim_establishing_evidence_ids: [...classifications]
+      .filter(([, classification]) => classification.purpose === 'claim_establishing')
+      .map(([id]) => id).sort(),
+    diagnostic_evidence_ids: [...classifications]
+      .filter(([, classification]) => classification.purpose === 'diagnostic')
+      .map(([id]) => id).sort(),
     evidence_support: [...evidenceSupport.values()].sort((left, right) =>
       left.id.localeCompare(right.id)
     ),
     counts,
     allowed_claims: [...allowedClaims].sort(),
+    tdd_evidence: tddEvidence.sort((left, right) =>
+      left.behavior_id.localeCompare(right.behavior_id)
+    ),
     deferred_obligations: [...new Set(deferred)].sort(),
     unverified_obligations: [...new Set(unverified)].sort(),
     issues: [...new Set(issues)].sort()

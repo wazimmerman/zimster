@@ -62,6 +62,7 @@ jobs:
             --semantic-review release/evidence/semantic-review.json \
             --host-matrix release/evidence/host-matrix.json \
             --verification release/evidence/verification.json \
+            --postmortem release/evidence/postmortem.json \
             --dist dist \
             --github-output "$GITHUB_OUTPUT"
       - run: npm run checksums

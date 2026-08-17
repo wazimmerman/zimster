@@ -58,6 +58,8 @@ const includes = [
   'scripts/lib/review-lifecycle.mjs',
   'scripts/lib/review-authorization.mjs',
   'scripts/lib/evidence-validity.mjs',
+  'scripts/lib/governed-terminal-auth.mjs',
+  'scripts/lib/postmortem-state.mjs',
   'scripts/lib/release-evidence.mjs',
   'scripts/lib/tar-reader.mjs',
   'scripts/lib/zip-reader.mjs', 'scripts/lib/zip.mjs',

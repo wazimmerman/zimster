@@ -285,6 +285,12 @@ test('semantic contract digest ignores proof state but changes with binding mean
     }),
     digest
   );
+  const changedTddContract = structuredClone(matrix);
+  changedTddContract.requirements[0].tdd_behavior_ids = ['exact-behavior'];
+  assert.notEqual(
+    semanticContractDigest({ bindingRequirements, matrix: changedTddContract }),
+    digest
+  );
 });
 
 function binding(...ids) {
@@ -320,6 +326,11 @@ function scopedEvidence(id, overrides = {}) {
     git_commit: SHA_B,
     git_tree: TREE,
     dirty_tree_fingerprint: CLEAN_FINGERPRINT,
+    dependency_cone: ['scripts/example.mjs'],
+    dependency_fingerprints: [{
+      input: 'scripts/example.mjs',
+      digest: 'file:' + 'f'.repeat(64)
+    }],
     ...overrides
   };
 }
@@ -384,6 +395,113 @@ test('a complete matrix derives only evidence-backed acceptance claims', () => {
   });
   assert.deepEqual(result.allowed_claims, ['Claim CLAIM-001.', 'Claim MATRIX-001.']);
   assert.deepEqual(result.unverified_obligations, []);
+});
+
+test('unbound schema-valid receipts remain diagnostic and cannot establish requirements', () => {
+  const claim = 'Claim MATRIX-001.';
+  const diagnostic = scopedEvidence('MATRIX-001', {
+    requirement_ids: [],
+    dependency_cone: [],
+    dependency_fingerprints: [],
+    establishes: [claim]
+  });
+  const result = evaluate(
+    [matrixEntry('MATRIX-001')],
+    binding('MATRIX-001'),
+    [diagnostic]
+  );
+
+  assert.equal(result.valid, false);
+  assert.deepEqual(result.diagnostic_evidence_ids, ['evidence-MATRIX-001']);
+  assert.deepEqual(result.claim_establishing_evidence_ids, []);
+  assert.match(result.issues.join('\n'), /diagnostic.*cannot establish requirement/i);
+});
+
+test('claim receipts require fingerprinted input or dependency provenance', () => {
+  const evidence = scopedEvidence('MATRIX-001', {
+    dependency_cone: [],
+    dependency_fingerprints: [],
+    inputs: [],
+    input_fingerprints: []
+  });
+  const result = evaluate(
+    [matrixEntry('MATRIX-001')],
+    binding('MATRIX-001'),
+    [evidence]
+  );
+
+  assert.equal(result.valid, false);
+  assert.deepEqual(result.diagnostic_evidence_ids, ['evidence-MATRIX-001']);
+  assert.match(result.issues.join('\n'), /fingerprinted input or dependency/i);
+});
+
+test('postmortem reports remain diagnostic rather than satisfying matrix claims', () => {
+  const result = evaluate(
+    [matrixEntry('MATRIX-001')],
+    binding('MATRIX-001'),
+    [scopedEvidence('MATRIX-001', { kind: 'postmortem' })]
+  );
+  assert.equal(result.valid, false);
+  assert.deepEqual(result.diagnostic_evidence_ids, ['evidence-MATRIX-001']);
+  assert.match(result.issues.join('\n'), /postmortem.*not requirement receipts/i);
+});
+
+test('prospective TDD claims require an authenticated behavior-matched RED then GREEN pair', () => {
+  const entry = matrixEntry('TDD-001', {
+    evidence_refs: ['green-evidence'],
+    intended_acceptance_claims: ['Behavior is implemented.'],
+    tdd_behavior_ids: ['behavior-one']
+  });
+  const red = scopedEvidence('TDD-001', {
+    id: 'red-evidence',
+    status: 'failed',
+    kind: 'red',
+    exit_code: 1,
+    started_at: '2026-08-17T10:00:00.000Z',
+    ended_at: '2026-08-17T10:01:00.000Z',
+    tests: { discovery: 'tests_executed', discovered: 1, passed: 0, failed: 1, skipped: 0 },
+    command_identity: 'a'.repeat(64),
+    governed_execution_authenticated: true,
+    tdd_phase: 'red',
+    tdd_behavior_id: 'behavior-one',
+    tdd_red_receipt_id: null
+  });
+  const green = scopedEvidence('TDD-001', {
+    id: 'green-evidence',
+    establishes: ['Behavior is implemented.'],
+    exit_code: 0,
+    started_at: '2026-08-17T10:02:00.000Z',
+    ended_at: '2026-08-17T10:03:00.000Z',
+    tests: { discovery: 'tests_executed', discovered: 1, passed: 1, failed: 0, skipped: 0 },
+    command_identity: 'a'.repeat(64),
+    governed_execution_authenticated: true,
+    tdd_phase: 'green',
+    tdd_behavior_id: 'behavior-one',
+    tdd_red_receipt_id: 'red-evidence'
+  });
+
+  const verified = evaluate([entry], binding('TDD-001'), [red, green]);
+  assert.equal(verified.valid, true);
+  assert.deepEqual(verified.tdd_evidence, [{
+    behavior_id: 'behavior-one',
+    green_receipt_id: 'green-evidence',
+    red_receipt_id: 'red-evidence',
+    status: 'verified'
+  }]);
+
+  for (const [label, changed] of [
+    ['missing RED', [green]],
+    ['passing RED', [{ ...red, exit_code: 0 }, green]],
+    ['mismatched behavior', [red, { ...green, tdd_behavior_id: 'behavior-two' }]],
+    ['mismatched command', [red, { ...green, command_identity: 'b'.repeat(64) }]],
+    ['unauthenticated RED', [{ ...red, governed_execution_authenticated: false }, green]],
+    ['reversed chronology', [{ ...red, ended_at: '2026-08-17T10:04:00.000Z' }, green]]
+  ]) {
+    const result = evaluate([entry], binding('TDD-001'), changed);
+    assert.equal(result.valid, false, label);
+    assert.deepEqual(result.allowed_claims, [], label);
+    assert.match(result.unverified_obligations.join('\n'), /TDD evidence unavailable/i, label);
+  }
 });
 
 test('not_applicable requirements require a reason and scoped evidence', () => {

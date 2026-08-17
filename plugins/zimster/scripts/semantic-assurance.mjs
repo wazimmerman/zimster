@@ -22,6 +22,7 @@ import { evaluateCoherence } from './lib/coherence-preflight.mjs';
 import { withControlPlaneMutation } from './lib/control-plane-mutation.mjs';
 import { validateReviewLifecycle } from './lib/review-lifecycle.mjs';
 import { authenticateFinalReviewAuthorization } from './lib/review-authorization.mjs';
+import { authenticateGovernedEvidenceReceipt } from './lib/governed-terminal-auth.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
@@ -50,11 +51,10 @@ async function evidenceRecords(checkout) {
     ? path.resolve(process.cwd(), String(options.evidence))
     : path.join(runtime, 'evidence', 'receipts.jsonl');
   let rows;
+  let rawLines;
   try {
-    rows = (await readFile(file, 'utf8'))
-      .split('\n')
-      .filter(Boolean)
-      .map((line) => JSON.parse(line));
+    rawLines = (await readFile(file, 'utf8')).split('\n').filter(Boolean);
+    rows = rawLines.map((line) => JSON.parse(line));
   } catch (error) {
     if (error.code === 'ENOENT') return [];
     throw error;
@@ -64,6 +64,7 @@ async function evidenceRecords(checkout) {
       .filter((row) => row.record_type === 'invalidation')
       .map((row) => row.receipt_id)
   );
+  const rawLineById = new Map(rawLines.map((line) => [JSON.parse(line).id, line]));
   const records = [];
   for (const row of rows.filter((item) => item.record_type !== 'invalidation')) {
     const staleReason = invalidated.has(row.id)
@@ -73,6 +74,13 @@ async function evidenceRecords(checkout) {
         : null;
     records.push({
       ...row,
+      governed_execution_authenticated: runtime
+        ? await authenticateGovernedEvidenceReceipt(
+          runtime,
+          row,
+          `${rawLineById.get(row.id)}\n`
+        )
+        : false,
       status: invalidated.has(row.id) || staleReason
         ? 'stale'
         : row.exit_code === 0 ? 'valid' : 'failed',

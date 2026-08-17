@@ -81,7 +81,13 @@
             "not_applicable"
           ]
         },
-        "intended_acceptance_claims": {"$ref": "#/$defs/stringList"}
+        "intended_acceptance_claims": {"$ref": "#/$defs/stringList"},
+        "tdd_behavior_ids": {
+          "type": "array",
+          "items": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
+          "uniqueItems": true,
+          "minItems": 1
+        }
       },
       "allOf": [
         {

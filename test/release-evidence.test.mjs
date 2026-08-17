@@ -143,6 +143,11 @@ test('release evidence canonically binds authorization inputs and all five artif
     for (const [file, value] of [[semantic, { verdict: 'approved' }], [matrix, { hosts: [] }], [verification, { status: 'passed' }]]) {
       await writeFile(file, `${JSON.stringify(value)}\n`);
     }
+    const postmortemResult = spawnSync(process.execPath, [
+      path.join(root, 'scripts/run-postmortem.mjs')
+    ], { cwd: repo, encoding: 'utf8' });
+    assert.equal(postmortemResult.status, 0, postmortemResult.stderr || postmortemResult.stdout);
+    const postmortem = JSON.parse(postmortemResult.stdout).report;
     const output = path.join(directory, 'release-evidence.json');
     const version = JSON.parse(await readFile(path.join(root, 'package.json'), 'utf8')).version;
     const tag = `v${version}`;
@@ -151,15 +156,16 @@ test('release evidence canonically binds authorization inputs and all five artif
       '--commit', commit, '--tree', tree,
       '--standards-lock', path.join(root, 'config/standards-lock.json'),
       '--semantic-review', semantic, '--host-matrix', matrix, '--verification', verification,
+      '--postmortem', postmortem,
       '--dist', dist, '--output', output
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const evidence = JSON.parse(await readFile(output, 'utf8'));
-    assert.equal(evidence.schema_version, 2);
+    assert.equal(evidence.schema_version, 3);
     assert.equal(evidence.commit, commit);
     assert.equal(evidence.tree, tree);
     assert.deepEqual(Object.keys(evidence.embedded_inputs).sort(), [
-      'host_matrix_base64', 'semantic_review_base64', 'verification_base64'
+      'host_matrix_base64', 'postmortem_base64', 'semantic_review_base64', 'verification_base64'
     ]);
     assert.equal(
       Buffer.from(evidence.embedded_inputs.semantic_review_base64, 'base64').toString(),
@@ -173,6 +179,7 @@ test('release evidence canonically binds authorization inputs and all five artif
       'verify', '--file', output, '--expected-tag', tag, '--expected-commit', commit,
       '--expected-tree', tree, '--standards-lock', path.join(root, 'config/standards-lock.json'),
       '--semantic-review', semantic, '--host-matrix', matrix, '--verification', verification,
+      '--postmortem', postmortem,
       '--dist', dist
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -182,10 +189,25 @@ test('release evidence canonically binds authorization inputs and all five artif
       'verify', '--file', output, '--expected-tag', tag, '--expected-commit', commit,
       '--expected-tree', tree, '--standards-lock', path.join(root, 'config/standards-lock.json'),
       '--semantic-review', semantic, '--host-matrix', matrix, '--verification', verification,
+      '--postmortem', postmortem,
       '--dist', dist
     ], repo);
     assert.notEqual(result.status, 0);
     assert.match(result.stderr, /verification.*digest/i);
+
+    await writeFile(verification, '{"status":"passed"}\n');
+    const runtime = path.join(repo, '.git', 'zimster');
+    const budget = JSON.parse(await readFile(path.join(runtime, 'budget.json'), 'utf8'));
+    budget.usage.complete_suite_executions += 1;
+    await writeFile(path.join(runtime, 'budget.json'), `${JSON.stringify(budget, null, 2)}\n`);
+    result = run([
+      'verify', '--file', output, '--expected-tag', tag, '--expected-commit', commit,
+      '--expected-tree', tree, '--standards-lock', path.join(root, 'config/standards-lock.json'),
+      '--semantic-review', semantic, '--host-matrix', matrix, '--verification', verification,
+      '--postmortem', postmortem, '--dist', dist
+    ], repo);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /postmortem.*stale|stale.*postmortem/i);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

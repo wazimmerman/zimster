@@ -139,9 +139,10 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
   const discovery = testDiscovery(options, passed, failed);
   const harness = options.harness ? String(options.harness) : null;
   const explicitBehavior = options['behavioral-evidence'];
+  const tddPhase = options['tdd-phase'] ? String(options['tdd-phase']) : null;
   const inputs = await canonicalInputIdentities(listOption('inputs'), workingDirectory);
   const behavioralEvidence = explicitBehavior === undefined
-    ? exitCode === 0 && discovery === 'tests_executed'
+    ? (exitCode === 0 || tddPhase === 'red') && discovery === 'tests_executed'
     : ['true', '1', 'yes'].includes(String(explicitBehavior).toLowerCase());
   const recordedEnvironment = environment(options['host-version'] ? String(options['host-version']) : null);
   const dependencies = await canonicalInputIdentities(listOption('dependencies'), root);
@@ -200,6 +201,11 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
     environment_scope: options['environment-scope']
       ? String(options['environment-scope'])
       : null,
+    tdd_phase: tddPhase,
+    tdd_behavior_id: options['tdd-behavior'] ? String(options['tdd-behavior']) : null,
+    tdd_red_receipt_id: options['tdd-red-receipt']
+      ? String(options['tdd-red-receipt'])
+      : null,
     notes: options.notes ? String(options.notes) : null
   };
   validateReceipt(receipt);
@@ -236,6 +242,35 @@ function validateReceipt(receipt) {
     || (receipt.exit_code !== 0 && receipt.kind !== 'red')
   )) {
     throw new Error('behavioral evidence requires executed tests and a successful command (except explicit red evidence)');
+  }
+  if (receipt.tdd_phase !== null) {
+    if (!['red', 'green'].includes(receipt.tdd_phase)) {
+      throw new Error('--tdd-phase must be red or green');
+    }
+    if (!receipt.tdd_behavior_id || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(receipt.tdd_behavior_id)) {
+      throw new Error('TDD evidence requires a stable kebab-case --tdd-behavior');
+    }
+    if (receipt.tdd_phase === 'red' && (
+      receipt.kind !== 'red'
+      || receipt.exit_code === 0
+      || discovery !== 'tests_executed'
+      || !Number.isInteger(failed)
+      || failed <= 0
+      || receipt.tdd_red_receipt_id !== null
+    )) {
+      throw new Error('TDD RED evidence requires kind red, failing executed tests, and no predecessor');
+    }
+    if (receipt.tdd_phase === 'green' && (
+      receipt.exit_code !== 0
+      || discovery !== 'tests_executed'
+      || !Number.isInteger(passed)
+      || passed <= 0
+      || !receipt.tdd_red_receipt_id
+    )) {
+      throw new Error('TDD GREEN evidence requires passing executed tests and --tdd-red-receipt');
+    }
+  } else if (receipt.tdd_behavior_id !== null || receipt.tdd_red_receipt_id !== null) {
+    throw new Error('TDD behavior or RED predecessor metadata requires --tdd-phase');
   }
 }
 

@@ -264,6 +264,18 @@
         "string",
         "null"
       ]
+    },
+    "tdd_phase": {
+      "type": ["string", "null"],
+      "enum": ["red", "green", null]
+    },
+    "tdd_behavior_id": {
+      "type": ["string", "null"],
+      "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"
+    },
+    "tdd_red_receipt_id": {
+      "type": ["string", "null"],
+      "minLength": 1
     }
   },
   "additionalProperties": true,

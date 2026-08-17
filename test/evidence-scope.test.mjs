@@ -86,6 +86,9 @@ test('evidence schema accepts runtime scopes and requires semantic scope fields 
   const idPattern = new RegExp(schema.properties.requirement_ids.items.pattern);
   assert.equal(idPattern.test('CTRL-PACKAGE-001'), true);
   assert.equal(idPattern.test('CTRL-package-001'), false);
+  assert.deepEqual(schema.properties.tdd_phase.enum, ['red', 'green', null]);
+  assert.equal(schema.properties.tdd_behavior_id.pattern, '^[a-z0-9]+(?:-[a-z0-9]+)*$');
+  assert.deepEqual(schema.properties.tdd_red_receipt_id.type, ['string', 'null']);
 });
 
 test('semantic review schema binds the stable semantic contract separately from matrix state', async () => {

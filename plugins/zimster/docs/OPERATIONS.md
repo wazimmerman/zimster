@@ -154,7 +154,11 @@ npm run postmortem
 Capability status is scoped to one host. Expiry, version change, validator
 contradiction, a task changing that integration, or an explicit fresh-research
 request are the only refresh triggers. The postmortem is run-scoped and keeps
-incompatible token meters separate.
+incompatible token meters separate. It records a digest manifest for the
+canonical durable inputs used to derive it. Validate it with
+`npm run postmortem -- check --file <report>`; any relevant later durable-state
+change returns `POSTMORTEM_STALE`, requiring regeneration before release
+authorization.
 
 ## Canonical command inventory
 
@@ -419,6 +423,14 @@ New receipts may also carry `--requirement-ids`, `--establishes`,
 `--does-not-establish`, and `--environment-scope`. Use JSON arrays when a claim
 contains commas. This prevents a narrow native harness or fixture from being
 reported as broad compatibility proof.
+
+Completion classifies a receipt as `claim_establishing` only when it binds at
+least one requirement and established claim to fingerprinted inputs or
+dependencies. Other receipts remain useful diagnostics but cannot satisfy a
+requirement. A prospective TDD claim additionally names `tdd_behavior_ids` in
+the matrix and requires authenticated governed `red` and `green` evidence for
+the same behavior in chronological order. If the RED receipt was never
+captured, report TDD evidence unavailable; never reconstruct it from history.
 
 Test-discovery values are `not_reached`, `zero_discovered`, `tests_executed`,
 and `unknown`. `unknown` and `not_reached` carry no counts; `zero_discovered`

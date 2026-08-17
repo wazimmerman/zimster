@@ -13,6 +13,16 @@ import {
 
 const CLEAN_FINGERPRINT = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
+function claimProvenance(contents = 'candidate\n') {
+  return {
+    dependency_cone: ['tracked.txt'],
+    dependency_fingerprints: [{
+      input: 'tracked.txt',
+      digest: `file:${createHash('sha256').update(contents).digest('hex')}`
+    }]
+  };
+}
+
 function semanticContractSha256(bindingRequirements, matrix) {
   const byId = (left, right) => left.id.localeCompare(right.id);
   return createHash('sha256').update(JSON.stringify({
@@ -28,7 +38,10 @@ function semanticContractSha256(bindingRequirements, matrix) {
       evidence_scope: {
         environment: entry.evidence_scope?.environment || null
       },
-      intended_acceptance_claims: [...entry.intended_acceptance_claims].sort()
+      intended_acceptance_claims: [...entry.intended_acceptance_claims].sort(),
+      ...(entry.tdd_behavior_ids
+        ? { tdd_behavior_ids: [...entry.tdd_behavior_ids].sort() }
+        : {})
     })).sort(byId)
   })).digest('hex');
 }
@@ -255,7 +268,8 @@ test('matrix CLI emits machine-readable coverage and a human summary', async () 
       requirement_ids: ['MATRIX-001'],
       establishes: ['Matrix coverage is validated.'],
       does_not_establish: [],
-      environment_scope: 'node-linux'
+      environment_scope: 'node-linux',
+      ...claimProvenance()
     })}\n`);
 
     const result = run([
@@ -335,7 +349,8 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       requirement_ids: ['GATE-001'],
       establishes: ['Candidate completion is gated.'],
       does_not_establish: [],
-      environment_scope: 'node-linux'
+      environment_scope: 'node-linux',
+      ...claimProvenance()
     })}\n`);
     await writeFile(reviewsPath, JSON.stringify({
       schema_version: 1,
@@ -529,7 +544,8 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       environment_scope: 'node-linux',
       git_commit: candidateHead,
       git_tree: candidateTree,
-      dirty_tree_fingerprint: CLEAN_FINGERPRINT
+      dirty_tree_fingerprint: CLEAN_FINGERPRINT,
+      ...claimProvenance()
     });
     await writeFile(matrixPath, JSON.stringify(requirementMatrix));
     result = run([
@@ -683,7 +699,8 @@ test('completion CLI rejects a review that is not bound to its exact package and
       requirement_ids: ['GATE-001'],
       establishes: ['Approval is bound to exact inputs.'],
       does_not_establish: [],
-      environment_scope: 'node-linux'
+      environment_scope: 'node-linux',
+      ...claimProvenance()
     })}\n`);
     await writeFile(reviewsPath, JSON.stringify({
       schema_version: 1,
