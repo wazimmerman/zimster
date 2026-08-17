@@ -69,6 +69,15 @@ test('review lifecycle CLI durably records the consumed recheck and breaker', as
     assert.notEqual(result.status, 0, result.stderr || result.stdout);
     assert.match(result.stderr, /head.*commit|commit.*head|git object/i);
 
+    const unrelatedHead = spawnSync('git', ['commit-tree', tree, '-m', 'unrelated'], {
+      cwd: repo, encoding: 'utf8'
+    }).stdout.trim();
+    result = run(repo, 'candidate', '--seam-id', 'release-policy',
+      '--base', base, '--head', unrelatedHead, '--tree', tree,
+      '--dirty-tree-fingerprint', CLEAN, '--semantic-contract-sha256', CONTRACT);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /base.*ancestor|ancestry/i);
+
     const initialPackage = await reviewPackage(
       '1'.repeat(24), 'initial_review', 'attempt-initial', base, tree
     );
@@ -238,7 +247,7 @@ test('review lifecycle CLI refuses nonexistent evidence for exhausted-review app
       '--reason', 'A forged reference must not authorize the candidate.',
       '--evidence-refs', JSON.stringify(['does-not-exist']));
     assert.notEqual(result.status, 0, result.stderr || result.stdout);
-    assert.match(result.stderr, /caller-supplied|reviewer disposition|not authoritative/i);
+    assert.match(result.stderr, /caller-authored approval|trusted reviewer-output attestation/i);
     const persisted = JSON.parse(await readFile(
       path.join(lifecycleDirectory, 'release-policy.json'), 'utf8'
     ));
@@ -356,7 +365,7 @@ test('review lifecycle CLI rejects a governed plan that self-asserts finding cov
       '--reason', 'A trivial plan must not authorize the candidate.',
       '--evidence-refs', JSON.stringify([receiptId]));
     assert.notEqual(result.status, 0, result.stderr || result.stdout);
-    assert.match(result.stderr, /caller-supplied|reviewer disposition|self-asserted|not authoritative/i);
+    assert.match(result.stderr, /caller-authored approval|trusted reviewer-output attestation/i);
 
     const finalPackageDirectory = path.join(runtime, 'reviews', 'f'.repeat(24));
     const finalPackage = path.join(finalPackageDirectory, 'review-package.json');
@@ -390,7 +399,7 @@ test('review lifecycle CLI rejects a governed plan that self-asserts finding cov
       '--routing-observation-id', 'observation-reviewer-resolution',
       '--resolutions', JSON.stringify(resolutions));
     assert.notEqual(result.status, 0, result.stderr || result.stdout);
-    assert.match(result.stderr, /dispatch|routing observation|authoritative reviewer/i);
+    assert.match(result.stderr, /trusted reviewer-output attestation.*unavailable|cannot authorize/i);
 
     const dispatchDirectory = path.join(runtime, 'dispatches');
     const routingDirectory = path.join(runtime, 'routing');
@@ -435,60 +444,13 @@ test('review lifecycle CLI rejects a governed plan that self-asserts finding cov
       '--dispatch-id', 'dispatch-reviewer-resolution',
       '--routing-observation-id', 'observation-reviewer-resolution',
       '--resolutions', JSON.stringify(resolutions));
-    assert.equal(result.status, 0, result.stderr || result.stdout);
-    let persisted = JSON.parse(result.stdout);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /trusted reviewer-output attestation.*unavailable|cannot authorize/i);
+    const persisted = JSON.parse(await readFile(
+      path.join(lifecycleDirectory, 'release-policy.json'), 'utf8'
+    ));
     assert.equal(persisted.status, 'strategy_escalation_required');
-    assert.equal(persisted.reviewer_dispositions.at(-1).disposition_id,
-      'reviewer-resolution-1');
-
-    result = run(repo, 'disposition', '--seam-id', 'release-policy',
-      '--disposition', 'reviewer_rebutted_with_evidence',
-      '--reviewer-disposition-id', 'reviewer-resolution-1',
-      '--reason', 'The same reviewer resolved the exact final finding.');
-    assert.equal(result.status, 0, result.stderr || result.stdout);
-    persisted = JSON.parse(result.stdout);
-    assert.equal(persisted.status, 'final_approved');
-    assert.equal(persisted.dispositions.at(-1).reviewer_disposition_id,
-      'reviewer-resolution-1');
-
-    result = run(repo, 'show', '--seam-id', 'release-policy');
-    assert.equal(result.status, 0, result.stderr || result.stdout);
-    const dispatchFile = path.join(dispatchDirectory, 'dispatches.jsonl');
-    const dispatch = JSON.parse((await readFile(dispatchFile, 'utf8')).trim());
-    dispatch.owner_acceptance.proof = 'different-reviewer-disposition';
-    await writeFile(dispatchFile, `${JSON.stringify(dispatch)}\n`);
-    result = run(repo, 'show', '--seam-id', 'release-policy');
-    assert.notEqual(result.status, 0, result.stderr || result.stdout);
-    assert.match(result.stderr, /accepted authoritative reviewer dispatch/i);
-    dispatch.owner_acceptance.proof = 'reviewer-resolution-1';
-    await writeFile(dispatchFile, `${JSON.stringify(dispatch)}\n`);
-    result = run(repo, 'show', '--seam-id', 'release-policy');
-    assert.equal(result.status, 0, result.stderr || result.stdout);
-    await writeFile(dispatchFile, `${JSON.stringify(dispatch)}\n${JSON.stringify(dispatch)}\n`);
-    result = run(repo, 'show', '--seam-id', 'release-policy');
-    assert.notEqual(result.status, 0, result.stderr || result.stdout);
-    assert.match(result.stderr, /accepted authoritative reviewer dispatch/i);
-    await writeFile(dispatchFile, `${JSON.stringify(dispatch)}\n`);
-    dispatch.owner_acceptance.status = 'rejected';
-    await writeFile(dispatchFile, `${JSON.stringify(dispatch)}\n`);
-    result = run(repo, 'show', '--seam-id', 'release-policy');
-    assert.notEqual(result.status, 0, result.stderr || result.stdout);
-    assert.match(result.stderr, /accepted authoritative reviewer dispatch/i);
-    dispatch.owner_acceptance.status = 'accepted';
-    await writeFile(dispatchFile, `${JSON.stringify(dispatch)}\n`);
-    result = run(repo, 'show', '--seam-id', 'release-policy');
-    assert.equal(result.status, 0, result.stderr || result.stdout);
-    const observationFile = path.join(routingDirectory, 'observations.jsonl');
-    const observation = JSON.parse((await readFile(observationFile, 'utf8')).trim());
-    observation.evidence_references = ['different-reviewer-disposition'];
-    await writeFile(observationFile, `${JSON.stringify(observation)}\n`);
-    result = run(repo, 'show', '--seam-id', 'release-policy');
-    assert.notEqual(result.status, 0, result.stderr || result.stdout);
-    assert.match(result.stderr, /accepted routing observation/i);
-    await writeFile(observationFile, '');
-    result = run(repo, 'show', '--seam-id', 'release-policy');
-    assert.notEqual(result.status, 0, result.stderr || result.stdout);
-    assert.match(result.stderr, /accepted routing observation/i);
+    assert.deepEqual(persisted.reviewer_dispositions, []);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

@@ -206,9 +206,9 @@ fresh attempt ID cannot create a third final review.
 If a load-bearing finding remains after the recheck, stop the loop. Choose one
 evidence-backed route:
 
-1. reviewer wrong: record technical ruling and proof;
+1. reviewer wrong: revise the design for a new semantic review epoch or stop for owner escalation;
 2. contradictory requirement/design: `BLOCKED_BY_REQUIREMENT` or return to owner;
-3. real but non-load-bearing: record explicit deferral;
+3. real but non-load-bearing: record a partial result unless a trusted host can attest the reviewer result;
 4. real and load-bearing: revise design or stop blocked;
 5. evidence unavailable: report the strongest partial state.
 
@@ -217,19 +217,17 @@ Silent dismissal is forbidden.
 The failed `correction_recheck` persists `circuit_breaker_active` and consumes
 the seam's only recheck. While active, `review-lifecycle.mjs` rejects another
 recheck, a replacement or freshly named reviewer, final integration review,
-and candidate completion. Resolve it only with an evidence-backed supported
+and candidate completion. Resolve it only with a fail-closed supported
 disposition. A `design_revision` resets review accounting only when the
 semantic-contract digest changes and prior attempt approval/evidence is
 invalidated.
 
-For `reviewer_rebutted_with_evidence` or `non_load_bearing_deferral`, do not
-use a verification plan's caller-authored `establishes` labels as authority.
-The same reviewer must return a typed resolution for every load-bearing
-finding, bound to the exhausted attempt/package/candidate. Record it with
-`reviewer-disposition` only after its dedicated high-risk dispatch is accepted
-and observed with the exact disposition ID as the acceptance proof and
-observation evidence reference. Final authorization rechecks that dispatch, routing observation,
-immutable package, and current checkout; missing or edited records fail closed.
+Owner-managed dispatch/routing rows and verification labels cannot authenticate
+a post-review reviewer result. Until the harness provides a trusted
+reviewer-output attestation, `reviewer_rebutted_with_evidence`,
+`non_load_bearing_deferral`, and `reviewer-disposition` fail closed. Choose
+`design_revision`, `blocked_by_requirement`, or `partial_or_blocked`; only an
+approved exact final-review verdict can authorize completion.
 
 Before starting a final integration review, run
 `coherence-preflight.mjs check --operation review --seam-id <stable-id>`.

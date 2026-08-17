@@ -46,10 +46,12 @@ contract digest; renaming an attempt or making a trivial edit does not reset
 cardinality.
 
 Legacy approval dispositions that contain only caller-supplied evidence
-references do not acquire release authority during migration. Record a new
-typed same-reviewer disposition bound to an accepted `review-disposition`
-dispatch and routing observation, or choose a material design revision. The
-old event remains preserved as history while final authorization fails closed.
+references do not acquire release authority during migration. `reconcile`
+preserves the old event, appends `legacy_untrusted_approval_reconciled`, and
+restores the failed correction recheck's circuit breaker or the failed final
+review's required strategy escalation. Choose a material design revision,
+`blocked_by_requirement`, or `partial_or_blocked`; only an approved exact
+final-review verdict can authorize completion.
 
 `run.md` is regenerated from canonical machine state after migration. Manual
 legacy prose remains historical context only and cannot outrank `run.json`,

@@ -245,35 +245,17 @@ final integration attempts. A second failed final attempt enters durable
 override can reset that hard limit.
 
 An approval disposition is not a verification-plan escape hatch. A passed
-command may not authorize itself by declaring a `review-finding:*` value. The
-same reviewer first returns a structured resolution for every load-bearing
-finding. Record it through an accepted high-risk dispatch whose proof kind is
-`review-disposition`, whose traits include `strategy-disposition`, and whose
-dependency cone contains the exhausted attempt's immutable package:
+command may not authorize itself by declaring a `review-finding:*` value, and
+owner-managed dispatch/routing rows cannot prove that a reviewer authored a
+later result. Until a harness supplies a trusted reviewer-output attestation,
+`reviewer_rebutted_with_evidence`, `non_load_bearing_deferral`, and the
+`reviewer-disposition` command fail closed. Use `design_revision`,
+`blocked_by_requirement`, or `partial_or_blocked`; only an approved exact
+final-review verdict can produce `final_approved`.
 
-```text
-node <zimster>/scripts/review-lifecycle.mjs reviewer-disposition \
-  --seam-id <stable-id> --disposition-id <stable-id> \
-  --attempt-id <exhausted-attempt-id> --reviewer-identity <same-reviewer-id> \
-  --review-package <canonical-review-package.json> \
-  --conclusion reviewer_rebutted_with_evidence \
-  --dispatch-id <accepted-dispatch-id> \
-  --routing-observation-id <accepted-observation-id> \
-  --resolutions '<finding-resolution-json-array>'
-
-node <zimster>/scripts/review-lifecycle.mjs disposition \
-  --seam-id <stable-id> \
-  --disposition reviewer_rebutted_with_evidence \
-  --reviewer-disposition-id <stable-id> --reason <technical-ruling>
-```
-
-Each resolution binds the canonical finding fingerprint, an outcome of
-`rebutted` or `non_load_bearing` matching the conclusion, and the reviewer's
-evidence citations. The dispatch acceptance proof and routing observation
-evidence references must name the exact disposition ID. Lifecycle replay proves that this reviewer decision
-preceded approval. CLI reads, coherence preflight, and semantic completion
-then reauthenticate its package/dispatch/observation ledgers and current
-checkout. Missing or edited external records invalidate the approval.
+Every candidate command also verifies that `base_sha` is a Git ancestor of
+`head_sha`; an existing but unrelated or predating head cannot preserve the
+base merely by repeating its SHA string.
 
 After semantic approval and before a final integration attempt is active,
 `candidate` may advance the exact head/tree only while retaining the approved

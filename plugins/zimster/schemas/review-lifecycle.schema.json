@@ -80,7 +80,8 @@
             "trigger": {
               "enum": [
                 "final_review_attempts_exhausted",
-                "historical_review_attempts_exceeded_hard_limit"
+                "historical_review_attempts_exceeded_hard_limit",
+                "legacy_untrusted_final_approval"
               ]
             },
             "attempt_id": {"type": "string", "minLength": 1},
@@ -109,6 +110,7 @@
     },
     "reviewer_dispositions": {
       "type": "array",
+      "description": "Historical audit records only; 0.7.1 cannot use owner-managed reviewer disposition records to authorize approval.",
       "items": {"$ref": "#/$defs/reviewerDisposition"}
     },
     "dispositions": {"type": "array", "items": {"type": "object"}},

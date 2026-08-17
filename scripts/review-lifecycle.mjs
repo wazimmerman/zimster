@@ -11,10 +11,6 @@ import {
   reconcileReviewLifecycle,
   validateReviewLifecycle
 } from './lib/review-lifecycle.mjs';
-import {
-  authenticateFinalReviewAuthorization,
-  authenticateReviewerDisposition
-} from './lib/review-authorization.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
@@ -48,6 +44,14 @@ function candidateFromOptions() {
   if (actualTree !== candidate.tree_sha) {
     throw new Error('candidate tree_sha must equal the immutable head commit tree');
   }
+  const ancestry = runGit(
+    ['merge-base', '--is-ancestor', candidate.base_sha, candidate.head_sha],
+    root,
+    { allowFailure: true }
+  );
+  if (ancestry.status !== 0) {
+    throw new Error('candidate base_sha must be an ancestor of candidate head_sha');
+  }
   return candidate;
 }
 
@@ -62,9 +66,7 @@ function jsonOption(name, fallback = null) {
 
 async function readState() {
   try {
-    const state = validateReviewLifecycle(JSON.parse(await readFile(stateFile, 'utf8')));
-    await authenticateFinalReviewAuthorization(runtime, state, { cwd: root });
-    return state;
+    return validateReviewLifecycle(JSON.parse(await readFile(stateFile, 'utf8')));
   } catch (error) {
     if (error.code === 'ENOENT') throw new Error(`review lifecycle is not initialized: ${seamId}`);
     throw error;
@@ -187,22 +189,10 @@ async function dispositionEvidence(state, disposition) {
       reviewerDispositionId: null
     };
   }
-  if (options['evidence-refs'] !== undefined) {
-    throw new Error(
-      'approval dispositions reject caller-supplied evidence refs; use --reviewer-disposition-id'
-    );
-  }
-  const reviewerDispositionId = required(options, 'reviewer-disposition-id');
-  const reviewerDisposition = (state.reviewer_dispositions || [])
-    .find(({ disposition_id }) => disposition_id === reviewerDispositionId);
-  if (!reviewerDisposition) {
-    throw new Error('approval requires an authoritative reviewer disposition');
-  }
-  await authenticateReviewerDisposition(runtime, state, reviewerDisposition, { cwd: root });
-  return {
-    evidenceRefs: [`reviewer-disposition:${reviewerDispositionId}`],
-    reviewerDispositionId
-  };
+  void state;
+  throw new Error(
+    'trusted reviewer-output attestation is unavailable; caller-authored approval cannot authorize review'
+  );
 }
 
 let state;
@@ -274,34 +264,9 @@ if (action === 'init') {
     type: 'candidate_stabilized'
   })));
 } else if (action === 'reviewer-disposition') {
-  state = await coordinated('reviewer_disposition_recorded', () => mutate(async (current) => {
-    const attemptId = required(options, 'attempt-id');
-    const attempt = current.attempts.find(({ attempt_id }) => attempt_id === attemptId);
-    if (!attempt) throw new Error(`review attempt not found: ${attemptId}`);
-    const expectedPackage = path.join(
-      runtime, 'reviews', attempt.review_package_id, 'review-package.json'
-    );
-    const suppliedPackage = path.resolve(process.cwd(), required(options, 'review-package'));
-    if (suppliedPackage !== expectedPackage) {
-      throw new Error('reviewer disposition must use the canonical exhausted-attempt package');
-    }
-    const event = {
-      type: 'reviewer_disposition_recorded',
-      disposition_id: required(options, 'disposition-id'),
-      attempt_id: attemptId,
-      reviewer_identity: required(options, 'reviewer-identity'),
-      review_package_id: attempt.review_package_id,
-      candidate: structuredClone(current.candidate),
-      conclusion: required(options, 'conclusion'),
-      dispatch_id: required(options, 'dispatch-id'),
-      routing_observation_id: required(options, 'routing-observation-id'),
-      resolutions: jsonOption('resolutions', [])
-    };
-    const proposed = applyReviewLifecycleEvent(current, event);
-    const record = proposed.reviewer_dispositions.at(-1);
-    await authenticateReviewerDisposition(runtime, proposed, record, { cwd: root });
-    return event;
-  }));
+  throw new Error(
+    'trusted reviewer-output attestation is unavailable; caller-authored reviewer dispositions cannot authorize review'
+  );
 } else if (action === 'disposition') {
   state = await coordinated('review_disposition_recorded', () => mutate(async (current) => {
     const disposition = required(options, 'disposition');
@@ -326,7 +291,7 @@ if (action === 'init') {
 } else if (action === 'show') {
   state = await readState();
 } else {
-  throw new Error('Usage: review-lifecycle.mjs <init|start|verdict|correction|candidate|stabilize|reviewer-disposition|disposition|reconcile|show> --seam-id <id> [options]');
+  throw new Error('Usage: review-lifecycle.mjs <init|start|verdict|correction|candidate|stabilize|disposition|reconcile|show> --seam-id <id> [options]');
 }
 
 writeLine(JSON.stringify(state));

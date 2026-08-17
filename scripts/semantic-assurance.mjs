@@ -306,17 +306,9 @@ async function completionDecision() {
     ? await executionBudgetIssues(executionBudget, runtimeDirectory, reviewLifecycles)
     : [];
   const reviewerAuthorizationIssues = [];
-  const authenticatedReviewerDispositionIds = [];
   if (reviewLifecycle) {
     try {
-      const authorization = await authenticateFinalReviewAuthorization(
-        runtimeDirectory,
-        reviewLifecycle,
-        { cwd: root }
-      );
-      if (authorization.type === 'reviewer_disposition') {
-        authenticatedReviewerDispositionIds.push(authorization.disposition_id);
-      }
+      await authenticateFinalReviewAuthorization(runtimeDirectory, reviewLifecycle, { cwd: root });
     } catch (error) {
       reviewerAuthorizationIssues.push(error.message);
     }
@@ -367,8 +359,7 @@ async function completionDecision() {
     correctionPending: options['correction-pending'] === true,
     reviewLifecycle,
     reviewLifecycles,
-    assuranceAccounting,
-    authenticatedReviewerDispositionIds
+    assuranceAccounting
   });
   if (result.state === COMPLETION_STATES.CANDIDATE_COMPLETE) {
     await withControlPlaneMutation(runtimeDirectory, root, {

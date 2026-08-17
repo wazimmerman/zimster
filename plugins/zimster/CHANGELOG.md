@@ -7,12 +7,13 @@
   centralized state transactions, coherence preflight, and exact-package
   control-plane smoke alongside the issue #6 review corrections. Explicit
   assurance reconciliation can also audit-repair stale budget projections from
-  authoritative lifecycle and dispatch ledgers. Exhausted-review approval now
-  requires a typed same-reviewer disposition whose accepted dispatch, routing
-  observation, immutable package, candidate, and finding resolutions are
-  reauthenticated; caller-authored verification claims cannot authorize it.
-  A pre-review semantic-digest correction is also recoverable without consuming
-  a review attempt or permitting the immutable release base to change.
+  authoritative lifecycle and dispatch ledgers. Exhausted reviews fail closed:
+  owner-managed dispatch/routing records and caller-authored verification claims
+  cannot impersonate a reviewer result or authorize approval. Legacy approvals
+  using that evidence reconcile into circuit-breaker or strategy-escalation
+  state without losing history. A pre-review semantic-digest correction is also
+  recoverable without consuming an attempt, while Git ancestry enforces the
+  immutable release base.
 
 ## 0.7.0 - 2026-08-07
 

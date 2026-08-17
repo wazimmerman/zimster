@@ -759,8 +759,7 @@ export function evaluateCandidateCompletion({
   correctionPending = false,
   reviewLifecycle = null,
   reviewLifecycles = null,
-  assuranceAccounting = null,
-  authenticatedReviewerDispositionIds = []
+  assuranceAccounting = null
 }) {
   if (!['micro', 'standard', 'high-risk'].includes(profile)) {
     throw new Error('profile must be micro, standard, or high-risk');
@@ -841,8 +840,7 @@ export function evaluateCandidateCompletion({
     validateReviewLifecycle(reviewLifecycle, {
       candidateHead,
       candidateTree,
-      requireFinalApproval: true,
-      authenticatedReviewerDispositionIds
+      requireFinalApproval: true
     });
     const activeAttempts = reviewLifecycle.attempts.filter(({ attempt_id }) =>
       !reviewLifecycle.invalidated_attempt_ids.includes(attempt_id)

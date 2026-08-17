@@ -275,6 +275,30 @@ test('review package rejects mutable base or head references', async () => {
   }
 });
 
+test('review package rejects an existing head outside the immutable base ancestry', async () => {
+  const repo = await mkdtemp(path.join(os.tmpdir(), 'zimster-review-ancestry-'));
+  try {
+    assert.equal(run('git', ['init', '-b', 'main'], repo).status, 0);
+    assert.equal(run('git', ['config', 'user.name', 'Zimster Test'], repo).status, 0);
+    assert.equal(run('git', ['config', 'user.email', 'test@example.com'], repo).status, 0);
+    await writeFile(path.join(repo, 'tracked.txt'), 'base\n');
+    const base = await commit(repo, 'base');
+    const tree = run('git', ['rev-parse', `${base}^{tree}`], repo).stdout.trim();
+    const unrelated = run('git', ['commit-tree', tree, '-m', 'unrelated'], repo).stdout.trim();
+    const result = run(process.execPath, [
+      path.join(root, 'scripts/review-package.mjs'),
+      '--base', base, '--head', unrelated,
+      '--attempt-type', 'initial_review',
+      '--attempt-id', 'attempt-unrelated',
+      '--seam-id', 'fixture-seam'
+    ], repo);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /base.*ancestor|ancestry/i);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
 test('review package preserves reconstructable dirty tracked and untracked state', async () => {
   const repo = await mkdtemp(path.join(os.tmpdir(), 'zimster-review-dirty-'));
   try {

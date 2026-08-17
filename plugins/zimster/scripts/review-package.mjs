@@ -70,6 +70,11 @@ function fileAt(commit, relative) {
 
 immutableCommit('base', base);
 immutableCommit('head', head);
+if (runGit(['merge-base', '--is-ancestor', base, head], root, {
+  allowFailure: true
+}).status !== 0) {
+  throw new Error('--base must be an ancestor of --head');
+}
 const currentState = await captureGitState(root);
 const cleanFingerprint = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 const candidateCheckout = {

@@ -11,11 +11,14 @@ export const REVIEW_ATTEMPT_TYPES = Object.freeze([
 ]);
 
 export const BREAKER_DISPOSITIONS = Object.freeze([
-  'reviewer_rebutted_with_evidence',
   'blocked_by_requirement',
-  'non_load_bearing_deferral',
   'design_revision',
   'partial_or_blocked'
+]);
+
+const UNTRUSTED_APPROVAL_DISPOSITIONS = Object.freeze([
+  'reviewer_rebutted_with_evidence',
+  'non_load_bearing_deferral'
 ]);
 
 export const HARD_REVIEW_LIMITS = Object.freeze({
@@ -68,42 +71,6 @@ export function reviewFindingFingerprint(attemptId, finding) {
   })).digest('hex');
 }
 
-function approvalAttemptId(state) {
-  return state.strategy_escalation?.status === 'required'
-    ? state.strategy_escalation.attempt_id
-    : state.attempts.filter(({ attempt_id }) =>
-      !state.invalidated_attempt_ids.includes(attempt_id)).at(-1)?.attempt_id;
-}
-
-function validateApprovalReviewerDisposition(state, event) {
-  const attemptId = approvalAttemptId(state);
-  const attempt = state.attempts.find(({ attempt_id }) => attempt_id === attemptId);
-  if (!attempt || attempt.verdict !== 'needs_correction') {
-    throw new Error('approval disposition requires the exhausted failed review attempt');
-  }
-  const dispositionId = requireString(
-    event.reviewer_disposition_id,
-    'authoritative reviewer disposition ID'
-  );
-  const reviewerDisposition = (state.reviewer_dispositions || [])
-    .find(({ disposition_id }) => disposition_id === dispositionId);
-  if (!reviewerDisposition) {
-    throw new Error('approval requires an authoritative reviewer disposition');
-  }
-  if (reviewerDisposition.attempt_id !== attemptId
-    || reviewerDisposition.reviewer_identity !== state.reviewer_identity
-    || reviewerDisposition.review_package_id !== attempt.review_package_id
-    || reviewerDisposition.conclusion !== event.disposition
-    || !sameCandidate(reviewerDisposition.candidate, state.candidate)) {
-    throw new Error('authoritative reviewer disposition does not bind the exhausted attempt');
-  }
-  const expectedReference = `reviewer-disposition:${dispositionId}`;
-  if (event.evidence_refs.length !== 1 || event.evidence_refs[0] !== expectedReference) {
-    throw new Error('approval evidence must reference the authoritative reviewer disposition');
-  }
-  return reviewerDisposition;
-}
-
 function copy(state) {
   return structuredClone(state);
 }
@@ -146,89 +113,11 @@ export function createReviewLifecycle({ seam_id, reviewer_identity, candidate })
 }
 
 function recordReviewerDisposition(state, event) {
-  const strategyEscalation = state.status === 'strategy_escalation_required'
-    && state.strategy_escalation?.status === 'required';
-  if (!strategyEscalation
-    && (state.status !== 'circuit_breaker_active' || !state.circuit_breaker_active)) {
-    throw new Error('reviewer disposition requires an unresolved circuit breaker or strategy escalation');
-  }
-  const attemptId = approvalAttemptId(state);
-  const attempt = state.attempts.find(({ attempt_id }) => attempt_id === attemptId);
-  if (!attempt || attempt.verdict !== 'needs_correction') {
-    throw new Error('reviewer disposition requires the exhausted failed review attempt');
-  }
-  const dispositionId = requireString(event.disposition_id, 'reviewer disposition ID');
-  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(dispositionId)) {
-    throw new Error('reviewer disposition ID must be a stable safe identity');
-  }
-  if ((state.reviewer_dispositions || []).some(({ disposition_id }) =>
-    disposition_id === dispositionId)) {
-    throw new Error(`reviewer disposition ID is already consumed: ${dispositionId}`);
-  }
-  if (event.attempt_id !== attemptId) {
-    throw new Error('reviewer disposition must bind the exhausted attempt ID');
-  }
-  if (event.reviewer_identity !== state.reviewer_identity) {
-    throw new Error('reviewer disposition must come from the same reviewer identity');
-  }
-  if (event.review_package_id !== attempt.review_package_id) {
-    throw new Error('reviewer disposition must bind the exhausted attempt review package');
-  }
-  validateCandidate(event.candidate, 'reviewer disposition candidate');
-  if (!sameCandidate(event.candidate, state.candidate)) {
-    throw new Error('reviewer disposition must bind the exact lifecycle candidate');
-  }
-  if (!['reviewer_rebutted_with_evidence', 'non_load_bearing_deferral']
-    .includes(event.conclusion)) {
-    throw new Error('reviewer disposition conclusion is unsupported');
-  }
-  requireString(event.dispatch_id, 'reviewer disposition dispatch ID');
-  requireString(event.routing_observation_id, 'reviewer disposition routing observation ID');
-  if (!Array.isArray(event.resolutions) || !event.resolutions.length) {
-    throw new Error('reviewer disposition requires finding resolutions');
-  }
-  const expectedOutcome = event.conclusion === 'non_load_bearing_deferral'
-    ? 'non_load_bearing'
-    : 'rebutted';
-  const expected = new Set(attempt.findings
-    .filter(({ severity }) => severity === 'Critical' || severity === 'Important')
-    .map((finding) => reviewFindingFingerprint(attemptId, finding)));
-  const observed = new Set();
-  for (const resolution of event.resolutions) {
-    if (!resolution || typeof resolution !== 'object' || Array.isArray(resolution)
-      || !SHA256_PATTERN.test(resolution.finding_fingerprint || '')
-      || resolution.outcome !== expectedOutcome
-      || !Array.isArray(resolution.evidence_refs) || !resolution.evidence_refs.length
-      || !resolution.evidence_refs.every((reference) =>
-        typeof reference === 'string' && reference.trim())) {
-      throw new Error('reviewer disposition finding resolution is malformed');
-    }
-    if (!expected.has(resolution.finding_fingerprint)) {
-      throw new Error('reviewer disposition references an unknown load-bearing finding');
-    }
-    if (observed.has(resolution.finding_fingerprint)) {
-      throw new Error('reviewer disposition repeats a load-bearing finding');
-    }
-    observed.add(resolution.finding_fingerprint);
-  }
-  if (observed.size !== expected.size) {
-    throw new Error('reviewer disposition must resolve every load-bearing finding');
-  }
-  const next = copy(state);
-  next.reviewer_dispositions ||= [];
-  const record = {
-    disposition_id: dispositionId,
-    attempt_id: event.attempt_id,
-    reviewer_identity: event.reviewer_identity,
-    review_package_id: event.review_package_id,
-    candidate: structuredClone(event.candidate),
-    conclusion: event.conclusion,
-    dispatch_id: event.dispatch_id,
-    routing_observation_id: event.routing_observation_id,
-    resolutions: structuredClone(event.resolutions)
-  };
-  next.reviewer_dispositions.push(record);
-  return appendEvent(next, { type: 'reviewer_disposition_recorded', ...record });
+  void state;
+  void event;
+  throw new Error(
+    'trusted reviewer-output attestation is unavailable; caller-authored reviewer dispositions cannot authorize review'
+  );
 }
 
 function validateAttempt(attempt, state) {
@@ -429,6 +318,11 @@ function updateApprovedCandidateBeforeFinalReview(state, event) {
 }
 
 function recordDisposition(state, event) {
+  if (UNTRUSTED_APPROVAL_DISPOSITIONS.includes(event.disposition)) {
+    throw new Error(
+      'trusted reviewer-output attestation is unavailable; caller-authored approval cannot authorize review'
+    );
+  }
   const finalDesignRevision = event.disposition === 'design_revision'
     && state.status === 'final_correction_required'
     && state.circuit_breaker_active === false;
@@ -450,19 +344,11 @@ function recordDisposition(state, event) {
   if (!Array.isArray(event.evidence_refs) || !event.evidence_refs.length) {
     throw new Error('breaker disposition requires evidence_refs');
   }
-  const approvalDisposition = event.disposition === 'reviewer_rebutted_with_evidence'
-    || event.disposition === 'non_load_bearing_deferral';
-  if (approvalDisposition) {
-    validateApprovalReviewerDisposition(state, event);
-  }
   const next = copy(state);
   const disposition = {
     disposition: event.disposition,
     reason: event.reason,
-    evidence_refs: [...event.evidence_refs],
-    ...(approvalDisposition
-      ? { reviewer_disposition_id: event.reviewer_disposition_id }
-      : {})
+    evidence_refs: [...event.evidence_refs]
   };
   if (event.disposition === 'design_revision') {
     validateCandidate(event.candidate, 'design revision candidate');
@@ -483,14 +369,6 @@ function recordDisposition(state, event) {
     next.stable = false;
     next.status = 'new_design_review_required';
     if (Object.hasOwn(next, 'strategy_escalation')) next.strategy_escalation = null;
-  } else if (approvalDisposition) {
-    if (strategyDisposition) {
-      disposition.candidate = structuredClone(state.candidate);
-      next.status = 'final_approved';
-      next.stable = true;
-    } else {
-      next.status = 'approved';
-    }
   } else if (event.disposition === 'blocked_by_requirement') {
     next.status = 'blocked';
   } else {
@@ -514,7 +392,111 @@ function recordDisposition(state, event) {
   });
 }
 
-function replayLifecycle(state) {
+function replayLegacyReviewerDisposition(state, event) {
+  const next = copy(state);
+  next.reviewer_dispositions ||= [];
+  const record = structuredClone(event);
+  delete record.type;
+  next.reviewer_dispositions.push(structuredClone(record));
+  return appendEvent(next, structuredClone(event));
+}
+
+function replayLegacyApprovalDisposition(state, event) {
+  if (!UNTRUSTED_APPROVAL_DISPOSITIONS.includes(event.disposition)) {
+    return recordDisposition(state, event);
+  }
+  requireString(event.reason, 'legacy breaker disposition reason');
+  if (!Array.isArray(event.evidence_refs) || !event.evidence_refs.length) {
+    throw new Error('legacy breaker disposition requires evidence_refs');
+  }
+  const strategyDisposition = state.status === 'strategy_escalation_required'
+    && state.strategy_escalation?.status === 'required';
+  const breakerDisposition = state.status === 'circuit_breaker_active'
+    && state.circuit_breaker_active;
+  if (!strategyDisposition && !breakerDisposition) {
+    throw new Error('legacy approval disposition lacks an exhausted review state');
+  }
+  const next = copy(state);
+  const disposition = {
+    disposition: event.disposition,
+    reason: event.reason,
+    evidence_refs: [...event.evidence_refs],
+    ...(event.reviewer_disposition_id
+      ? { reviewer_disposition_id: event.reviewer_disposition_id }
+      : {})
+  };
+  if (strategyDisposition) {
+    disposition.candidate = structuredClone(state.candidate);
+    next.status = 'final_approved';
+    next.stable = true;
+    next.strategy_escalation = {
+      ...next.strategy_escalation,
+      status: 'resolved',
+      disposition: event.disposition
+    };
+  } else {
+    next.status = 'approved';
+  }
+  next.circuit_breaker_active = false;
+  next.dispositions.push(disposition);
+  return appendEvent(next, { type: 'breaker_disposition_recorded', ...disposition });
+}
+
+function applyLegacyApprovalReconciliation(state, event) {
+  const activeAttempts = state.attempts.filter(({ attempt_id }) =>
+    !state.invalidated_attempt_ids.includes(attempt_id));
+  const attempt = activeAttempts.find(({ attempt_id }) => attempt_id === event.attempt_id);
+  if (event.prior_status !== state.status
+    || !attempt || attempt.verdict !== 'needs_correction'
+    || !UNTRUSTED_APPROVAL_DISPOSITIONS.includes(event.disposition)) {
+    throw new Error('legacy untrusted approval reconciliation is inconsistent');
+  }
+  const next = copy(state);
+  next.reviewer_dispositions ||= [];
+  next.stable = false;
+  if (attempt.attempt_type === 'final_integration_review') {
+    const finalAttempts = activeAttempts.filter(({ attempt_type }) =>
+      attempt_type === 'final_integration_review').length;
+    next.status = 'strategy_escalation_required';
+    next.circuit_breaker_active = false;
+    next.strategy_escalation = {
+      status: 'required',
+      trigger: 'legacy_untrusted_final_approval',
+      attempt_id: attempt.attempt_id,
+      observed_final_attempts: finalAttempts,
+      hard_limit: HARD_REVIEW_LIMITS.final_integration_reviews
+    };
+  } else if (attempt.attempt_type === 'correction_recheck') {
+    next.status = 'circuit_breaker_active';
+    next.circuit_breaker_active = true;
+    next.strategy_escalation = null;
+  } else {
+    throw new Error('legacy untrusted approval does not follow an exhausted bounded review');
+  }
+  return appendEvent(next, structuredClone(event));
+}
+
+function legacyApprovalReconciliationEvent(state) {
+  const activeAttempts = state.attempts.filter(({ attempt_id }) =>
+    !state.invalidated_attempt_ids.includes(attempt_id));
+  const attempt = activeAttempts.at(-1);
+  const disposition = state.dispositions.at(-1);
+  if (!attempt || attempt.verdict !== 'needs_correction'
+    || !UNTRUSTED_APPROVAL_DISPOSITIONS.includes(disposition?.disposition)) {
+    throw new Error('review lifecycle has no legacy untrusted approval to reconcile');
+  }
+  return {
+    type: 'legacy_untrusted_approval_reconciled',
+    prior_status: state.status,
+    disposition: disposition.disposition,
+    attempt_id: attempt.attempt_id
+  };
+}
+
+function replayLifecycle(state, { allowLegacyUntrustedApproval = false } = {}) {
+  const hasLegacyApprovalReconciliation = state.events.some(({ type }) =>
+    type === 'legacy_untrusted_approval_reconciled');
+  const replayLegacyApproval = allowLegacyUntrustedApproval || hasLegacyApprovalReconciliation;
   const migratedLegacy = !state.review_policy
     || state.events.some(({ type }) => type === 'policy_reconciled')
     || !Array.isArray(state.reviewer_dispositions);
@@ -527,11 +509,15 @@ function replayLifecycle(state) {
     if (event.type === 'attempt_started') replayed = startAttempt(replayed, event.attempt);
     else if (event.type === 'verdict_recorded') replayed = recordVerdict(replayed, event);
     else if (event.type === 'reviewer_disposition_recorded') {
-      replayed = recordReviewerDisposition(replayed, event);
+      replayed = replayLegacyApproval
+        ? replayLegacyReviewerDisposition(replayed, event)
+        : recordReviewerDisposition(replayed, event);
     }
     else if (event.type === 'correction_recorded') replayed = recordCorrection(replayed, event);
     else if (event.type === 'breaker_disposition_recorded') {
-      replayed = recordDisposition(replayed, event);
+      replayed = replayLegacyApproval
+        ? replayLegacyApprovalDisposition(replayed, event)
+        : recordDisposition(replayed, event);
     } else if (event.type === 'candidate_stabilized') {
       if (replayed.status !== 'approved' || replayed.circuit_breaker_active) {
         throw new Error('review lifecycle event history stabilizes an unapproved candidate');
@@ -545,6 +531,8 @@ function replayLifecycle(state) {
       replayed = updateCandidateBeforeReview(replayed, event);
     } else if (event.type === 'approved_candidate_updated_before_final_review') {
       replayed = updateApprovedCandidateBeforeFinalReview(replayed, event);
+    } else if (event.type === 'legacy_untrusted_approval_reconciled') {
+      replayed = applyLegacyApprovalReconciliation(replayed, event);
     } else {
       throw new Error(`review lifecycle contains unsupported event: ${event.type}`);
     }
@@ -606,7 +594,31 @@ function applyPolicyReconciliation(state, event) {
 }
 
 export function reconcileReviewLifecycle(state) {
-  if (state?.review_policy) return validateReviewLifecycle(state);
+  if (state?.review_policy) {
+    try {
+      return validateReviewLifecycle(state);
+    } catch (validationError) {
+      const unsafeApproval = UNTRUSTED_APPROVAL_DISPOSITIONS.includes(
+        state.dispositions?.at(-1)?.disposition
+      );
+      const alreadyReconciled = state.events?.some(({ type }) =>
+        type === 'legacy_untrusted_approval_reconciled');
+      if (!unsafeApproval || alreadyReconciled) throw validationError;
+      let replayed;
+      try {
+        replayed = replayLifecycle(state, { allowLegacyUntrustedApproval: true });
+      } catch (error) {
+        throw new Error(`legacy review lifecycle event integrity failed: ${error.message}`);
+      }
+      if (JSON.stringify(replayed) !== JSON.stringify(state)) {
+        throw new Error('legacy review lifecycle state is inconsistent with its durable event history');
+      }
+      return applyLegacyApprovalReconciliation(
+        state,
+        legacyApprovalReconciliationEvent(state)
+      );
+    }
+  }
   if (!state || state.schema_version !== 1) throw new Error('legacy review lifecycle must be schema v1');
   let replayed;
   try {
@@ -650,8 +662,7 @@ export function applyReviewLifecycleEvent(state, event) {
 export function validateReviewLifecycle(state, {
   candidateHead = null,
   candidateTree = null,
-  requireFinalApproval = false,
-  authenticatedReviewerDispositionIds = []
+  requireFinalApproval = false
 } = {}) {
   if (!state || state.schema_version !== 1) throw new Error('review lifecycle must be schema v1');
   if (requireFinalApproval && state.circuit_breaker_active === true) {
@@ -740,28 +751,9 @@ export function validateReviewLifecycle(state, {
   }
   if (state.status === 'final_approved') {
     const finalAttempt = activeAttempts.at(-1);
-    const finalDisposition = state.dispositions.at(-1);
-    const reviewerDisposition = (state.reviewer_dispositions || [])
-      .find(({ disposition_id }) =>
-        disposition_id === finalDisposition?.reviewer_disposition_id);
-    const finalDispositionApproved = state.strategy_escalation?.status === 'resolved'
-      && ['reviewer_rebutted_with_evidence', 'non_load_bearing_deferral']
-        .includes(state.strategy_escalation.disposition)
-      && finalDisposition?.disposition === state.strategy_escalation.disposition
-      && reviewerDisposition?.conclusion === finalDisposition.disposition
-      && reviewerDisposition?.attempt_id === finalAttempt?.attempt_id
-      && reviewerDisposition?.review_package_id === finalAttempt?.review_package_id
-      && reviewerDisposition?.reviewer_identity === state.reviewer_identity
-      && sameCandidate(reviewerDisposition?.candidate || {}, state.candidate)
-      && sameCandidate(finalDisposition?.candidate || {}, state.candidate);
-    if (requireFinalApproval
-      && finalDispositionApproved
-      && !authenticatedReviewerDispositionIds.includes(reviewerDisposition.disposition_id)) {
-      throw new Error('final approval requires current reviewer disposition authentication');
-    }
     if (!state.stable
       || finalAttempt?.attempt_type !== 'final_integration_review'
-      || (finalAttempt.verdict !== 'approved' && !finalDispositionApproved)
+      || finalAttempt.verdict !== 'approved'
       || !sameCandidate(finalAttempt.candidate, state.candidate)) {
       throw new Error('final approval does not bind the stable current candidate and final attempt');
     }
