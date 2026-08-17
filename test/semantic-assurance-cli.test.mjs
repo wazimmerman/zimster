@@ -49,6 +49,16 @@ test('aggregate over-limit coverage resolves the explicit covering-override occu
   );
 });
 
+test('completion delegates correction-recheck over-limit accounting to semantic epochs', async () => {
+  const source = await readFile(path.join(root, 'scripts/semantic-assurance.mjs'), 'utf8');
+  assert.match(source, /correctionRecheckEpochIssues\(budget, reviewLifecycle\)/);
+  assert.match(
+    source,
+    /if \(metric === 'correction_rechecks'\) continue;/,
+    'aggregate history must not override authenticated per-epoch hard cardinality'
+  );
+});
+
 async function assuranceFiles(directory, {
   repo, base, head, tree, semanticContractSha256, reviewPackageId
 }) {

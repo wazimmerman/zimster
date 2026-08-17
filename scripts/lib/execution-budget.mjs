@@ -152,6 +152,85 @@ export function analyzeExecutionBudgetProofIdentities(state) {
   return { issues, resolve };
 }
 
+export function correctionRecheckEpochIssues(state, lifecycle) {
+  const issues = [];
+  const usage = state?.usage?.correction_rechecks;
+  const attempts = (lifecycle?.attempts || []).filter(
+    ({ attempt_type }) => attempt_type === 'correction_recheck'
+  );
+  if (usage === undefined && attempts.length === 0) return issues;
+  if (!Number.isInteger(usage) || usage < 0) {
+    return ['execution-budget correction_rechecks usage must be a non-negative integer'];
+  }
+  if (typeof lifecycle?.seam_id !== 'string' || !lifecycle.seam_id) {
+    return ['correction-recheck epoch accounting requires an authoritative review lifecycle'];
+  }
+
+  const epochCounts = new Map();
+  for (const attempt of attempts) {
+    const semantic = attempt.candidate?.semantic_contract_sha256;
+    if (attempt.seam_id !== lifecycle.seam_id || !/^[0-9a-f]{64}$/.test(semantic || '')) {
+      issues.push(`correction recheck ${attempt.attempt_id || 'unnamed'} lacks an authenticated semantic epoch`);
+      continue;
+    }
+    const epoch = `${attempt.seam_id}@${semantic}`;
+    epochCounts.set(epoch, (epochCounts.get(epoch) || 0) + 1);
+  }
+  for (const [epoch, count] of epochCounts) {
+    if (count > 1) issues.push(`${epoch} records more than one correction recheck`);
+  }
+  if (usage !== attempts.length) {
+    issues.push(
+      `execution-budget correction_rechecks usage ${usage} differs from lifecycle attempts ${attempts.length}`
+    );
+  }
+
+  const scoped = state.scoped_usage?.correction_rechecks
+    || state.scoped_usage?.review_rechecks_per_seam;
+  if (!scoped || typeof scoped !== 'object' || Array.isArray(scoped)) {
+    if (usage > 0) issues.push('correction-recheck usage requires scoped semantic-epoch accounting');
+    return [...new Set(issues)];
+  }
+  let scopedTotal = 0;
+  let legacyTotal = 0;
+  const representedEpochs = new Set();
+  for (const [scope, value] of Object.entries(scoped)) {
+    if (!Number.isInteger(value) || value < 0) {
+      issues.push(`correction-recheck scope ${scope} must be a non-negative integer`);
+      continue;
+    }
+    scopedTotal += value;
+    const epoch = scope.match(/^(.+)@([0-9a-f]{64})$/);
+    if (!epoch) {
+      if (scope !== lifecycle.seam_id) {
+        issues.push(`legacy correction-recheck scope does not match lifecycle seam: ${scope}`);
+      }
+      legacyTotal += value;
+      continue;
+    }
+    if (epoch[1] !== lifecycle.seam_id) {
+      issues.push(`semantic correction-recheck scope does not match lifecycle seam: ${scope}`);
+    }
+    representedEpochs.add(scope);
+    const observed = epochCounts.get(scope) || 0;
+    if (value !== observed) {
+      issues.push(`semantic correction-recheck scope ${scope} records ${value}, lifecycle records ${observed}`);
+    }
+  }
+  const unmatchedEpochTotal = [...epochCounts.entries()]
+    .filter(([epoch]) => !representedEpochs.has(epoch))
+    .reduce((total, [, count]) => total + count, 0);
+  if (legacyTotal !== unmatchedEpochTotal) {
+    issues.push(
+      `legacy correction-recheck history ${legacyTotal} does not reconcile to ${unmatchedEpochTotal} authenticated historical epochs`
+    );
+  }
+  if (scopedTotal !== usage) {
+    issues.push(`scoped correction-recheck usage ${scopedTotal} differs from aggregate usage ${usage}`);
+  }
+  return [...new Set(issues)];
+}
+
 export async function reconcileExecutionBudgetProofIdentities(runtimeDirectory, {
   proof,
   bindings,

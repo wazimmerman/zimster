@@ -12,6 +12,7 @@ import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
 import { evidenceStalenessReason } from './lib/evidence-validity.mjs';
 import {
   analyzeExecutionBudgetProofIdentities,
+  correctionRecheckEpochIssues,
   executionBudgetProofReceiptPasses
 } from './lib/execution-budget.mjs';
 import { normalizeConvergenceMetric } from './lib/convergence.mjs';
@@ -100,7 +101,7 @@ async function evaluatedMatrix() {
   };
 }
 
-async function executionBudgetIssues(budget, runtimeDirectory) {
+async function executionBudgetIssues(budget, runtimeDirectory, reviewLifecycle) {
   if (!budget || budget.schema_version !== 1) {
     return ['execution budget must be schema v1'];
   }
@@ -157,6 +158,7 @@ async function executionBudgetIssues(budget, runtimeDirectory) {
       }
     }
   }
+  issues.push(...correctionRecheckEpochIssues(budget, reviewLifecycle));
   for (const [index, override] of budget.overrides.entries()) {
     if (!satisfied(override.required_proof, 'override', index)) {
       issues.push(`execution-budget override lacks satisfied proof: ${override.required_proof || 'unnamed'}`);
@@ -165,6 +167,7 @@ async function executionBudgetIssues(budget, runtimeDirectory) {
   issues.push(...graph.issues.filter((issue) => !issues.includes(issue)));
   for (const [metric, value] of Object.entries(budget.usage)) {
     if (normalizeConvergenceMetric(metric) !== metric) continue;
+    if (metric === 'correction_rechecks') continue;
     const limit = budget.limits[metric];
     if (!Number.isInteger(value) || !Number.isInteger(limit) || value <= limit) continue;
     const coveringOverride = budget.overrides.find((override, index) =>
@@ -281,7 +284,7 @@ async function completionDecision() {
     ? ['completion requires the authoritative Git-local assurance accounting receipt']
     : [];
   const budgetIssues = executionBudget
-    ? await executionBudgetIssues(executionBudget, runtimeDirectory)
+    ? await executionBudgetIssues(executionBudget, runtimeDirectory, reviewLifecycle)
     : [];
   const coherence = await evaluateCoherence(runtimeDirectory, root, {
     operation: 'completion',

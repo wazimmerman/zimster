@@ -250,6 +250,10 @@ The command rejects a missing lifecycle, a digest mismatch, or any lifecycle
 state other than `correction_recheck_required`. The resulting budget scope is
 the seam plus the authenticated semantic digest, so historical epochs remain
 visible without consuming the new epoch's single recheck.
+Candidate completion cross-checks the aggregate against durable lifecycle
+attempts, rejects more than one recheck in any semantic epoch, and accepts
+legacy aggregate scopes only when every count reconciles to an otherwise
+unrepresented authenticated epoch.
 
 Before the required primary attempt starts, `review-lifecycle.mjs candidate`
 may update the exact head/tree/dirty identity while preserving the same

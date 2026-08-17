@@ -6,7 +6,10 @@ import { promisify } from 'node:util';
 import os from 'node:os';
 import path from 'node:path';
 import { root } from './helpers.mjs';
-import { analyzeExecutionBudgetProofIdentities } from '../scripts/lib/execution-budget.mjs';
+import {
+  analyzeExecutionBudgetProofIdentities,
+  correctionRecheckEpochIssues
+} from '../scripts/lib/execution-budget.mjs';
 
 const execFileAsync = promisify(execFile);
 
@@ -539,6 +542,38 @@ test('a material semantic lifecycle reset authorizes a fresh seam-epoch recheck 
   } finally {
     await rm(repo, { recursive: true, force: true });
   }
+});
+
+test('completion budget accounting reconciles aggregate historical rechecks through authenticated semantic epochs', () => {
+  const first = 'a'.repeat(64);
+  const second = 'b'.repeat(64);
+  const third = 'c'.repeat(64);
+  const lifecycle = {
+    seam_id: 'whole-release',
+    attempts: [first, second, third].map((semantic, index) => ({
+      attempt_type: 'correction_recheck',
+      attempt_id: `recheck-${index + 1}`,
+      seam_id: 'whole-release',
+      candidate: { semantic_contract_sha256: semantic }
+    }))
+  };
+  const budget = {
+    usage: { correction_rechecks: 3 },
+    scoped_usage: {
+      correction_rechecks: {
+        'whole-release': 2,
+        [`whole-release@${third}`]: 1
+      }
+    }
+  };
+  assert.deepEqual(correctionRecheckEpochIssues(budget, lifecycle), []);
+
+  const replayed = structuredClone(lifecycle);
+  replayed.attempts[2].candidate.semantic_contract_sha256 = second;
+  assert.match(
+    correctionRecheckEpochIssues(budget, replayed).join('\n'),
+    /more than one correction recheck/i
+  );
 });
 
 test('run initialization creates a machine-readable budget for Standard and High-risk profiles', async () => {
