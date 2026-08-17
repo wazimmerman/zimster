@@ -494,6 +494,53 @@ test('execution budget counts optional agent identities once and scopes review r
   }
 });
 
+test('a material semantic lifecycle reset authorizes a fresh seam-epoch recheck without weakening the seam guard', async () => {
+  const repo = await tempRepo();
+  try {
+    const budget = path.join(root, 'scripts/run-budget.mjs');
+    let result = run(process.execPath, [budget, 'init', '--profile', 'standard'], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+
+    result = run(process.execPath, [
+      budget, 'record', '--metric', 'correction_rechecks', '--scope', 'whole-release'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+
+    const semanticContract = 'b'.repeat(64);
+    const lifecycleDirectory = runtimePath(repo, 'review-lifecycle');
+    await mkdir(lifecycleDirectory, { recursive: true });
+    await writeFile(path.join(lifecycleDirectory, 'whole-release.json'), `${JSON.stringify({
+      schema_version: 1,
+      seam_id: 'whole-release',
+      status: 'correction_recheck_required',
+      candidate: { semantic_contract_sha256: semanticContract }
+    })}\n`);
+
+    result = run(process.execPath, [
+      budget, 'record', '--metric', 'correction_rechecks', '--scope', 'whole-release',
+      '--semantic-contract-sha256', 'c'.repeat(64)
+    ], repo);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /current lifecycle semantic contract/i);
+
+    result = run(process.execPath, [
+      budget, 'record', '--metric', 'correction_rechecks', '--scope', 'whole-release',
+      '--semantic-contract-sha256', semanticContract
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+
+    const state = JSON.parse(await readFile(runtimePath(repo, 'budget.json'), 'utf8'));
+    assert.equal(state.usage.correction_rechecks, 2);
+    assert.equal(state.scoped_usage.correction_rechecks['whole-release'], 1);
+    assert.equal(
+      state.scoped_usage.correction_rechecks[`whole-release@${semanticContract}`],
+      1
+    );
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
 test('run initialization creates a machine-readable budget for Standard and High-risk profiles', async () => {
   for (const profile of ['standard', 'high-risk']) {
     const repo = await tempRepo();

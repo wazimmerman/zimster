@@ -70,6 +70,10 @@ Dependency-free Node 22 tools turn important policy into inspectable state:
   hard cardinality of one primary review, one correction recheck, and two
   final integration reviews per semantic contract; exhaustion enters durable
   strategy escalation rather than opening another attempt;
+- `run-budget.mjs` admits a post-redesign correction recheck only when its
+  explicit semantic-contract digest matches the current lifecycle candidate
+  and that lifecycle is in the authorized recheck state, keeping budget scope
+  aligned with the lifecycle's semantic epoch;
 - `coherence-preflight.mjs` compares the canonical run, checkpoint, derived
   summary, governed accounting, budget proofs, review lifecycle, assurance
   accounting, and exact checkout before final review, completion, or release;

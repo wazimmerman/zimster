@@ -12,7 +12,7 @@ import {
   satisfyExecutionBudgetProof,
   supersedeExecutionBudgetProof
 } from './lib/execution-budget.mjs';
-import { validateConvergenceConfig } from './lib/convergence.mjs';
+import { normalizeConvergenceMetric, validateConvergenceConfig } from './lib/convergence.mjs';
 import { withControlPlaneMutation } from './lib/control-plane-mutation.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
@@ -43,7 +43,39 @@ if (action === 'init') {
   const metric = required(options, 'metric');
   const amount = integerOption(options, 'amount', 1);
   const agentId = options['agent-id'] ? String(options['agent-id']) : null;
-  const scope = options.scope ? String(options.scope) : null;
+  let scope = options.scope ? String(options.scope) : null;
+  const semanticContract = options['semantic-contract-sha256']
+    ? String(options['semantic-contract-sha256'])
+    : null;
+  if (semanticContract !== null) {
+    if (normalizeConvergenceMetric(metric) !== 'correction_rechecks') {
+      throw new Error('--semantic-contract-sha256 is only valid for correction_rechecks');
+    }
+    if (!scope || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(scope)) {
+      throw new Error('semantic correction rechecks require a safe --scope seam ID');
+    }
+    if (!/^[0-9a-f]{64}$/.test(semanticContract)) {
+      throw new Error('--semantic-contract-sha256 must be a lowercase SHA-256 digest');
+    }
+    let lifecycle;
+    try {
+      lifecycle = JSON.parse(await readFile(
+        path.join(runtime, 'review-lifecycle', `${scope}.json`),
+        'utf8'
+      ));
+    } catch (error) {
+      if (error.code === 'ENOENT') throw new Error(`review lifecycle is not initialized: ${scope}`);
+      throw error;
+    }
+    if (lifecycle.seam_id !== scope
+      || lifecycle.status !== 'correction_recheck_required'
+      || lifecycle.candidate?.semantic_contract_sha256 !== semanticContract) {
+      throw new Error(
+        '--semantic-contract-sha256 must match the current lifecycle semantic contract and an authorized correction recheck state'
+      );
+    }
+    scope = `${scope}@${semanticContract}`;
+  }
   const invalidation = options.invalidation ? String(options.invalidation) : null;
   const strategyChange = options['strategy-change'] ? String(options['strategy-change']) : null;
   const requiredProof = options['required-proof'] ? String(options['required-proof']) : null;

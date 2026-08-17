@@ -697,7 +697,10 @@ export function applyExecutionBudgetEvent(state, {
     ? state.scoped_usage[metric]?.[scope] || 0
     : state.usage[metric] || 0;
   const proposed = current + amount;
-  const limit = state.limits[metric];
+  // Correction rechecks are hard lifecycle cardinality, not a soft profile
+  // allowance. A profile may preserve a larger historical value, but one
+  // semantic seam epoch still admits at most one recheck.
+  const limit = metric === 'correction_rechecks' ? 1 : state.limits[metric];
   if (metric === 'correction_rechecks' && proposed > limit) {
     return {
       changed: false,

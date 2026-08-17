@@ -237,6 +237,20 @@ final integration attempts. A second failed final attempt enters durable
 `strategy_escalation_required`; neither a new attempt ID nor a generic budget
 override can reset that hard limit.
 
+When a genuine design revision has created a new semantic review epoch, reserve
+its correction recheck with the lifecycle-authenticated digest:
+
+```text
+node <zimster>/scripts/run-budget.mjs record \
+  --metric correction_rechecks --scope <seam-id> \
+  --semantic-contract-sha256 <current-lifecycle-sha256>
+```
+
+The command rejects a missing lifecycle, a digest mismatch, or any lifecycle
+state other than `correction_recheck_required`. The resulting budget scope is
+the seam plus the authenticated semantic digest, so historical epochs remain
+visible without consuming the new epoch's single recheck.
+
 Before the required primary attempt starts, `review-lifecycle.mjs candidate`
 may update the exact head/tree/dirty identity while preserving the same
 semantic-contract digest. It consumes no attempt and cannot be used to smuggle

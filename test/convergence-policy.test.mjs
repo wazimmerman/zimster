@@ -95,6 +95,23 @@ test('CONV-001: correction rechecks cannot consume the reserved exact-head integ
   assert.equal(state.usage.final_integration_reviews, 2);
 });
 
+test('CONV-001: correction recheck cardinality stays one even when a soft profile limit is higher', () => {
+  const state = createBudgetState('high-risk', {
+    limits: { ...limits, correction_rechecks: 2 }
+  });
+  let result = applyExecutionBudgetEvent(state, {
+    metric: 'correction_rechecks',
+    scope: `whole-release@${'a'.repeat(64)}`
+  });
+  assert.equal(result.status, 'BUDGET_WARNING');
+  result = applyExecutionBudgetEvent(state, {
+    metric: 'correction_rechecks',
+    scope: `whole-release@${'a'.repeat(64)}`
+  });
+  assert.equal(result.status, 'BUDGET_CONSTRAINED');
+  assert.equal(result.detail.limit, 1);
+});
+
 test('CONV-002 and CONV-003: ordinary failures continue through the boundary and exhaustion escalates', () => {
   const base = {
     event: 'focused_test_failure', scope: 'in-scope', sensitivity: 'ordinary',
