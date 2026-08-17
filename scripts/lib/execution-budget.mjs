@@ -205,6 +205,7 @@ export async function executionBudgetProofReceiptPasses(
   }
   if (obligation.receipt_type === 'evidence') {
     try {
+      const state = await captureGitState(cwd);
       const rows = (await readFile(
         path.join(runtimeDirectory, 'evidence', 'receipts.jsonl'),
         'utf8'
@@ -216,6 +217,8 @@ export async function executionBudgetProofReceiptPasses(
         row.id === receiptId
         && row.record_type !== 'invalidation'
         && row.exit_code === 0
+        && (row.git_commit || row.git_head) === state.head
+        && row.git_tree === state.tree
         && !invalidated.has(row.id)
         && (!obligation.kind || row.kind === obligation.kind)
         && (!obligation.scope || row.scope === obligation.scope)

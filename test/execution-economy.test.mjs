@@ -240,6 +240,48 @@ test('budget proof satisfaction rejects an explicitly invalidated evidence recei
   }
 });
 
+test('budget proof satisfaction rejects reusable evidence from a different candidate tree', async () => {
+  const repo = await tempRepo();
+  try {
+    const budget = path.join(root, 'scripts/run-budget.mjs');
+    let result = run(process.execPath, [budget, 'init', '--profile', 'standard'], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    result = run(process.execPath, [
+      budget, 'record', '--metric', 'complete_suite_executions', '--amount', '4',
+      '--strategy-change', 'review correction',
+      '--required-proof', 'exact candidate correction tests',
+      '--required-proof-type', 'evidence',
+      '--required-proof-kind', 'test',
+      '--required-proof-scope', 'affected',
+      '--required-proof-command', 'node --test correction.test.mjs'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+
+    const evidence = path.join(root, 'scripts/evidence.mjs');
+    result = run(process.execPath, [
+      evidence, 'record', '--kind', 'test', '--scope', 'affected',
+      '--command', 'node --test correction.test.mjs', '--exit-code', '0',
+      '--tests-passed', '1', '--tests-failed', '0', '--dependencies', 'tracked.txt'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const receipt = JSON.parse(result.stdout);
+
+    await writeFile(path.join(repo, 'unrelated.txt'), 'later candidate\n');
+    assert.equal(run('git', ['add', 'unrelated.txt'], repo).status, 0);
+    assert.equal(run('git', ['commit', '-m', 'later candidate'], repo).status, 0);
+    result = run(process.execPath, [evidence, 'check', '--id', receipt.id], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+
+    result = run(process.execPath, [
+      budget, 'prove', '--proof', 'exact candidate correction tests', '--receipt', receipt.id
+    ], repo);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /exact candidate|current-tree|passing receipt/i);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
 test('a circular budget proof can only be superseded by an auditable enforceable replacement', async () => {
   const repo = await tempRepo();
   try {

@@ -284,7 +284,9 @@ with every override proof durably satisfied. Standard and High-risk completion
 accept only the authoritative Git-local budget; a copied or caller-authored
 snapshot is rejected. Each satisfied proof is rechecked against the current
 evidence or verification ledger, invalidations, environment, and exact
-candidate tree. When a correction makes a satisfied proof stale,
+candidate tree. Evidence-type budget proof receipts must match the current Git
+commit and tree even when their dependency cone remains reusable for ordinary
+evidence purposes. When a correction makes a satisfied proof stale,
 `run-budget.mjs supersede` preserves the old receipt and links a new required
 proof before completion can resume. The contract digest covers
 binding meaning, intended claims, implementation locations, and stable evidence

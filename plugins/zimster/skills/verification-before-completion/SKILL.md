@@ -145,7 +145,9 @@ Standard and High-risk completion also rejects every pending or unproved
 execution-budget override, so override proof must be non-circular and durably
 satisfied before completion. Completion accepts only the authoritative
 Git-local budget and revalidates every satisfied proof against the current
-ledger, invalidations, environment, and exact candidate tree; a copied or
+ledger, invalidations, environment, and exact candidate tree. For evidence-type
+proofs, require the receipt commit and tree to equal the current candidate even
+when ordinary dependency-cone evidence reuse would pass; a copied or
 caller-authored budget snapshot is not completion evidence. If review discovers
 a circular proof relationship, or a correction makes a satisfied proof stale,
 use `run-budget.mjs supersede` to preserve the old receipt and link an
