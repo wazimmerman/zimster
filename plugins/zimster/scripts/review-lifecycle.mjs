@@ -213,8 +213,11 @@ if (action === 'init') {
     type: 'correction_recorded', candidate: candidateFromOptions()
   })));
 } else if (action === 'candidate') {
-  state = await coordinated('review_candidate_updated_before_review', () => mutate(() => ({
-    type: 'candidate_updated_before_review', candidate: candidateFromOptions()
+  state = await coordinated('review_candidate_updated', () => mutate((current) => ({
+    type: current.status === 'approved'
+      ? 'approved_candidate_updated_before_final_review'
+      : 'candidate_updated_before_review',
+    candidate: candidateFromOptions()
   })));
 } else if (action === 'stabilize') {
   state = await coordinated('review_candidate_stabilized', () => mutate(() => ({

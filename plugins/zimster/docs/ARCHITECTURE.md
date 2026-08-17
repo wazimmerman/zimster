@@ -329,6 +329,12 @@ Those pre-recheck correction events update one candidate lineage; they do not
 consume or create review attempts. Once the recheck starts, its exact candidate
 is immutable.
 
+An approved but not-yet-stabilized semantic candidate may advance its exact
+head and tree without resetting bounded review accounting, provided its
+semantic-contract digest and immutable base do not change. The reserved final
+integration review supplies the exact-head approval. Stabilization closes this
+assembly transition.
+
 Residuals route to technical adjudication, design/requirement blocker,
 explicit deferral, diagnosis, or partial evidence instead of an unbounded
 reviewer lottery.

@@ -244,6 +244,13 @@ final integration attempts. A second failed final attempt enters durable
 `strategy_escalation_required`; neither a new attempt ID nor a generic budget
 override can reset that hard limit.
 
+After semantic approval and before stabilization, `candidate` may advance the
+exact head/tree only while retaining the approved semantic-contract digest and
+immutable base. This does not create another primary or correction recheck;
+the reserved final integration review still must approve the resulting exact
+candidate. Once stabilized, another candidate change requires the applicable
+final-correction or design-revision transition.
+
 Attempt IDs are run-global identities, not merely seam-local labels. Assurance
 reconciliation rejects an ID repeated in any canonical lifecycle. Candidate
 completion also requires the approved final attempt, semantic review record,

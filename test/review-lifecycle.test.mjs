@@ -277,6 +277,38 @@ test('final integration review is separate and requires a stable breaker-free ca
   assert.equal(state.correction_recheck_consumed, false);
 });
 
+test('approved semantics may advance the exact candidate before stabilization only', () => {
+  let state = start(lifecycle(), 'initial_review', 'attempt-initial');
+  state = verdict(state, 'attempt-initial', 'approved');
+  const exactCandidate = candidate({
+    head_sha: CORRECTED_HEAD,
+    tree_sha: '1'.repeat(40)
+  });
+  state = applyReviewLifecycleEvent(state, {
+    type: 'approved_candidate_updated_before_final_review',
+    candidate: exactCandidate
+  });
+  assert.equal(state.status, 'approved');
+  assert.equal(state.stable, false);
+  assert.deepEqual(state.candidate, exactCandidate);
+  assert.equal(state.attempts.length, 1);
+  assert.equal(state.events.at(-1).type, 'approved_candidate_updated_before_final_review');
+  assert.doesNotThrow(() => validateReviewLifecycle(state));
+
+  assert.throws(() => applyReviewLifecycleEvent(state, {
+    type: 'approved_candidate_updated_before_final_review',
+    candidate: candidate({
+      head_sha: '2'.repeat(40),
+      semantic_contract_sha256: REVISED_CONTRACT
+    })
+  }), /semantic contract|design revision/i);
+  state = applyReviewLifecycleEvent(state, { type: 'candidate_stabilized' });
+  assert.throws(() => applyReviewLifecycleEvent(state, {
+    type: 'approved_candidate_updated_before_final_review',
+    candidate: candidate({ head_sha: '3'.repeat(40) })
+  }), /stabili|before final/i);
+});
+
 test('a final-review correction invalidates stability but does not expand the seam recheck budget', () => {
   let state = start(lifecycle(), 'initial_review', 'attempt-initial');
   state = verdict(state, 'attempt-initial', 'approved');

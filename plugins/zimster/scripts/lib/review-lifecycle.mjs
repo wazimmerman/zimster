@@ -266,6 +266,28 @@ function updateCandidateBeforeReview(state, event) {
   });
 }
 
+function updateApprovedCandidateBeforeFinalReview(state, event) {
+  if (state.status !== 'approved' || state.stable || state.active_attempt_id) {
+    throw new Error('approved candidate can advance only before final-review stabilization');
+  }
+  validateCandidate(event.candidate);
+  if (event.candidate.semantic_contract_sha256 !== state.candidate.semantic_contract_sha256) {
+    throw new Error('a semantic contract change requires an explicit design revision');
+  }
+  if (event.candidate.base_sha !== state.candidate.base_sha) {
+    throw new Error('the review candidate base is immutable within a semantic contract');
+  }
+  if (sameCandidate(event.candidate, state.candidate)) {
+    throw new Error('approved candidate update must change the exact candidate identity');
+  }
+  const next = copy(state);
+  next.candidate = structuredClone(event.candidate);
+  return appendEvent(next, {
+    type: 'approved_candidate_updated_before_final_review',
+    candidate: structuredClone(event.candidate)
+  });
+}
+
 function recordDisposition(state, event) {
   const finalDesignRevision = event.disposition === 'design_revision'
     && state.status === 'final_correction_required'
@@ -356,6 +378,8 @@ function replayLifecycle(state) {
       replayed = applyPolicyReconciliation(replayed, event);
     } else if (event.type === 'candidate_updated_before_review') {
       replayed = updateCandidateBeforeReview(replayed, event);
+    } else if (event.type === 'approved_candidate_updated_before_final_review') {
+      replayed = updateApprovedCandidateBeforeFinalReview(replayed, event);
     } else {
       throw new Error(`review lifecycle contains unsupported event: ${event.type}`);
     }
@@ -439,6 +463,9 @@ export function applyReviewLifecycleEvent(state, event) {
   if (event.type === 'correction_recorded') return recordCorrection(state, event);
   if (event.type === 'candidate_updated_before_review') {
     return updateCandidateBeforeReview(state, event);
+  }
+  if (event.type === 'approved_candidate_updated_before_final_review') {
+    return updateApprovedCandidateBeforeFinalReview(state, event);
   }
   if (event.type === 'breaker_disposition_recorded') return recordDisposition(state, event);
   if (event.type === 'candidate_stabilized') {
