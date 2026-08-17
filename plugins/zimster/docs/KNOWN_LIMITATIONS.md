@@ -13,7 +13,9 @@ Zimster 0.7.1 is a public beta, not a stable 1.0 compatibility guarantee.
 - Skills-only installs lack guaranteed scripts, receipts, agents, hooks,
   machine-enforced routing, and mechanical durable-state synchronization. They
   must not claim full runtime recovery/accounting parity; claims that require
-  those mechanics remain unavailable.
+  those mechanics remain unavailable. Bundles with the embedded helper runtime
+  are exact-package smoked; manually copied or partial skills are not promoted
+  to that assurance level.
 - A host may accept a requested model without reporting the effective model.
   Strict-cost routing treats that as unverified.
 - Model catalogs are account- and session-dependent. Zimster has no canonical

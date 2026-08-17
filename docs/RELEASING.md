@@ -61,6 +61,14 @@ digests, npm allowlist exclusions, and absence of credentials or private
 planning material. Smoke-test each available host in a fresh isolated home and
 record unavailable capabilities without broadening the claim.
 
+The installed-package smoke runs every artifact that supplies the mechanical
+runtime through High-risk initialization, durable slice start, dirty
+checkpoint, governed execution, fresh-process resume, audited accounting,
+summary drift detection/repair, hard lifecycle exhaustion, and fail-closed
+completion coherence. OpenAI/portable skill bundles are tested at their
+embedded runtime path so provenance cannot silently fall back to a source-tree
+identity.
+
 Run installed-package smoke before the final integration review. In particular,
 register and install the exact Codex ZIP with an isolated `CODEX_HOME`. Run the
 secret scan over both tracked content and every artifact before accepting the

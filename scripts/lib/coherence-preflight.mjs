@@ -109,8 +109,16 @@ export async function evaluateCoherence(runtime, repo, {
     'assurance accounting',
     issues
   );
+  const transaction = await readJsonComponent(
+    path.join(runtime, 'transactions', 'current.json'),
+    'control-plane transaction',
+    issues
+  );
 
   if (!run || run.schema_version !== 3) issues.push('canonical run.json schema 3 is unavailable');
+  if (transaction) {
+    issues.push(`pending control-plane mutation requires resume or reconciliation: ${transaction.transaction_id || 'unidentified'}`);
+  }
   if (!checkpoint || checkpoint.schema_version !== 2) {
     issues.push('canonical recovery checkpoint schema 2 is unavailable');
   } else if (run) {

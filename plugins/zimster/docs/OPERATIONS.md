@@ -217,6 +217,27 @@ node <zimster>/scripts/coherence-preflight.mjs check \
 the owning state through its normal command, regenerate `run.md`, and rerun the
 check. Do not edit the derived summary or copy state into alternate paths.
 
+## Synchronized state mutations
+
+Supported evidence add/invalidate/run, governed verification start/result,
+review lifecycle, budget/proof, accounting, dispatch/delegation, convergence,
+host evidence, completion, and release-evidence commands pass successful
+canonical writes through one Git-local mutation boundary. That boundary uses a
+runtime lock, atomic writes where the store permits them, transaction-bound
+audit rows, a revision-matched checkpoint, deterministic `run.md` refresh, and
+post-write invariants.
+
+If a fresh process finds an in-flight marker, run:
+
+```text
+node <zimster>/scripts/run-control.mjs resume
+```
+
+A canonical-write marker is completed mechanically. A pre-write/ambiguous
+marker remains visible in the checkpoint and `run.md` as
+`RECOVERY_RECONCILIATION_REQUIRED`; do not delete it or claim the operation
+succeeded without reconciling the owning store.
+
 Reconcile supported host observations before completion:
 
 ```text

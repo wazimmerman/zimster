@@ -6,6 +6,7 @@ import { parseOptions, required, writeLine } from './lib/cli.mjs';
 import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
 import { evaluateCoherence } from './lib/coherence-preflight.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
+import { withControlPlaneMutation } from './lib/control-plane-mutation.mjs';
 import {
   githubReleaseState,
   normalizeReleaseSignerFingerprint,
@@ -160,7 +161,10 @@ if (action === 'create') {
   };
   validateShape(evidence);
   const output = path.resolve(process.cwd(), required(options, 'output'));
-  await writeFile(output, `${JSON.stringify(evidence, null, 2)}\n`);
+  const runtime = await ensureRuntimeDirectory(root);
+  await withControlPlaneMutation(runtime, root, {
+    mutationType: 'release_evidence_created'
+  }, () => writeFile(output, `${JSON.stringify(evidence, null, 2)}\n`));
   writeLine(output);
 } else if (action === 'verify') {
   const evidence = JSON.parse(await readFile(path.resolve(process.cwd(), required(options, 'file')), 'utf8'));

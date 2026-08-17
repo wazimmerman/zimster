@@ -3,6 +3,7 @@ import { parseOptions } from './lib/cli.mjs';
 import { findRepoRoot } from './lib/git-state.mjs';
 import { reconcileExecutionAccounting } from './lib/governed-execution.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
+import { withControlPlaneMutation } from './lib/control-plane-mutation.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
@@ -10,10 +11,12 @@ const repo = findRepoRoot(process.cwd());
 const runtime = await ensureRuntimeDirectory(repo);
 
 if (action === 'reconcile') {
-  const report = await reconcileExecutionAccounting(runtime, repo, {
+  const report = await withControlPlaneMutation(runtime, repo, {
+    mutationType: 'execution_accounting_reconciled'
+  }, () => reconcileExecutionAccounting(runtime, repo, {
     mutate: true,
     reason: options.reason ? String(options.reason) : null
-  });
+  }));
   writeSync(process.stdout.fd, `${JSON.stringify(report)}\n`);
 } else if (action === 'check') {
   const report = await reconcileExecutionAccounting(runtime, repo, { mutate: false });

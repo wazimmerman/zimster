@@ -9,6 +9,7 @@ import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
 import { beginGovernedExecution, finishGovernedExecution } from './lib/governed-execution.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 import { recordVerificationInRecovery } from './lib/run-control.mjs';
+import { withControlPlaneMutation } from './lib/control-plane-mutation.mjs';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const script = (name) => path.join(packageRoot, 'scripts', name);
@@ -208,7 +209,10 @@ async function runPlan(plan) {
   let governed = null;
   const childEnvironment = { ...process.env };
   delete childEnvironment.NODE_TEST_CONTEXT;
-  governed = await beginGovernedExecution(runtime, root, {
+  governed = await withControlPlaneMutation(runtime, root, {
+    mutationType: 'governed_verification_started',
+    didMutate: (value) => value.admitted === true
+  }, () => beginGovernedExecution(runtime, root, {
     sourceRoot: packageRoot,
     issuer: 'zimster.verify',
     commandArgv: [process.execPath, ...process.argv.slice(1)],
@@ -236,7 +240,7 @@ async function runPlan(plan) {
         ? String(options['required-proof-command'])
         : null
     }
-  });
+  }));
   budget = governed.budget;
   if (!governed.admitted) {
     failedStep = 'execution-budget';

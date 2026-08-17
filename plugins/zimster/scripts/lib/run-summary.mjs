@@ -12,6 +12,15 @@ async function readJsonOptional(file) {
   }
 }
 
+async function readJsonLinesOptional(file) {
+  try {
+    return (await readFile(file, 'utf8')).split('\n').filter(Boolean).map((line) => JSON.parse(line));
+  } catch (error) {
+    if (error.code === 'ENOENT') return [];
+    throw error;
+  }
+}
+
 function text(value, fallback = 'Unavailable') {
   if (value === null || value === undefined || value === '') return fallback;
   return String(value);
@@ -58,10 +67,16 @@ function budgetRows(budget) {
     ...Object.keys(budget.limits || {}),
     ...Object.keys(budget.usage || {})
   ]);
-  if (!keys.size) return '- No metrics recorded';
-  return [...keys].sort().map((metric) =>
+  const rows = [
+    `- Accounting: ${budget.accounting_status || 'recorded'}`,
+    ...[...keys].sort().map((metric) =>
     `- ${metric}: ${budget.usage?.[metric] ?? 'unverified'} / ${budget.limits?.[metric] ?? 'unbounded'}`
-  ).join('\n');
+    ),
+    ...(budget.proof_obligations || []).map(({ proof, status }) =>
+      `- Proof ${proof}: ${status}`
+    )
+  ];
+  return rows.join('\n');
 }
 
 function reviewRows(lifecycle) {
@@ -75,6 +90,11 @@ function reviewRows(lifecycle) {
   ].join('\n');
 }
 
+function activityRows(rows, describe, empty) {
+  if (!rows.length) return `- ${empty}`;
+  return rows.map((row) => `- ${row.id || 'unidentified'} — ${describe(row)}`).join('\n');
+}
+
 export async function renderRunSummary(runtime, { repo } = {}) {
   const state = await readRunState(runtime);
   if (!state) throw new Error('run.json is required to render run.md');
@@ -82,6 +102,11 @@ export async function renderRunSummary(runtime, { repo } = {}) {
   const checkpoint = await readJsonOptional(path.join(runtime, 'checkpoints', 'current.json'));
   const budget = await readJsonOptional(path.join(runtime, 'budget.json'));
   const lifecycle = await readJsonOptional(path.join(runtime, 'review-lifecycle', 'whole-release.json'));
+  const assurance = await readJsonOptional(path.join(runtime, 'assurance-accounting', 'latest.json'));
+  const hostSmoke = await readJsonOptional(path.join(runtime, 'host-smoke', 'latest.json'));
+  const dispatches = await readJsonLinesOptional(path.join(runtime, 'dispatches', 'dispatches.jsonl'));
+  const delegations = await readJsonLinesOptional(path.join(runtime, 'delegation', 'decisions.jsonl'));
+  const convergence = await readJsonLinesOptional(path.join(runtime, 'convergence', 'decisions.jsonl'));
   const capability = state.capability_receipt || { schema_version: 1, harness: null, capabilities: null };
   const completed = state.completed_slices?.length
     ? state.completed_slices
@@ -146,6 +171,8 @@ ${sliceBlock(state.next_slice)}
 - Touched files:
 ${list(checkpoint?.repository_state?.touched_files || [])}
 - Active failure: ${text(checkpoint?.active_failure?.summary, 'None')}
+- Reconciliation: ${text(checkpoint?.reconciliation_reason, 'None')}
+- Active transaction: ${text(checkpoint?.active_transaction?.transaction_id, 'None')}
 
 ## Completed slices and commits
 
@@ -154,10 +181,14 @@ ${list(completed)}
 ## Evidence validity
 
 ${evidenceRows(state, checkpoint)}
+- Host smoke: ${hostSmoke ? `${text(hostSmoke.status)} at ${text(hostSmoke.candidate_head)}` : 'Unavailable'}
 
 ## Review and convergence
 
 ${reviewRows(lifecycle)}
+- Assurance accounting: ${assurance ? (assurance.reconciliation_complete ? 'current' : 'unreconciled') : 'unavailable'}
+- Convergence decisions:
+${activityRows(convergence, (row) => row.outcome || row.decision?.outcome || 'recorded', 'None recorded')}
 
 ## Budget position
 
@@ -177,7 +208,10 @@ ${list(guards)}
 
 ## Dispatch and delegation
 
-- Canonical activity remains in the dispatch and delegation ledgers.
+- Delegation decisions:
+${activityRows(delegations, (row) => row.selected ? `selected ${row.role || 'role unavailable'}` : 'inline', 'None recorded')}
+- Dispatches:
+${activityRows(dispatches, (row) => `${row.role || 'role unavailable'} / ${row.effective_model || 'unverified'}`, 'None recorded')}
 `;
 }
 

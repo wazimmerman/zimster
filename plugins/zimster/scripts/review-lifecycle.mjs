@@ -4,6 +4,7 @@ import { parseOptions, required, writeLine } from './lib/cli.mjs';
 import { findRepoRoot } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 import { evaluateCoherence } from './lib/coherence-preflight.mjs';
+import { withControlPlaneMutation } from './lib/control-plane-mutation.mjs';
 import {
   applyReviewLifecycleEvent,
   createReviewLifecycle,
@@ -123,6 +124,13 @@ async function mutate(eventFactory) {
   });
 }
 
+function coordinated(mutationType, operation) {
+  return withControlPlaneMutation(runtime, root, {
+    mutationType,
+    atomicFailure: true
+  }, operation);
+}
+
 async function boundReviewPackage(state) {
   const file = path.resolve(process.cwd(), required(options, 'review-package'));
   const reviewPackage = JSON.parse(await readFile(file, 'utf8'));
@@ -150,7 +158,7 @@ async function boundReviewPackage(state) {
 
 let state;
 if (action === 'init') {
-  state = await withLock(async () => {
+  state = await coordinated('review_lifecycle_initialized', () => withLock(async () => {
     try {
       await readFile(stateFile, 'utf8');
       throw new Error(`review lifecycle already exists: ${seamId}`);
@@ -164,9 +172,9 @@ if (action === 'init') {
     });
     await persist(initial);
     return initial;
-  });
+  }));
 } else if (action === 'start') {
-  state = await mutate(async (current) => {
+  state = await coordinated('review_attempt_started', () => mutate(async (current) => {
     const reviewPackage = await boundReviewPackage(current);
     const event = {
       type: 'attempt_started',
@@ -190,32 +198,36 @@ if (action === 'init') {
       }
     }
     return event;
-  });
+  }));
 } else if (action === 'verdict') {
-  state = await mutate(() => ({
+  state = await coordinated('review_verdict_recorded', () => mutate(() => ({
     type: 'verdict_recorded',
     attempt_id: required(options, 'attempt-id'),
     verdict: required(options, 'verdict'),
     findings: jsonOption('findings', [])
-  }));
+  })));
 } else if (action === 'correction') {
-  state = await mutate(() => ({ type: 'correction_recorded', candidate: candidateFromOptions() }));
+  state = await coordinated('review_correction_recorded', () => mutate(() => ({
+    type: 'correction_recorded', candidate: candidateFromOptions()
+  })));
 } else if (action === 'stabilize') {
-  state = await mutate(() => ({ type: 'candidate_stabilized' }));
+  state = await coordinated('review_candidate_stabilized', () => mutate(() => ({
+    type: 'candidate_stabilized'
+  })));
 } else if (action === 'disposition') {
-  state = await mutate(() => ({
+  state = await coordinated('review_disposition_recorded', () => mutate(() => ({
     type: 'breaker_disposition_recorded',
     disposition: required(options, 'disposition'),
     reason: required(options, 'reason'),
     evidence_refs: jsonOption('evidence-refs', []),
     ...(options.head ? { candidate: candidateFromOptions() } : {})
-  }));
+  })));
 } else if (action === 'reconcile') {
-  state = await withLock(async () => {
+  state = await coordinated('review_policy_reconciled', () => withLock(async () => {
     const reconciled = reconcileReviewLifecycle(await readRawState());
     await persist(reconciled);
     return reconciled;
-  });
+  }));
 } else if (action === 'show') {
   state = await readState();
 } else {

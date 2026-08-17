@@ -47,6 +47,7 @@ const operationalScripts = [
   'scripts/lib/run-control.mjs', 'scripts/lib/run-summary.mjs',
   'scripts/lib/governed-execution.mjs',
   'scripts/lib/coherence-preflight.mjs',
+  'scripts/lib/control-plane-mutation.mjs',
   'scripts/lib/semantic-assurance.mjs',
   'scripts/lib/review-lifecycle.mjs',
   'scripts/lib/evidence-validity.mjs',
@@ -83,6 +84,7 @@ const publicContracts = [
   'schemas/governed-execution.schema.json',
   'schemas/accounting-reconciliation.schema.json',
   'schemas/coherence-preflight.schema.json',
+  'schemas/control-plane-transaction.schema.json',
   'docs/INSTALL.md', 'docs/CONFIGURATION.md', 'docs/KNOWN_LIMITATIONS.md',
   'docs/MIGRATING-0.5.0.md', 'docs/MIGRATING-0.7.0.md'
 ];

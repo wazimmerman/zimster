@@ -58,7 +58,8 @@
     "exact_next_command": {"type": ["string", "null"]},
     "environment": {"type": "object"},
     "recovery_status": {"type": "string", "minLength": 1},
-    "reconciliation_reason": {"type": "string"}
+    "reconciliation_reason": {"type": "string"},
+    "active_transaction": {"$ref": "control-plane-transaction.schema.json"}
   },
   "additionalProperties": true
 }

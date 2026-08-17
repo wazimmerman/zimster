@@ -72,12 +72,8 @@ async function runtimeProvenance(sourceRoot, issuer) {
         : 'source_checkout_subpath';
   } catch {
     const embedded = await readJsonOptional(path.join(
-      sourceRoot,
-      'skills',
-      'using-zimster',
-      'references',
-      'build-metadata.json'
-    ));
+      sourceRoot, 'skills', 'using-zimster', 'references', 'build-metadata.json'
+    )) || await readJsonOptional(path.join(sourceRoot, 'references', 'build-metadata.json'));
     runtimeOrigin = embedded?.package_target
       ? `installed_${embedded.package_target}`
       : 'installed_package';

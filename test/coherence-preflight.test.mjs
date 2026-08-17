@@ -176,6 +176,19 @@ test('coherence preflight reports every stale control-plane component without re
     const budget = JSON.parse(await readFile(budgetFile, 'utf8'));
     budget.usage.complete_suite_executions = 2;
     await writeFile(budgetFile, `${JSON.stringify(budget, null, 2)}\n`);
+    await mkdir(runtimePath(repo, 'transactions'), { recursive: true });
+    await writeFile(runtimePath(repo, 'transactions', 'current.json'), `${JSON.stringify({
+      schema_version: 1,
+      transaction_id: 'pending-control-mutation',
+      mutation_type: 'evidence_recorded',
+      actor_id: 'root',
+      phase: 'started',
+      run_state_revision_before: 1,
+      candidate_before: {
+        head: '0'.repeat(40), tree: '0'.repeat(40), dirty_tree_fingerprint: CLEAN
+      },
+      started_at: '2026-08-16T00:00:00.000Z'
+    }, null, 2)}\n`);
 
     const result = preflight(repo, 'completion');
     assert.equal(result.status, 2, result.stderr || result.stdout);
@@ -185,6 +198,7 @@ test('coherence preflight reports every stale control-plane component without re
     assert.match(report.issues.join('\n'), /checkpoint.*head|head.*checkpoint/i);
     assert.match(report.issues.join('\n'), /remaining obligation/i);
     assert.match(report.issues.join('\n'), /STALE_ACCOUNTING/i);
+    assert.match(report.issues.join('\n'), /pending control-plane mutation/i);
     assert.equal((await readFile(budgetFile, 'utf8')).includes('"complete_suite_executions": 2'), true);
   } finally {
     await rm(repo, { recursive: true, force: true });

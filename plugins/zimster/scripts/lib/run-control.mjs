@@ -278,7 +278,7 @@ export async function migrateRunAndCheckpoint(runtime, repo) {
   return { state, migrated: true, recoveryRequired: ambiguous };
 }
 
-async function recoveryCheckpoint(runtime, repo, state, changes = {}) {
+export async function recoveryCheckpoint(runtime, repo, state, changes = {}) {
   const prior = await readJsonOptional(path.join(runtime, 'checkpoints', 'current.json')) || {};
   const git = await captureGitState(repo);
   const checkpoint = {
@@ -478,6 +478,8 @@ export async function resumeRun(runtime, repo) {
     const migration = await migrateRunAndCheckpoint(runtime, repo);
     let state = migration.state;
     let checkpoint = await readJsonOptional(path.join(runtime, 'checkpoints', 'current.json'));
+    const transactionFile = path.join(runtime, 'transactions', 'current.json');
+    const transaction = await readJsonOptional(transactionFile);
     if (!checkpoint) {
       checkpoint = await recoveryCheckpoint(runtime, repo, state, {
         recoveryStatus: state.current_slice ? 'CHECKPOINT_RECONSTRUCTED' : 'NO_CURRENT_SLICE'
@@ -486,6 +488,54 @@ export async function resumeRun(runtime, repo) {
     if (migration.recoveryRequired) {
       await refreshRunSummary(runtime, { repo });
       return { checkpoint, recoveryRequired: true };
+    }
+    if (transaction) {
+      if (transaction.schema_version !== 1
+        || typeof transaction.transaction_id !== 'string'
+        || typeof transaction.mutation_type !== 'string'
+        || !['started', 'canonical_mutation_applied'].includes(transaction.phase)) {
+        throw new Error('control-plane transaction marker is malformed');
+      }
+      if (transaction.phase === 'started') {
+        checkpoint = await recoveryCheckpoint(runtime, repo, state, {
+          recoveryStatus: 'RECOVERY_RECONCILIATION_REQUIRED'
+        });
+        checkpoint.reconciliation_reason = `control-plane mutation ${transaction.mutation_type} was interrupted before canonical success was durable`;
+        checkpoint.active_transaction = transaction;
+        await writeJsonAtomic(path.join(runtime, 'checkpoints', 'current.json'), checkpoint);
+        await appendRunEvent(runtime, {
+          event_type: 'control_plane_mutation_reconciliation_required',
+          transaction_id: transaction.transaction_id,
+          mutation_type: transaction.mutation_type,
+          run_state_revision: state.state_revision
+        });
+        await refreshRunSummary(runtime, { repo });
+        return { checkpoint, recoveryRequired: true };
+      }
+      const beforeRevision = transaction.run_state_revision_before;
+      if (state.state_revision === beforeRevision) {
+        state.state_revision += 1;
+        await writeRunState(runtime, state);
+      } else if (state.state_revision !== beforeRevision + 1) {
+        checkpoint = await recoveryCheckpoint(runtime, repo, state, {
+          recoveryStatus: 'RECOVERY_RECONCILIATION_REQUIRED'
+        });
+        checkpoint.reconciliation_reason = 'control-plane transaction revision cannot be reconciled deterministically';
+        checkpoint.active_transaction = transaction;
+        await writeJsonAtomic(path.join(runtime, 'checkpoints', 'current.json'), checkpoint);
+        await refreshRunSummary(runtime, { repo });
+        return { checkpoint, recoveryRequired: true };
+      }
+      checkpoint = await recoveryCheckpoint(runtime, repo, state, {
+        recoveryStatus: 'RECONCILED_CONTROL_PLANE_MUTATION'
+      });
+      await appendRunEvent(runtime, {
+        event_type: 'control_plane_mutation_reconciled',
+        transaction_id: transaction.transaction_id,
+        mutation_type: transaction.mutation_type,
+        run_state_revision: state.state_revision
+      });
+      await rm(transactionFile, { force: true });
     }
     if (checkpoint.run_state_revision !== state.state_revision) {
       const priorRevision = checkpoint.run_state_revision ?? null;

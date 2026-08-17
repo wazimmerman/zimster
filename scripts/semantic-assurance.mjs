@@ -15,6 +15,7 @@ import { normalizeConvergenceMetric } from './lib/convergence.mjs';
 import { canonicalPath } from './lib/path-identity.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 import { evaluateCoherence } from './lib/coherence-preflight.mjs';
+import { withControlPlaneMutation } from './lib/control-plane-mutation.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
@@ -319,6 +320,12 @@ async function completionDecision() {
     reviewLifecycle,
     assuranceAccounting
   });
+  if (result.state === COMPLETION_STATES.CANDIDATE_COMPLETE) {
+    await withControlPlaneMutation(runtimeDirectory, root, {
+      mutationType: 'candidate_completion_recorded',
+      atomicFailure: true
+    }, async () => result);
+  }
   writeLine(JSON.stringify(result));
   writeError(`${result.state} review=${result.review_id || 'none'} claims=${result.allowed_claims.length}`);
   for (const reason of result.reasons) writeError(`- ${reason}`);

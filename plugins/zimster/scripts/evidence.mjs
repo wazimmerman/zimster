@@ -21,6 +21,10 @@ import {
 import { ensureRuntimeDirectory, migrateLegacyJsonlStore } from './lib/runtime.mjs';
 import { harnessCapabilities } from './lib/capabilities.mjs';
 import { beginGovernedExecution, finishGovernedExecution } from './lib/governed-execution.mjs';
+import {
+  evidenceCheckpointChanges,
+  withControlPlaneMutation
+} from './lib/control-plane-mutation.mjs';
 
 const { positional, options, passthrough } = parseOptions(process.argv.slice(2));
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -237,7 +241,6 @@ async function store(receipt) {
   await init();
   const bytes = `${JSON.stringify(receipt)}\n`;
   await appendFile(receiptsFile, bytes);
-  writeSync(process.stdout.fd, bytes);
   return bytes;
 }
 
@@ -311,7 +314,17 @@ async function main() {
     await init();
     const exitCode = integerOption(options, 'exit-code');
     if (exitCode === undefined) throw new Error('--exit-code is required');
-    await store(await buildReceipt({ exitCode }));
+    const receipt = await buildReceipt({ exitCode });
+    const runtime = await ensureRuntimeDirectory(root);
+    const bytes = await withControlPlaneMutation(runtime, root, {
+      mutationType: 'evidence_recorded',
+      checkpointChanges: () => evidenceCheckpointChanges(runtime, {
+        id: receipt.id,
+        status: exitCode === 0 ? 'valid' : 'stale',
+        ...(exitCode === 0 ? {} : { invalidation_reason: 'recorded evidence did not pass' })
+      })
+    }, () => store(receipt));
+    writeSync(process.stdout.fd, bytes);
     return;
   }
   if (commandName === 'check') {
@@ -350,7 +363,15 @@ async function main() {
       reason,
       invalidated_at: new Date().toISOString()
     };
-    await appendFile(receiptsFile, `${JSON.stringify(invalidation)}\n`);
+    const runtime = await ensureRuntimeDirectory(root);
+    await withControlPlaneMutation(runtime, root, {
+      mutationType: 'evidence_invalidated',
+      checkpointChanges: () => evidenceCheckpointChanges(runtime, {
+        id,
+        status: 'stale',
+        invalidation_reason: reason
+      })
+    }, () => appendFile(receiptsFile, `${JSON.stringify(invalidation)}\n`));
     writeSync(process.stdout.fd, `${JSON.stringify(invalidation)}\n`);
     return;
   }
@@ -395,7 +416,10 @@ async function main() {
       return;
     }
     const runtime = await ensureRuntimeDirectory(root);
-    const governed = await beginGovernedExecution(runtime, root, {
+    const governed = await withControlPlaneMutation(runtime, root, {
+      mutationType: 'governed_evidence_started',
+      didMutate: (value) => value.admitted === true
+    }, () => beginGovernedExecution(runtime, root, {
       sourceRoot: packageRoot,
       issuer: 'zimster.evidence',
       commandArgv: passthrough,
@@ -428,7 +452,7 @@ async function main() {
           ? String(options['required-proof-command'])
           : null
       }
-    });
+    }));
     if (!governed.admitted) {
       writeLine(JSON.stringify(governed.budget));
       const error = new Error(governed.budget.status);
@@ -446,21 +470,32 @@ async function main() {
     const receipt = await buildReceipt({ startedAt, endedAt, exitCode });
     receipt.issuer = 'zimster.evidence';
     receipt.execution_id = governed.receipt.id;
-    const receiptBytes = await store(receipt);
-    await finishGovernedExecution(runtime, root, {
-      executionId: governed.receipt.id,
-      status: exitCode === 0 ? 'passed' : 'failed',
-      exitCode,
-      terminalReceiptType: 'evidence',
-      terminalReceiptId: receipt.id,
-      terminalReceiptBytes: receiptBytes,
-      compactResult: {
-        kind: receipt.kind,
-        scope: receipt.scope,
-        tests: receipt.tests,
-        behavioral_evidence: receipt.behavioral_evidence
-      }
+    const receiptBytes = await withControlPlaneMutation(runtime, root, {
+      mutationType: 'governed_evidence_finished',
+      checkpointChanges: () => evidenceCheckpointChanges(runtime, {
+        id: receipt.id,
+        status: exitCode === 0 ? 'valid' : 'stale',
+        ...(exitCode === 0 ? {} : { invalidation_reason: 'governed evidence command failed' })
+      })
+    }, async () => {
+      const bytes = await store(receipt);
+      await finishGovernedExecution(runtime, root, {
+        executionId: governed.receipt.id,
+        status: exitCode === 0 ? 'passed' : 'failed',
+        exitCode,
+        terminalReceiptType: 'evidence',
+        terminalReceiptId: receipt.id,
+        terminalReceiptBytes: bytes,
+        compactResult: {
+          kind: receipt.kind,
+          scope: receipt.scope,
+          tests: receipt.tests,
+          behavioral_evidence: receipt.behavioral_evidence
+        }
+      });
+      return bytes;
     });
+    writeSync(process.stdout.fd, receiptBytes);
     process.exitCode = exitCode;
     return;
   }

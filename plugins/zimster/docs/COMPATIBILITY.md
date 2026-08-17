@@ -32,7 +32,8 @@ discovery does not prove routing to a requested model.
 
 Every host can consume the 12 canonical Agent Skills if it implements the
 current Agent Skills format. The OpenAI and portable release bundles place the
-referenced dependency-free runtime inside the `using-zimster` skill. A direct
+referenced dependency-free runtime inside the `using-zimster` skill and bind
+governed provenance to that nested installed-package metadata. A direct
 source-tree skill copy may still lose helpers, and all skills-only installs lose
 host agents/hooks and machine-enforced model settings. Every helper reference
 therefore retains a manual or inline fallback.

@@ -3,6 +3,7 @@ import { spawnSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { parseOptions, writeLine } from './lib/cli.mjs';
 import { archivePathProblem, readStoredZip } from './lib/zip-reader.mjs';
 import { readTarGzip } from './lib/tar-reader.mjs';
@@ -51,34 +52,180 @@ function execute(file, args, cwd, env) {
   return String(result.stdout || '').trim();
 }
 
+function executeResult(file, args, cwd, env) {
+  return spawnSync(process.execPath, [file, ...args], {
+    cwd,
+    env,
+    encoding: 'utf8',
+    shell: false,
+    maxBuffer: 32 * 1024 * 1024
+  });
+}
+
+function git(args, cwd) {
+  const result = spawnSync('git', args, { cwd, encoding: 'utf8', shell: false });
+  if (result.status !== 0) throw new Error(result.stderr || `git ${args.join(' ')} failed`);
+  return String(result.stdout || '').trim();
+}
+
+function parseJson(label, value) {
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    throw new Error(`${label} returned invalid JSON: ${error.message}; output=${JSON.stringify(value)}`);
+  }
+}
+
 async function exercisePackagedWorkflow(runtimeRoot, fixture, home) {
   await mkdir(fixture, { recursive: true });
-  const initialized = spawnSync('git', ['init', '-q', '-b', 'main'], {
-    cwd: fixture,
-    encoding: 'utf8',
-    shell: false
-  });
-  if (initialized.status !== 0) throw new Error(initialized.stderr || 'fixture git init failed');
+  git(['init', '-q', '-b', 'main'], fixture);
+  git(['config', 'user.name', 'Zimster Package Smoke'], fixture);
+  git(['config', 'user.email', 'smoke@example.invalid'], fixture);
   await writeFile(path.join(fixture, 'fixture.txt'), 'packaged helper workflow\n');
+  git(['add', 'fixture.txt'], fixture);
+  git(['commit', '-qm', 'fixture'], fixture);
+  const env = isolatedEnvironment(home);
   execute(
     path.join(runtimeRoot, 'scripts', 'init-run.mjs'),
-    ['--profile', 'micro', '--harness', 'codex', '--audit-path', '.audit/run.md'],
+    [
+      '--profile', 'high-risk', '--harness', 'codex',
+      '--next-slice-id', 'slice-1', '--next-slice-title', 'Packaged control path',
+      '--next-action', 'Start the packaged slice',
+      '--next-command', 'node scripts/run-control.mjs start'
+    ],
     fixture,
-    isolatedEnvironment(home)
+    env
   );
-  const run = await readFile(path.join(fixture, '.audit', 'run.md'), 'utf8');
-  if (!run.includes('Profile: Micro') || !run.includes('Harness capability receipt')) {
-    throw new Error('packaged init-run helper did not continue the durable-state workflow');
+  const runtime = git(['rev-parse', '--path-format=absolute', '--git-path', 'zimster'], fixture);
+  let runSummary = await readFile(path.join(runtime, 'run.md'), 'utf8');
+  if (!runSummary.includes('Profile: high-risk') || !runSummary.includes('slice-1')) {
+    throw new Error('packaged init-run helper did not initialize canonical High-risk state');
   }
   execute(
-    path.join(runtimeRoot, 'scripts', 'change-snapshot.mjs'),
-    ['--output', '.audit/change-snapshot.md'],
+    path.join(runtimeRoot, 'scripts', 'run-control.mjs'),
+    [
+      'start', '--slice-id', 'slice-1', '--slice-title', 'Packaged control path',
+      '--next-slice-id', 'slice-2', '--remaining-obligations', '["run packaged verification"]',
+      '--next-action', 'Checkpoint dirty package work',
+      '--next-command', 'node scripts/run-control.mjs checkpoint'
+    ],
     fixture,
-    isolatedEnvironment(home)
+    env
   );
-  const snapshot = await readFile(path.join(fixture, '.audit', 'change-snapshot.md'), 'utf8');
-  if (!snapshot.includes('fixture.txt')) {
-    throw new Error('packaged change-snapshot helper did not continue the review workflow');
+  await writeFile(path.join(fixture, 'fixture.txt'), 'packaged helper correction\n');
+  await writeFile(path.join(fixture, 'second.txt'), 'dirty uncommitted package work\n');
+  const checkpoint = parseJson('packaged checkpoint', execute(
+    path.join(runtimeRoot, 'scripts', 'run-control.mjs'),
+    [
+      'checkpoint', '--status', 'in_progress',
+      '--completed-obligations', '["initialize exact package"]',
+      '--remaining-obligations', '["run packaged verification"]',
+      '--next-action', 'Run governed packaged verification',
+      '--next-command', 'node scripts/evidence.mjs run'
+    ],
+    fixture,
+    env
+  )).checkpoint;
+  if (checkpoint.current_slice?.id !== 'slice-1'
+    || checkpoint.repository_state?.touched_files?.length !== 2) {
+    throw new Error('packaged dirty checkpoint did not preserve the current slice and touched files');
+  }
+  const evidence = parseJson('packaged governed evidence', execute(
+    path.join(runtimeRoot, 'scripts', 'evidence.mjs'),
+    [
+      'run', '--kind', 'test', '--scope', 'focused',
+      '--test-discovery', 'tests_executed', '--tests-passed', '1', '--',
+      process.execPath, '-e', 'process.exit(0)'
+    ],
+    fixture,
+    env
+  ));
+  if (!evidence.execution_id || evidence.exit_code !== 0) {
+    throw new Error('packaged governed evidence did not produce an authenticated execution receipt');
+  }
+  const resumed = parseJson('packaged resume', execute(
+    path.join(runtimeRoot, 'scripts', 'run-control.mjs'),
+    ['resume'],
+    fixture,
+    env
+  ));
+  if (resumed.current_slice?.id !== 'slice-1'
+    || resumed.repository_state?.touched_files?.length !== 2) {
+    throw new Error('fresh packaged resume lost dirty current-slice state');
+  }
+  const accounting = parseJson('packaged accounting reconciliation', execute(
+    path.join(runtimeRoot, 'scripts', 'accounting-reconcile.mjs'),
+    ['reconcile', '--reason', 'exact-package smoke'],
+    fixture,
+    env
+  ));
+  if (!['ACCOUNTING_CURRENT', 'ACCOUNTING_RECONCILED'].includes(accounting.status)
+    || accounting.unobserved_direct_shell_commands !== 'not_observable') {
+    throw new Error('packaged accounting reconciliation is not auditable');
+  }
+  execute(path.join(runtimeRoot, 'scripts', 'run-control.mjs'), ['check'], fixture, env);
+  await writeFile(path.join(runtime, 'run.md'), '# stale packaged summary\n');
+  let checked = executeResult(
+    path.join(runtimeRoot, 'scripts', 'run-control.mjs'), ['check'], fixture, env
+  );
+  if (checked.status !== 2 || !String(checked.stdout).includes('STALE_RUN_SUMMARY')) {
+    throw new Error('packaged run summary drift was not detected');
+  }
+  execute(path.join(runtimeRoot, 'scripts', 'run-control.mjs'), ['refresh'], fixture, env);
+  execute(path.join(runtimeRoot, 'scripts', 'run-control.mjs'), ['check'], fixture, env);
+
+  const lifecycleModule = pathToFileURL(path.join(
+    runtimeRoot,
+    'scripts',
+    'lib',
+    'review-lifecycle.mjs'
+  )).href;
+  const lifecycleOutput = path.join(fixture, '.lifecycle-probe.json');
+  const lifecycleProbe = `
+import { writeFileSync } from 'node:fs';
+import { applyReviewLifecycleEvent as apply, createReviewLifecycle as create } from ${JSON.stringify(lifecycleModule)};
+const clean = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+const candidate = (head = 'b'.repeat(40)) => ({ base_sha: 'a'.repeat(40), head_sha: head, tree_sha: 'c'.repeat(40), dirty_tree_fingerprint: clean, semantic_contract_sha256: 'd'.repeat(64) });
+let state = create({ seam_id: 'package-smoke', reviewer_identity: 'reviewer', candidate: candidate() });
+const start = (type, id, head = 'b'.repeat(40)) => apply(state, { type: 'attempt_started', attempt: { attempt_type: type, attempt_id: id, seam_id: 'package-smoke', reviewer_identity: 'reviewer', review_package_id: 'package-' + id, candidate: candidate(head) } });
+state = start('initial_review', 'initial');
+state = apply(state, { type: 'verdict_recorded', attempt_id: 'initial', verdict: 'approved', findings: [] });
+state = apply(state, { type: 'candidate_stabilized' });
+state = start('final_integration_review', 'final-1');
+state = apply(state, { type: 'verdict_recorded', attempt_id: 'final-1', verdict: 'needs_correction', findings: [{ severity: 'Important', summary: 'first' }] });
+state = apply(state, { type: 'correction_recorded', candidate: candidate('e'.repeat(40)) });
+state = apply(state, { type: 'candidate_stabilized' });
+state = start('final_integration_review', 'final-2', 'e'.repeat(40));
+state = apply(state, { type: 'verdict_recorded', attempt_id: 'final-2', verdict: 'needs_correction', findings: [{ severity: 'Important', summary: 'second' }] });
+if (state.status !== 'strategy_escalation_required') throw new Error('missing durable escalation');
+let rejected = false;
+try { state = start('final_integration_review', 'final-3', 'e'.repeat(40)); } catch { rejected = true; }
+if (!rejected) throw new Error('third final review was admitted');
+writeFileSync(${JSON.stringify(lifecycleOutput)}, JSON.stringify({ status: state.status }));
+`;
+  execute('--input-type=module', ['-e', lifecycleProbe], fixture, env);
+  const lifecycle = JSON.parse(await readFile(lifecycleOutput, 'utf8'));
+  await rm(lifecycleOutput, { force: true });
+  if (lifecycle.status !== 'strategy_escalation_required') {
+    throw new Error('packaged hard lifecycle did not enter strategy escalation');
+  }
+
+  checked = executeResult(
+    path.join(runtimeRoot, 'scripts', 'coherence-preflight.mjs'),
+    ['check', '--operation', 'completion', '--profile', 'high-risk'],
+    fixture,
+    env
+  );
+  if (checked.status !== 2
+    || parseJson('packaged completion preflight', checked.stdout).status !== 'COHERENCE_BLOCKED') {
+    throw new Error('packaged completion preflight did not fail closed on dirty incomplete state');
+  }
+
+  runSummary = await readFile(path.join(runtime, 'run.md'), 'utf8');
+  if (runSummary.includes('[Describe the required outcome')
+    || !runSummary.includes('slice-1')
+    || !runSummary.includes(evidence.id)) {
+    throw new Error('packaged run.md retained placeholders or omitted current evidence');
   }
   JSON.parse(execute(
     path.join(runtimeRoot, 'scripts', 'model-routing.mjs'),
@@ -143,10 +290,10 @@ try {
         isolatedEnvironment(home)
       ));
     }
-    if (target === 'codex' || target === 'openai' || target === 'portable') {
+    if (target === 'claude' || target === 'codex' || target === 'openai' || target === 'portable') {
       const runtimeRoot = target === 'codex'
         ? packageRoot
-        : path.join(packageRoot, 'skills', 'using-zimster');
+        : (target === 'claude' ? packageRoot : path.join(packageRoot, 'skills', 'using-zimster'));
       await exercisePackagedWorkflow(
         runtimeRoot,
         path.join(temporary, target, 'workflow-fixture'),
@@ -178,6 +325,21 @@ try {
   if ([...npmNames].some((name) => name.startsWith('package/plugins/zimster/'))) {
     throw new Error('npm candidate contains the generated Codex mirror');
   }
+  const npmExtracted = path.join(temporary, 'npm', 'package');
+  const npmHome = path.join(temporary, 'npm', 'home');
+  await mkdir(npmHome, { recursive: true });
+  for (const entry of npmEntries) {
+    if (!entry.name.startsWith('package/') || entry.name.endsWith('/')) continue;
+    const relative = entry.name.slice('package/'.length);
+    const target = path.join(npmExtracted, ...relative.split('/'));
+    await mkdir(path.dirname(target), { recursive: true });
+    await writeFile(target, entry.data);
+  }
+  await exercisePackagedWorkflow(
+    npmExtracted,
+    path.join(temporary, 'npm', 'workflow-fixture'),
+    npmHome
+  );
   targets.push({
     target: 'npm', status: 'passed', archive: npmName,
     sha256: createHash('sha256').update(await readFile(npmArchive)).digest('hex')

@@ -7,6 +7,7 @@ import {
   validateReviewLifecycle
 } from './lib/review-lifecycle.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
+import { withControlPlaneMutation } from './lib/control-plane-mutation.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
 if (positional[0] !== 'reconcile') {
@@ -106,13 +107,18 @@ receipt.reconciliation_complete = receipt.reconciliation_complete && receipt.rea
 const directory = path.join(runtime, 'assurance-accounting');
 const output = path.join(directory, 'latest.json');
 const temporary = `${output}.temporary-${process.pid}-${Date.now()}`;
-await mkdir(directory, { recursive: true });
-try {
-  await writeFile(temporary, `${JSON.stringify(receipt, null, 2)}\n`, { flag: 'wx' });
-  await rename(temporary, output);
-} finally {
-  await rm(temporary, { force: true });
-}
+await withControlPlaneMutation(runtime, root, {
+  mutationType: 'assurance_accounting_reconciled',
+  atomicFailure: true
+}, async () => {
+  await mkdir(directory, { recursive: true });
+  try {
+    await writeFile(temporary, `${JSON.stringify(receipt, null, 2)}\n`, { flag: 'wx' });
+    await rename(temporary, output);
+  } finally {
+    await rm(temporary, { force: true });
+  }
+});
 
 writeLine(JSON.stringify(receipt));
 if (!receipt.reconciliation_complete) {

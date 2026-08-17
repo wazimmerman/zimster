@@ -51,6 +51,10 @@ Dependency-free Node 22 tools turn important policy into inspectable state:
   history honestly, and audits any correction;
 - `run-control.mjs` owns slice transitions, dirty recovery snapshots, resume
   reconciliation, and deterministic `run.md` refresh/check;
+- `control-plane-mutation.mjs` serializes successful cross-store mutations,
+  writes a phase marker before the canonical write, advances the run revision,
+  refreshes the recovery checkpoint and derived summary, appends transaction-
+  bound audit events, and validates invariants before returning;
 - `phase-checkpoint.mjs` separates persistent logical ownership from bounded
   physical contexts and remains the legacy compact-checkpoint entry point;
 - `verify.mjs` and `evidence.mjs run` persist a governed start before spawning,
@@ -98,6 +102,12 @@ Dependency-free Node 22 tools turn important policy into inspectable state:
 No run receipt or model record is uploaded. Normal runtime artifacts live
 under the worktree-safe Git administrative path returned by
 `git rev-parse --git-path zimster`, outside product history.
+
+An interrupted transaction has only two honest recovery paths. A durable
+`canonical_mutation_applied` marker lets `resume` finish the revision,
+checkpoint, event, and summary deterministically. A marker that remains merely
+`started` enters `RECOVERY_RECONCILIATION_REQUIRED`; Zimster preserves it and
+does not guess whether the canonical command succeeded.
 
 ## Codex source and package flow
 

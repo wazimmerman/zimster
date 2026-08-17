@@ -118,9 +118,9 @@ receipt validity, and exact next action/command. Do not paste full logs or
 transcripts.
 
 `run.md` is a deterministic derived view, never an independent source. Use
-`run-control.mjs check` to detect `STALE_RUN_SUMMARY` and `refresh` to repair it.
-Treat `RECOVERY_RECONCILIATION_REQUIRED` as ambiguity requiring explicit owner
-reconciliation, not permission to invent an unstarted slice.
+`run-control.mjs check` to detect drift and `refresh` to repair it. On resume,
+a completed canonical-mutation marker is synchronized; an ambiguous marker
+remains `RECOVERY_RECONCILIATION_REQUIRED`, never permission to invent success.
 
 Canonical Git-local state must pass `coherence-preflight.mjs check` for the intended final-review, completion, or release operation; it never repairs drift.
 

@@ -74,6 +74,11 @@ write a governed execution start before spawning, then bind the terminal
 receipt bytes to that execution. Manual `evidence.mjs record` is descriptive
 history and cannot satisfy an execution-budget proof.
 
+Successful helper-backed evidence, verification, review, budget, accounting,
+and finalization mutations must leave the run revision, recovery checkpoint,
+audit event, and derived `run.md` synchronized. Resume any durable transaction
+marker before relying on later evidence.
+
 Reuse only valid focused evidence whose fingerprint and dependency cone remain
 unchanged. Report reusable duplicates rather than rerunning by habit. Final
 completion gates are always run fresh; `--reuse` never satisfies a final claim.

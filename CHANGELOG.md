@@ -2,7 +2,10 @@
 
 ## 0.7.1 - 2026-08-16
 
-- Enforce the one-recheck circuit breaker, immutable typed review attempts, fail-closed assurance accounting, and current harness compatibility.
+- Add durable current-slice recovery, deterministic `run.md`, governed suite
+  accounting, authenticated non-circular proofs, finite review escalation,
+  centralized state transactions, coherence preflight, and exact-package
+  control-plane smoke alongside the issue #6 review corrections.
 
 ## 0.7.0 - 2026-08-07
 

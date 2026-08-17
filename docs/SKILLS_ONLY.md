@@ -39,7 +39,9 @@ history.
 
 When `using-zimster/scripts/init-run.mjs` exists, resolve
 `<zimster-runtime>` to that installed skill root and use its helpers. Keep the
-supporting `config/` and `templates/` directories with the skill.
+supporting `config/`, `templates/`, `references/`, and complete `scripts/lib/`
+directories with the skill. A partial helper copy fails closed: do not claim
+recovery, accounting, lifecycle, or coherence parity from a missing import.
 
 When no Zimster `scripts/` directory is installed, generated receipts are
 unavailable. This is an expected quiet fallback, not an error. The owner still
@@ -47,6 +49,11 @@ applies branch safety, meaningful RED-GREEN-REFACTOR, complete staged/unstaged/
 untracked review, integrity-aware independent review, and fresh canonical final
 verification. Maintain compact durable state manually when its deterministic
 triggers apply.
+
+Script-free fallback cannot issue governed execution receipts, authenticate
+budget proof, reconcile counters, recover transaction phases, enforce hard
+review cardinality, or emit `COHERENCE_CURRENT`. Those claim types remain
+explicitly unavailable even when the procedural skill was followed correctly.
 
 When scripts are absent, preserve the semantic contracts manually: stable
 requirement IDs, a requirement-to-evidence matrix, proof-bounded intended

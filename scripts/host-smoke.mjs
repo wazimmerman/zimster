@@ -10,6 +10,7 @@ import { archivePathProblem, readStoredZip } from './lib/zip-reader.mjs';
 import { readTarGzip } from './lib/tar-reader.mjs';
 import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
+import { withControlPlaneMutation } from './lib/control-plane-mutation.mjs';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { options } = parseOptions(process.argv.slice(2));
@@ -395,7 +396,21 @@ try {
   }
   if (receipt) {
     await mkdir(path.dirname(receipt), { recursive: true });
-    await writeFile(receipt, `${JSON.stringify(summary, null, 2)}\n`);
+    let canonical = null;
+    let repo = null;
+    let runtime = null;
+    try {
+      repo = findRepoRoot(process.cwd());
+      runtime = await ensureRuntimeDirectory(repo);
+      canonical = path.join(runtime, 'host-smoke', 'latest.json');
+    } catch {}
+    if (canonical && path.resolve(receipt) === path.resolve(canonical)) {
+      await withControlPlaneMutation(runtime, repo, {
+        mutationType: 'host_smoke_recorded'
+      }, () => writeFile(receipt, `${JSON.stringify(summary, null, 2)}\n`));
+    } else {
+      await writeFile(receipt, `${JSON.stringify(summary, null, 2)}\n`);
+    }
     summary.receipt = receipt;
   }
   writeLine(JSON.stringify(summary));

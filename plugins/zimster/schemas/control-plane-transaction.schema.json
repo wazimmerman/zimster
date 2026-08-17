@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://zimster.dev/schemas/control-plane-transaction.schema.json",
+  "title": "Zimster in-flight control-plane mutation",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "transaction_id",
+    "mutation_type",
+    "actor_id",
+    "phase",
+    "run_state_revision_before",
+    "candidate_before",
+    "started_at"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "transaction_id": {"type": "string", "minLength": 1},
+    "mutation_type": {"type": "string", "minLength": 1},
+    "actor_id": {"type": "string", "minLength": 1},
+    "phase": {"enum": ["started", "canonical_mutation_applied"]},
+    "run_state_revision_before": {"type": "integer", "minimum": 0},
+    "candidate_before": {
+      "type": "object",
+      "required": ["head", "tree", "dirty_tree_fingerprint"],
+      "properties": {
+        "head": {"type": ["string", "null"]},
+        "tree": {"type": ["string", "null"]},
+        "dirty_tree_fingerprint": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      },
+      "additionalProperties": false
+    },
+    "started_at": {"type": "string", "format": "date-time"},
+    "canonical_mutation_applied_at": {"type": "string", "format": "date-time"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"phase": {"const": "canonical_mutation_applied"}}},
+      "then": {"required": ["canonical_mutation_applied_at"]}
+    }
+  ],
+  "additionalProperties": false
+}
