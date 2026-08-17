@@ -331,6 +331,34 @@ function evaluate(entries, bindingRequirements, evidence) {
   });
 }
 
+test('candidate evaluation defers explicitly postpublication proof without claiming it verified', () => {
+  const entry = matrixEntry('FLOW-001', {
+    status: 'partially_verified',
+    unavailable_proof: ['Signed tag, CI publication, and published surfaces are downstream events.'],
+    proof_deferred_until: 'postpublication'
+  });
+  const input = {
+    bindingRequirements: binding('FLOW-001'),
+    matrix: {
+      schema_version: 1,
+      candidate_head: SHA_B,
+      candidate_tree: TREE,
+      requirements: [entry],
+      observations: []
+    },
+    evidence: [scopedEvidence('FLOW-001')]
+  };
+
+  const candidate = evaluateRequirementMatrix({ ...input, phase: 'candidate' });
+  assert.equal(candidate.valid, true);
+  assert.deepEqual(candidate.allowed_claims, []);
+  assert.match(candidate.deferred_obligations.join('\n'), /FLOW-001.*downstream/i);
+
+  const postpublication = evaluateRequirementMatrix({ ...input, phase: 'postpublication' });
+  assert.equal(postpublication.valid, false);
+  assert.match(postpublication.unverified_obligations.join('\n'), /FLOW-001.*downstream/i);
+});
+
 test('a complete matrix derives only evidence-backed acceptance claims', () => {
   const result = evaluate(
     [matrixEntry('MATRIX-001'), matrixEntry('CLAIM-001')],

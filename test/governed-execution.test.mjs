@@ -329,6 +329,44 @@ test('handcrafted proof is rejected while a trusted pre-existing matching receip
       node: process.version
     });
 
+    const trustedRuntimeSourceTree = trustedExecution.runtime_provenance.source_tree;
+    trustedExecution.runtime_provenance.source_tree = 'f'.repeat(40);
+    await writeFile(
+      runtimePath(repo, 'executions', 'receipts', `${trusted.execution_id}.json`),
+      `${JSON.stringify(trustedExecution, null, 2)}\n`
+    );
+    result = run(process.execPath, [
+      budget, 'prove',
+      '--proof', 'independent release verification',
+      '--receipt', trusted.id
+    ], repo);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /provenance|source tree|trusted runtime/i);
+    trustedExecution.runtime_provenance.source_tree = trustedRuntimeSourceTree;
+    await writeFile(
+      runtimePath(repo, 'executions', 'receipts', `${trusted.execution_id}.json`),
+      `${JSON.stringify(trustedExecution, null, 2)}\n`
+    );
+
+    await writeFile(runtimePath(repo, 'bootstrap.json'), `${JSON.stringify({
+      schema_version: 1,
+      candidate_version: '0.7.1',
+      governing_policy: 'external_accepted_policy',
+      candidate_rules_authoritative: false,
+      accepted_policy: {
+        path: path.join(repo, '..', 'missing-accepted-policy.json'),
+        sha256: 'a'.repeat(64)
+      }
+    }, null, 2)}\n`);
+    result = run(process.execPath, [
+      budget, 'prove',
+      '--proof', 'independent release verification',
+      '--receipt', trusted.id
+    ], repo);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /accepted policy|governing[_ ]policy|missing/i);
+    await rm(runtimePath(repo, 'bootstrap.json'));
+
     const handcraftedId = 'handcrafted-proof';
     const forgedExecutionId = '00000000-0000-4000-8000-000000000001';
     const candidate = {

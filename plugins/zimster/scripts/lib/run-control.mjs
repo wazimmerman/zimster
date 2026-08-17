@@ -308,6 +308,9 @@ export async function recoveryCheckpoint(runtime, repo, state, changes = {}) {
       ?? state.current_slice?.remaining_obligations
       ?? prior.remaining_obligations
       ?? [],
+    blocking_obligations: changes.blockingObligations
+      ?? prior.blocking_obligations
+      ?? [],
     latest_meaningful_verification: changes.latestVerification
       ?? prior.latest_meaningful_verification
       ?? null,
@@ -407,8 +410,10 @@ export async function checkpointRun(runtime, repo, input = {}) {
     }
     const completed = stringArray(input.completedObligations, '--completed-obligations');
     const remaining = stringArray(input.remainingObligations, '--remaining-obligations');
+    const blocking = stringArray(input.blockingObligations, '--blocking-obligations');
     const corrections = stringArray(input.corrections, '--corrections');
     const findings = stringArray(input.findings, '--findings');
+    const unavailableEvidence = stringArray(input.unavailableEvidence, '--unavailable-evidence');
     const guards = guardArray(input.guards);
     const evidenceReceipts = evidenceArray(input.evidenceReceipts);
     if (completed) state.current_slice.completed_obligations = completed;
@@ -421,8 +426,10 @@ export async function checkpointRun(runtime, repo, input = {}) {
     const checkpoint = await recoveryCheckpoint(runtime, repo, state, {
       completedObligations: completed,
       remainingObligations: remaining,
+      blockingObligations: blocking,
       corrections,
       findings,
+      unavailableEvidence,
       guards,
       evidenceReceipts,
       recoveryStatus: 'CHECKPOINT_CURRENT'

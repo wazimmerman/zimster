@@ -91,7 +91,8 @@ async function evaluatedMatrix() {
     result: evaluateRequirementMatrix({
       bindingRequirements: requirements.requirements,
       matrix: matrixDocument.value,
-      evidence: await evidenceRecords(checkout)
+      evidence: await evidenceRecords(checkout),
+      phase: options.phase ? String(options.phase) : 'candidate'
     })
   };
 }

@@ -127,7 +127,9 @@ async function mutate(eventFactory) {
 function coordinated(mutationType, operation) {
   return withControlPlaneMutation(runtime, root, {
     mutationType,
-    atomicFailure: true
+    // Seam state and the aggregate attempt ledger are separate durable stores.
+    // Preserve the transaction marker if either write fails after the other.
+    atomicFailure: false
   }, operation);
 }
 

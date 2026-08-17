@@ -517,10 +517,15 @@ function evidenceIssue(entry, item, matrix) {
 export function evaluateRequirementMatrix({
   bindingRequirements,
   matrix,
-  evidence = []
+  evidence = [],
+  phase = 'postpublication'
 }) {
+  if (!['candidate', 'postpublication'].includes(phase)) {
+    throw new Error('matrix evaluation phase must be candidate or postpublication');
+  }
   const issues = [];
   const unverified = [];
+  const deferred = [];
   const allowedClaims = new Set();
   const validEvidenceIds = new Set();
   const evidenceSupport = new Map();
@@ -632,6 +637,13 @@ export function evaluateRequirementMatrix({
         issues.push(`${entry.id}: not_applicable status requires scoped evidence`);
         unverified.push(`${entry.id}: not_applicable status lacks usable evidence`);
       }
+    } else if (
+      phase === 'candidate'
+      && entry.proof_deferred_until === 'postpublication'
+      && entry.status === 'partially_verified'
+      && entry.unavailable_proof?.length
+    ) {
+      deferred.push(`${entry.id}: ${entry.unavailable_proof.join('; ')}`);
     } else {
       const reason = entry.unavailable_proof?.join('; ') || `status is ${entry.status}`;
       unverified.push(`${entry.id}: ${reason}`);
@@ -646,6 +658,7 @@ export function evaluateRequirementMatrix({
     ),
     counts,
     allowed_claims: [...allowedClaims].sort(),
+    deferred_obligations: [...new Set(deferred)].sort(),
     unverified_obligations: [...new Set(unverified)].sort(),
     issues: [...new Set(issues)].sort()
   };

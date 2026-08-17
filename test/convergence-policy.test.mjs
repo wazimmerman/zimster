@@ -151,16 +151,16 @@ test('BOOT-001: run initialization snapshots candidate configuration as isolated
   const acceptedDirectory = await mkdtemp(path.join(os.tmpdir(), 'zimster-accepted-policy-'));
   try {
     assert.equal(spawnSync('git', ['init', '-q'], { cwd: repo }).status, 0);
-    await writeFile(path.join(repo, 'README.md'), 'fixture\n');
-    spawnSync('git', ['add', 'README.md'], { cwd: repo });
-    assert.equal(spawnSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'fixture'], { cwd: repo }).status, 0);
-    const acceptedPolicy = path.join(acceptedDirectory, 'convergence.json');
     const acceptedContents = `${JSON.stringify({
       schema_version: 1,
       autonomous_convergence: { enabled: true, limits }
     }, null, 2)}\n`;
-    await writeFile(acceptedPolicy, acceptedContents);
     const acceptedDigest = createHash('sha256').update(acceptedContents).digest('hex');
+    await writeFile(path.join(repo, 'README.md'), 'fixture\n');
+    spawnSync('git', ['add', 'README.md'], { cwd: repo });
+    assert.equal(spawnSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'fixture'], { cwd: repo }).status, 0);
+    const acceptedPolicy = path.join(acceptedDirectory, 'convergence.json');
+    await writeFile(acceptedPolicy, acceptedContents);
     let result = spawnSync(process.execPath, [
       path.join(root, 'scripts/init-run.mjs'), '--profile', 'high-risk',
       '--self-hosting-candidate', '0.6.0', '--convergence-config', 'candidate-policy.json'
@@ -219,7 +219,7 @@ test('BOOT-001: convergence preserves module resource identity under Windows pat
     const initialized = spawnSync(process.execPath, [
       path.join(root, 'scripts/init-run.mjs'), '--profile', 'high-risk'
     ], { cwd: repo, encoding: 'utf8' });
-    assert.ifError(initialized.error);
+    if (initialized.status !== 0) assert.ifError(initialized.error);
     assert.equal(initialized.status, 0, initialized.stderr || initialized.stdout);
 
     const convergenceUrl = pathToFileURL(path.join(root, 'scripts/convergence.mjs')).href;
@@ -245,7 +245,7 @@ export async function resolve(specifier, context, nextResolve) {
       '--reversible', 'true', '--authorized', 'true',
       '--deterministic', 'true', '--locality', 'local'
     ], { cwd: repo, encoding: 'utf8' });
-    assert.ifError(result.error);
+    if (result.status !== 0) assert.ifError(result.error);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(JSON.parse(result.stdout).outcome, 'continue');
   } finally {

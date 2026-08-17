@@ -170,7 +170,8 @@ test('coherence preflight reports every stale control-plane component without re
     await writeFile(runtimePath(repo, 'run.md'), '# stale derived summary\n');
     const checkpointFile = runtimePath(repo, 'checkpoints', 'current.json');
     const checkpoint = JSON.parse(await readFile(checkpointFile, 'utf8'));
-    checkpoint.remaining_obligations = ['Renew exact-package host evidence'];
+    checkpoint.remaining_obligations = ['Publish only after final authorization'];
+    checkpoint.blocking_obligations = ['Renew exact-package host evidence'];
     checkpoint.repository_state.head = '0'.repeat(40);
     await writeFile(checkpointFile, `${JSON.stringify(checkpoint, null, 2)}\n`);
     const budget = JSON.parse(await readFile(budgetFile, 'utf8'));
@@ -200,6 +201,37 @@ test('coherence preflight reports every stale control-plane component without re
     assert.match(report.issues.join('\n'), /STALE_ACCOUNTING/i);
     assert.match(report.issues.join('\n'), /pending control-plane mutation/i);
     assert.equal((await readFile(budgetFile, 'utf8')).includes('"complete_suite_executions": 2'), true);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('coherence admits normal successful checkpoint states and defers operation-owned obligations', async () => {
+  const { repo } = await fixture({ finalApproved: true });
+  try {
+    const checkpointFile = runtimePath(repo, 'checkpoints', 'current.json');
+    for (const recoveryStatus of [
+      'CONTROL_PLANE_MUTATION_CURRENT',
+      'VERIFICATION_PASSED',
+      'RECONCILED_CONTROL_PLANE_MUTATION',
+      'RECONCILED_PARTIAL_MUTATION',
+      'SLICE_COMPLETED'
+    ]) {
+      const checkpoint = JSON.parse(await readFile(checkpointFile, 'utf8'));
+      checkpoint.recovery_status = recoveryStatus;
+      checkpoint.remaining_obligations = [
+        'Consume final integration review',
+        'Publish after signed authorization'
+      ];
+      checkpoint.blocking_obligations = [];
+      await writeFile(checkpointFile, `${JSON.stringify(checkpoint, null, 2)}\n`);
+      const refreshed = run(process.execPath, [
+        path.join(root, 'scripts/run-control.mjs'), 'refresh'
+      ], repo);
+      assert.equal(refreshed.status, 0, refreshed.stderr || refreshed.stdout);
+      const result = preflight(repo, 'completion');
+      assert.equal(result.status, 0, `${recoveryStatus}: ${result.stderr || result.stdout}`);
+    }
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

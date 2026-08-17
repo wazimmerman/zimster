@@ -25,6 +25,19 @@ function sameCandidate(checkpoint, git) {
     && checkpoint?.repository_state?.dirty_tree_fingerprint === git.dirty_tree_fingerprint;
 }
 
+const CURRENT_RECOVERY_STATUSES = new Set([
+  'checkpoint_current',
+  'CHECKPOINT_CURRENT',
+  'CHECKPOINT_RECONSTRUCTED',
+  'CONTROL_PLANE_MUTATION_CURRENT',
+  'RECONCILED_CONTROL_PLANE_MUTATION',
+  'RECONCILED_PARTIAL_MUTATION',
+  'RECONCILED_WORKTREE_CHANGE',
+  'SLICE_STARTED',
+  'SLICE_COMPLETED',
+  'VERIFICATION_PASSED'
+]);
+
 async function budgetProofIssues(runtime, repo, budget) {
   if (!budget || budget.schema_version !== 1) return ['execution budget is unavailable or malformed'];
   const issues = [];
@@ -132,13 +145,11 @@ export async function evaluateCoherence(runtime, repo, {
       issues.push('checkpoint candidate head/tree/dirty fingerprint differs from the checkout');
     }
     if (checkpoint.active_failure) issues.push('checkpoint has an active failure');
-    if (!['checkpoint_current', 'CHECKPOINT_CURRENT', 'SLICE_STARTED'].includes(
-      checkpoint.recovery_status
-    )) {
+    if (!CURRENT_RECOVERY_STATUSES.has(checkpoint.recovery_status)) {
       issues.push(`checkpoint recovery status is not current: ${checkpoint.recovery_status || 'unavailable'}`);
     }
-    if ((checkpoint.remaining_obligations || []).length) {
-      issues.push(`checkpoint has remaining obligations: ${checkpoint.remaining_obligations.join('; ')}`);
+    if ((checkpoint.blocking_obligations || []).length) {
+      issues.push(`checkpoint has blocking remaining obligations: ${checkpoint.blocking_obligations.join('; ')}`);
     }
     if ((checkpoint.open_findings || []).length) {
       issues.push(`checkpoint has open findings: ${checkpoint.open_findings.join('; ')}`);

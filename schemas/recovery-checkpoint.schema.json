@@ -45,6 +45,7 @@
     },
     "completed_obligations": {"type": "array", "items": {"type": "string"}},
     "remaining_obligations": {"type": "array", "items": {"type": "string"}},
+    "blocking_obligations": {"type": "array", "items": {"type": "string"}},
     "latest_meaningful_verification": {"type": ["object", "null"]},
     "active_failure": {"type": ["object", "null"]},
     "corrections_completed": {"type": "array", "items": {"type": "string"}},

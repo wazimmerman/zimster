@@ -80,6 +80,27 @@ test('a successful canonical mutation synchronizes revision, checkpoint, audit, 
   }
 });
 
+test('a declared non-atomic multi-store failure retains its resumable transaction marker', async () => {
+  const { repo, runtime } = await fixture();
+  try {
+    await assert.rejects(withControlPlaneMutation(runtime, repo, {
+      mutationType: 'multi_store_test_transition',
+      atomicFailure: false
+    }, async () => {
+      await writeFile(path.join(runtime, 'first-store.json'), '{"written":true}\n');
+      throw new Error('second store failed');
+    }), /second store failed/);
+    const transaction = JSON.parse(await readFile(
+      path.join(runtime, 'transactions', 'current.json'),
+      'utf8'
+    ));
+    assert.equal(transaction.phase, 'started');
+    assert.equal(transaction.mutation_type, 'multi_store_test_transition');
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
 test('fresh-process resume finishes a mutation interrupted after its canonical write', async () => {
   const { repo, runtime } = await fixture();
   try {

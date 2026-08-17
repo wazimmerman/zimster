@@ -22,6 +22,7 @@ const embeddedInputOptions = Object.freeze([
   ['verification_base64', 'verification', 'verification.json']
 ]);
 const maximumEmbeddedInputBytes = 1024 * 1024;
+const maximumSignedTagBytes = 8 * 1024 * 1024;
 
 async function digestFile(file) {
   return createHash('sha256').update(await readFile(file)).digest('hex');
@@ -173,8 +174,12 @@ if (action === 'create') {
 } else if (action === 'extract-tag') {
   const root = findRepoRoot(process.cwd());
   const tag = required(options, 'tag');
-  const contents = spawnSync('git', ['for-each-ref', `refs/tags/${tag}`, '--format=%(contents)'], { cwd: root, encoding: 'utf8' });
-  const detachedSignature = spawnSync('git', ['for-each-ref', `refs/tags/${tag}`, '--format=%(contents:signature)'], { cwd: root, encoding: 'utf8' });
+  const contents = spawnSync('git', ['for-each-ref', `refs/tags/${tag}`, '--format=%(contents)'], {
+    cwd: root, encoding: 'utf8', maxBuffer: maximumSignedTagBytes
+  });
+  const detachedSignature = spawnSync('git', ['for-each-ref', `refs/tags/${tag}`, '--format=%(contents:signature)'], {
+    cwd: root, encoding: 'utf8', maxBuffer: maximumSignedTagBytes
+  });
   if (contents.status !== 0 || detachedSignature.status !== 0) {
     throw new Error(`signed tag content inspection failed: ${contents.stderr || detachedSignature.stderr}`);
   }
@@ -200,8 +205,12 @@ if (action === 'create') {
   if (!validFingerprint || validFingerprint !== fingerprint) throw new Error('tag signer fingerprint is not the configured release signer');
   const commit = spawnSync('git', ['rev-list', '-n', '1', tag], { cwd: root, encoding: 'utf8' }).stdout.trim();
   const tree = spawnSync('git', ['rev-parse', `${tag}^{tree}`], { cwd: root, encoding: 'utf8' }).stdout.trim();
-  const contents = spawnSync('git', ['for-each-ref', `refs/tags/${tag}`, '--format=%(contents)'], { cwd: root, encoding: 'utf8' });
-  const detachedSignature = spawnSync('git', ['for-each-ref', `refs/tags/${tag}`, '--format=%(contents:signature)'], { cwd: root, encoding: 'utf8' });
+  const contents = spawnSync('git', ['for-each-ref', `refs/tags/${tag}`, '--format=%(contents)'], {
+    cwd: root, encoding: 'utf8', maxBuffer: maximumSignedTagBytes
+  });
+  const detachedSignature = spawnSync('git', ['for-each-ref', `refs/tags/${tag}`, '--format=%(contents:signature)'], {
+    cwd: root, encoding: 'utf8', maxBuffer: maximumSignedTagBytes
+  });
   if (contents.status !== 0 || detachedSignature.status !== 0) {
     throw new Error(`signed tag content inspection failed: ${contents.stderr || detachedSignature.stderr}`);
   }

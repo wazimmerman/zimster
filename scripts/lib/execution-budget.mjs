@@ -5,18 +5,35 @@ import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { buildMetadata } from './build-metadata.mjs';
 import { captureGitState } from './git-state.mjs';
-import { CONVERGENCE_ALIASES, normalizeConvergenceMetric } from './convergence.mjs';
+import {
+  CONVERGENCE_ALIASES,
+  normalizeConvergenceMetric,
+  validateConvergenceConfig
+} from './convergence.mjs';
 
 const evidenceScript = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '..',
   'evidence.mjs'
 );
+const runtimeSourceRoot = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)), '..', '..'
+);
 
 const convergenceDefaults = JSON.parse(readFileSync(path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'config', 'convergence.json'
 ), 'utf8')).autonomous_convergence.limits;
+
+async function readJsonOptional(file) {
+  try {
+    return JSON.parse(await readFile(file, 'utf8'));
+  } catch (error) {
+    if (error.code === 'ENOENT') return null;
+    throw error;
+  }
+}
 
 export const DEFAULT_EXECUTION_LIMITS = Object.freeze({
   ...convergenceDefaults,
@@ -235,6 +252,72 @@ export async function executionBudgetProofReceiptPasses(
       tree: terminalReceipt.git_tree,
       dirty_tree_fingerprint: terminalReceipt.dirty_tree_fingerprint
     };
+    const bootstrap = await readJsonOptional(path.join(runtimeDirectory, 'bootstrap.json'));
+    const trustedRuntime = await buildMetadata(runtimeSourceRoot, 'runtime');
+    const expectedPolicy = bootstrap
+      ? {
+          mode: bootstrap.governing_policy,
+          runtime_role: bootstrap.candidate_rules_authoritative === false
+            ? 'candidate_under_test'
+            : 'governing_runtime',
+          candidate_rules_authoritative: bootstrap.candidate_rules_authoritative !== false,
+          accepted_policy: bootstrap.accepted_policy || null,
+          candidate_version: bootstrap.candidate_version || null
+        }
+      : {
+          mode: 'runtime_policy',
+          runtime_role: 'governing_runtime',
+          candidate_rules_authoritative: true,
+          accepted_policy: null
+        };
+    let acceptedPolicyAuthenticated = !bootstrap;
+    if (bootstrap) {
+      const accepted = bootstrap.accepted_policy;
+      if (
+        bootstrap.governing_policy === 'external_accepted_policy'
+        && bootstrap.candidate_rules_authoritative === false
+        && accepted
+        && typeof accepted.path === 'string'
+        && /^[0-9a-f]{64}$/.test(String(accepted.sha256 || ''))
+      ) {
+        try {
+          const acceptedBytes = await readFile(path.resolve(accepted.path));
+          validateConvergenceConfig(JSON.parse(acceptedBytes.toString('utf8')));
+          acceptedPolicyAuthenticated = createHash('sha256')
+            .update(acceptedBytes).digest('hex') === accepted.sha256;
+          if (acceptedPolicyAuthenticated && accepted.immutable_source) {
+            const source = accepted.immutable_source;
+            const object = source.kind === 'git_object'
+              && /^[0-9a-f]{40}$/.test(String(source.commit || ''))
+              && typeof source.path === 'string'
+              ? spawnSync('git', ['show', `${source.commit}:${source.path}`], {
+                  cwd,
+                  encoding: 'buffer',
+                  maxBuffer: 4 * 1024 * 1024
+                })
+              : { status: 1 };
+            const ancestor = source.kind === 'git_object'
+              ? spawnSync('git', [
+                  'merge-base', '--is-ancestor', source.commit, terminalCandidate.head
+                ], { cwd, encoding: 'utf8' })
+              : { status: 1 };
+            acceptedPolicyAuthenticated = object.status === 0
+              && ancestor.status === 0
+              && createHash('sha256').update(object.stdout).digest('hex') === accepted.sha256
+              && path.resolve(accepted.path).startsWith(
+                `${path.resolve(runtimeDirectory, 'accepted-policy')}${path.sep}`
+              );
+          } else if (acceptedPolicyAuthenticated) {
+            const relative = path.relative(cwd, path.resolve(accepted.path));
+            acceptedPolicyAuthenticated = relative === '..'
+              || relative.startsWith(`..${path.sep}`);
+          }
+        } catch (error) {
+          if (error.code !== 'ENOENT') throw error;
+          acceptedPolicyAuthenticated = false;
+        }
+      }
+    }
     const relationships = {
       execution_id: execution.id === terminalReceipt.execution_id,
       issuer: execution.issuer === terminalReceipt.issuer,
@@ -253,11 +336,16 @@ export async function executionBudgetProofReceiptPasses(
       environment: ['platform', 'release', 'arch', 'node'].every((name) =>
         execution.environment?.[name] === terminalReceipt.environment?.[name]
       ),
-      provenance: typeof execution.runtime_provenance?.semantic_version === 'string'
+      provenance: execution.runtime_provenance?.semantic_version === trustedRuntime.semantic_version
+        && execution.runtime_provenance?.source_commit === trustedRuntime.source_commit
+        && execution.runtime_provenance?.source_tree === trustedRuntime.source_tree
+        && execution.runtime_provenance?.source_dirty_tree_fingerprint
+          === trustedRuntime.source_dirty_tree_fingerprint
         && typeof execution.runtime_provenance?.runtime_origin === 'string'
-        && typeof execution.runtime_provenance?.issuer === 'string',
-      governing_policy: typeof execution.governing_policy?.runtime_role === 'string'
-        && typeof execution.governing_policy?.candidate_rules_authoritative === 'boolean',
+        && execution.runtime_provenance.runtime_origin.length > 0
+        && execution.runtime_provenance?.issuer === execution.issuer,
+      governing_policy: JSON.stringify(execution.governing_policy) === JSON.stringify(expectedPolicy)
+        && acceptedPolicyAuthenticated,
       ledger_start: starts.length === 1
         && starts[0].issuer === execution.issuer
         && starts[0].command_identity === execution.command_identity

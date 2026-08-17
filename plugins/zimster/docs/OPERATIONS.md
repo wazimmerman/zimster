@@ -75,6 +75,14 @@ candidate instead passes `--self-hosting-candidate <version>`,
 `--accepted-policy-config <outside-repository-path>`, and the independently
 known `--accepted-policy-sha256 <digest>`. Initialization rejects candidate-tree
 policy and records the accepted artifact identity in the bootstrap receipt.
+For a durable self-host run, bind the same accepted bytes to an immutable
+pre-candidate Git object and materialize them under the Git-local runtime:
+
+```text
+node <zimster>/scripts/init-run.mjs bind-accepted-policy \
+  --commit <accepted-commit-sha> --path config/convergence.json \
+  --sha256 <independently-known-digest>
+```
 
 ## Delegation, routing, and convergence
 

@@ -125,6 +125,8 @@ test('slice start precedes dirty implementation and resume recovers touched file
       'checkpoint',
       '--completed-obligations', JSON.stringify(['make answer correct']),
       '--remaining-obligations', JSON.stringify(['pass focused test']),
+      '--blocking-obligations', JSON.stringify(['pass focused test']),
+      '--unavailable-evidence', JSON.stringify(['Model-backed host proof remains unavailable']),
       '--guards', JSON.stringify([{
         id: 'external-mutation',
         statement: 'No external mutation occurred.',
@@ -142,6 +144,8 @@ test('slice start precedes dirty implementation and resume recovers touched file
     assert.deepEqual(checkpoint.repository_state.touched_files, ['app.mjs', 'focused.test.mjs']);
     assert.deepEqual(checkpoint.completed_obligations, ['make answer correct']);
     assert.deepEqual(checkpoint.remaining_obligations, ['pass focused test']);
+    assert.deepEqual(checkpoint.blocking_obligations, ['pass focused test']);
+    assert.deepEqual(checkpoint.unavailable_evidence, ['Model-backed host proof remains unavailable']);
     assert.equal(checkpoint.guards[0].statement, 'No external mutation occurred.');
 
     result = control(repo, 'resume');

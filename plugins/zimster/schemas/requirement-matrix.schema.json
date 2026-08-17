@@ -68,6 +68,7 @@
           "additionalProperties": false
         },
         "unavailable_proof": {"$ref": "#/$defs/stringList"},
+        "proof_deferred_until": {"enum": ["postpublication"]},
         "not_applicable_reason": {"type": "string", "minLength": 1},
         "status": {
           "enum": [
