@@ -384,6 +384,48 @@ test('a second failed final review exhausts the hard lifecycle and persists stra
   assert.doesNotThrow(() => validateReviewLifecycle(state));
 });
 
+test('evidence-backed approval dispositions resolve exhausted final review as final approval', () => {
+  function exhausted() {
+    let state = start(lifecycle(), 'initial_review', 'attempt-initial');
+    state = verdict(state, 'attempt-initial', 'approved');
+    state = applyReviewLifecycleEvent(state, { type: 'candidate_stabilized' });
+    state = start(state, 'final_integration_review', 'attempt-final-1');
+    state = verdict(state, 'attempt-final-1', 'needs_correction', [{
+      severity: 'Important', summary: 'First exact-head defect.'
+    }]);
+    state = applyReviewLifecycleEvent(state, {
+      type: 'correction_recorded', candidate: candidate({ head_sha: CORRECTED_HEAD })
+    });
+    state = applyReviewLifecycleEvent(state, { type: 'candidate_stabilized' });
+    state = start(state, 'final_integration_review', 'attempt-final-2', {
+      candidate: candidate({ head_sha: CORRECTED_HEAD })
+    });
+    return verdict(state, 'attempt-final-2', 'needs_correction', [{
+      severity: 'Important', summary: 'Exact-head evidence was incomplete.'
+    }]);
+  }
+
+  for (const disposition of [
+    'reviewer_rebutted_with_evidence',
+    'non_load_bearing_deferral'
+  ]) {
+    const state = applyReviewLifecycleEvent(exhausted(), {
+      type: 'breaker_disposition_recorded',
+      disposition,
+      reason: 'Candidate-bound evidence resolves the final finding without a source change.',
+      evidence_refs: ['exact-candidate-evidence']
+    });
+    assert.equal(state.status, 'final_approved');
+    assert.equal(state.stable, true);
+    assert.equal(state.strategy_escalation.status, 'resolved');
+    assert.deepEqual(state.dispositions.at(-1).candidate, candidate({ head_sha: CORRECTED_HEAD }));
+    assert.doesNotThrow(() => validateReviewLifecycle(state, { requireFinalApproval: true }));
+    assert.throws(() => start(state, 'final_integration_review', 'attempt-final-3', {
+      candidate: candidate({ head_sha: CORRECTED_HEAD })
+    }), /exhausted|not allowed|final.*approval/i);
+  }
+});
+
 test('only a material semantic design revision resets an exhausted review epoch', () => {
   let state = start(lifecycle(), 'initial_review', 'attempt-initial');
   state = verdict(state, 'attempt-initial', 'approved');

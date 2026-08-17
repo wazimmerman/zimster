@@ -330,7 +330,13 @@ function recordDisposition(state, event) {
     if (Object.hasOwn(next, 'strategy_escalation')) next.strategy_escalation = null;
   } else if (event.disposition === 'reviewer_rebutted_with_evidence'
     || event.disposition === 'non_load_bearing_deferral') {
-    next.status = 'approved';
+    if (strategyDisposition) {
+      disposition.candidate = structuredClone(state.candidate);
+      next.status = 'final_approved';
+      next.stable = true;
+    } else {
+      next.status = 'approved';
+    }
   } else if (event.disposition === 'blocked_by_requirement') {
     next.status = 'blocked';
   } else {
@@ -568,9 +574,15 @@ export function validateReviewLifecycle(state, {
   }
   if (state.status === 'final_approved') {
     const finalAttempt = activeAttempts.at(-1);
+    const finalDisposition = state.dispositions.at(-1);
+    const finalDispositionApproved = state.strategy_escalation?.status === 'resolved'
+      && ['reviewer_rebutted_with_evidence', 'non_load_bearing_deferral']
+        .includes(state.strategy_escalation.disposition)
+      && finalDisposition?.disposition === state.strategy_escalation.disposition
+      && sameCandidate(finalDisposition?.candidate || {}, state.candidate);
     if (!state.stable
       || finalAttempt?.attempt_type !== 'final_integration_review'
-      || finalAttempt.verdict !== 'approved'
+      || (finalAttempt.verdict !== 'approved' && !finalDispositionApproved)
       || !sameCandidate(finalAttempt.candidate, state.candidate)) {
       throw new Error('final approval does not bind the stable current candidate and final attempt');
     }
