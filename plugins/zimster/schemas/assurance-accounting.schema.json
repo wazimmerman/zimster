@@ -34,6 +34,20 @@
     "reconciliation_complete": {"type": "boolean"},
     "observed_at": {"type": ["string", "null"]},
     "source": {"type": "string"},
+    "projection_corrections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["field", "prior_value", "corrected_value", "reason"],
+        "properties": {
+          "field": {"type": "string", "minLength": 1},
+          "prior_value": {},
+          "corrected_value": {},
+          "reason": {"type": "string", "minLength": 1}
+        },
+        "additionalProperties": false
+      }
+    },
     "reasons": {"type": "array", "items": {"type": "string"}}
   },
   "$defs": {

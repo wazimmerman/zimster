@@ -5,7 +5,9 @@
 - Add durable current-slice recovery, deterministic `run.md`, governed suite
   accounting, authenticated non-circular proofs, finite review escalation,
   centralized state transactions, coherence preflight, and exact-package
-  control-plane smoke alongside the issue #6 review corrections.
+  control-plane smoke alongside the issue #6 review corrections. Explicit
+  assurance reconciliation can also audit-repair stale budget projections from
+  authoritative lifecycle and dispatch ledgers.
 
 ## 0.7.0 - 2026-08-07
 

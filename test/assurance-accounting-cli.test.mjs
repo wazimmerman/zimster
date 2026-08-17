@@ -24,6 +24,11 @@ test('assurance accounting reconciles host observations with durable ledgers', a
     const runtime = spawnSync('git', [
       'rev-parse', '--path-format=absolute', '--git-path', 'zimster'
     ], { cwd: repo, encoding: 'utf8' }).stdout.trim();
+    let result = spawnSync(process.execPath, [
+      path.join(root, 'scripts/init-run.mjs'),
+      '--profile', 'high-risk', '--reason', 'assurance projection repair fixture'
+    ], { cwd: repo, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
     await mkdir(path.join(runtime, 'dispatches'), { recursive: true });
     await mkdir(path.join(runtime, 'review-lifecycle'), { recursive: true });
     await writeFile(path.join(runtime, 'dispatches/dispatches.jsonl'), `${JSON.stringify({
@@ -85,7 +90,7 @@ test('assurance accounting reconciles host observations with durable ledgers', a
       observation_complete: true
     }));
 
-    let result = spawnSync(process.execPath, [
+    result = spawnSync(process.execPath, [
       path.join(root, 'scripts/assurance-accounting.mjs'), 'reconcile',
       '--observed', observed
     ], { cwd: repo, encoding: 'utf8' });
@@ -111,6 +116,38 @@ test('assurance accounting reconciles host observations with durable ledgers', a
     assert.equal(result.status, 2, result.stderr || result.stdout);
     assert.equal(JSON.parse(result.stdout).reconciliation_complete, false);
     assert.match(result.stderr, /budget|final integration review/i);
+
+    const revisionBeforeRepair = JSON.parse(await readFile(
+      path.join(runtime, 'run.json'), 'utf8'
+    )).state_revision;
+    result = spawnSync(process.execPath, [
+      path.join(root, 'scripts/assurance-accounting.mjs'), 'reconcile',
+      '--observed', observed,
+      '--repair-projections',
+      '--reason', 'authoritative lifecycle and dispatch ledgers outrank stale projections'
+    ], { cwd: repo, encoding: 'utf8' });
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const repaired = JSON.parse(result.stdout);
+    assert.equal(repaired.reconciliation_complete, true);
+    assert.deepEqual(repaired.projection_corrections, [{
+      field: 'usage.final_integration_reviews',
+      prior_value: 0,
+      corrected_value: 1,
+      reason: 'authoritative lifecycle and dispatch ledgers outrank stale projections'
+    }]);
+    const repairedBudget = JSON.parse(await readFile(path.join(runtime, 'budget.json'), 'utf8'));
+    assert.equal(repairedBudget.usage.final_integration_reviews, 1);
+    assert.equal(JSON.parse(await readFile(
+      path.join(runtime, 'run.json'), 'utf8'
+    )).state_revision, revisionBeforeRepair + 1);
+    const events = (await readFile(path.join(runtime, 'events/events.jsonl'), 'utf8'))
+      .trim().split('\n').map((line) => JSON.parse(line));
+    assert.equal(events.some(({ event_type, field, prior_value, corrected_value }) =>
+      event_type === 'assurance_projection_reconciled'
+      && field === 'usage.final_integration_reviews'
+      && prior_value === 0
+      && corrected_value === 1
+    ), true);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

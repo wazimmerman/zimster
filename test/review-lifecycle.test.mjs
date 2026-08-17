@@ -206,9 +206,31 @@ test('a design revision resets accounting only for a genuinely new semantic cand
   assert.equal(state.status, 'new_design_review_required');
   assert.equal(state.correction_recheck_consumed, false);
   assert.equal(state.invalidated_attempt_ids.length, 2);
+  state = applyReviewLifecycleEvent(state, {
+    type: 'candidate_updated_before_review',
+    candidate: candidate({
+      head_sha: '2'.repeat(40), semantic_contract_sha256: REVISED_CONTRACT
+    })
+  });
+  assert.equal(state.status, 'new_design_review_required');
+  assert.equal(state.attempts.length, 2);
+  assert.throws(() => applyReviewLifecycleEvent(state, {
+    type: 'candidate_updated_before_review',
+    candidate: candidate({
+      head_sha: '3'.repeat(40), semantic_contract_sha256: '4'.repeat(64)
+    })
+  }), /semantic contract|design revision/i);
+  assert.throws(() => applyReviewLifecycleEvent(state, {
+    type: 'candidate_updated_before_review',
+    candidate: candidate({
+      base_sha: '5'.repeat(40),
+      head_sha: '3'.repeat(40),
+      semantic_contract_sha256: REVISED_CONTRACT
+    })
+  }), /base.*immutable|immutable.*base/i);
   state = start(state, 'new_design_review', 'attempt-redesign', {
     candidate: candidate({
-      head_sha: '1'.repeat(40), semantic_contract_sha256: REVISED_CONTRACT
+      head_sha: '2'.repeat(40), semantic_contract_sha256: REVISED_CONTRACT
     })
   });
   assert.equal(state.attempts.at(-1).attempt_type, 'new_design_review');

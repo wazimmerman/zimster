@@ -200,6 +200,11 @@ final integration attempts. A second failed final attempt enters durable
 `strategy_escalation_required`; neither a new attempt ID nor a generic budget
 override can reset that hard limit.
 
+Before the required primary attempt starts, `review-lifecycle.mjs candidate`
+may update the exact head/tree/dirty identity while preserving the same
+semantic-contract digest. It consumes no attempt and cannot be used to smuggle
+in a contract change; changed semantics still require `design_revision`.
+
 A load-bearing final integration finding may also require `design_revision`
 when its correction changes the stable semantic contract. That disposition is
 recorded directly from `final_correction_required`, invalidates prior attempts,
@@ -251,6 +256,19 @@ attempts, every lifecycle reviewer is an observed accounted agent, and observed
 depth is at most one. When the host cannot expose
 authoritative activity, report reconciliation unavailable rather than using an
 empty observation as proof.
+
+If durable dispatch or lifecycle ledgers prove that budget projections are
+stale, repair only those projections with an explicit audit reason:
+
+```text
+node <zimster>/scripts/assurance-accounting.mjs reconcile \
+  --observed <candidate-bound-host-observation.json> \
+  --repair-projections --reason <why-the-ledger-outranks-the-projection>
+```
+
+The repair preserves lifecycle and dispatch history, records every prior and
+corrected value, and still fails closed when the host observation itself does
+not match the authoritative ledgers.
 
 ## Evidence receipts
 

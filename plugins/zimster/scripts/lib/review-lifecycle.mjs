@@ -238,6 +238,30 @@ function recordCorrection(state, event) {
   return appendEvent(next, { type: 'correction_recorded', candidate: event.candidate });
 }
 
+function updateCandidateBeforeReview(state, event) {
+  if (!['initial_review_required', 'new_design_review_required'].includes(state.status)
+    || state.active_attempt_id) {
+    throw new Error('candidate can be updated only before the required primary review starts');
+  }
+  validateCandidate(event.candidate);
+  if (event.candidate.semantic_contract_sha256 !== state.candidate.semantic_contract_sha256) {
+    throw new Error('a semantic contract change requires an explicit design revision');
+  }
+  if (event.candidate.base_sha !== state.candidate.base_sha) {
+    throw new Error('the review candidate base is immutable within a semantic contract');
+  }
+  if (sameCandidate(event.candidate, state.candidate)) {
+    throw new Error('pre-review candidate update must change exact candidate identity');
+  }
+  const next = copy(state);
+  next.candidate = structuredClone(event.candidate);
+  next.stable = false;
+  return appendEvent(next, {
+    type: 'candidate_updated_before_review',
+    candidate: structuredClone(event.candidate)
+  });
+}
+
 function recordDisposition(state, event) {
   const finalDesignRevision = event.disposition === 'design_revision'
     && state.status === 'final_correction_required'
@@ -326,6 +350,8 @@ function replayLifecycle(state) {
       replayed = appendEvent(next, { type: 'candidate_stabilized' });
     } else if (event.type === 'policy_reconciled') {
       replayed = applyPolicyReconciliation(replayed, event);
+    } else if (event.type === 'candidate_updated_before_review') {
+      replayed = updateCandidateBeforeReview(replayed, event);
     } else {
       throw new Error(`review lifecycle contains unsupported event: ${event.type}`);
     }
@@ -407,6 +433,9 @@ export function applyReviewLifecycleEvent(state, event) {
   if (event.type === 'attempt_started') return startAttempt(state, event.attempt);
   if (event.type === 'verdict_recorded') return recordVerdict(state, event);
   if (event.type === 'correction_recorded') return recordCorrection(state, event);
+  if (event.type === 'candidate_updated_before_review') {
+    return updateCandidateBeforeReview(state, event);
+  }
   if (event.type === 'breaker_disposition_recorded') return recordDisposition(state, event);
   if (event.type === 'candidate_stabilized') {
     if (state.status !== 'approved' || state.circuit_breaker_active) {

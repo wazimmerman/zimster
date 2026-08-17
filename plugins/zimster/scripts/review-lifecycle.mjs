@@ -210,6 +210,10 @@ if (action === 'init') {
   state = await coordinated('review_correction_recorded', () => mutate(() => ({
     type: 'correction_recorded', candidate: candidateFromOptions()
   })));
+} else if (action === 'candidate') {
+  state = await coordinated('review_candidate_updated_before_review', () => mutate(() => ({
+    type: 'candidate_updated_before_review', candidate: candidateFromOptions()
+  })));
 } else if (action === 'stabilize') {
   state = await coordinated('review_candidate_stabilized', () => mutate(() => ({
     type: 'candidate_stabilized'
@@ -231,7 +235,7 @@ if (action === 'init') {
 } else if (action === 'show') {
   state = await readState();
 } else {
-  throw new Error('Usage: review-lifecycle.mjs <init|start|verdict|correction|stabilize|disposition|reconcile|show> --seam-id <id> [options]');
+  throw new Error('Usage: review-lifecycle.mjs <init|start|verdict|correction|candidate|stabilize|disposition|reconcile|show> --seam-id <id> [options]');
 }
 
 writeLine(JSON.stringify(state));
