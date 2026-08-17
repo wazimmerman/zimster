@@ -71,9 +71,12 @@ checksums.
 The canonical payload conforms to `schemas/release-evidence.schema.json` and
 binds the version, tag, channel, commit, tree, standards-lock hash,
 semantic-review hash, host-matrix hash, verification results, artifact names,
-and SHA-256 digests. Generate and validate it with the release-evidence tools,
-then place that exact JSON in a signed annotated tag targeting the reviewed
-commit.
+and SHA-256 digests. Schema version 2 also embeds the exact semantic-review,
+host-matrix, and verification inputs. Release CI materializes those signed
+inputs before verifying their digests, so publication never depends on files
+that cannot be part of the exact reviewed tree. Generate and validate the
+payload with the release-evidence tools, then place that exact JSON in a signed
+annotated tag targeting the reviewed commit.
 
 Never move, delete, or recreate a published tag. Correct a released defect with
 a patch version.

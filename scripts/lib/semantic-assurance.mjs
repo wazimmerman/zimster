@@ -211,7 +211,6 @@ export function semanticContractDigest({ bindingRequirements, matrix }) {
       source: entry.source,
       implementation_locations: [...(entry.implementation_locations || [])].sort(),
       evidence_scope: {
-        git_tree: entry.evidence_scope?.git_tree || null,
         environment: entry.evidence_scope?.environment || null
       },
       intended_acceptance_claims: [
@@ -497,13 +496,15 @@ function evidenceIssue(entry, item, matrix) {
     return `evidence ${item.id} does not support requirement ${entry.id}`;
   }
   const evidenceTree = entry.evidence_scope?.git_tree;
-  const bindsCandidateTree = evidenceTree === matrix.candidate_tree;
-  if (bindsCandidateTree && (
-    item.git_commit !== matrix.candidate_head || item.git_tree !== matrix.candidate_tree
-  )) {
+  if (evidenceTree !== matrix.candidate_tree) {
     return `evidence ${item.id} does not apply to the candidate Git tree`;
   }
-  if (bindsCandidateTree && item.dirty_tree_fingerprint !== CLEAN_DIRTY_TREE_FINGERPRINT) {
+  if (
+    item.git_commit !== matrix.candidate_head || item.git_tree !== matrix.candidate_tree
+  ) {
+    return `evidence ${item.id} does not apply to the candidate Git tree`;
+  }
+  if (item.dirty_tree_fingerprint !== CLEAN_DIRTY_TREE_FINGERPRINT) {
     return `evidence ${item.id} came from a dirty checkout, not the committed candidate tree`;
   }
   const expectedEnvironment = entry.evidence_scope?.environment;

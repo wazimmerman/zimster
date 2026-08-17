@@ -165,10 +165,10 @@ Owner-inline work is always self-review. A review package binds the immutable
 base/head, complete canonical snapshot, relevant unchanged interfaces, matrix,
 evidence state, claims, unavailable proof, and selected lenses. Review attempts
 to falsify those claims. Approval binds a stable semantic-contract digest over
-binding text, intended claims, implementation locations, and evidence scope.
-Mutable receipt references, statuses, observations, and verification results
-remain separately validated so final proof can advance without invalidating an
-unchanged reviewed contract.
+binding text, intended claims, implementation locations, and stable evidence
+environment scope. Candidate Git tree identity, receipt references, statuses,
+observations, and verification results remain separately validated so final
+proof can advance without invalidating an unchanged reviewed contract.
 
 Host evidence is independent per harness. Receipt states distinguish live,
 installed-package, structural, authentication-blocked, unavailable, and

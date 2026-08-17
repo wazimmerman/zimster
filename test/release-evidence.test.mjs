@@ -59,9 +59,16 @@ test('release evidence canonically binds authorization inputs and all five artif
     ]);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const evidence = JSON.parse(await readFile(output, 'utf8'));
-    assert.equal(evidence.schema_version, 1);
+    assert.equal(evidence.schema_version, 2);
     assert.equal(evidence.commit, commit);
     assert.equal(evidence.tree, tree);
+    assert.deepEqual(Object.keys(evidence.embedded_inputs).sort(), [
+      'host_matrix_base64', 'semantic_review_base64', 'verification_base64'
+    ]);
+    assert.equal(
+      Buffer.from(evidence.embedded_inputs.semantic_review_base64, 'base64').toString(),
+      await readFile(semantic, 'utf8')
+    );
     assert.deepEqual(evidence.artifacts.map(({ name }) => name), [
       `zimster-${version}-claude.zip`, `zimster-${version}-codex.zip`,
       `zimster-${version}-openai.zip`, `zimster-${version}-portable.zip`, `zimster-${version}.tgz`

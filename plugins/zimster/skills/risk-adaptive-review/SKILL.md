@@ -34,10 +34,11 @@ Owner-inline inspection is `self_review`; it cannot satisfy Standard or
 High-risk `independent_review`. Approval applies only to the exact candidate
 base/head, review-package ID, stable semantic-contract digest, and required
 lens set. The digest covers binding text, intended claims, implementation
-locations, and evidence scope, but excludes mutable evidence references,
-statuses, observations, and verification results. Final evidence may advance
-without invalidating approval when that contract and the candidate are
-unchanged.
+locations, and stable evidence-environment scope. It excludes the candidate Git
+tree along with mutable evidence references, statuses, observations, and
+verification results. Exact head/tree binding remains mandatory in the review
+package, lifecycle, matrix, and receipts. Final evidence may advance without
+invalidating approval when that contract and the candidate are unchanged.
 If review is unavailable, use `OWNER_VERIFIED_REVIEW_UNAVAILABLE`, never
 approval. `CANDIDATE_COMPLETE` requires the profile-appropriate semantic
 approval and complete matrix evidence. High-risk work requires all
@@ -191,7 +192,10 @@ performs one resumed recheck over original findings and the fix range only.
 Correction/recheck accounting is separate from the reserved exact-final-head
 integration review. Do not consume that reserved review before the candidate
 stops changing. A defect found by the final review invalidates that head's
-approval and requires a new exact-head review within finalization budget.
+approval and requires a new exact-head review within finalization budget. When
+the final correction changes stable semantic meaning, record an explicit
+`design_revision` with evidence, invalidate prior attempts, and complete the
+new-design review before reserving the replacement final integration review.
 
 ## Circuit breaker
 

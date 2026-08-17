@@ -248,6 +248,30 @@ test('a final-review correction invalidates stability but does not expand the se
   assert.equal(state.status, 'final_approved');
 });
 
+test('a final-review correction that changes semantic meaning requires explicit design revision', () => {
+  let state = start(lifecycle(), 'initial_review', 'attempt-initial');
+  state = verdict(state, 'attempt-initial', 'approved');
+  state = applyReviewLifecycleEvent(state, { type: 'candidate_stabilized' });
+  state = start(state, 'final_integration_review', 'attempt-final');
+  state = verdict(state, 'attempt-final', 'needs_correction', [{
+    severity: 'Important', summary: 'Exact-head integration requires a semantic contract revision.'
+  }]);
+  state = applyReviewLifecycleEvent(state, {
+    type: 'breaker_disposition_recorded',
+    disposition: 'design_revision',
+    reason: 'The final correction changes stable semantic meaning.',
+    candidate: candidate({
+      head_sha: CORRECTED_HEAD,
+      semantic_contract_sha256: REVISED_CONTRACT
+    }),
+    evidence_refs: ['final-review-finding']
+  });
+  assert.equal(state.status, 'new_design_review_required');
+  assert.equal(state.stable, false);
+  assert.equal(state.correction_recheck_consumed, false);
+  assert.deepEqual(state.invalidated_attempt_ids, ['attempt-initial', 'attempt-final']);
+});
+
 test('assurance accounting fails closed for missing agents, attempts, budgets, or nesting violations', () => {
   const valid = {
     schema_version: 1,

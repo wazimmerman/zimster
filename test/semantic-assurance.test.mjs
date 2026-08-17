@@ -241,6 +241,9 @@ test('semantic contract digest ignores proof state but changes with binding mean
   mutableProofState.requirements[0].evidence_refs = ['later-final-receipt'];
   mutableProofState.requirements[0].unavailable_proof = ['Final proof pending.'];
   mutableProofState.observations.push({ id: 'later-final-observation' });
+  mutableProofState.candidate_head = SHA_A;
+  mutableProofState.candidate_tree = 'e'.repeat(40);
+  mutableProofState.requirements[0].evidence_scope.git_tree = 'e'.repeat(40);
   assert.equal(
     semanticContractDigest({ bindingRequirements, matrix: mutableProofState }),
     digest
@@ -256,6 +259,12 @@ test('semantic contract digest ignores proof state but changes with binding mean
   changedClaim.requirements[0].intended_acceptance_claims = ['Changed claim.'];
   assert.notEqual(
     semanticContractDigest({ bindingRequirements, matrix: changedClaim }),
+    digest
+  );
+  const changedEvidenceEnvironment = structuredClone(matrix);
+  changedEvidenceEnvironment.requirements[0].evidence_scope.environment = 'native-host';
+  assert.notEqual(
+    semanticContractDigest({ bindingRequirements, matrix: changedEvidenceEnvironment }),
     digest
   );
   const changedImplementationContract = structuredClone(matrix);
@@ -449,6 +458,20 @@ test('exact-tree evidence scope still requires the candidate head, tree, and cle
     assert.deepEqual(result.allowed_claims, []);
     assert.match(result.unverified_obligations.join('\n'), expected);
   }
+});
+
+test('stale declared evidence scope cannot bypass exact-candidate validation', () => {
+  const staleTree = 'e'.repeat(40);
+  const result = evaluate(
+    [matrixEntry('MATRIX-001', {
+      evidence_scope: { git_tree: staleTree, environment: 'node-linux' }
+    })],
+    binding('MATRIX-001'),
+    [scopedEvidence('MATRIX-001', { git_tree: staleTree })]
+  );
+  assert.equal(result.valid, false);
+  assert.deepEqual(result.allowed_claims, []);
+  assert.match(result.unverified_obligations.join('\n'), /candidate Git tree/i);
 });
 
 const COMPLETE_MATRIX = Object.freeze({

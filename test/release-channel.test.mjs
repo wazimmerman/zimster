@@ -98,6 +98,7 @@ test('verify-tag emits GitHub state only from the verified canonical signed payl
       artifacts.push({ name, sha256: digest(data), size: (await stat(path.join(dist, name))).size });
     }
     const inputs = {};
+    const embeddedInputs = {};
     for (const [option, field] of [
       ['standards.json', 'standards_lock_sha256'],
       ['semantic.json', 'semantic_review_sha256'],
@@ -107,15 +108,24 @@ test('verify-tag emits GitHub state only from the verified canonical signed payl
       const data = Buffer.from(`{"fixture":"${option}"}\n`);
       await writeFile(path.join(repo, option), data);
       inputs[field] = digest(data);
+      if (option !== 'standards.json') {
+        const embeddedField = {
+          'semantic.json': 'semantic_review_base64',
+          'hosts.json': 'host_matrix_base64',
+          'verification.json': 'verification_base64'
+        }[option];
+        embeddedInputs[embeddedField] = data.toString('base64');
+      }
     }
     const evidence = {
-      schema_version: 1,
+      schema_version: 2,
       version: '0.7.0',
       tag: 'v0.7.0',
       channel: 'public_beta',
       commit,
       tree,
       ...inputs,
+      embedded_inputs: embeddedInputs,
       artifacts
     };
     const message = path.join(repo, 'release-evidence.json');
@@ -128,12 +138,22 @@ test('verify-tag emits GitHub state only from the verified canonical signed payl
     ], repo, signedEnv);
     assert.equal(result.status, 0, result.stderr || result.stdout);
 
+    for (const file of ['semantic.json', 'hosts.json', 'verification.json']) {
+      await rm(path.join(repo, file));
+    }
+    result = command(process.execPath, [
+      path.join(root, 'scripts/release-evidence.mjs'), 'extract-tag',
+      '--tag', 'v0.7.0', '--output-dir', 'release/evidence'
+    ], repo, signedEnv);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(JSON.parse(result.stdout).status, 'SIGNED_RELEASE_INPUTS_MATERIALIZED');
+
     const githubOutput = path.join(directory, 'github-output');
     result = command(process.execPath, [
       path.join(root, 'scripts/release-evidence.mjs'), 'verify-tag',
       '--tag', 'v0.7.0', '--trusted-fingerprint', fingerprint,
-      '--standards-lock', 'standards.json', '--semantic-review', 'semantic.json',
-      '--host-matrix', 'hosts.json', '--verification', 'verification.json',
+      '--standards-lock', 'standards.json', '--semantic-review', 'release/evidence/semantic-review.json',
+      '--host-matrix', 'release/evidence/host-matrix.json', '--verification', 'release/evidence/verification.json',
       '--dist', 'dist', '--github-output', githubOutput
     ], repo, signedEnv);
     assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -152,8 +172,8 @@ test('verify-tag emits GitHub state only from the verified canonical signed payl
     result = command(process.execPath, [
       path.join(root, 'scripts/release-evidence.mjs'), 'verify-tag',
       '--tag', 'v0.7.0', '--trusted-fingerprint', 'A'.repeat(40),
-      '--standards-lock', 'standards.json', '--semantic-review', 'semantic.json',
-      '--host-matrix', 'hosts.json', '--verification', 'verification.json',
+      '--standards-lock', 'standards.json', '--semantic-review', 'release/evidence/semantic-review.json',
+      '--host-matrix', 'release/evidence/host-matrix.json', '--verification', 'release/evidence/verification.json',
       '--dist', 'dist', '--github-output', rejectedOutput
     ], repo, signedEnv);
     assert.notEqual(result.status, 0);

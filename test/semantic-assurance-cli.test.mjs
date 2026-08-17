@@ -26,7 +26,6 @@ function semanticContractSha256(bindingRequirements, matrix) {
       source: entry.source,
       implementation_locations: [...entry.implementation_locations].sort(),
       evidence_scope: {
-        git_tree: entry.evidence_scope?.git_tree || null,
         environment: entry.evidence_scope?.environment || null
       },
       intended_acceptance_claims: [...entry.intended_acceptance_claims].sort()
@@ -529,7 +528,7 @@ test('matrix CLI marks naturally stale dependency evidence invalid', async () =>
         source: 'requirements.md#evidence-001',
         implementation_locations: ['scripts/semantic-assurance.mjs'],
         evidence_refs: [receipt.id],
-        evidence_scope: { git_tree: 'any', environment: 'node-linux' },
+        evidence_scope: { git_tree: tree, environment: 'node-linux' },
         unavailable_proof: [],
         status: 'verified',
         intended_acceptance_claims: ['Fresh dependencies are enforced.']

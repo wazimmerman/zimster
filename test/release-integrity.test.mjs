@@ -26,12 +26,15 @@ test('release workflow establishes the configured public-key trust anchor before
   const workflow = await read('.github/workflows/release.yml');
   const keySetup = workflow.indexOf('.github/scripts/release-signing-key.mjs');
   const verifyTag = workflow.indexOf('git verify-tag "$GITHUB_REF_NAME"');
+  const materializeEvidence = workflow.indexOf('release:evidence -- extract-tag');
   const evidenceVerify = workflow.indexOf('release:evidence -- verify-tag');
   assert.notEqual(keySetup, -1);
   assert.notEqual(verifyTag, -1);
+  assert.notEqual(materializeEvidence, -1);
   assert.notEqual(evidenceVerify, -1);
   assert.ok(keySetup < verifyTag);
-  assert.ok(verifyTag < evidenceVerify);
+  assert.ok(verifyTag < materializeEvidence);
+  assert.ok(materializeEvidence < evidenceVerify);
   assert.match(workflow, /\.github\/release-keys\/william-zimmerman\.asc/);
   assert.match(workflow, /RELEASE_SIGNER_FINGERPRINT:\s*\$\{\{ vars\.RELEASE_SIGNER_FINGERPRINT \}\}/);
   assert.match(workflow, /GNUPGHOME:\s*\$\{\{ runner\.temp \}\}/);

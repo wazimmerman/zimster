@@ -162,6 +162,11 @@ revision must change the semantic-contract digest and invalidates prior
 attempts. `final_integration_review` is a distinct exact-head type after
 `stabilize`; it never expands the correction-recheck allowance.
 
+A load-bearing final integration finding may also require `design_revision`
+when its correction changes the stable semantic contract. That disposition is
+recorded directly from `final_correction_required`, invalidates prior attempts,
+and requires new-design approval before another final integration review.
+
 Reconcile supported host observations before completion:
 
 ```text
@@ -271,9 +276,10 @@ requires a clean current checkout and profile-appropriate review. Owner-inline
 inspection is `self_review`; Standard and High-risk need clean-context
 `independent_review` for the exact base/head, package ID, stable
 semantic-contract digest, and required lens set. The contract digest covers
-binding meaning, intended claims, implementation locations, and evidence scope;
-mutable receipt references, statuses, observations, and verification results
-are validated separately. High-risk obligation records bind the candidate
+binding meaning, intended claims, implementation locations, and stable evidence
+environment scope. Candidate Git tree identity, mutable receipt references,
+statuses, observations, and verification results are validated separately.
+High-risk obligation records bind the candidate
 head/tree to evidence references that match the exact requirement ID and exact
 established claim; Micro uses `--micro-eligibility`
 with all risk dimensions Low, no hard trigger or public contract, and

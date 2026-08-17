@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { appendFile, readFile, readdir, stat, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, readdir, stat, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
 import { parseOptions, required, writeLine } from './lib/cli.mjs';
@@ -13,6 +13,12 @@ import {
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
 const artifactPattern = /^zimster-\d+\.\d+\.\d+(?:-(?:claude|codex|openai|portable))?(?:\.zip|\.tgz)$/;
+const embeddedInputOptions = Object.freeze([
+  ['semantic_review_base64', 'semantic-review', 'semantic-review.json'],
+  ['host_matrix_base64', 'host-matrix', 'host-matrix.json'],
+  ['verification_base64', 'verification', 'verification.json']
+]);
+const maximumEmbeddedInputBytes = 1024 * 1024;
 
 async function digestFile(file) {
   return createHash('sha256').update(await readFile(file)).digest('hex');
@@ -29,6 +35,52 @@ async function inputDigests() {
     field,
     await digestFile(path.resolve(process.cwd(), required(options, option)))
   ])));
+}
+
+async function embeddedInputs() {
+  return Object.fromEntries(await Promise.all(embeddedInputOptions.map(async ([field, option]) => {
+    const contents = await readFile(path.resolve(process.cwd(), required(options, option)));
+    if (contents.length > maximumEmbeddedInputBytes) {
+      throw new Error(`${option} exceeds the ${maximumEmbeddedInputBytes}-byte signed-tag input limit`);
+    }
+    return [field, contents.toString('base64')];
+  })));
+}
+
+function decodeEmbeddedInputs(evidence) {
+  if (evidence.schema_version !== 2) {
+    throw new Error('release evidence schema_version 2 is required to materialize signed inputs');
+  }
+  const expectedFields = embeddedInputOptions.map(([field]) => field).sort();
+  const actualFields = Object.keys(evidence.embedded_inputs || {}).sort();
+  if (JSON.stringify(actualFields) !== JSON.stringify(expectedFields)) {
+    throw new Error('release evidence embedded_inputs has an invalid inventory');
+  }
+  return Object.fromEntries(embeddedInputOptions.map(([field, option, filename]) => {
+    const encoded = evidence.embedded_inputs[field];
+    if (typeof encoded !== 'string' || !encoded.length) {
+      throw new Error(`${field} must be non-empty canonical base64`);
+    }
+    const contents = Buffer.from(encoded, 'base64');
+    if (contents.length > maximumEmbeddedInputBytes || contents.toString('base64') !== encoded) {
+      throw new Error(`${field} must be canonical base64 within the signed-tag input limit`);
+    }
+    return [option, { filename, contents }];
+  }));
+}
+
+function verifyEmbeddedInputDigests(evidence) {
+  if (evidence.schema_version !== 2) return;
+  const decoded = decodeEmbeddedInputs(evidence);
+  for (const [field, option] of [
+    ['semantic_review_sha256', 'semantic-review'],
+    ['host_matrix_sha256', 'host-matrix'],
+    ['verification_sha256', 'verification']
+  ]) {
+    const digest = createHash('sha256').update(decoded[option].contents).digest('hex');
+    if (evidence[field] !== digest) throw new Error(`${option.replace('-', ' ')} embedded digest mismatch`);
+  }
+  return decoded;
 }
 
 async function artifacts(dist, version) {
@@ -53,7 +105,8 @@ function validateShape(evidence) {
     'standards_lock_sha256', 'semantic_review_sha256', 'host_matrix_sha256',
     'verification_sha256', 'artifacts'
   ];
-  if (evidence.schema_version !== 1) throw new Error('release evidence requires schema_version 1');
+  if (![1, 2].includes(evidence.schema_version)) throw new Error('release evidence requires schema_version 1 or 2');
+  if (evidence.schema_version === 2) keys.push('embedded_inputs');
   if (!/^\d+\.\d+\.\d+$/.test(evidence.version) || evidence.tag !== `v${evidence.version}`) throw new Error('release version and tag must be matching strict semver');
   if (!['public_beta', 'stable'].includes(evidence.channel)) throw new Error('release channel must be public_beta or stable');
   assertHex(evidence.commit, 40, 'commit');
@@ -61,6 +114,7 @@ function validateShape(evidence) {
   for (const field of keys.filter((key) => key.endsWith('_sha256'))) assertHex(evidence[field], 64, field);
   if (!Array.isArray(evidence.artifacts) || evidence.artifacts.length !== 5) throw new Error('release evidence must contain five artifacts');
   if (Object.keys(evidence).some((key) => !keys.includes(key))) throw new Error('release evidence contains unsupported fields');
+  verifyEmbeddedInputDigests(evidence);
 }
 
 async function verifyEvidence(evidence) {
@@ -80,13 +134,14 @@ async function verifyEvidence(evidence) {
 if (action === 'create') {
   const version = required(options, 'version');
   const evidence = {
-    schema_version: 1,
+    schema_version: 2,
     version,
     tag: required(options, 'tag'),
     channel: required(options, 'channel'),
     commit: required(options, 'commit'),
     tree: required(options, 'tree'),
     ...await inputDigests(),
+    embedded_inputs: await embeddedInputs(),
     artifacts: await artifacts(path.resolve(process.cwd(), required(options, 'dist')), version)
   };
   validateShape(evidence);
@@ -97,6 +152,26 @@ if (action === 'create') {
   const evidence = JSON.parse(await readFile(path.resolve(process.cwd(), required(options, 'file')), 'utf8'));
   await verifyEvidence(evidence);
   writeLine(JSON.stringify({ status: 'RELEASE_EVIDENCE_VERIFIED', tag: evidence.tag, artifacts: evidence.artifacts.length }));
+} else if (action === 'extract-tag') {
+  const root = findRepoRoot(process.cwd());
+  const tag = required(options, 'tag');
+  const contents = spawnSync('git', ['for-each-ref', `refs/tags/${tag}`, '--format=%(contents)'], { cwd: root, encoding: 'utf8' });
+  const detachedSignature = spawnSync('git', ['for-each-ref', `refs/tags/${tag}`, '--format=%(contents:signature)'], { cwd: root, encoding: 'utf8' });
+  if (contents.status !== 0 || detachedSignature.status !== 0) {
+    throw new Error(`signed tag content inspection failed: ${contents.stderr || detachedSignature.stderr}`);
+  }
+  if (!detachedSignature.stdout.includes('-----BEGIN PGP SIGNATURE-----') || !contents.stdout.endsWith(detachedSignature.stdout)) {
+    throw new Error('signed tag contents do not end with exactly one detached OpenPGP signature');
+  }
+  const evidence = parseReleaseEvidenceTagPayload(contents.stdout.slice(0, -detachedSignature.stdout.length));
+  validateShape(evidence);
+  const decoded = verifyEmbeddedInputDigests(evidence);
+  const outputDirectory = path.resolve(process.cwd(), required(options, 'output-dir'));
+  await mkdir(outputDirectory, { recursive: true });
+  for (const { filename, contents: inputContents } of Object.values(decoded)) {
+    await writeFile(path.join(outputDirectory, filename), inputContents);
+  }
+  writeLine(JSON.stringify({ status: 'SIGNED_RELEASE_INPUTS_MATERIALIZED', tag, output_directory: outputDirectory }));
 } else if (action === 'verify-tag') {
   const root = findRepoRoot(process.cwd());
   const tag = required(options, 'tag');
@@ -141,5 +216,5 @@ if (action === 'create') {
     github_release: githubRelease
   }));
 } else {
-  throw new Error('Usage: release-evidence.mjs <create|verify|verify-tag> [options]');
+  throw new Error('Usage: release-evidence.mjs <create|verify|extract-tag|verify-tag> [options]');
 }

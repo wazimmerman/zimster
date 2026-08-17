@@ -196,7 +196,11 @@ function recordCorrection(state, event) {
 }
 
 function recordDisposition(state, event) {
-  if (!state.circuit_breaker_active || state.status !== 'circuit_breaker_active') {
+  const finalDesignRevision = event.disposition === 'design_revision'
+    && state.status === 'final_correction_required'
+    && state.circuit_breaker_active === false;
+  if ((!state.circuit_breaker_active || state.status !== 'circuit_breaker_active')
+    && !finalDesignRevision) {
     throw new Error('breaker disposition requires an active circuit breaker');
   }
   if (!BREAKER_DISPOSITIONS.includes(event.disposition)) {
