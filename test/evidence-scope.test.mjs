@@ -41,6 +41,12 @@ test('evidence receipts bound requirements, claims, and environment scope', asyn
       '--does-not-establish', JSON.stringify([
         'Custom locations, inherited configuration, and precedence are compatible.'
       ]),
+      '--inputs', 'fixture.txt',
+      '--claim-bindings', JSON.stringify([{
+        requirement_id: 'EVIDENCE-001',
+        claim: 'Default wrapper invocation works.',
+        inputs: ['fixture.txt']
+      }]),
       '--environment-scope', 'native-default-wrapper-harness',
       '--harness', 'codex'
     ], repo);
@@ -57,6 +63,8 @@ test('evidence receipts bound requirements, claims, and environment scope', asyn
       'Custom locations, inherited configuration, and precedence are compatible.'
     ]);
     assert.equal(receipt.environment_scope, 'native-default-wrapper-harness');
+    assert.equal(receipt.claim_bindings[0].requirement_id, 'EVIDENCE-001');
+    assert.equal(receipt.claim_bindings[0].input_fingerprints[0].input, 'fixture.txt');
 
     const ledgerPath = path.join(repo, '.git', 'zimster', 'evidence', 'receipts.jsonl');
     const ledger = (await readFile(ledgerPath, 'utf8')).trim().split('\n').map(JSON.parse);
@@ -79,6 +87,7 @@ test('evidence schema accepts runtime scopes and requires semantic scope fields 
     'requirement_ids',
     'establishes',
     'does_not_establish',
+    'claim_bindings',
     'environment_scope'
   ]) {
     assert.equal(versionTwoRule.then.required.includes(field), true);

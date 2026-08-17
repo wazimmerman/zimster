@@ -9,6 +9,7 @@ import {
   applyReviewLifecycleEvent,
   createReviewLifecycle
 } from '../scripts/lib/review-lifecycle.mjs';
+import { postmortemStateBinding } from '../scripts/lib/postmortem-state.mjs';
 
 const CLEAN = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 const CONTRACT = 'e'.repeat(64);
@@ -124,6 +125,11 @@ async function fixture({ finalApproved = true, withReview = true } = {}) {
     path.join(root, 'scripts/run-control.mjs'), 'refresh'
   ], repo);
   assert.equal(result.status, 0, result.stderr || result.stdout);
+  await mkdir(runtimePath(repo, 'postmortems'), { recursive: true });
+  await writeFile(runtimePath(repo, 'postmortems', 'latest.json'), `${JSON.stringify({
+    schema_version: 1,
+    source_state: await postmortemStateBinding(runtimePath(repo))
+  }, null, 2)}\n`);
   return { repo, lifecycle, budgetFile };
 }
 
@@ -147,6 +153,26 @@ test('coherence preflight admits a stable review candidate and an exact final-ap
   } finally {
     await rm(review.repo, { recursive: true, force: true });
     await rm(completion.repo, { recursive: true, force: true });
+  }
+});
+
+test('coherence rejects a stale or disproven canonical postmortem at every terminal gate', async () => {
+  for (const operation of ['review', 'completion', 'release']) {
+    const { repo, budgetFile } = await fixture({ finalApproved: operation !== 'review' });
+    try {
+      const budget = JSON.parse(await readFile(budgetFile, 'utf8'));
+      budget.postmortem_staleness_probe = operation;
+      await writeFile(budgetFile, `${JSON.stringify(budget, null, 2)}\n`);
+      const result = preflight(repo, operation);
+      assert.equal(result.status, 2, `${operation}: ${result.stderr || result.stdout}`);
+      assert.match(
+        JSON.parse(result.stdout).issues.join('\n'),
+        /postmortem.*stale|durable source state changed/i,
+        operation
+      );
+    } finally {
+      await rm(repo, { recursive: true, force: true });
+    }
   }
 });
 

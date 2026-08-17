@@ -429,11 +429,17 @@ New receipts may also carry `--requirement-ids`, `--establishes`,
 contains commas. This prevents a narrow native harness or fixture from being
 reported as broad compatibility proof.
 
+Claim-establishing governed runs also use `--claim-bindings` to map each exact
+requirement and claim to canonical entries already declared through `--inputs`
+or `--dependencies`. The verification bridge creates the same binding from the
+selected step's authenticated input fingerprints.
+
 Completion classifies a receipt as `claim_establishing` only when it binds at
 least one requirement and established claim to fingerprinted inputs or
 dependencies. Other receipts remain useful diagnostics but cannot satisfy a
-requirement. A prospective TDD claim additionally names `tdd_behavior_ids` in
-the matrix and requires authenticated governed `red` and `green` evidence for
+requirement. Every matrix row declares `tdd_evidence` as `required` or
+`not_claimed`; a prospective TDD claim additionally names `tdd_behavior_ids`
+and requires authenticated governed `red` and `green` evidence for
 the same behavior in chronological order. If the RED receipt was never
 captured, report TDD evidence unavailable; never reconstruct it from history.
 

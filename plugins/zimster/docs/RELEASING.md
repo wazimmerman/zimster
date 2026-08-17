@@ -103,6 +103,11 @@ terminal suite receipt changes relevant durable state. Regenerate the
 postmortem after the final exact suite, validate it once, and pass that current
 report to `release:evidence create`.
 
+Generation atomically refreshes `.git/zimster/postmortems/latest.json`.
+Final-review, completion, and release coherence validate that canonical report
+against current durable budgets, dispatches, reviews, evidence, and suites;
+any later relevant mutation makes it stale until regeneration.
+
 ## Verification-only CI
 
 Release CI must:

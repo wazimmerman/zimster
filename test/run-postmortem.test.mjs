@@ -227,6 +227,8 @@ test('run postmortem aggregates observed execution economy without mixing token 
     const summary = JSON.parse(result.stdout);
     assert.equal(summary.status, 'created');
     const report = JSON.parse(await readFile(summary.report, 'utf8'));
+    const latest = JSON.parse(await readFile(path.join(runtime, 'postmortems', 'latest.json'), 'utf8'));
+    assert.deepEqual(latest, report);
 
     assert.equal(report.source_state.schema_version, 1);
     assert.match(report.source_state.sha256, /^[0-9a-f]{64}$/);

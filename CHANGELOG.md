@@ -20,6 +20,9 @@
   postmortems to the durable state they summarize and embed a current report in
   release authorization, and require authentic prospective RED/GREEN receipts
   for any explicit TDD compliance claim instead of reconstructing history.
+- Require authenticated exact requirement/claim/input bindings, explicit TDD
+  claim status on every matrix row, authentic governed package-smoke RED/GREEN
+  receipts, and a current canonical postmortem at every terminal coherence gate.
 
 ## 0.7.0 - 2026-08-07
 

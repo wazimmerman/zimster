@@ -53,6 +53,32 @@ function run(args, cwd = root) {
   ], { cwd, encoding: 'utf8' });
 }
 
+function governedClaimReceipt(repo, requirementId, claim, input = 'tracked.txt') {
+  const result = spawnSync(process.execPath, [
+    path.join(root, 'scripts/evidence.mjs'), 'run', '--force',
+    '--kind', 'test', '--scope', `claim-${requirementId.toLowerCase()}`,
+    '--requirement-ids', JSON.stringify([requirementId]),
+    '--establishes', JSON.stringify([claim]),
+    '--environment-scope', 'node-linux',
+    '--inputs', JSON.stringify([input]),
+    '--claim-bindings', JSON.stringify([{
+      requirement_id: requirementId,
+      claim,
+      inputs: [input]
+    }]),
+    '--', process.execPath, '-e', 'process.exit(0)'
+  ], { cwd: repo, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+  return JSON.parse(result.stdout.trim().split('\n').at(-1));
+}
+
+function generatePostmortem(repo) {
+  const result = spawnSync(process.execPath, [
+    path.join(root, 'scripts/run-postmortem.mjs')
+  ], { cwd: repo, encoding: 'utf8' });
+  assert.equal(result.status, 0, result.stderr || result.stdout);
+}
+
 test('aggregate over-limit coverage resolves the explicit covering-override occurrence', async () => {
   const source = await readFile(path.join(root, 'scripts/semantic-assurance.mjs'), 'utf8');
   assert.match(
@@ -241,6 +267,9 @@ test('matrix CLI emits machine-readable coverage and a human summary', async () 
       schema_version: 1,
       requirements: [{ id: 'MATRIX-001', text: 'Validate matrix coverage.' }]
     }));
+    const receipt = governedClaimReceipt(
+      repo, 'MATRIX-001', 'Matrix coverage is validated.'
+    );
     await writeFile(matrixPath, JSON.stringify({
       schema_version: 1,
       candidate_head: head,
@@ -250,27 +279,16 @@ test('matrix CLI emits machine-readable coverage and a human summary', async () 
         authoritative_text: 'Validate matrix coverage.',
         source: 'plan.md#matrix-001',
         implementation_locations: ['scripts/semantic-assurance.mjs'],
-        evidence_refs: ['receipt-1'],
+        evidence_refs: [receipt.id],
         evidence_scope: { git_tree: tree, environment: 'node-linux' },
         unavailable_proof: [],
         status: 'verified',
-        intended_acceptance_claims: ['Matrix coverage is validated.']
+        intended_acceptance_claims: ['Matrix coverage is validated.'],
+        tdd_evidence: 'not_claimed'
       }],
       observations: []
     }));
-    await writeFile(evidencePath, `${JSON.stringify({
-      schema_version: 2,
-      id: 'receipt-1',
-      exit_code: 0,
-      git_commit: head,
-      git_tree: tree,
-      dirty_tree_fingerprint: CLEAN_FINGERPRINT,
-      requirement_ids: ['MATRIX-001'],
-      establishes: ['Matrix coverage is validated.'],
-      does_not_establish: [],
-      environment_scope: 'node-linux',
-      ...claimProvenance()
-    })}\n`);
+    await writeFile(evidencePath, `${JSON.stringify(receipt)}\n`);
 
     const result = run([
       'matrix',
@@ -316,6 +334,9 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       schema_version: 1,
       requirements: [{ id: 'GATE-001', text: 'Gate candidate completion.' }]
     };
+    const claimReceipt = governedClaimReceipt(
+      repo, 'GATE-001', 'Candidate completion is gated.'
+    );
     const requirementMatrix = {
       schema_version: 1,
       candidate_head: candidateHead,
@@ -325,11 +346,12 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
         authoritative_text: 'Gate candidate completion.',
         source: 'plan.md#gate-001',
         implementation_locations: ['scripts/semantic-assurance.mjs'],
-        evidence_refs: ['receipt-1'],
+        evidence_refs: [claimReceipt.id],
         evidence_scope: { git_tree: candidateTree, environment: 'node-linux' },
         unavailable_proof: [],
         status: 'verified',
-        intended_acceptance_claims: ['Candidate completion is gated.']
+        intended_acceptance_claims: ['Candidate completion is gated.'],
+        tdd_evidence: 'not_claimed'
       }],
       observations: []
     };
@@ -339,19 +361,7 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       .update(await import('node:fs/promises').then(({ readFile }) => readFile(matrixPath)))
       .digest('hex');
     const contractSha256 = semanticContractSha256(bindingRequirements, requirementMatrix);
-    await writeFile(evidencePath, `${JSON.stringify({
-      schema_version: 2,
-      id: 'receipt-1',
-      exit_code: 0,
-      git_commit: candidateHead,
-      git_tree: candidateTree,
-      dirty_tree_fingerprint: CLEAN_FINGERPRINT,
-      requirement_ids: ['GATE-001'],
-      establishes: ['Candidate completion is gated.'],
-      does_not_establish: [],
-      environment_scope: 'node-linux',
-      ...claimProvenance()
-    })}\n`);
+    await writeFile(evidencePath, `${JSON.stringify(claimReceipt)}\n`);
     await writeFile(reviewsPath, JSON.stringify({
       schema_version: 1,
       reviews: [{
@@ -404,6 +414,7 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       semanticContractSha256: contractSha256,
       reviewPackageId: 'package-001'
     });
+    generatePostmortem(repo);
 
     let result = run([
       'complete',
@@ -666,6 +677,9 @@ test('completion CLI rejects a review that is not bound to its exact package and
       schema_version: 1,
       requirements: [{ id: 'GATE-001', text: 'Bind approval to exact inputs.' }]
     }));
+    const claimReceipt = governedClaimReceipt(
+      repo, 'GATE-001', 'Approval is bound to exact inputs.'
+    );
     await writeFile(matrixPath, JSON.stringify({
       schema_version: 1,
       candidate_head: candidateHead,
@@ -675,11 +689,12 @@ test('completion CLI rejects a review that is not bound to its exact package and
         authoritative_text: 'Bind approval to exact inputs.',
         source: 'requirements.md#gate-001',
         implementation_locations: ['scripts/semantic-assurance.mjs'],
-        evidence_refs: ['receipt-1'],
+        evidence_refs: [claimReceipt.id],
         evidence_scope: { git_tree: candidateTree, environment: 'node-linux' },
         unavailable_proof: [],
         status: 'verified',
-        intended_acceptance_claims: ['Approval is bound to exact inputs.']
+        intended_acceptance_claims: ['Approval is bound to exact inputs.'],
+        tdd_evidence: 'not_claimed'
       }],
       observations: []
     }));
@@ -689,19 +704,7 @@ test('completion CLI rejects a review that is not bound to its exact package and
       JSON.parse(await import('node:fs/promises').then(({ readFile }) => readFile(requirementsPath))),
       JSON.parse(matrixBytes)
     );
-    await writeFile(evidencePath, `${JSON.stringify({
-      schema_version: 2,
-      id: 'receipt-1',
-      exit_code: 0,
-      git_commit: candidateHead,
-      git_tree: candidateTree,
-      dirty_tree_fingerprint: CLEAN_FINGERPRINT,
-      requirement_ids: ['GATE-001'],
-      establishes: ['Approval is bound to exact inputs.'],
-      does_not_establish: [],
-      environment_scope: 'node-linux',
-      ...claimProvenance()
-    })}\n`);
+    await writeFile(evidencePath, `${JSON.stringify(claimReceipt)}\n`);
     await writeFile(reviewsPath, JSON.stringify({
       schema_version: 1,
       reviews: [{
@@ -749,6 +752,7 @@ test('completion CLI rejects a review that is not bound to its exact package and
       semanticContractSha256: contractSha256,
       reviewPackageId: 'current-package'
     });
+    generatePostmortem(repo);
     const result = run([
       'complete',
       '--profile', 'standard',
@@ -788,23 +792,12 @@ test('matrix CLI marks naturally stale dependency evidence invalid', async () =>
       schema_version: 1,
       requirements: [{ id: 'EVIDENCE-001', text: 'Reject stale evidence.' }]
     }));
-    const receiptResult = spawnSync(process.execPath, [
-      path.join(root, 'scripts/evidence.mjs'),
-      'record',
-      '--kind', 'test',
-      '--scope', 'focused',
-      '--command', 'node --test',
-      '--exit-code', '0',
-      '--tests-passed', '1',
-      '--tests-failed', '0',
-      '--dependencies', 'dependency.txt',
-      '--requirement-ids', 'EVIDENCE-001',
-      '--establishes', 'Fresh dependencies are enforced.',
-      '--does-not-establish', 'Unrelated behavior is compatible.',
-      '--environment-scope', 'node-linux'
-    ], { cwd: repo, encoding: 'utf8' });
-    assert.equal(receiptResult.status, 0, receiptResult.stderr || receiptResult.stdout);
-    const receipt = JSON.parse(receiptResult.stdout);
+    const receipt = governedClaimReceipt(
+      repo,
+      'EVIDENCE-001',
+      'Fresh dependencies are enforced.',
+      'dependency.txt'
+    );
     await writeFile(matrixPath, JSON.stringify({
       schema_version: 1,
       candidate_head: head,
@@ -818,7 +811,8 @@ test('matrix CLI marks naturally stale dependency evidence invalid', async () =>
         evidence_scope: { git_tree: tree, environment: 'node-linux' },
         unavailable_proof: [],
         status: 'verified',
-        intended_acceptance_claims: ['Fresh dependencies are enforced.']
+        intended_acceptance_claims: ['Fresh dependencies are enforced.'],
+        tdd_evidence: 'not_claimed'
       }],
       observations: []
     }));

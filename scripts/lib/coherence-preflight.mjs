@@ -12,6 +12,7 @@ import {
 } from './review-lifecycle.mjs';
 import { authenticateFinalReviewAuthorization } from './review-authorization.mjs';
 import { checkRunSummary } from './run-summary.mjs';
+import { validatePostmortemState } from './postmortem-state.mjs';
 
 async function readJsonComponent(file, label, issues) {
   try {
@@ -153,10 +154,30 @@ export async function evaluateCoherence(runtime, repo, {
     'control-plane transaction',
     issues
   );
+  const postmortem = await readJsonComponent(
+    path.join(runtime, 'postmortems', 'latest.json'),
+    'canonical postmortem',
+    issues
+  );
 
   if (!run || run.schema_version !== 3) issues.push('canonical run.json schema 3 is unavailable');
   if (transaction) {
     issues.push(`pending control-plane mutation requires resume or reconciliation: ${transaction.transaction_id || 'unidentified'}`);
+  }
+  let postmortemStatus = 'POSTMORTEM_UNAVAILABLE';
+  if (!postmortem) {
+    issues.push('canonical postmortem is unavailable');
+  } else {
+    try {
+      const validation = await validatePostmortemState(postmortem, runtime);
+      postmortemStatus = validation.current ? 'POSTMORTEM_CURRENT' : 'POSTMORTEM_STALE';
+      if (!validation.current) {
+        issues.push(`canonical postmortem is stale or disproven: ${validation.reason}`);
+      }
+    } catch (error) {
+      postmortemStatus = 'POSTMORTEM_INVALID';
+      issues.push(`canonical postmortem could not be validated: ${error.message}`);
+    }
   }
   if (!checkpoint || checkpoint.schema_version !== 2) {
     issues.push('canonical recovery checkpoint schema 2 is unavailable');
@@ -287,6 +308,7 @@ export async function evaluateCoherence(runtime, repo, {
       run_revision: run?.state_revision ?? null,
       checkpoint_revision: checkpoint?.run_state_revision ?? null,
       accounting_status: accounting.status,
+      postmortem_status: postmortemStatus,
       lifecycle_status: lifecycle?.status || 'unavailable'
     }
   };

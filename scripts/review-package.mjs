@@ -16,6 +16,7 @@ import {
   semanticContractDigest
 } from './lib/semantic-assurance.mjs';
 import { REVIEW_ATTEMPT_TYPES } from './lib/review-lifecycle.mjs';
+import { authenticateGovernedEvidenceReceipt } from './lib/governed-terminal-auth.mjs';
 
 const { options } = parseOptions(process.argv.slice(2));
 const root = findRepoRoot(process.cwd());
@@ -262,8 +263,10 @@ const requestedCompletionState = String(options['requested-state'] || 'PARTIALLY
 const runtime = await ensureRuntimeDirectory(root);
 let evidence = [];
 try {
-  const rows = (await readFile(path.join(runtime, 'evidence', 'receipts.jsonl'), 'utf8'))
-    .split('\n').filter(Boolean).map((line) => JSON.parse(line));
+  const ledgerLines = (await readFile(path.join(runtime, 'evidence', 'receipts.jsonl'), 'utf8'))
+    .split('\n').filter(Boolean);
+  const rows = ledgerLines.map((line) => JSON.parse(line));
+  const lineById = new Map(ledgerLines.map((line) => [JSON.parse(line).id, line]));
   const invalidated = new Map(
     rows.filter((row) => row.record_type === 'invalidation')
       .map((row) => [row.receipt_id, row.reason])
@@ -306,6 +309,12 @@ try {
       requirement_ids: row.requirement_ids || [],
       establishes: row.establishes || [],
       does_not_establish: row.does_not_establish || [],
+      claim_bindings: row.claim_bindings || [],
+      governed_execution_authenticated: await authenticateGovernedEvidenceReceipt(
+        runtime,
+        row,
+        `${lineById.get(row.id)}\n`
+      ),
       environment_scope: row.environment_scope || null,
       ...(explicitReason ? { invalidation_reason: explicitReason } : {}),
       ...(naturalReason ? { natural_staleness_reason: naturalReason } : {})

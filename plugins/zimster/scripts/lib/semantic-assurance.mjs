@@ -515,6 +515,37 @@ function completeFingerprintBinding(items, fingerprints) {
     );
 }
 
+function fingerprintKey({ input, digest } = {}) {
+  return typeof input === 'string' && typeof digest === 'string'
+    ? `${input}\0${digest}`
+    : null;
+}
+
+function validClaimBindings(item) {
+  const provenance = new Set([
+    ...(item?.dependency_fingerprints || []),
+    ...(item?.input_fingerprints || [])
+  ].map(fingerprintKey).filter(Boolean));
+  return (Array.isArray(item?.claim_bindings) ? item.claim_bindings : []).filter((binding) =>
+    binding
+    && item?.requirement_ids?.includes(binding.requirement_id)
+    && item?.establishes?.includes(binding.claim)
+    && Array.isArray(binding.input_fingerprints)
+    && binding.input_fingerprints.length > 0
+    && binding.input_fingerprints.every((fingerprint) =>
+      provenance.has(fingerprintKey(fingerprint))
+    )
+  );
+}
+
+function claimBindingIssue(item, requirementId, claim) {
+  return validClaimBindings(item).some((binding) =>
+    binding.requirement_id === requirementId && binding.claim === claim
+  )
+    ? null
+    : `evidence ${item.id} lacks an exact authenticated claim binding for ${requirementId}: "${claim}"`;
+}
+
 export function classifyEvidencePurpose(item) {
   if (item?.kind === 'postmortem') {
     return {
@@ -530,7 +561,10 @@ export function classifyEvidencePurpose(item) {
     item?.dependency_cone,
     item?.dependency_fingerprints
   ) || completeFingerprintBinding(item?.inputs, item?.input_fingerprints);
-  if (item?.status === 'valid' && requirementBound && claimBound && dependencyBound) {
+  const authenticated = item?.governed_execution_authenticated === true;
+  const explicitlyBound = validClaimBindings(item).length > 0;
+  if (item?.status === 'valid' && authenticated && requirementBound && claimBound
+    && dependencyBound && explicitlyBound) {
     return {
       purpose: 'claim_establishing',
       reason: null
@@ -539,7 +573,9 @@ export function classifyEvidencePurpose(item) {
   const missing = [
     ...(requirementBound ? [] : ['requirement IDs']),
     ...(claimBound ? [] : ['established claims']),
-    ...(dependencyBound ? [] : ['fingerprinted input or dependency provenance'])
+    ...(dependencyBound ? [] : ['fingerprinted input or dependency provenance']),
+    ...(authenticated ? [] : ['authenticated governed execution']),
+    ...(explicitlyBound ? [] : ['exact requirement/claim/provenance binding'])
   ];
   return {
     purpose: 'diagnostic',
@@ -699,7 +735,10 @@ export function evaluateRequirementMatrix({
     if (!Array.isArray(entry.intended_acceptance_claims)) {
       issues.push(`${entry.id}: intended_acceptance_claims must be an array`);
     }
-    if (entry.tdd_behavior_ids !== undefined && (
+    if (!['required', 'not_claimed'].includes(entry.tdd_evidence)) {
+      issues.push(`${entry.id}: tdd_evidence must be required or not_claimed`);
+    }
+    if (entry.tdd_evidence === 'required' && (
       !Array.isArray(entry.tdd_behavior_ids)
       || !entry.tdd_behavior_ids.length
       || !entry.tdd_behavior_ids.every((id) =>
@@ -707,6 +746,10 @@ export function evaluateRequirementMatrix({
       )
     )) {
       issues.push(`${entry.id}: tdd_behavior_ids must contain stable kebab-case behavior IDs`);
+      unverified.push(`${entry.id}: TDD evidence unavailable because no governed behaviors were identified`);
+    }
+    if (entry.tdd_evidence === 'not_claimed' && entry.tdd_behavior_ids !== undefined) {
+      issues.push(`${entry.id}: tdd_behavior_ids are forbidden when tdd_evidence is not_claimed`);
     }
     const references = Array.isArray(entry.evidence_refs) ? entry.evidence_refs : [];
     const usableEvidence = [];
@@ -723,7 +766,8 @@ export function evaluateRequirementMatrix({
           id: item.id,
           requirement_ids: [...(item.requirement_ids || [])].sort(),
           establishes: [...(item.establishes || [])].sort(),
-          does_not_establish: [...(item.does_not_establish || [])].sort()
+          does_not_establish: [...(item.does_not_establish || [])].sort(),
+          claim_bindings: [...(item.claim_bindings || [])]
         });
       }
     }
@@ -740,20 +784,28 @@ export function evaluateRequirementMatrix({
         const explicitlyExcluded = usableEvidence.some(
           (item) => item.does_not_establish?.includes(claim)
         );
-        const established = usableEvidence.some(
-          (item) => item.establishes?.includes(claim)
+        const established = usableEvidence.some((item) =>
+          item.establishes?.includes(claim) && !claimBindingIssue(item, entry.id, claim)
         );
         if (explicitlyExcluded || !established) {
           const reason = explicitlyExcluded
             ? `evidence explicitly does not establish the broader claim "${claim}"`
-            : `evidence scope does not establish claim "${claim}"`;
+            : usableEvidence.some((item) => item.establishes?.includes(claim))
+              ? claimBindingIssue(
+                usableEvidence.find((item) => item.establishes?.includes(claim)),
+                entry.id,
+                claim
+              )
+              : `evidence scope does not establish claim "${claim}"`;
           issues.push(`${entry.id}: ${reason}`);
           unverified.push(`${entry.id}: ${reason}`);
         } else {
           allowedClaims.add(claim);
         }
       }
-      for (const behaviorId of entry.tdd_behavior_ids || []) {
+      for (const behaviorId of entry.tdd_evidence === 'required'
+        ? (entry.tdd_behavior_ids || [])
+        : []) {
         const tdd = evaluateTddEvidencePair({
           requirementId: entry.id,
           behaviorId,

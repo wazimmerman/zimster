@@ -113,6 +113,32 @@ function commandArgvOption() {
   return value;
 }
 
+function claimBindingsOption(availableFingerprints) {
+  if (options['claim-bindings'] === undefined) return [];
+  let value;
+  try {
+    value = JSON.parse(String(options['claim-bindings']));
+  } catch {
+    throw new Error('--claim-bindings must be a JSON array');
+  }
+  if (!Array.isArray(value)) throw new Error('--claim-bindings must be a JSON array');
+  const byInput = new Map(availableFingerprints.map((row) => [row.input, row]));
+  return value.map((binding, index) => {
+    if (!binding || typeof binding !== 'object' || Array.isArray(binding)
+      || typeof binding.requirement_id !== 'string'
+      || typeof binding.claim !== 'string' || !binding.claim.trim()
+      || !Array.isArray(binding.inputs) || !binding.inputs.length
+      || !binding.inputs.every((input) => typeof input === 'string' && byInput.has(input))) {
+      throw new Error(`--claim-bindings entry ${index} must bind requirement_id and claim to declared canonical inputs`);
+    }
+    return {
+      requirement_id: binding.requirement_id,
+      claim: binding.claim,
+      input_fingerprints: binding.inputs.map((input) => ({ ...byInput.get(input) }))
+    };
+  });
+}
+
 function testDiscovery(options, passed, failed) {
   if (options['test-discovery']) {
     const value = String(options['test-discovery']);
@@ -146,6 +172,8 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
     : ['true', '1', 'yes'].includes(String(explicitBehavior).toLowerCase());
   const recordedEnvironment = environment(options['host-version'] ? String(options['host-version']) : null);
   const dependencies = await canonicalInputIdentities(listOption('dependencies'), root);
+  const dependencyFingerprints = await fingerprintPathIdentities(root, dependencies);
+  const inputFingerprints = await fingerprintPathIdentities(root, inputs);
   const requirementIds = listOption('requirement-ids');
   for (const id of requirementIds) {
     if (!/^[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*-[0-9]{3,}$/.test(id)) {
@@ -192,12 +220,16 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
       skipped
     },
     dependency_cone: dependencies,
-    dependency_fingerprints: await fingerprintPathIdentities(root, dependencies),
+    dependency_fingerprints: dependencyFingerprints,
     inputs,
-    input_fingerprints: await fingerprintPathIdentities(root, inputs),
+    input_fingerprints: inputFingerprints,
     requirement_ids: requirementIds,
     establishes: listOption('establishes'),
     does_not_establish: listOption('does-not-establish'),
+    claim_bindings: claimBindingsOption([
+      ...dependencyFingerprints,
+      ...inputFingerprints
+    ]),
     environment_scope: options['environment-scope']
       ? String(options['environment-scope'])
       : null,
@@ -271,6 +303,21 @@ function validateReceipt(receipt) {
     }
   } else if (receipt.tdd_behavior_id !== null || receipt.tdd_red_receipt_id !== null) {
     throw new Error('TDD behavior or RED predecessor metadata requires --tdd-phase');
+  }
+  const provenance = new Set([
+    ...(receipt.dependency_fingerprints || []),
+    ...(receipt.input_fingerprints || [])
+  ].map(({ input, digest }) => `${input}\0${digest}`));
+  for (const [index, binding] of (receipt.claim_bindings || []).entries()) {
+    if (!receipt.requirement_ids.includes(binding.requirement_id)
+      || !receipt.establishes.includes(binding.claim)
+      || !Array.isArray(binding.input_fingerprints)
+      || !binding.input_fingerprints.length
+      || !binding.input_fingerprints.every(({ input, digest }) =>
+        provenance.has(`${input}\0${digest}`)
+      )) {
+      throw new Error(`claim binding ${index} must bind a declared requirement and claim to receipt provenance`);
+    }
   }
 }
 
@@ -460,6 +507,22 @@ async function main() {
       ...selected.flatMap((step) => (step.input_fingerprints || []).map(({ input }) => input))
     ]);
     const receipt = await buildReceipt({ exitCode: 0 });
+    const stepInputDigests = new Set(
+      (contract.input_fingerprints || []).map(({ digest }) => digest)
+    );
+    const boundFingerprints = stepInputDigests.size
+      ? receipt.input_fingerprints.filter(({ digest }) => stepInputDigests.has(digest))
+      : receipt.input_fingerprints;
+    if ((requestedRequirements.length || requestedEstablishes.length) && !boundFingerprints.length) {
+      throw new Error('claim-scoped verification step has no fingerprinted executed provenance');
+    }
+    receipt.claim_bindings = requestedRequirements.flatMap((requirementId) =>
+      requestedEstablishes.map((claim) => ({
+        requirement_id: requirementId,
+        claim,
+        input_fingerprints: boundFingerprints.map((row) => ({ ...row }))
+      }))
+    );
     receipt.upstream_verification_receipt_id = verificationId;
     receipt.upstream_verification_execution_id = verification.execution_id;
     receipt.upstream_verification_step_ids = requestedSteps;
@@ -472,6 +535,7 @@ async function main() {
       input_fingerprints: [...(step.input_fingerprints || [])]
     }));
     receipt.upstream_verification_authenticated = true;
+    validateReceipt(receipt);
     const bytes = await withControlPlaneMutation(runtime, root, {
       mutationType: 'evidence_bridged_from_verification',
       checkpointChanges: () => evidenceCheckpointChanges(runtime, {

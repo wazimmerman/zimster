@@ -59,12 +59,9 @@ governed evidence runner with one stable behavior ID. RED uses `--tdd-phase red`
 and a nonzero test result; GREEN uses `--tdd-phase green` plus the exact
 `--tdd-red-receipt`. If the RED receipt was not captured, state `TDD evidence
 unavailable`. Never reconstruct historical RED from commits, logs, or memory.
-
-When Zimster will make a TDD compliance claim, record both phases through the
-governed evidence runner with one stable behavior ID. RED uses `--tdd-phase red`
-and a nonzero test result; GREEN uses `--tdd-phase green` plus the exact
-`--tdd-red-receipt`. If the RED receipt was not captured, state `TDD evidence
-unavailable`. Never reconstruct historical RED from commits, logs, or memory.
+Every requirement-matrix row sets `tdd_evidence` to `required` or
+`not_claimed`. A required row names stable `tdd_behavior_ids`; omission is not
+permission to infer or bypass TDD proof.
 
 ## REFACTOR
 

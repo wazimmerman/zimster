@@ -80,7 +80,8 @@ test('review package keeps authoritative changes and hashes generated mirrors wi
         },
         unavailable_proof: ['Independent review pending.'],
         status: 'partially_verified',
-        intended_acceptance_claims: ['Semantic review inputs are complete.']
+        intended_acceptance_claims: ['Semantic review inputs are complete.'],
+        tdd_evidence: 'not_claimed'
       }],
       observations: []
     }));

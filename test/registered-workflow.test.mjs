@@ -161,7 +161,8 @@ test('plan conformance detects requirement drift and blocks unverified release c
       id: 'PLAN-001', authoritative_text: 'Ship the portable contract.', source: 'approved-plan',
       implementation_locations: ['plugin.json'], evidence_refs: [],
       evidence_scope: { git_tree: tree, environment: 'node' }, unavailable_proof: [],
-      status: 'unverified', intended_acceptance_claims: ['Portable contract ships.']
+      status: 'unverified', intended_acceptance_claims: ['Portable contract ships.'],
+      tdd_evidence: 'not_claimed'
     };
     await writeFile(matrix, `${JSON.stringify({
       schema_version: 1, candidate_head: '0'.repeat(40), candidate_tree: tree,

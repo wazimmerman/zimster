@@ -126,6 +126,16 @@ test('passed governed verification can be bridged into claim-scoped evidence wit
     assert.equal(evidence.upstream_verification_receipt_id, verification.id);
     assert.deepEqual(evidence.upstream_verification_step_ids, ['proof-step']);
     assert.equal(evidence.upstream_verification_authenticated, true);
+    assert.deepEqual(evidence.claim_bindings.map(({ requirement_id, claim }) => ({
+      requirement_id,
+      claim
+    })), [{
+      requirement_id: 'CTRL-EVIDENCE-001',
+      claim: 'The authenticated verification step passed.'
+    }]);
+    assert.ok(evidence.claim_bindings[0].input_fingerprints.some(
+      ({ input }) => input.endsWith('bridge-helper.mjs')
+    ));
     assert.deepEqual(evidence.requirement_ids, ['CTRL-EVIDENCE-001']);
     assert.deepEqual(evidence.establishes, ['The authenticated verification step passed.']);
     const fullVerification = JSON.parse(await readFile(verification.receipt, 'utf8'));

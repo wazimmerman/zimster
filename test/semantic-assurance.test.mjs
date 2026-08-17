@@ -311,6 +311,7 @@ function matrixEntry(id, overrides = {}) {
     unavailable_proof: [],
     status: 'verified',
     intended_acceptance_claims: [`Claim ${id}.`],
+    tdd_evidence: 'not_claimed',
     ...overrides
   };
 }
@@ -331,6 +332,15 @@ function scopedEvidence(id, overrides = {}) {
       input: 'scripts/example.mjs',
       digest: 'file:' + 'f'.repeat(64)
     }],
+    claim_bindings: [{
+      requirement_id: id,
+      claim: `Claim ${id}.`,
+      input_fingerprints: [{
+        input: 'scripts/example.mjs',
+        digest: 'file:' + 'f'.repeat(64)
+      }]
+    }],
+    governed_execution_authenticated: true,
     ...overrides
   };
 }
@@ -435,6 +445,40 @@ test('claim receipts require fingerprinted input or dependency provenance', () =
   assert.match(result.issues.join('\n'), /fingerprinted input or dependency/i);
 });
 
+test('claim-establishing evidence requires authenticated exact claim-to-input binding', () => {
+  const claim = 'Claim MATRIX-001.';
+  for (const [label, evidence] of [
+    ['unauthenticated receipt', scopedEvidence('MATRIX-001', {
+      governed_execution_authenticated: false
+    })],
+    ['unrelated claim binding', scopedEvidence('MATRIX-001', {
+      claim_bindings: [{
+        requirement_id: 'MATRIX-001',
+        claim: 'A different claim.',
+        input_fingerprints: [{
+          input: 'scripts/example.mjs',
+          digest: 'file:' + 'f'.repeat(64)
+        }]
+      }]
+    })],
+    ['unbound provenance', scopedEvidence('MATRIX-001', {
+      claim_bindings: [{
+        requirement_id: 'MATRIX-001',
+        claim,
+        input_fingerprints: [{
+          input: 'scripts/unrelated.mjs',
+          digest: 'file:' + '0'.repeat(64)
+        }]
+      }]
+    })]
+  ]) {
+    const result = evaluate([matrixEntry('MATRIX-001')], binding('MATRIX-001'), [evidence]);
+    assert.equal(result.valid, false, label);
+    assert.deepEqual(result.allowed_claims, [], label);
+    assert.match(result.issues.join('\n'), /authenticated|claim binding|provenance/i, label);
+  }
+});
+
 test('postmortem reports remain diagnostic rather than satisfying matrix claims', () => {
   const result = evaluate(
     [matrixEntry('MATRIX-001')],
@@ -450,6 +494,7 @@ test('prospective TDD claims require an authenticated behavior-matched RED then 
   const entry = matrixEntry('TDD-001', {
     evidence_refs: ['green-evidence'],
     intended_acceptance_claims: ['Behavior is implemented.'],
+    tdd_evidence: 'required',
     tdd_behavior_ids: ['behavior-one']
   });
   const red = scopedEvidence('TDD-001', {
@@ -469,6 +514,14 @@ test('prospective TDD claims require an authenticated behavior-matched RED then 
   const green = scopedEvidence('TDD-001', {
     id: 'green-evidence',
     establishes: ['Behavior is implemented.'],
+    claim_bindings: [{
+      requirement_id: 'TDD-001',
+      claim: 'Behavior is implemented.',
+      input_fingerprints: [{
+        input: 'scripts/example.mjs',
+        digest: 'file:' + 'f'.repeat(64)
+      }]
+    }],
     exit_code: 0,
     started_at: '2026-08-17T10:02:00.000Z',
     ended_at: '2026-08-17T10:03:00.000Z',
@@ -502,6 +555,21 @@ test('prospective TDD claims require an authenticated behavior-matched RED then 
     assert.deepEqual(result.allowed_claims, [], label);
     assert.match(result.unverified_obligations.join('\n'), /TDD evidence unavailable/i, label);
   }
+});
+
+test('every requirement explicitly identifies whether it makes a TDD claim', () => {
+  const omitted = matrixEntry('TDD-001');
+  delete omitted.tdd_evidence;
+  const omittedResult = evaluate([omitted], binding('TDD-001'), [scopedEvidence('TDD-001')]);
+  assert.equal(omittedResult.valid, false);
+  assert.match(omittedResult.issues.join('\n'), /tdd_evidence.*required.*not_claimed/i);
+
+  const bypass = matrixEntry('TDD-001', {
+    tdd_evidence: 'required'
+  });
+  const bypassResult = evaluate([bypass], binding('TDD-001'), [scopedEvidence('TDD-001')]);
+  assert.equal(bypassResult.valid, false);
+  assert.match(bypassResult.unverified_obligations.join('\n'), /TDD evidence unavailable/i);
 });
 
 test('not_applicable requirements require a reason and scoped evidence', () => {

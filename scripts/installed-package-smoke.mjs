@@ -76,6 +76,10 @@ function parseJson(label, value) {
   }
 }
 
+function parseTerminalJson(label, value) {
+  return parseJson(label, String(value || '').trim().split('\n').filter(Boolean).at(-1));
+}
+
 async function exercisePackagedWorkflow(runtimeRoot, fixture, home) {
   await mkdir(fixture, { recursive: true });
   git(['init', '-q', '-b', 'main'], fixture);
@@ -143,6 +147,78 @@ async function exercisePackagedWorkflow(runtimeRoot, fixture, home) {
   if (!evidence.execution_id || evidence.exit_code !== 0) {
     throw new Error('packaged governed evidence did not produce an authenticated execution receipt');
   }
+  const tddState = path.join(fixture, 'tdd-state.txt');
+  await writeFile(tddState, 'red\n');
+  const tddCommand = [
+    process.execPath,
+    '-e',
+    "const fs=require('node:fs');if(fs.readFileSync('tdd-state.txt','utf8').trim()!=='green')process.exit(1)"
+  ];
+  const redResult = executeResult(
+    path.join(runtimeRoot, 'scripts', 'evidence.mjs'),
+    [
+      'run', '--force', '--kind', 'red', '--scope', 'packaged-tdd-red',
+      '--test-discovery', 'tests_executed', '--tests-discovered', '1',
+      '--tests-passed', '0', '--tests-failed', '1', '--tests-skipped', '0',
+      '--requirement-ids', '["CTRL-TDD-EVIDENCE-001"]',
+      '--inputs', '["tdd-state.txt"]',
+      '--tdd-phase', 'red', '--tdd-behavior', 'packaged-behavior',
+      '--', ...tddCommand
+    ],
+    fixture,
+    env
+  );
+  if (redResult.status !== 1) {
+    throw new Error(`packaged governed TDD RED did not fail meaningfully: ${redResult.stderr || redResult.stdout}`);
+  }
+  const red = parseTerminalJson('packaged governed TDD RED', redResult.stdout);
+  await writeFile(tddState, 'green\n');
+  const greenResult = executeResult(
+    path.join(runtimeRoot, 'scripts', 'evidence.mjs'),
+    [
+      'run', '--force', '--kind', 'test', '--scope', 'packaged-tdd-green',
+      '--test-discovery', 'tests_executed', '--tests-discovered', '1',
+      '--tests-passed', '1', '--tests-failed', '0', '--tests-skipped', '0',
+      '--requirement-ids', '["CTRL-TDD-EVIDENCE-001"]',
+      '--inputs', '["tdd-state.txt"]',
+      '--tdd-phase', 'green', '--tdd-behavior', 'packaged-behavior',
+      '--tdd-red-receipt', red.id,
+      '--', ...tddCommand
+    ],
+    fixture,
+    env
+  );
+  if (greenResult.status !== 0) {
+    throw new Error(`packaged governed TDD GREEN did not pass: ${greenResult.stderr || greenResult.stdout}`);
+  }
+  const green = parseTerminalJson('packaged governed TDD GREEN', greenResult.stdout);
+  const ledgerLines = (await readFile(path.join(runtime, 'evidence', 'receipts.jsonl'), 'utf8'))
+    .split('\n').filter(Boolean);
+  const ledgerById = new Map(ledgerLines.map((line) => [JSON.parse(line).id, line]));
+  const { authenticateGovernedEvidenceReceipt } = await import(pathToFileURL(path.join(
+    runtimeRoot, 'scripts', 'lib', 'governed-terminal-auth.mjs'
+  )).href);
+  const authenticatedRed = await authenticateGovernedEvidenceReceipt(
+    runtime, red, `${ledgerById.get(red.id)}\n`
+  );
+  const authenticatedGreen = await authenticateGovernedEvidenceReceipt(
+    runtime, green, `${ledgerById.get(green.id)}\n`
+  );
+  const { evaluateTddEvidencePair } = await import(pathToFileURL(path.join(
+    runtimeRoot, 'scripts', 'lib', 'semantic-assurance.mjs'
+  )).href);
+  const pair = evaluateTddEvidencePair({
+    requirementId: 'CTRL-TDD-EVIDENCE-001',
+    behaviorId: 'packaged-behavior',
+    greenEvidence: [{ ...green, governed_execution_authenticated: authenticatedGreen }],
+    allEvidence: [
+      { ...red, governed_execution_authenticated: authenticatedRed },
+      { ...green, governed_execution_authenticated: authenticatedGreen }
+    ]
+  });
+  if (pair.status !== 'verified') {
+    throw new Error('packaged workflow did not authenticate a behavior-matched RED/GREEN pair');
+  }
   const resumed = parseJson('packaged resume', execute(
     path.join(runtimeRoot, 'scripts', 'run-control.mjs'),
     ['resume'],
@@ -150,7 +226,9 @@ async function exercisePackagedWorkflow(runtimeRoot, fixture, home) {
     env
   ));
   if (resumed.current_slice?.id !== 'slice-1'
-    || resumed.repository_state?.touched_files?.length !== 2) {
+    || !resumed.repository_state?.touched_files?.some((file) =>
+      String(file).endsWith('tdd-state.txt')
+    )) {
     throw new Error('fresh packaged resume lost dirty current-slice state');
   }
   const accounting = parseJson('packaged accounting reconciliation', execute(
@@ -243,15 +321,12 @@ writeFileSync(${JSON.stringify(lifecycleOutput)}, JSON.stringify({
   const acceptanceOutput = path.join(home, 'acceptance-evidence-probe.json');
   const acceptanceProbe = `
 import { mkdir, writeFile } from 'node:fs/promises';
-import { classifyEvidencePurpose as classify, evaluateTddEvidencePair as tdd } from ${JSON.stringify(semanticModule)};
+import { classifyEvidencePurpose as classify, evaluateRequirementMatrix as matrix } from ${JSON.stringify(semanticModule)};
 import { postmortemStateBinding as bind, validatePostmortemState as validate } from ${JSON.stringify(postmortemModule)};
 const diagnostic = classify({ status: 'valid', requirement_ids: [], establishes: ['claim'], dependency_cone: [], dependency_fingerprints: [] });
 if (diagnostic.purpose !== 'diagnostic') throw new Error('unbound evidence established a claim');
-const command = 'a'.repeat(64);
-const red = { id: 'red', kind: 'red', exit_code: 1, requirement_ids: ['TDD-001'], environment_scope: 'node', command_identity: command, governed_execution_authenticated: true, tdd_phase: 'red', tdd_behavior_id: 'packaged-behavior', tdd_red_receipt_id: null, ended_at: '2026-08-17T10:01:00.000Z', tests: { discovery: 'tests_executed', failed: 1 } };
-const green = { id: 'green', exit_code: 0, environment_scope: 'node', command_identity: command, governed_execution_authenticated: true, tdd_phase: 'green', tdd_behavior_id: 'packaged-behavior', tdd_red_receipt_id: 'red', started_at: '2026-08-17T10:02:00.000Z', tests: { discovery: 'tests_executed', passed: 1 } };
-if (tdd({ requirementId: 'TDD-001', behaviorId: 'packaged-behavior', greenEvidence: [green], allEvidence: [red, green] }).status !== 'verified') throw new Error('authentic packaged RED/GREEN pair was rejected');
-if (tdd({ requirementId: 'TDD-001', behaviorId: 'packaged-behavior', greenEvidence: [green], allEvidence: [green] }).status !== 'unavailable') throw new Error('missing packaged RED was reconstructed');
+const omitted = matrix({ bindingRequirements: [{ id: 'TDD-001', text: 'Explicit TDD claim status.' }], matrix: { schema_version: 1, candidate_head: 'a'.repeat(40), candidate_tree: 'b'.repeat(40), requirements: [{ id: 'TDD-001', authoritative_text: 'Explicit TDD claim status.', source: 'package-smoke', implementation_locations: ['scripts/evidence.mjs'], evidence_refs: [], evidence_scope: { git_tree: 'b'.repeat(40), environment: 'node' }, unavailable_proof: ['TDD evidence unavailable.'], status: 'unverified', intended_acceptance_claims: [] }], observations: [] }, evidence: [], phase: 'candidate' });
+if (!omitted.issues.some((issue) => issue.includes('tdd_evidence'))) throw new Error('omitted TDD claim status bypassed packaged matrix enforcement');
 const runtime = ${JSON.stringify(acceptanceProbeRoot)};
 await mkdir(runtime, { recursive: true });
 await writeFile(runtime + '/budget.json', '{"usage":{"complete_suite_executions":1}}\\n');

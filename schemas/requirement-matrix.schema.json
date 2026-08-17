@@ -45,7 +45,8 @@
         "evidence_scope",
         "unavailable_proof",
         "status",
-        "intended_acceptance_claims"
+        "intended_acceptance_claims",
+        "tdd_evidence"
       ],
       "properties": {
         "id": {"$ref": "#/$defs/requirementId"},
@@ -82,6 +83,7 @@
           ]
         },
         "intended_acceptance_claims": {"$ref": "#/$defs/stringList"},
+        "tdd_evidence": {"enum": ["required", "not_claimed"]},
         "tdd_behavior_ids": {
           "type": "array",
           "items": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
@@ -101,6 +103,14 @@
               "evidence_refs": {"minItems": 1}
             }
           }
+        },
+        {
+          "if": {
+            "properties": {"tdd_evidence": {"const": "required"}},
+            "required": ["tdd_evidence"]
+          },
+          "then": {"required": ["tdd_behavior_ids"]},
+          "else": {"not": {"required": ["tdd_behavior_ids"]}}
         }
       ],
       "additionalProperties": false

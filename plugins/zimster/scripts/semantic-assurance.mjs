@@ -44,9 +44,7 @@ async function jsonDocument(option) {
 }
 
 async function evidenceRecords(checkout) {
-  const runtime = options.evidence
-    ? null
-    : await ensureRuntimeDirectory(root);
+  const runtime = await ensureRuntimeDirectory(root);
   const file = options.evidence
     ? path.resolve(process.cwd(), String(options.evidence))
     : path.join(runtime, 'evidence', 'receipts.jsonl');
@@ -74,13 +72,11 @@ async function evidenceRecords(checkout) {
         : null;
     records.push({
       ...row,
-      governed_execution_authenticated: runtime
-        ? await authenticateGovernedEvidenceReceipt(
-          runtime,
-          row,
-          `${rawLineById.get(row.id)}\n`
-        )
-        : false,
+      governed_execution_authenticated: await authenticateGovernedEvidenceReceipt(
+        runtime,
+        row,
+        `${rawLineById.get(row.id)}\n`
+      ),
       status: invalidated.has(row.id) || staleReason
         ? 'stale'
         : row.exit_code === 0 ? 'valid' : 'failed',

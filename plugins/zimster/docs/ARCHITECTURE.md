@@ -156,6 +156,11 @@ can select only a subset of its positive contract, and must preserve every
 declared exclusion. It cannot bridge a failed, stale, handcrafted, changed, or
 unselected step or broaden a step's claims after observing its result.
 
+Claim-establishing receipts are authenticated governed terminal records with
+explicit requirement/claim/input-fingerprint bindings. Nonempty parallel
+arrays alone do not prove that relationship; receipts without a valid exact
+binding remain diagnostic.
+
 Exact release reconstruction uses tracked helpers. Clean-checkout
 reproducibility builds and secret-scans the artifact set in two independent
 detached clones. Self-host reconstruction runs the durable accounting,
