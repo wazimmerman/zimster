@@ -218,6 +218,34 @@ function actionable(result, reason) {
   return line.length > 300 ? `${line.slice(0, 297)}...` : line;
 }
 
+async function fingerprintStepInputs(step) {
+  const fingerprints = [];
+  for (const input of step.input_files || []) {
+    try {
+      fingerprints.push({
+        input,
+        digest: await inputDigest(path.resolve(root, input))
+      });
+    } catch (error) {
+      return { fingerprints, failure: { input, error } };
+    }
+  }
+  return { fingerprints, failure: null };
+}
+
+function fingerprintFailureResult(failure, prior = null) {
+  const detail = [failure.error?.code, failure.error?.message]
+    .filter(Boolean).join(': ');
+  return {
+    status: 1,
+    stdout: String(prior?.stdout || ''),
+    stderr: [
+      String(prior?.stderr || '').trimEnd(),
+      `verification step input fingerprint failed: ${failure.input}${detail ? ` (${detail})` : ''}`
+    ].filter(Boolean).join('\n') + '\n'
+  };
+}
+
 async function runPlan(plan) {
   const id = randomUUID();
   const runtime = await ensureRuntimeDirectory(root);
@@ -280,12 +308,13 @@ async function runPlan(plan) {
       continue;
     }
     const started = performance.now();
-    const inputFingerprints = await Promise.all((step.input_files || []).map(async (input) => ({
-      input,
-      digest: await inputDigest(path.resolve(root, input))
-    })));
+    const beforeFingerprint = await fingerprintStepInputs(step);
+    const inputFingerprints = beforeFingerprint.fingerprints;
+    let inputFingerprintFailure = beforeFingerprint.failure;
     const missingInput = inputFingerprints.find(({ digest: value }) => value === 'missing');
-    const result = missingInput
+    let result = inputFingerprintFailure
+      ? fingerprintFailureResult(inputFingerprintFailure)
+      : missingInput
       ? {
           status: 1,
           stdout: '',
@@ -299,12 +328,18 @@ async function runPlan(plan) {
           maxBuffer: 128 * 1024 * 1024
         });
     const durationMs = Math.round((performance.now() - started) * 1000) / 1000;
-    const changedInput = missingInput ? null : (await Promise.all(inputFingerprints.map(
-      async ({ input, digest: prior }) => ({
-        input,
-        changed: await inputDigest(path.resolve(root, input)) !== prior
-      })
-    ))).find(({ changed }) => changed);
+    let changedInput = null;
+    if (!inputFingerprintFailure && !missingInput) {
+      const afterFingerprint = await fingerprintStepInputs(step);
+      inputFingerprintFailure = afterFingerprint.failure;
+      if (inputFingerprintFailure) {
+        result = fingerprintFailureResult(inputFingerprintFailure, result);
+      } else {
+        changedInput = afterFingerprint.fingerprints.find(({ input, digest: current }) =>
+          inputFingerprints.find((prior) => prior.input === input)?.digest !== current
+        ) || null;
+      }
+    }
     const log = logText(step, result);
     const logPath = path.join(logDirectory, `${step.id}.log`);
     await writeFile(logPath, log);
@@ -314,8 +349,11 @@ async function runPlan(plan) {
       : false;
     const unexpectedStderr = (result.status ?? 1) === 0 && stderr.trim() !== '' && !expectedStderr;
     if (unexpectedStderr) warnings += 1;
-    const failed = (result.status ?? 1) !== 0 || unexpectedStderr || Boolean(changedInput);
-    const reason = missingInput
+    const failed = (result.status ?? 1) !== 0
+      || unexpectedStderr || Boolean(changedInput) || Boolean(inputFingerprintFailure);
+    const reason = inputFingerprintFailure
+      ? 'input_fingerprint_error'
+      : missingInput
       ? 'missing_input'
       : unexpectedStderr
       ? 'unexpected_stderr'

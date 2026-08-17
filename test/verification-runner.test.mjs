@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -281,6 +281,63 @@ test('missing declared input fails the step and terminalizes its governed execut
     assert.equal(execution.terminal_receipt_id, summary.id);
   } finally {
     await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('thrown input fingerprint failures before and after execution terminalize governed executions', async (t) => {
+  for (const phase of ['before', 'after']) {
+    await t.test(phase, async () => {
+      const repo = await tempRepo();
+      try {
+        const input = path.join(repo, 'fingerprint-loop.txt');
+        if (phase === 'before') {
+          await symlink('fingerprint-loop.txt', input);
+        } else {
+          await writeFile(input, 'initial\n');
+        }
+        const command = phase === 'before'
+          ? 'process.exit(0);'
+          : "import { rmSync, symlinkSync } from 'node:fs'; rmSync(process.argv[1]); symlinkSync('fingerprint-loop.txt', process.argv[1]);";
+        const planFile = path.join(repo, 'plan.json');
+        await writeFile(planFile, `${JSON.stringify({
+          schema_version: 1,
+          profile: `fingerprint-${phase}-fixture`,
+          complete_suite: true,
+          steps: [{
+            id: 'fingerprint-input',
+            command: process.execPath,
+            args: ['-e', command, input],
+            input_files: ['fingerprint-loop.txt']
+          }]
+        })}\n`);
+
+        const result = run(process.execPath, [
+          path.join(root, 'scripts/verify.mjs'), 'run', '--plan', planFile
+        ], repo);
+        assert.notEqual(result.status, 0, result.stderr || result.stdout);
+        assert.equal(result.stderr, '');
+        const summary = JSON.parse(result.stdout);
+        assert.equal(summary.status, 'failed');
+        assert.equal(summary.failed_step, 'fingerprint-input');
+        assert.equal(summary.steps[0].reason, 'input_fingerprint_error');
+        assert.match(summary.action, /fingerprint-loop\.txt|ELOOP/i);
+
+        const verification = JSON.parse(await readFile(summary.receipt, 'utf8'));
+        const executionDirectory = path.join(
+          path.dirname(verificationRuntime(repo)), 'executions', 'receipts'
+        );
+        const executionFiles = await readdir(executionDirectory);
+        assert.equal(executionFiles.length, 1);
+        const execution = JSON.parse(await readFile(
+          path.join(executionDirectory, executionFiles[0]), 'utf8'
+        ));
+        assert.equal(execution.status, 'failed');
+        assert.equal(execution.terminal_receipt_type, 'verification');
+        assert.equal(execution.terminal_receipt_id, summary.id);
+      } finally {
+        await rm(repo, { recursive: true, force: true });
+      }
+    });
   }
 });
 

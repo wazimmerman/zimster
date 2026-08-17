@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import {
   applyReviewLifecycleEvent,
   createReviewLifecycle,
@@ -57,6 +58,15 @@ function verdict(state, attempt_id, value, findings = []) {
     verdict: value,
     findings
   });
+}
+
+function findingFingerprint(attemptId, finding) {
+  return createHash('sha256').update(JSON.stringify({
+    attempt_id: attemptId,
+    severity: finding.severity,
+    summary: finding.summary,
+    evidence: finding.evidence || null
+  })).digest('hex');
 }
 
 test('initial review permits one same-reviewer correction recheck and consumes it', () => {
@@ -405,6 +415,45 @@ test('evidence-backed approval dispositions resolve exhausted final review as fi
     }]);
   }
 
+  const finding = {
+    severity: 'Important', summary: 'Exact-head evidence was incomplete.'
+  };
+  const authenticatedEvidence = {
+    receipt_type: 'verification',
+    receipt_id: 'verification-current-candidate',
+    execution_id: 'execution-current-candidate',
+    authentication: 'governed-execution-v1',
+    candidate: candidate({ head_sha: CORRECTED_HEAD }),
+    environment: { platform: 'linux', arch: 'x64', node: process.version },
+    step_ids: ['rebut-final-finding'],
+    finding_fingerprints: [findingFingerprint('attempt-final-2', finding)]
+  };
+
+  assert.throws(() => applyReviewLifecycleEvent(exhausted(), {
+    type: 'breaker_disposition_recorded',
+    disposition: 'reviewer_rebutted_with_evidence',
+    reason: 'A forged string must not authorize release.',
+    evidence_refs: ['does-not-exist']
+  }), /authenticated.*evidence|evidence.*authenticated/i);
+  assert.throws(() => applyReviewLifecycleEvent(exhausted(), {
+    type: 'breaker_disposition_recorded',
+    disposition: 'reviewer_rebutted_with_evidence',
+    reason: 'Evidence for another candidate must not authorize release.',
+    evidence_refs: [{
+      ...authenticatedEvidence,
+      candidate: candidate()
+    }]
+  }), /candidate/i);
+  assert.throws(() => applyReviewLifecycleEvent(exhausted(), {
+    type: 'breaker_disposition_recorded',
+    disposition: 'reviewer_rebutted_with_evidence',
+    reason: 'Evidence must rebut every load-bearing finding.',
+    evidence_refs: [{
+      ...authenticatedEvidence,
+      finding_fingerprints: ['0'.repeat(64)]
+    }]
+  }), /finding/i);
+
   for (const disposition of [
     'reviewer_rebutted_with_evidence',
     'non_load_bearing_deferral'
@@ -413,7 +462,7 @@ test('evidence-backed approval dispositions resolve exhausted final review as fi
       type: 'breaker_disposition_recorded',
       disposition,
       reason: 'Candidate-bound evidence resolves the final finding without a source change.',
-      evidence_refs: ['exact-candidate-evidence']
+      evidence_refs: [authenticatedEvidence]
     });
     assert.equal(state.status, 'final_approved');
     assert.equal(state.stable, true);

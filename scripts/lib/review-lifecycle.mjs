@@ -1,3 +1,5 @@
+import { createHash } from 'node:crypto';
+
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 
@@ -51,6 +53,55 @@ function sameCandidate(left, right) {
 
 function loadBearing(findings) {
   return findings.some(({ severity }) => severity === 'Critical' || severity === 'Important');
+}
+
+export function reviewFindingFingerprint(attemptId, finding) {
+  requireString(attemptId, 'review finding attempt ID');
+  if (!finding || typeof finding !== 'object' || Array.isArray(finding)) {
+    throw new Error('review finding must be an object');
+  }
+  return createHash('sha256').update(JSON.stringify({
+    attempt_id: attemptId,
+    severity: requireString(finding.severity, 'review finding severity'),
+    summary: requireString(finding.summary, 'review finding summary'),
+    evidence: finding.evidence || null
+  })).digest('hex');
+}
+
+function validateStrategyApprovalEvidence(state, event) {
+  const attemptId = state.strategy_escalation?.attempt_id;
+  const attempt = state.attempts.find(({ attempt_id }) => attempt_id === attemptId);
+  if (!attempt || attempt.verdict !== 'needs_correction') {
+    throw new Error('strategy approval requires the exhausted failed review attempt');
+  }
+  const expectedFindings = attempt.findings
+    .filter(({ severity }) => severity === 'Critical' || severity === 'Important')
+    .map((finding) => reviewFindingFingerprint(attemptId, finding));
+  const established = new Set();
+  for (const reference of event.evidence_refs) {
+    if (!reference || typeof reference !== 'object' || Array.isArray(reference)
+      || reference.receipt_type !== 'verification'
+      || !requireString(reference.receipt_id, 'authenticated evidence receipt ID')
+      || !requireString(reference.execution_id, 'authenticated evidence execution ID')
+      || reference.authentication !== 'governed-execution-v1'
+      || !Array.isArray(reference.step_ids) || !reference.step_ids.length
+      || !reference.step_ids.every((id) => typeof id === 'string' && id.trim())
+      || !Array.isArray(reference.finding_fingerprints)
+      || !reference.finding_fingerprints.every((digest) => SHA256_PATTERN.test(digest || ''))
+      || !reference.environment || typeof reference.environment !== 'object'
+      || Array.isArray(reference.environment)) {
+      throw new Error('strategy approval requires authenticated governed verification evidence');
+    }
+    validateCandidate(reference.candidate, 'authenticated evidence candidate');
+    if (!sameCandidate(reference.candidate, state.candidate)) {
+      throw new Error('authenticated evidence must bind the exact lifecycle candidate');
+    }
+    for (const digest of reference.finding_fingerprints) established.add(digest);
+  }
+  const uncovered = expectedFindings.filter((digest) => !established.has(digest));
+  if (uncovered.length) {
+    throw new Error('authenticated evidence must rebut every load-bearing review finding');
+  }
 }
 
 function copy(state) {
@@ -307,6 +358,11 @@ function recordDisposition(state, event) {
   if (!Array.isArray(event.evidence_refs) || !event.evidence_refs.length) {
     throw new Error('breaker disposition requires evidence_refs');
   }
+  const approvalDisposition = event.disposition === 'reviewer_rebutted_with_evidence'
+    || event.disposition === 'non_load_bearing_deferral';
+  if (strategyDisposition && approvalDisposition) {
+    validateStrategyApprovalEvidence(state, event);
+  }
   const next = copy(state);
   const disposition = {
     disposition: event.disposition,
@@ -328,8 +384,7 @@ function recordDisposition(state, event) {
     next.stable = false;
     next.status = 'new_design_review_required';
     if (Object.hasOwn(next, 'strategy_escalation')) next.strategy_escalation = null;
-  } else if (event.disposition === 'reviewer_rebutted_with_evidence'
-    || event.disposition === 'non_load_bearing_deferral') {
+  } else if (approvalDisposition) {
     if (strategyDisposition) {
       disposition.candidate = structuredClone(state.candidate);
       next.status = 'final_approved';

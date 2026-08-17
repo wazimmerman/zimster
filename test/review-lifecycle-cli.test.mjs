@@ -5,6 +5,10 @@ import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { root } from './helpers.mjs';
+import {
+  applyReviewLifecycleEvent,
+  createReviewLifecycle
+} from '../scripts/lib/review-lifecycle.mjs';
 
 const CLEAN = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 const CONTRACT = 'e'.repeat(64);
@@ -141,6 +145,102 @@ test('review lifecycle CLI durably records the consumed recheck and breaker', as
     assert.deepEqual(reconciled.attempts.map(({ attempt_id }) => attempt_id), [
       'attempt-initial', 'attempt-recheck'
     ]);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('review lifecycle CLI refuses nonexistent evidence for exhausted-review approval', async () => {
+  const repo = await mkdtemp(path.join(os.tmpdir(), 'zimster-review-evidence-'));
+  try {
+    assert.equal(spawnSync('git', ['init', '-b', 'main'], { cwd: repo }).status, 0);
+    assert.equal(spawnSync('git', ['config', 'user.name', 'Zimster Test'], { cwd: repo }).status, 0);
+    assert.equal(spawnSync('git', ['config', 'user.email', 'test@example.com'], { cwd: repo }).status, 0);
+    await writeFile(path.join(repo, 'tracked.txt'), 'base\n');
+    assert.equal(spawnSync('git', ['add', '.'], { cwd: repo }).status, 0);
+    assert.equal(spawnSync('git', ['commit', '-m', 'base'], { cwd: repo }).status, 0);
+    const base = spawnSync('git', ['rev-parse', 'HEAD'], {
+      cwd: repo, encoding: 'utf8'
+    }).stdout.trim();
+    const baseTree = spawnSync('git', ['rev-parse', 'HEAD^{tree}'], {
+      cwd: repo, encoding: 'utf8'
+    }).stdout.trim();
+    const candidate = {
+      base_sha: base,
+      head_sha: base,
+      tree_sha: baseTree,
+      dirty_tree_fingerprint: CLEAN,
+      semantic_contract_sha256: CONTRACT
+    };
+    let state = createReviewLifecycle({
+      seam_id: 'release-policy', reviewer_identity: 'reviewer-1', candidate
+    });
+    const start = (current, attempt_type, attempt_id, nextCandidate = current.candidate) =>
+      applyReviewLifecycleEvent(current, {
+        type: 'attempt_started',
+        attempt: {
+          attempt_type,
+          attempt_id,
+          seam_id: 'release-policy',
+          reviewer_identity: 'reviewer-1',
+          review_package_id: `package-${attempt_id}`,
+          candidate: nextCandidate
+        }
+      });
+    const verdict = (current, attempt_id, value, findings = []) =>
+      applyReviewLifecycleEvent(current, {
+        type: 'verdict_recorded', attempt_id, verdict: value, findings
+      });
+    state = start(state, 'initial_review', 'attempt-initial');
+    state = verdict(state, 'attempt-initial', 'approved');
+    state = applyReviewLifecycleEvent(state, { type: 'candidate_stabilized' });
+    state = start(state, 'final_integration_review', 'attempt-final-1');
+    state = verdict(state, 'attempt-final-1', 'needs_correction', [{
+      severity: 'Important', summary: 'First final defect.'
+    }]);
+
+    await writeFile(path.join(repo, 'tracked.txt'), 'corrected\n');
+    assert.equal(spawnSync('git', ['add', '.'], { cwd: repo }).status, 0);
+    assert.equal(spawnSync('git', ['commit', '-m', 'correction'], { cwd: repo }).status, 0);
+    const corrected = spawnSync('git', ['rev-parse', 'HEAD'], {
+      cwd: repo, encoding: 'utf8'
+    }).stdout.trim();
+    const correctedTree = spawnSync('git', ['rev-parse', 'HEAD^{tree}'], {
+      cwd: repo, encoding: 'utf8'
+    }).stdout.trim();
+    const correctedCandidate = {
+      ...candidate, head_sha: corrected, tree_sha: correctedTree
+    };
+    state = applyReviewLifecycleEvent(state, {
+      type: 'correction_recorded', candidate: correctedCandidate
+    });
+    state = applyReviewLifecycleEvent(state, { type: 'candidate_stabilized' });
+    state = start(state, 'final_integration_review', 'attempt-final-2', correctedCandidate);
+    state = verdict(state, 'attempt-final-2', 'needs_correction', [{
+      severity: 'Critical', summary: 'Final authorization remains bypassable.'
+    }]);
+    assert.equal(state.status, 'strategy_escalation_required');
+
+    const runtime = spawnSync('git', [
+      'rev-parse', '--path-format=absolute', '--git-path', 'zimster'
+    ], { cwd: repo, encoding: 'utf8' }).stdout.trim();
+    const lifecycleDirectory = path.join(runtime, 'review-lifecycle');
+    await mkdir(lifecycleDirectory, { recursive: true });
+    await writeFile(
+      path.join(lifecycleDirectory, 'release-policy.json'),
+      `${JSON.stringify(state, null, 2)}\n`
+    );
+
+    const result = run(repo, 'disposition', '--seam-id', 'release-policy',
+      '--disposition', 'reviewer_rebutted_with_evidence',
+      '--reason', 'A forged reference must not authorize the candidate.',
+      '--evidence-refs', JSON.stringify(['does-not-exist']));
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+    assert.match(result.stderr, /evidence.*not.*authenticated|receipt.*not.*found/i);
+    const persisted = JSON.parse(await readFile(
+      path.join(lifecycleDirectory, 'release-policy.json'), 'utf8'
+    ));
+    assert.equal(persisted.status, 'strategy_escalation_required');
   } finally {
     await rm(repo, { recursive: true, force: true });
   }
