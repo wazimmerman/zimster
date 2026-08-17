@@ -501,10 +501,39 @@ async function main() {
         }
       }
     }
+    const bridgeCommandArgv = [
+      'zimster:evidence-bridge',
+      '--verification-receipt', verificationId,
+      '--steps', JSON.stringify(requestedSteps),
+      '--requirement-ids', JSON.stringify(requestedRequirements),
+      '--establishes', JSON.stringify(requestedEstablishes),
+      '--does-not-establish', JSON.stringify(requestedExclusions),
+      '--environment-scope', requestedEnvironment
+    ];
+    const governed = await withControlPlaneMutation(runtime, root, {
+      mutationType: 'governed_evidence_bridge_started',
+      didMutate: (value) => value.admitted === true
+    }, () => beginGovernedExecution(runtime, root, {
+      sourceRoot: packageRoot,
+      issuer: 'zimster.evidence',
+      commandArgv: bridgeCommandArgv,
+      cwd: workingDirectory,
+      context: {
+        type: 'evidence',
+        kind: String(options.kind),
+        scope: String(options.scope),
+        source: 'verification-bridge'
+      },
+      completeSuite: false
+    }));
+    if (!governed.admitted) {
+      writeLine(JSON.stringify(governed.budget));
+      const error = new Error(governed.budget.status);
+      error.code = 'BUDGET_CONSTRAINED';
+      throw error;
+    }
     options.command = `verification:${verificationId}#${requestedSteps.join(',')}`;
-    options['command-argv'] = JSON.stringify([
-      'zimster:evidence-bridge', verificationId, ...requestedSteps
-    ]);
+    options['command-argv'] = JSON.stringify(bridgeCommandArgv);
     options.source = 'verification-bridge';
     options.inputs = JSON.stringify([
       verificationFile,
@@ -540,6 +569,8 @@ async function main() {
       input_fingerprints: [...(step.input_fingerprints || [])]
     }));
     receipt.upstream_verification_authenticated = true;
+    receipt.issuer = 'zimster.evidence';
+    receipt.execution_id = governed.receipt.id;
     validateReceipt(receipt);
     const bytes = await withControlPlaneMutation(runtime, root, {
       mutationType: 'evidence_bridged_from_verification',
@@ -547,7 +578,25 @@ async function main() {
         id: receipt.id,
         status: 'valid'
       })
-    }, () => store(receipt));
+    }, async () => {
+      const terminalBytes = await store(receipt);
+      await finishGovernedExecution(runtime, root, {
+        executionId: governed.receipt.id,
+        status: 'passed',
+        exitCode: 0,
+        terminalReceiptType: 'evidence',
+        terminalReceiptId: receipt.id,
+        terminalReceiptBytes: terminalBytes,
+        compactResult: {
+          kind: receipt.kind,
+          scope: receipt.scope,
+          source: receipt.source,
+          requirement_ids: receipt.requirement_ids,
+          establishes: receipt.establishes
+        }
+      });
+      return terminalBytes;
+    });
     writeSync(process.stdout.fd, bytes);
     return;
   }

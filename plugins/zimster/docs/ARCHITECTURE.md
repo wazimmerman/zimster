@@ -146,8 +146,11 @@ When an exact governed verification has already executed bounded commands,
 `evidence.mjs bridge-verification` can derive claim-scoped evidence without
 re-execution. The bridge authenticates the upstream governed execution,
 candidate, environment, profile, terminal receipt digest, selected passing
-steps, and every selected log digest. The derived receipt names the upstream
-verification and logs as fingerprinted inputs. Each verification step must
+steps, and every selected log digest. The bridge operation also records its own
+governed begin/finish lifecycle, so the derived receipt's exact terminal bytes
+authenticate independently rather than borrowing the upstream execution's
+identity. The derived receipt names the upstream verification and logs as
+fingerprinted inputs. Each verification step must
 declare its requirement IDs, positive claims, exclusions, and environment
 scopes before execution. Executed helper programs are declared as
 `input_files`, fingerprinted before execution, checked again afterward, and

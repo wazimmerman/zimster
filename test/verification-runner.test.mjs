@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { root } from './helpers.mjs';
+import { authenticateGovernedEvidenceReceipt } from '../scripts/lib/governed-terminal-auth.mjs';
 
 function run(command, args, cwd) {
   return spawnSync(command, args, { cwd, encoding: 'utf8' });
@@ -124,6 +125,7 @@ test('passed governed verification can be bridged into claim-scoped evidence wit
       '--environment-scope', 'node-git-local'
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
+    const bridgeTerminalBytes = result.stdout;
     const evidence = JSON.parse(result.stdout);
     assert.equal(evidence.source, 'verification-bridge');
     assert.equal(evidence.upstream_verification_receipt_id, verification.id);
@@ -148,6 +150,11 @@ test('passed governed verification can be bridged into claim-scoped evidence wit
     );
     assert.ok(evidence.inputs.some((input) => input.endsWith('bridge-helper.mjs')));
     assert.equal(evidence.exit_code, 0);
+    assert.equal(await authenticateGovernedEvidenceReceipt(
+      path.dirname(verificationRuntime(repo)),
+      evidence,
+      bridgeTerminalBytes
+    ), true);
     assert.equal(await readFile(path.join(repo, 'tracked.txt'), 'utf8'), 'base\n');
 
     result = run(process.execPath, [

@@ -24,7 +24,8 @@
   claim status on every matrix row, authentic governed package-smoke RED/GREEN
   receipts, and a current canonical postmortem at every terminal coherence gate.
 - Derive one exact requirement/claim pair per verification-bridge receipt so
-  multi-claim steps cannot create ambiguous Cartesian proof relationships.
+  multi-claim steps cannot create ambiguous Cartesian proof relationships, and
+  govern each derived receipt through its own authenticated terminal execution.
 
 ## 0.7.0 - 2026-08-07
 
