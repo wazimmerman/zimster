@@ -293,6 +293,23 @@ test('a circular budget proof can only be superseded by an auditable enforceable
     assert.equal(state.proof_obligations[0].status, 'superseded');
     assert.equal(state.proof_obligations[1].status, 'satisfied');
     assert.equal(state.proof_obligations[1].receipt_id, receipt.id);
+
+    result = run(process.execPath, [
+      budget, 'supersede',
+      '--proof', 'focused budget regression',
+      '--replacement-proof', 'refreshed exact candidate proof',
+      '--reason', 'The candidate changed after the prior proof was satisfied.',
+      '--required-proof-type', 'evidence',
+      '--required-proof-kind', 'test',
+      '--required-proof-scope', 'focused',
+      '--required-proof-command', 'node --test budget-regression.test.mjs'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    state = JSON.parse(await readFile(runtimePath(repo, 'budget.json'), 'utf8'));
+    assert.equal(state.proof_obligations[1].status, 'superseded');
+    assert.equal(state.proof_obligations[1].receipt_id, receipt.id);
+    assert.equal(state.proof_obligations[1].superseded_by, 'refreshed exact candidate proof');
+    assert.equal(state.proof_obligations[2].status, 'required');
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

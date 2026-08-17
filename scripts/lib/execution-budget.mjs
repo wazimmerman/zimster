@@ -151,63 +151,11 @@ export async function satisfyExecutionBudgetProof(runtimeDirectory, {
     if (!['verification', 'evidence'].includes(obligation.receipt_type)) {
       throw new Error(`proof obligation has no enforceable receipt relationship: ${proof}`);
     }
-    let passed = false;
-    if (obligation.receipt_type === 'verification') {
-      try {
-        const receipt = JSON.parse(await readFile(
-        path.join(runtimeDirectory, 'verification', 'receipts', `${receiptId}.json`),
-        'utf8'
-        ));
-        const state = await captureGitState(process.cwd());
-        const environment = {
-          platform: os.platform(),
-          release: os.release(),
-          arch: os.arch(),
-          node: process.version
-        };
-        passed = receipt.id === receiptId
-          && receipt.status === 'passed'
-          && (!obligation.profile || receipt.profile === obligation.profile)
-          && receipt.git_commit === state.head
-          && receipt.git_tree === state.tree
-          && receipt.dirty_tree_fingerprint === state.dirty_tree_fingerprint
-          && JSON.stringify(receipt.environment || {}) === JSON.stringify(environment);
-      } catch (error) {
-        if (error.code !== 'ENOENT') throw error;
-      }
-    }
-    if (obligation.receipt_type === 'evidence') {
-      try {
-        const rows = (await readFile(
-          path.join(runtimeDirectory, 'evidence', 'receipts.jsonl'),
-          'utf8'
-        )).split('\n').filter(Boolean).map((line) => JSON.parse(line));
-        const invalidated = new Set(rows
-          .filter((row) => row.record_type === 'invalidation')
-          .map((row) => row.receipt_id));
-        passed = rows.some((row) =>
-          row.id === receiptId
-          && row.record_type !== 'invalidation'
-          && row.exit_code === 0
-          && !invalidated.has(row.id)
-          && (!obligation.kind || row.kind === obligation.kind)
-          && (!obligation.scope || row.scope === obligation.scope)
-          && (!obligation.command || row.command === obligation.command)
-        );
-        if (passed) {
-          const current = spawnSync(process.execPath, [
-            evidenceScript, 'check', '--id', receiptId
-          ], {
-            cwd: process.cwd(),
-            encoding: 'utf8',
-            shell: false
-          });
-          passed = current.status === 0;
-        }
-      } catch (error) {
-        if (error.code !== 'ENOENT') throw error;
-      }
-    }
+    const passed = await executionBudgetProofReceiptPasses(
+      runtimeDirectory,
+      obligation,
+      receiptId
+    );
     if (!passed) {
       throw new Error(
         `passing receipt does not satisfy the required current-tree proof relationship: ${receiptId}`
@@ -222,6 +170,72 @@ export async function satisfyExecutionBudgetProof(runtimeDirectory, {
       detail: { proof, receipt_id: receiptId }
     };
   });
+}
+
+export async function executionBudgetProofReceiptPasses(
+  runtimeDirectory,
+  obligation,
+  receiptId,
+  { cwd = process.cwd() } = {}
+) {
+  let passed = false;
+  if (obligation.receipt_type === 'verification') {
+    try {
+      const receipt = JSON.parse(await readFile(
+        path.join(runtimeDirectory, 'verification', 'receipts', `${receiptId}.json`),
+        'utf8'
+      ));
+      const state = await captureGitState(cwd);
+      const environment = {
+        platform: os.platform(),
+        release: os.release(),
+        arch: os.arch(),
+        node: process.version
+      };
+      passed = receipt.id === receiptId
+        && receipt.status === 'passed'
+        && (!obligation.profile || receipt.profile === obligation.profile)
+        && receipt.git_commit === state.head
+        && receipt.git_tree === state.tree
+        && receipt.dirty_tree_fingerprint === state.dirty_tree_fingerprint
+        && JSON.stringify(receipt.environment || {}) === JSON.stringify(environment);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }
+  if (obligation.receipt_type === 'evidence') {
+    try {
+      const rows = (await readFile(
+        path.join(runtimeDirectory, 'evidence', 'receipts.jsonl'),
+        'utf8'
+      )).split('\n').filter(Boolean).map((line) => JSON.parse(line));
+      const invalidated = new Set(rows
+        .filter((row) => row.record_type === 'invalidation')
+        .map((row) => row.receipt_id));
+      passed = rows.some((row) =>
+        row.id === receiptId
+        && row.record_type !== 'invalidation'
+        && row.exit_code === 0
+        && !invalidated.has(row.id)
+        && (!obligation.kind || row.kind === obligation.kind)
+        && (!obligation.scope || row.scope === obligation.scope)
+        && (!obligation.command || row.command === obligation.command)
+      );
+      if (passed) {
+        const current = spawnSync(process.execPath, [
+          evidenceScript, 'check', '--id', receiptId
+        ], {
+          cwd,
+          encoding: 'utf8',
+          shell: false
+        });
+        passed = current.status === 0;
+      }
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }
+  return passed;
 }
 
 export async function supersedeExecutionBudgetProof(runtimeDirectory, {
@@ -248,9 +262,9 @@ export async function supersedeExecutionBudgetProof(runtimeDirectory, {
   return withBudgetLock(runtimeDirectory, async () => {
     const budget = await readExecutionBudget(runtimeDirectory);
     const obligation = budget.state.proof_obligations.find((row) =>
-      row.proof === proof && row.status === 'required'
+      row.proof === proof && ['required', 'satisfied'].includes(row.status)
     );
-    if (!obligation) throw new Error(`required proof obligation not found: ${proof}`);
+    if (!obligation) throw new Error(`renewable proof obligation not found: ${proof}`);
     if (budget.state.proof_obligations.some((row) => row.proof === replacementProof)) {
       throw new Error(`replacement proof identity already exists: ${replacementProof}`);
     }

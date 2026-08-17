@@ -41,11 +41,13 @@ function run(args, cwd = root) {
 }
 
 async function assuranceFiles(directory, {
-  base, head, tree, semanticContractSha256, reviewPackageId
+  repo, base, head, tree, semanticContractSha256, reviewPackageId
 }) {
   const lifecyclePath = path.join(directory, 'review-lifecycle.json');
   const accountingPath = path.join(directory, 'assurance-accounting.json');
-  const executionBudgetPath = path.join(directory, 'execution-budget.json');
+  const runtimeDirectory = path.join(repo, '.git', 'zimster');
+  await mkdir(runtimeDirectory, { recursive: true });
+  const executionBudgetPath = path.join(runtimeDirectory, 'budget.json');
   const candidate = {
     base_sha: base,
     head_sha: head,
@@ -104,6 +106,8 @@ async function assuranceFiles(directory, {
   await writeFile(executionBudgetPath, JSON.stringify({
     schema_version: 1,
     profile: 'high-risk',
+    limits: { final_integration_reviews: 2 },
+    usage: { final_integration_reviews: 1 },
     overrides: [],
     proof_obligations: []
   }));
@@ -287,6 +291,7 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       lenses: ['mission-scope']
     }));
     const assurance = await assuranceFiles(directory, {
+      repo,
       base: 'a'.repeat(40),
       head: candidateHead,
       tree: candidateTree,
@@ -313,9 +318,37 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
     assert.deepEqual(decision.allowed_claims, ['Candidate completion is gated.']);
     assert.match(result.stderr, /CANDIDATE_COMPLETE.*review=review-001/i);
 
+    const forgedBudgetPath = path.join(directory, 'forged-execution-budget.json');
+    await writeFile(forgedBudgetPath, JSON.stringify({
+      schema_version: 1,
+      profile: 'high-risk',
+      overrides: [],
+      proof_obligations: []
+    }));
+    result = run([
+      'complete',
+      '--profile', 'standard',
+      '--owner-verified',
+      '--requirements', requirementsPath,
+      '--matrix', matrixPath,
+      '--evidence', evidencePath,
+      '--reviews', reviewsPath,
+      '--review-package', reviewPackagePath,
+      '--review-lifecycle', assurance.lifecyclePath,
+      '--assurance-accounting', assurance.accountingPath,
+      '--execution-budget', forgedBudgetPath
+    ], repo);
+    assert.equal(result.status, 2, result.stderr || result.stdout);
+    assert.match(
+      JSON.parse(result.stdout).reasons.join('\n'),
+      /authoritative Git-local execution budget/i
+    );
+
     await writeFile(assurance.executionBudgetPath, JSON.stringify({
       schema_version: 1,
       profile: 'high-risk',
+      limits: { final_integration_reviews: 2 },
+      usage: { final_integration_reviews: 3 },
       overrides: [{
         metric: 'final_integration_reviews',
         value: 3,
@@ -347,6 +380,8 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
     await writeFile(assurance.executionBudgetPath, JSON.stringify({
       schema_version: 1,
       profile: 'high-risk',
+      limits: { final_integration_reviews: 2 },
+      usage: { final_integration_reviews: 3 },
       overrides: [{
         metric: 'final_integration_reviews',
         value: 3,
@@ -366,6 +401,9 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
         status: 'satisfied',
         metric: 'final_integration_reviews',
         receipt_type: 'evidence',
+        kind: 'test',
+        scope: 'focused',
+        command: 'focused-proof',
         receipt_id: 'focused-proof-receipt'
       }]
     }));
@@ -382,6 +420,54 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       dirty_tree_fingerprint: CLEAN_FINGERPRINT
     });
     await writeFile(matrixPath, JSON.stringify(requirementMatrix));
+    result = run([
+      'complete',
+      '--profile', 'standard',
+      '--owner-verified',
+      '--requirements', requirementsPath,
+      '--matrix', matrixPath,
+      '--evidence', evidencePath,
+      '--reviews', reviewsPath,
+      '--review-package', reviewPackagePath,
+      '--review-lifecycle', assurance.lifecyclePath,
+      '--assurance-accounting', assurance.accountingPath,
+      '--execution-budget', assurance.executionBudgetPath
+    ], repo);
+    assert.equal(result.status, 2, result.stderr || result.stdout);
+    assert.match(
+      JSON.parse(result.stdout).reasons.join('\n'),
+      /proof receipt.*focused-proof-receipt/i
+    );
+
+    const proofEnvironment = {
+      platform: os.platform(),
+      release: os.release(),
+      arch: os.arch(),
+      node: process.version,
+      npm: spawnSync('npm', ['--version'], { encoding: 'utf8' }).stdout.trim(),
+      host_version: null
+    };
+    const runtimeEvidenceDirectory = path.join(repo, '.git', 'zimster', 'evidence');
+    await mkdir(runtimeEvidenceDirectory, { recursive: true });
+    await writeFile(path.join(runtimeEvidenceDirectory, 'receipts.jsonl'), `${JSON.stringify({
+      schema_version: 2,
+      id: 'focused-proof-receipt',
+      kind: 'test',
+      scope: 'focused',
+      command: 'focused-proof',
+      exit_code: 0,
+      git_head: candidateHead,
+      git_commit: candidateHead,
+      git_tree: candidateTree,
+      dirty_tree_fingerprint: CLEAN_FINGERPRINT,
+      environment: proofEnvironment,
+      environment_fingerprint: createHash('sha256')
+        .update(JSON.stringify(proofEnvironment)).digest('hex'),
+      dependency_cone: [],
+      dependency_fingerprints: [],
+      inputs: [],
+      input_fingerprints: []
+    })}\n`);
     result = run([
       'complete',
       '--profile', 'standard',
@@ -524,6 +610,7 @@ test('completion CLI rejects a review that is not bound to its exact package and
       lenses: ['mission-scope']
     }));
     const assurance = await assuranceFiles(directory, {
+      repo,
       base: 'a'.repeat(40),
       head: candidateHead,
       tree: candidateTree,

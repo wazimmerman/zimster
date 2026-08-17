@@ -127,7 +127,7 @@ node <zimster-runtime>/scripts/semantic-assurance.mjs complete \
   --review-lifecycle <review-lifecycle.json> \
   --assurance-accounting <assurance-accounting.json> \
   --load-bearing-review-obligations <obligations.json> \
-  --execution-budget <execution-budget.json>
+  --execution-budget .git/zimster/budget.json
 ```
 
 Eligible Micro work may complete owner-only when deterministic eligibility is
@@ -143,9 +143,13 @@ exact requirement ID and exact claim; a fresh receipt for another requirement
 or a narrower claim is rejected. Boolean self-attestations are rejected.
 Standard and High-risk completion also rejects every pending or unproved
 execution-budget override, so override proof must be non-circular and durably
-satisfied before completion. If review discovers a circular proof relationship,
-use `run-budget.mjs supersede` to preserve it and link an enforceable replacement
-rather than editing the budget ledger.
+satisfied before completion. Completion accepts only the authoritative
+Git-local budget and revalidates every satisfied proof against the current
+ledger, invalidations, environment, and exact candidate tree; a copied or
+caller-authored budget snapshot is not completion evidence. If review discovers
+a circular proof relationship, or a correction makes a satisfied proof stale,
+use `run-budget.mjs supersede` to preserve the old receipt and link an
+enforceable replacement rather than editing the budget ledger.
 Correction rechecks and reserved final-review accounting are separate; the
 reserved review applies only after the exact candidate head stops changing.
 Owner-inline review is `self_review`. Checkout

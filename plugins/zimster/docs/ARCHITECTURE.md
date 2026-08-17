@@ -61,7 +61,8 @@ Dependency-free Node 22 tools turn important policy into inspectable state:
 - `assurance-accounting.mjs` reconciles supported host observations with
   dispatch, budget, review-attempt, and depth records and fails closed;
 - `semantic-assurance.mjs` validates the requirement-to-evidence matrix,
-  rejects pending or unproved execution-budget overrides, and deterministically
+  authenticates the Git-local execution budget, revalidates every override
+  proof receipt against the current candidate and ledger, and deterministically
   gates candidate completion;
 - `capability-cache.mjs` decides whether one host contract needs refreshed
   research;

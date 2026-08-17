@@ -272,7 +272,7 @@ npm run assurance -- complete \
   --review-package <review-package.json> \
   --review-lifecycle <review-lifecycle.json> \
   --assurance-accounting <assurance-accounting.json> \
-  --execution-budget <execution-budget.json>
+  --execution-budget .git/zimster/budget.json
 ```
 
 The first command reports coverage and proof/claim blockers. The second also
@@ -280,7 +280,13 @@ requires a clean current checkout and profile-appropriate review. Owner-inline
 inspection is `self_review`; Standard and High-risk need clean-context
 `independent_review` for the exact base/head, package ID, stable
 semantic-contract digest, required lens set, and a reconciled execution budget
-with every override proof durably satisfied. The contract digest covers
+with every override proof durably satisfied. Standard and High-risk completion
+accept only the authoritative Git-local budget; a copied or caller-authored
+snapshot is rejected. Each satisfied proof is rechecked against the current
+evidence or verification ledger, invalidations, environment, and exact
+candidate tree. When a correction makes a satisfied proof stale,
+`run-budget.mjs supersede` preserves the old receipt and links a new required
+proof before completion can resume. The contract digest covers
 binding meaning, intended claims, implementation locations, and stable evidence
 environment scope. Candidate Git tree identity, mutable receipt references,
 statuses, observations, and verification results are validated separately.

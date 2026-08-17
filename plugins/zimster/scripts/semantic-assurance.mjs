@@ -10,6 +10,9 @@ import {
 } from './lib/semantic-assurance.mjs';
 import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
 import { evidenceStalenessReason } from './lib/evidence-validity.mjs';
+import { executionBudgetProofReceiptPasses } from './lib/execution-budget.mjs';
+import { normalizeConvergenceMetric } from './lib/convergence.mjs';
+import { canonicalPath } from './lib/path-identity.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
@@ -91,20 +94,26 @@ async function evaluatedMatrix() {
   };
 }
 
-function executionBudgetIssues(budget) {
+async function executionBudgetIssues(budget, runtimeDirectory) {
   if (!budget || budget.schema_version !== 1) {
     return ['execution budget must be schema v1'];
   }
-  if (!Array.isArray(budget.overrides) || !Array.isArray(budget.proof_obligations)) {
-    return ['execution budget requires override and proof-obligation records'];
+  if (
+    !budget.limits || typeof budget.limits !== 'object'
+    || !budget.usage || typeof budget.usage !== 'object'
+    || !Array.isArray(budget.overrides)
+    || !Array.isArray(budget.proof_obligations)
+  ) {
+    return ['execution budget requires limits, usage, override, and proof-obligation records'];
   }
   const issues = [];
   const proofs = new Map(budget.proof_obligations.map((proof) => [proof.proof, proof]));
+  const validSatisfiedProofs = new Set();
   function satisfied(proofName, seen = new Set()) {
     if (!proofName || seen.has(proofName)) return false;
     seen.add(proofName);
     const proof = proofs.get(proofName);
-    if (proof?.status === 'satisfied') return Boolean(proof.receipt_id);
+    if (proof?.status === 'satisfied') return validSatisfiedProofs.has(proofName);
     if (proof?.status === 'superseded') return satisfied(proof.superseded_by, seen);
     return false;
   }
@@ -117,11 +126,45 @@ function executionBudgetIssues(budget) {
       }
     } else if (proof.status !== 'satisfied' || !proof.receipt_id) {
       issues.push(`execution-budget proof is not durably satisfied: ${proof.proof || 'unnamed'}`);
+    } else {
+      const relationshipIsEnforceable = proof.receipt_type === 'verification'
+        ? Boolean(proof.profile)
+        : proof.receipt_type === 'evidence'
+          ? Boolean(proof.kind && proof.scope && proof.command)
+          : false;
+      if (!relationshipIsEnforceable) {
+        issues.push(`execution-budget proof has no enforceable receipt relationship: ${proof.proof || 'unnamed'}`);
+      } else if (await executionBudgetProofReceiptPasses(
+        runtimeDirectory,
+        proof,
+        proof.receipt_id,
+        { cwd: root }
+      )) {
+        validSatisfiedProofs.add(proof.proof);
+      } else {
+        issues.push(
+          `execution-budget proof receipt ${proof.receipt_id} is absent, invalidated, stale, environment-mismatched, or outside the exact candidate: ${proof.proof || 'unnamed'}`
+        );
+      }
     }
   }
   for (const override of budget.overrides) {
     if (!satisfied(override.required_proof)) {
       issues.push(`execution-budget override lacks satisfied proof: ${override.required_proof || 'unnamed'}`);
+    }
+  }
+  for (const [metric, value] of Object.entries(budget.usage)) {
+    if (normalizeConvergenceMetric(metric) !== metric) continue;
+    const limit = budget.limits[metric];
+    if (!Number.isInteger(value) || !Number.isInteger(limit) || value <= limit) continue;
+    const coveringOverride = budget.overrides.find((override) =>
+      normalizeConvergenceMetric(override.metric) === metric
+      && Number.isInteger(override.value)
+      && override.value >= value
+      && satisfied(override.required_proof)
+    );
+    if (!coveringOverride) {
+      issues.push(`execution-budget usage exceeds its limit without a proof-backed override: ${metric}=${value}/${limit}`);
     }
   }
   return [...new Set(issues)];
@@ -180,9 +223,11 @@ async function completionDecision() {
     if (error.code !== 'ENOENT') throw error;
   }
   const profile = required(options, 'profile');
-  const executionBudget = profile === 'micro'
+  const runtimeDirectory = profile === 'micro' ? null : await ensureRuntimeDirectory(root);
+  const executionBudgetDocument = profile === 'micro'
     ? null
-    : await jsonFile('execution-budget');
+    : await jsonDocument('execution-budget');
+  const executionBudget = executionBudgetDocument?.value || null;
   const reviewPackage = profile === 'micro'
     ? null
     : await jsonFile('review-package');
@@ -195,8 +240,15 @@ async function completionDecision() {
       packageIssues.push('review package semantic contract differs from the current contract');
     }
   }
-  const budgetIssues = executionBudget ? executionBudgetIssues(executionBudget) : [];
-  const completionInputIssues = [...packageIssues, ...budgetIssues];
+  const budgetPathIssues = executionBudgetDocument
+    && await canonicalPath(executionBudgetDocument.file)
+      !== await canonicalPath(path.join(runtimeDirectory, 'budget.json'))
+    ? ['completion requires the authoritative Git-local execution budget']
+    : [];
+  const budgetIssues = executionBudget
+    ? await executionBudgetIssues(executionBudget, runtimeDirectory)
+    : [];
+  const completionInputIssues = [...packageIssues, ...budgetPathIssues, ...budgetIssues];
   const finalMatrixResult = completionInputIssues.length
     ? {
         ...matrixResult,
