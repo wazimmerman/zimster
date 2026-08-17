@@ -186,8 +186,17 @@ function digest(text) {
 }
 
 function actionable(result, reason) {
-  const source = String(result.stderr || result.stdout || reason).trim();
-  const line = source.split('\n').filter(Boolean).at(-1) || reason;
+  const outputLines = [result.stderr, result.stdout]
+    .map((value) => String(value || '').trim())
+    .filter(Boolean)
+    .join('\n')
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const line = outputLines.find((candidate) =>
+    /(?:AssertionError|Error)(?: \[[^\]]+\])?:\s+\S/.test(candidate)
+      && !/['"]?test failed['"]?/i.test(candidate)
+  ) || outputLines.at(-1) || reason;
   return line.length > 300 ? `${line.slice(0, 297)}...` : line;
 }
 

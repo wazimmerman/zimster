@@ -112,7 +112,7 @@ test('context index supports four evidence states and human-gated promotion', as
   }
 });
 
-test('run initializer creates journal v2 with plan, decisions, slices, evidence, and risks', async () => {
+test('run initializer creates canonical journal v3 with plan, decisions, slices, evidence, and risks', async () => {
   const repo = await mkdtemp(path.join(os.tmpdir(), 'zimster-journal-'));
   try {
     assert.equal(spawnSync('git', ['init', '-b', 'main'], { cwd: repo }).status, 0);
@@ -127,7 +127,7 @@ test('run initializer creates journal v2 with plan, decisions, slices, evidence,
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const runtime = path.dirname(result.stdout.trim());
     const journal = JSON.parse(await readFile(path.join(runtime, 'run.json'), 'utf8'));
-    assert.equal(journal.schema_version, 2);
+    assert.equal(journal.schema_version, 3);
     assert.deepEqual(journal.plan, { id: 'plan-007', source: 'approved plan' });
     for (const field of ['decisions', 'slice_commits', 'evidence', 'verifications', 'unresolved_risks']) {
       assert.deepEqual(journal[field], []);
