@@ -5,7 +5,7 @@ import {
   writeFile
 } from 'node:fs/promises';
 import { writeSync } from 'node:fs';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
@@ -21,6 +21,7 @@ import {
 import { ensureRuntimeDirectory, migrateLegacyJsonlStore } from './lib/runtime.mjs';
 import { harnessCapabilities } from './lib/capabilities.mjs';
 import { beginGovernedExecution, finishGovernedExecution } from './lib/governed-execution.mjs';
+import { executionBudgetProofReceiptPasses } from './lib/execution-budget.mjs';
 import {
   evidenceCheckpointChanges,
   withControlPlaneMutation
@@ -327,6 +328,82 @@ async function main() {
     writeSync(process.stdout.fd, bytes);
     return;
   }
+  if (commandName === 'bridge-verification') {
+    await init();
+    const runtime = await ensureRuntimeDirectory(root);
+    const verificationId = required(options, 'verification-receipt');
+    if (!/^[a-zA-Z0-9._-]+$/.test(verificationId)) {
+      throw new Error('--verification-receipt must be a safe receipt id');
+    }
+    const requestedSteps = listOption('steps');
+    if (!requestedSteps.length || new Set(requestedSteps).size !== requestedSteps.length) {
+      throw new Error('--steps must name at least one unique verification step');
+    }
+    required(options, 'kind');
+    required(options, 'scope');
+    required(options, 'environment-scope');
+    const verificationFile = path.join(
+      runtime,
+      'verification',
+      'receipts',
+      `${verificationId}.json`
+    );
+    const verificationBytes = await readFile(verificationFile, 'utf8');
+    const verification = JSON.parse(verificationBytes);
+    const diagnostics = {};
+    const authenticated = await executionBudgetProofReceiptPasses(runtime, {
+      required_at: new Date(Math.max(Date.now(), Date.parse(verification.ended_at) + 1)).toISOString(),
+      receipt_type: 'verification',
+      profile: verification.profile
+    }, verificationId, { cwd: root, diagnostics });
+    if (!authenticated || verification.status !== 'passed') {
+      throw new Error(
+        `upstream governed verification is not authenticated and passing: ${verificationId} (${JSON.stringify(diagnostics)})`
+      );
+    }
+    const byId = new Map((verification.steps || []).map((step) => [step.id, step]));
+    const selected = requestedSteps.map((id) => {
+      const step = byId.get(id);
+      if (!step || step.status !== 'passed' || step.exit_code !== 0) {
+        throw new Error(`selected verification step is not passing: ${id}`);
+      }
+      return step;
+    });
+    const logRoot = path.resolve(runtime, 'verification', 'logs', verificationId);
+    for (const step of selected) {
+      const log = path.resolve(step.log || '');
+      if (log !== logRoot && !log.startsWith(`${logRoot}${path.sep}`)) {
+        throw new Error(`verification step log escapes its receipt directory: ${step.id}`);
+      }
+      const digest = createHash('sha256').update(await readFile(log)).digest('hex');
+      if (digest !== step.log_sha256) {
+        throw new Error(`verification step log digest does not match: ${step.id}`);
+      }
+    }
+    options.command = `verification:${verificationId}#${requestedSteps.join(',')}`;
+    options['command-argv'] = JSON.stringify([
+      'zimster:evidence-bridge', verificationId, ...requestedSteps
+    ]);
+    options.source = 'verification-bridge';
+    options.inputs = JSON.stringify([
+      verificationFile,
+      ...selected.map(({ log }) => log)
+    ]);
+    const receipt = await buildReceipt({ exitCode: 0 });
+    receipt.upstream_verification_receipt_id = verificationId;
+    receipt.upstream_verification_execution_id = verification.execution_id;
+    receipt.upstream_verification_step_ids = requestedSteps;
+    receipt.upstream_verification_authenticated = true;
+    const bytes = await withControlPlaneMutation(runtime, root, {
+      mutationType: 'evidence_bridged_from_verification',
+      checkpointChanges: () => evidenceCheckpointChanges(runtime, {
+        id: receipt.id,
+        status: 'valid'
+      })
+    }, () => store(receipt));
+    writeSync(process.stdout.fd, bytes);
+    return;
+  }
   if (commandName === 'check') {
     await init();
     const id = required(options, 'id');
@@ -499,7 +576,7 @@ async function main() {
     process.exitCode = exitCode;
     return;
   }
-  throw new Error('Usage: evidence.mjs <init|record|check|find|invalidate|list|run> [options]');
+  throw new Error('Usage: evidence.mjs <init|record|bridge-verification|check|find|invalidate|list|run> [options]');
 }
 
 main().catch((error) => {

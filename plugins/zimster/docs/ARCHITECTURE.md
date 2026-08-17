@@ -128,6 +128,14 @@ lifecycle and budget immediately before review, completion, and release. This
 keeps capability proof stable while mutable authorization state still fails
 closed when it advances.
 
+When an exact governed verification has already executed bounded commands,
+`evidence.mjs bridge-verification` can derive claim-scoped evidence without
+re-execution. The bridge authenticates the upstream governed execution,
+candidate, environment, profile, terminal receipt digest, selected passing
+steps, and every selected log digest. The derived receipt names the upstream
+verification and logs as fingerprinted inputs; it cannot bridge a failed,
+stale, handcrafted, or unselected step.
+
 ## Codex source and package flow
 
 ```text

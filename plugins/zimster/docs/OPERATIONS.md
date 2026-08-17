@@ -41,6 +41,23 @@ labels, `scripts/run-budget.mjs reconcile-identities` requires explicit
 override/supersession occurrence bindings and appends a fingerprinted
 reconciliation record; it does not rename or remove either historical row.
 
+If one governed verification already ran the bounded commands needed by
+several matrix claims, derive narrow evidence without repeating them:
+
+```text
+node <zimster>/scripts/evidence.mjs bridge-verification \
+  --verification-receipt <id> \
+  --steps '["step-id"]' \
+  --kind verification --scope <claim-scope> \
+  --requirement-ids '["REQ-001"]' \
+  --establishes '["Narrow claim"]' \
+  --environment-scope <scope>
+```
+
+The bridge accepts only a passing exact-candidate governed verification and
+digest-matching selected logs. Its receipt records the upstream verification
+and does not create another execution or consume duplicate-command budget.
+
 Start a slice durably before editing, checkpoint meaningful dirty progress, and
 resume from actual repository state:
 

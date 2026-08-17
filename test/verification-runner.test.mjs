@@ -75,6 +75,51 @@ test('verification runner preserves step order and full logs while emitting one 
   }
 });
 
+test('passed governed verification can be bridged into claim-scoped evidence without re-execution', async () => {
+  const repo = await tempRepo();
+  try {
+    const planFile = path.join(repo, 'plan.json');
+    await writeFile(planFile, `${JSON.stringify({
+      schema_version: 1,
+      profile: 'bridge-source',
+      complete_suite: false,
+      steps: [{
+        id: 'proof-step',
+        command: process.execPath,
+        args: ['-e', "import { writeSync } from 'node:fs'; writeSync(process.stdout.fd, 'verified output\\n');"]
+      }]
+    })}\n`);
+    let result = run(process.execPath, [
+      path.join(root, 'scripts/verify.mjs'), 'run', '--plan', planFile
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const verification = JSON.parse(result.stdout);
+
+    result = run(process.execPath, [
+      path.join(root, 'scripts/evidence.mjs'), 'bridge-verification',
+      '--verification-receipt', verification.id,
+      '--steps', '["proof-step"]',
+      '--kind', 'verification', '--scope', 'claim-scope',
+      '--requirement-ids', '["CTRL-EVIDENCE-001"]',
+      '--establishes', '["The authenticated verification step passed."]',
+      '--does-not-establish', '["Any unselected verification step."]',
+      '--environment-scope', 'node-git-local'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const evidence = JSON.parse(result.stdout);
+    assert.equal(evidence.source, 'verification-bridge');
+    assert.equal(evidence.upstream_verification_receipt_id, verification.id);
+    assert.deepEqual(evidence.upstream_verification_step_ids, ['proof-step']);
+    assert.equal(evidence.upstream_verification_authenticated, true);
+    assert.deepEqual(evidence.requirement_ids, ['CTRL-EVIDENCE-001']);
+    assert.deepEqual(evidence.establishes, ['The authenticated verification step passed.']);
+    assert.equal(evidence.exit_code, 0);
+    assert.equal(await readFile(path.join(repo, 'tracked.txt'), 'utf8'), 'base\n');
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
 test('verification runner stops after failure and returns a concise actionable summary', async () => {
   const repo = await tempRepo();
   try {
