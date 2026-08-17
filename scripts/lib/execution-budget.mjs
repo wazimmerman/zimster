@@ -224,6 +224,58 @@ export async function satisfyExecutionBudgetProof(runtimeDirectory, {
   });
 }
 
+export async function supersedeExecutionBudgetProof(runtimeDirectory, {
+  proof,
+  replacementProof,
+  reason,
+  requiredProofType,
+  requiredProofKind = null,
+  requiredProofScope = null,
+  requiredProofProfile = null,
+  requiredProofCommand = null,
+  recordedAt = new Date().toISOString()
+}) {
+  if (!proof || !replacementProof || !reason) {
+    throw new Error('--proof, --replacement-proof, and --reason are required');
+  }
+  if (proof === replacementProof) throw new Error('replacement proof must have a new stable identity');
+  if (!['verification', 'evidence'].includes(requiredProofType)
+    || (requiredProofType === 'verification' && !requiredProofProfile)
+    || (requiredProofType === 'evidence'
+      && (!requiredProofKind || !requiredProofScope || !requiredProofCommand))) {
+    throw new Error('replacement proof requires an enforceable verification or evidence relationship');
+  }
+  return withBudgetLock(runtimeDirectory, async () => {
+    const budget = await readExecutionBudget(runtimeDirectory);
+    const obligation = budget.state.proof_obligations.find((row) =>
+      row.proof === proof && row.status === 'required'
+    );
+    if (!obligation) throw new Error(`required proof obligation not found: ${proof}`);
+    if (budget.state.proof_obligations.some((row) => row.proof === replacementProof)) {
+      throw new Error(`replacement proof identity already exists: ${replacementProof}`);
+    }
+    obligation.status = 'superseded';
+    obligation.superseded_by = replacementProof;
+    obligation.supersession_reason = reason;
+    obligation.superseded_at = recordedAt;
+    budget.state.proof_obligations.push({
+      proof: replacementProof,
+      status: 'required',
+      metric: obligation.metric,
+      receipt_type: requiredProofType,
+      ...(requiredProofKind ? { kind: requiredProofKind } : {}),
+      ...(requiredProofScope ? { scope: requiredProofScope } : {}),
+      ...(requiredProofProfile ? { profile: requiredProofProfile } : {}),
+      ...(requiredProofCommand ? { command: requiredProofCommand } : {})
+    });
+    await writeExecutionBudget(budget.budgetFile, budget.state);
+    return {
+      status: 'BUDGET_PROOF_SUPERSEDED',
+      detail: { proof, replacement_proof: replacementProof }
+    };
+  });
+}
+
 export function applyExecutionBudgetEvent(state, {
   metric,
   amount = 1,

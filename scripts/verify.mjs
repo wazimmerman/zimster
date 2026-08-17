@@ -119,7 +119,7 @@ async function selectedPlan() {
   if (profile === 'release' && action === 'run') {
     const requiredSemanticOptions = [
       'requirements', 'binding-requirements', 'matrix', 'reviews', 'review-package',
-      'review-lifecycle', 'assurance-accounting',
+      'review-lifecycle', 'assurance-accounting', 'execution-budget',
       'load-bearing-review-obligations', 'attempt-type', 'attempt-id', 'seam-id'
     ];
     const missing = requiredSemanticOptions.filter((name) => !options[name]);
@@ -154,6 +154,7 @@ async function selectedPlan() {
       '--review-package', String(options['review-package']),
       '--review-lifecycle', String(options['review-lifecycle']),
       '--assurance-accounting', String(options['assurance-accounting']),
+      '--execution-budget', String(options['execution-budget']),
       '--load-bearing-review-obligations', String(options['load-bearing-review-obligations']),
       '--release-channel', String(options['release-channel'] || 'public_beta')
     );

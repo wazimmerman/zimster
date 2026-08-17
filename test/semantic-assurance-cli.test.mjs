@@ -45,6 +45,7 @@ async function assuranceFiles(directory, {
 }) {
   const lifecyclePath = path.join(directory, 'review-lifecycle.json');
   const accountingPath = path.join(directory, 'assurance-accounting.json');
+  const executionBudgetPath = path.join(directory, 'execution-budget.json');
   const candidate = {
     base_sha: base,
     head_sha: head,
@@ -100,7 +101,13 @@ async function assuranceFiles(directory, {
     allowed_max_depth: 1,
     reconciliation_complete: true
   }));
-  return { lifecyclePath, accountingPath };
+  await writeFile(executionBudgetPath, JSON.stringify({
+    schema_version: 1,
+    profile: 'high-risk',
+    overrides: [],
+    proof_obligations: []
+  }));
+  return { lifecyclePath, accountingPath, executionBudgetPath };
 }
 
 test('matrix CLI emits machine-readable coverage and a human summary', async () => {
@@ -297,13 +304,71 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       '--reviews', reviewsPath,
       '--review-package', reviewPackagePath,
       '--review-lifecycle', assurance.lifecyclePath,
-      '--assurance-accounting', assurance.accountingPath
+      '--assurance-accounting', assurance.accountingPath,
+      '--execution-budget', assurance.executionBudgetPath
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const decision = JSON.parse(result.stdout);
     assert.equal(decision.state, 'CANDIDATE_COMPLETE');
     assert.deepEqual(decision.allowed_claims, ['Candidate completion is gated.']);
     assert.match(result.stderr, /CANDIDATE_COMPLETE.*review=review-001/i);
+
+    await writeFile(assurance.executionBudgetPath, JSON.stringify({
+      schema_version: 1,
+      profile: 'high-risk',
+      overrides: [{
+        metric: 'final_integration_reviews',
+        value: 3,
+        limit: 2,
+        required_proof: 'fresh-focused-proof'
+      }],
+      proof_obligations: [{
+        proof: 'fresh-focused-proof',
+        status: 'required',
+        metric: 'final_integration_reviews',
+        receipt_type: 'evidence'
+      }]
+    }));
+    result = run([
+      'complete',
+      '--profile', 'standard',
+      '--owner-verified',
+      '--requirements', requirementsPath,
+      '--matrix', matrixPath,
+      '--evidence', evidencePath,
+      '--reviews', reviewsPath,
+      '--review-package', reviewPackagePath,
+      '--review-lifecycle', assurance.lifecyclePath,
+      '--assurance-accounting', assurance.accountingPath,
+      '--execution-budget', assurance.executionBudgetPath
+    ], repo);
+    assert.equal(result.status, 2, result.stderr || result.stdout);
+    assert.match(JSON.parse(result.stdout).reasons.join('\n'), /pending execution-budget proof/i);
+    await writeFile(assurance.executionBudgetPath, JSON.stringify({
+      schema_version: 1,
+      profile: 'high-risk',
+      overrides: [{
+        metric: 'final_integration_reviews',
+        value: 3,
+        limit: 2,
+        required_proof: 'fresh-focused-proof'
+      }],
+      proof_obligations: [{
+        proof: 'fresh-focused-proof',
+        status: 'superseded',
+        metric: 'final_integration_reviews',
+        receipt_type: 'evidence',
+        superseded_by: 'replacement-focused-proof',
+        supersession_reason: 'The original proof relationship was circular.',
+        superseded_at: '2026-08-16T12:00:00.000Z'
+      }, {
+        proof: 'replacement-focused-proof',
+        status: 'satisfied',
+        metric: 'final_integration_reviews',
+        receipt_type: 'evidence',
+        receipt_id: 'focused-proof-receipt'
+      }]
+    }));
 
     requirementMatrix.observations.push({
       id: 'final-evidence-state',
@@ -327,7 +392,8 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       '--reviews', reviewsPath,
       '--review-package', reviewPackagePath,
       '--review-lifecycle', assurance.lifecyclePath,
-      '--assurance-accounting', assurance.accountingPath
+      '--assurance-accounting', assurance.accountingPath,
+      '--execution-budget', assurance.executionBudgetPath
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(JSON.parse(result.stdout).state, 'CANDIDATE_COMPLETE');
@@ -345,7 +411,8 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       '--reviews', reviewsPath,
       '--review-package', reviewPackagePath,
       '--review-lifecycle', assurance.lifecyclePath,
-      '--assurance-accounting', assurance.accountingPath
+      '--assurance-accounting', assurance.accountingPath,
+      '--execution-budget', assurance.executionBudgetPath
     ], repo);
     assert.equal(result.status, 2, result.stderr || result.stdout);
     const staleDecision = JSON.parse(result.stdout);
@@ -473,7 +540,8 @@ test('completion CLI rejects a review that is not bound to its exact package and
       '--reviews', reviewsPath,
       '--review-package', packagePath,
       '--review-lifecycle', assurance.lifecyclePath,
-      '--assurance-accounting', assurance.accountingPath
+      '--assurance-accounting', assurance.accountingPath,
+      '--execution-budget', assurance.executionBudgetPath
     ], repo);
     assert.equal(result.status, 2, result.stderr || result.stdout);
     assert.match(JSON.parse(result.stdout).reasons.join('\n'), /package/i);

@@ -91,6 +91,42 @@ async function evaluatedMatrix() {
   };
 }
 
+function executionBudgetIssues(budget) {
+  if (!budget || budget.schema_version !== 1) {
+    return ['execution budget must be schema v1'];
+  }
+  if (!Array.isArray(budget.overrides) || !Array.isArray(budget.proof_obligations)) {
+    return ['execution budget requires override and proof-obligation records'];
+  }
+  const issues = [];
+  const proofs = new Map(budget.proof_obligations.map((proof) => [proof.proof, proof]));
+  function satisfied(proofName, seen = new Set()) {
+    if (!proofName || seen.has(proofName)) return false;
+    seen.add(proofName);
+    const proof = proofs.get(proofName);
+    if (proof?.status === 'satisfied') return Boolean(proof.receipt_id);
+    if (proof?.status === 'superseded') return satisfied(proof.superseded_by, seen);
+    return false;
+  }
+  for (const proof of budget.proof_obligations) {
+    if (proof.status === 'required') {
+      issues.push(`pending execution-budget proof: ${proof.proof || 'unnamed'}`);
+    } else if (proof.status === 'superseded') {
+      if (!proof.superseded_by || !proof.supersession_reason || !proof.superseded_at) {
+        issues.push(`execution-budget proof has an incomplete supersession record: ${proof.proof || 'unnamed'}`);
+      }
+    } else if (proof.status !== 'satisfied' || !proof.receipt_id) {
+      issues.push(`execution-budget proof is not durably satisfied: ${proof.proof || 'unnamed'}`);
+    }
+  }
+  for (const override of budget.overrides) {
+    if (!satisfied(override.required_proof)) {
+      issues.push(`execution-budget override lacks satisfied proof: ${override.required_proof || 'unnamed'}`);
+    }
+  }
+  return [...new Set(issues)];
+}
+
 async function matrixDecision() {
   const { result } = await evaluatedMatrix();
   writeLine(JSON.stringify(result));
@@ -144,6 +180,9 @@ async function completionDecision() {
     if (error.code !== 'ENOENT') throw error;
   }
   const profile = required(options, 'profile');
+  const executionBudget = profile === 'micro'
+    ? null
+    : await jsonFile('execution-budget');
   const reviewPackage = profile === 'micro'
     ? null
     : await jsonFile('review-package');
@@ -156,12 +195,14 @@ async function completionDecision() {
       packageIssues.push('review package semantic contract differs from the current contract');
     }
   }
-  const finalMatrixResult = packageIssues.length
+  const budgetIssues = executionBudget ? executionBudgetIssues(executionBudget) : [];
+  const completionInputIssues = [...packageIssues, ...budgetIssues];
+  const finalMatrixResult = completionInputIssues.length
     ? {
         ...matrixResult,
         valid: false,
         allowed_claims: [],
-        issues: [...matrixResult.issues, ...packageIssues]
+        issues: [...matrixResult.issues, ...completionInputIssues]
       }
     : matrixResult;
   const result = evaluateCandidateCompletion({
@@ -199,5 +240,5 @@ if (action === 'matrix') {
 } else if (action === 'complete') {
   await completionDecision();
 } else {
-  throw new Error('Usage: semantic-assurance.mjs <matrix|complete> --requirements <file> --matrix <file> [--evidence <jsonl>] [--reviews <json>] [--review-package <json>] [--review-lifecycle <json>] [--assurance-accounting <json>]');
+  throw new Error('Usage: semantic-assurance.mjs <matrix|complete> --requirements <file> --matrix <file> [--evidence <jsonl>] [--reviews <json>] [--review-package <json>] [--review-lifecycle <json>] [--assurance-accounting <json>] [--execution-budget <json>]');
 }

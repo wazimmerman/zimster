@@ -240,6 +240,64 @@ test('budget proof satisfaction rejects an explicitly invalidated evidence recei
   }
 });
 
+test('a circular budget proof can only be superseded by an auditable enforceable replacement', async () => {
+  const repo = await tempRepo();
+  try {
+    const budget = path.join(root, 'scripts/run-budget.mjs');
+    let result = run(process.execPath, [budget, 'init', '--profile', 'standard'], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    result = run(process.execPath, [
+      budget, 'record', '--metric', 'complete_suite_executions', '--amount', '4',
+      '--strategy-change', 'final review invalidated the original sequencing',
+      '--required-proof', 'circular release receipt',
+      '--required-proof-type', 'verification',
+      '--required-proof-profile', 'release'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+
+    result = run(process.execPath, [
+      budget, 'supersede',
+      '--proof', 'circular release receipt',
+      '--replacement-proof', 'focused budget regression',
+      '--reason', 'The release receipt depends on the approval that the proof must precede.',
+      '--required-proof-type', 'evidence',
+      '--required-proof-kind', 'test',
+      '--required-proof-scope', 'focused',
+      '--required-proof-command', 'node --test budget-regression.test.mjs'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(JSON.parse(result.stdout).status, 'BUDGET_PROOF_SUPERSEDED');
+    let state = JSON.parse(await readFile(runtimePath(repo, 'budget.json'), 'utf8'));
+    assert.equal(state.proof_obligations[0].status, 'superseded');
+    assert.equal(state.proof_obligations[0].superseded_by, 'focused budget regression');
+    assert.equal(state.proof_obligations[1].status, 'required');
+
+    result = run(process.execPath, [
+      budget, 'prove', '--proof', 'circular release receipt', '--receipt', 'missing'
+    ], repo);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
+
+    const evidence = path.join(root, 'scripts/evidence.mjs');
+    result = run(process.execPath, [
+      evidence, 'record', '--kind', 'test', '--scope', 'focused',
+      '--command', 'node --test budget-regression.test.mjs', '--exit-code', '0',
+      '--tests-passed', '1', '--tests-failed', '0'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const receipt = JSON.parse(result.stdout);
+    result = run(process.execPath, [
+      budget, 'prove', '--proof', 'focused budget regression', '--receipt', receipt.id
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    state = JSON.parse(await readFile(runtimePath(repo, 'budget.json'), 'utf8'));
+    assert.equal(state.proof_obligations[0].status, 'superseded');
+    assert.equal(state.proof_obligations[1].status, 'satisfied');
+    assert.equal(state.proof_obligations[1].receipt_id, receipt.id);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
 test('execution budget counts optional agent identities once and scopes review rechecks by seam', async () => {
   const repo = await tempRepo();
   try {

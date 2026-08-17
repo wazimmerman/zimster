@@ -204,6 +204,8 @@ test('release verification keeps the prose objective separate from binding requi
   const runner = await readFile(path.join(root, 'scripts/verify.mjs'), 'utf8');
   assert.match(runner, /'--requirements', String\(options\['binding-requirements'\]\)/);
   assert.match(runner, /'requirements', 'binding-requirements'/);
+  assert.match(runner, /'review-lifecycle', 'assurance-accounting', 'execution-budget'/);
+  assert.match(runner, /'--execution-budget', String\(options\['execution-budget'\]\)/);
 });
 
 test('package exposes canonical goal and release verification entry points', async () => {

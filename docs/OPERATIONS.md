@@ -29,7 +29,10 @@ unverified.
 Standard and High-risk initialization also creates a run identity, lifecycle
 event stream, and machine-readable execution budget. Use
 `scripts/run-budget.mjs record` for measured events and
-`scripts/run-budget.mjs prove` to satisfy a proof-backed override.
+`scripts/run-budget.mjs prove` to satisfy a proof-backed override. If a proof
+relationship is later shown to be circular, `scripts/run-budget.mjs supersede`
+preserves the original obligation and links one enforceable replacement; it
+never erases the original override.
 
 At a coherent slice boundary, create a bounded checkpoint with
 `scripts/phase-checkpoint.mjs create --input <compact-json>`. A continued
@@ -268,14 +271,16 @@ npm run assurance -- complete \
   --reviews <review-records.json> \
   --review-package <review-package.json> \
   --review-lifecycle <review-lifecycle.json> \
-  --assurance-accounting <assurance-accounting.json>
+  --assurance-accounting <assurance-accounting.json> \
+  --execution-budget <execution-budget.json>
 ```
 
 The first command reports coverage and proof/claim blockers. The second also
 requires a clean current checkout and profile-appropriate review. Owner-inline
 inspection is `self_review`; Standard and High-risk need clean-context
 `independent_review` for the exact base/head, package ID, stable
-semantic-contract digest, and required lens set. The contract digest covers
+semantic-contract digest, required lens set, and a reconciled execution budget
+with every override proof durably satisfied. The contract digest covers
 binding meaning, intended claims, implementation locations, and stable evidence
 environment scope. Candidate Git tree identity, mutable receipt references,
 statuses, observations, and verification results are validated separately.

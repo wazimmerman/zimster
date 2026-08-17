@@ -8,7 +8,8 @@ import {
   initializeExecutionBudget,
   normalizeBudgetProfile,
   recordExecutionBudgetEvent,
-  satisfyExecutionBudgetProof
+  satisfyExecutionBudgetProof,
+  supersedeExecutionBudgetProof
 } from './lib/execution-budget.mjs';
 import { validateConvergenceConfig } from './lib/convergence.mjs';
 
@@ -67,6 +68,18 @@ if (action === 'init') {
     receiptId: required(options, 'receipt')
   });
   emit(result.status, result.detail);
+} else if (action === 'supersede') {
+  const result = await supersedeExecutionBudgetProof(runtime, {
+    proof: required(options, 'proof'),
+    replacementProof: required(options, 'replacement-proof'),
+    reason: required(options, 'reason'),
+    requiredProofType: required(options, 'required-proof-type'),
+    requiredProofKind: options['required-proof-kind'] ? String(options['required-proof-kind']) : null,
+    requiredProofScope: options['required-proof-scope'] ? String(options['required-proof-scope']) : null,
+    requiredProofProfile: options['required-proof-profile'] ? String(options['required-proof-profile']) : null,
+    requiredProofCommand: options['required-proof-command'] ? String(options['required-proof-command']) : null
+  });
+  emit(result.status, result.detail);
 } else {
-  throw new Error('Usage: run-budget.mjs <init|record|prove> [options]');
+  throw new Error('Usage: run-budget.mjs <init|record|prove|supersede> [options]');
 }

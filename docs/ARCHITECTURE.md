@@ -60,8 +60,9 @@ Dependency-free Node 22 tools turn important policy into inspectable state:
   real circuit breaker after the single correction recheck;
 - `assurance-accounting.mjs` reconciles supported host observations with
   dispatch, budget, review-attempt, and depth records and fails closed;
-- `semantic-assurance.mjs` validates the requirement-to-evidence matrix and
-  deterministically gates candidate completion;
+- `semantic-assurance.mjs` validates the requirement-to-evidence matrix,
+  rejects pending or unproved execution-budget overrides, and deterministically
+  gates candidate completion;
 - `capability-cache.mjs` decides whether one host contract needs refreshed
   research;
 - `run-postmortem.mjs` aggregates run-scoped observed/inferred/unavailable
