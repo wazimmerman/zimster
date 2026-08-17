@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
@@ -72,7 +73,7 @@ async function writeBudgetAtomically(budgetFile, state) {
   }
 }
 
-async function withBudgetLock(runtimeDirectory, operation) {
+export async function withBudgetLock(runtimeDirectory, operation) {
   const lock = path.join(runtimeDirectory, 'budget.lock');
   let acquired = false;
   for (let attempt = 0; attempt < 200; attempt += 1) {
@@ -151,14 +152,16 @@ export async function satisfyExecutionBudgetProof(runtimeDirectory, {
     if (!['verification', 'evidence'].includes(obligation.receipt_type)) {
       throw new Error(`proof obligation has no enforceable receipt relationship: ${proof}`);
     }
+    const diagnostics = {};
     const passed = await executionBudgetProofReceiptPasses(
       runtimeDirectory,
       obligation,
-      receiptId
+      receiptId,
+      { diagnostics }
     );
     if (!passed) {
       throw new Error(
-        `passing receipt does not satisfy the required current-tree proof relationship: ${receiptId}`
+        `trusted governed receipt must satisfy the current-tree relationship and precede the override; circular, handcrafted, or postdated proof is rejected: ${receiptId} (${JSON.stringify(diagnostics)})`
       );
     }
     obligation.status = 'satisfied';
@@ -176,15 +179,113 @@ export async function executionBudgetProofReceiptPasses(
   runtimeDirectory,
   obligation,
   receiptId,
-  { cwd = process.cwd() } = {}
+  { cwd = process.cwd(), diagnostics = null } = {}
 ) {
+  if (!obligation.required_at || Number.isNaN(Date.parse(obligation.required_at))) {
+    if (diagnostics) diagnostics.reason = 'missing_required_at';
+    return false;
+  }
+  const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
+  async function governedReceiptPasses(terminalReceipt, terminalBytes, expectedType) {
+    const expectedIssuer = expectedType === 'verification'
+      ? 'zimster.verify'
+      : 'zimster.evidence';
+    if (
+      terminalReceipt.issuer !== expectedIssuer
+      || !/^[0-9a-f-]{36}$/.test(String(terminalReceipt.execution_id || ''))
+    ) {
+      if (diagnostics) {
+        diagnostics.reason = 'untrusted_terminal_issuer';
+        diagnostics.issuer = terminalReceipt.issuer || null;
+        diagnostics.execution_id = terminalReceipt.execution_id || null;
+      }
+      return false;
+    }
+    let execution;
+    try {
+      execution = JSON.parse(await readFile(
+        path.join(runtimeDirectory, 'executions', 'receipts', `${terminalReceipt.execution_id}.json`),
+        'utf8'
+      ));
+    } catch (error) {
+      if (error.code === 'ENOENT') {
+        if (diagnostics) diagnostics.reason = 'missing_execution_receipt';
+        return false;
+      }
+      throw error;
+    }
+    let executionEvents;
+    try {
+      executionEvents = (await readFile(
+        path.join(runtimeDirectory, 'executions', 'events.jsonl'),
+        'utf8'
+      )).split('\n').filter(Boolean).map((line) => JSON.parse(line));
+    } catch (error) {
+      if (error.code === 'ENOENT') executionEvents = [];
+      else throw error;
+    }
+    const starts = executionEvents.filter((row) =>
+      row.event_type === 'execution_started' && row.execution_id === execution.id
+    );
+    const finishes = executionEvents.filter((row) =>
+      row.event_type === 'execution_finished' && row.execution_id === execution.id
+    );
+    const terminalCandidate = {
+      head: terminalReceipt.git_commit || terminalReceipt.git_head,
+      tree: terminalReceipt.git_tree,
+      dirty_tree_fingerprint: terminalReceipt.dirty_tree_fingerprint
+    };
+    const relationships = {
+      execution_id: execution.id === terminalReceipt.execution_id,
+      issuer: execution.issuer === terminalReceipt.issuer,
+      passed: execution.status === 'passed' && execution.exit_code === 0,
+      terminal_type: execution.terminal_receipt_type === expectedType,
+      terminal_id: execution.terminal_receipt_id === terminalReceipt.id,
+      terminal_digest: execution.terminal_receipt_sha256 === sha256(terminalBytes),
+      timestamps: !Number.isNaN(Date.parse(execution.started_at))
+        && !Number.isNaN(Date.parse(execution.ended_at))
+        && Date.parse(execution.started_at) <= Date.parse(execution.ended_at),
+      non_circular: Date.parse(execution.ended_at) <= Date.parse(obligation.required_at),
+      candidate: /^[0-9a-f]{40}$/.test(String(execution.candidate?.head || ''))
+        && /^[0-9a-f]{40}$/.test(String(execution.candidate?.tree || ''))
+        && /^[0-9a-f]{64}$/.test(String(execution.candidate?.dirty_tree_fingerprint || '')),
+      candidate_match: JSON.stringify(execution.candidate) === JSON.stringify(terminalCandidate),
+      environment: ['platform', 'release', 'arch', 'node'].every((name) =>
+        execution.environment?.[name] === terminalReceipt.environment?.[name]
+      ),
+      provenance: typeof execution.runtime_provenance?.semantic_version === 'string'
+        && typeof execution.runtime_provenance?.runtime_origin === 'string'
+        && typeof execution.runtime_provenance?.issuer === 'string',
+      governing_policy: typeof execution.governing_policy?.runtime_role === 'string'
+        && typeof execution.governing_policy?.candidate_rules_authoritative === 'boolean',
+      ledger_start: starts.length === 1
+        && starts[0].issuer === execution.issuer
+        && starts[0].command_identity === execution.command_identity
+        && starts[0].complete_suite === execution.complete_suite
+        && JSON.stringify(starts[0].candidate) === JSON.stringify(execution.candidate),
+      ledger_finish: finishes.length === 1
+        && finishes[0].issuer === execution.issuer
+        && finishes[0].status === execution.status
+        && finishes[0].exit_code === execution.exit_code
+        && finishes[0].terminal_receipt_type === execution.terminal_receipt_type
+        && finishes[0].terminal_receipt_id === execution.terminal_receipt_id
+        && finishes[0].terminal_receipt_sha256 === execution.terminal_receipt_sha256
+    };
+    const valid = Object.values(relationships).every(Boolean);
+    if (!valid && diagnostics) {
+      diagnostics.reason = 'governed_execution_relationship';
+      diagnostics.relationships = relationships;
+    }
+    return valid;
+  }
   let passed = false;
   if (obligation.receipt_type === 'verification') {
     try {
-      const receipt = JSON.parse(await readFile(
+      const receiptBytes = await readFile(
         path.join(runtimeDirectory, 'verification', 'receipts', `${receiptId}.json`),
         'utf8'
-      ));
+      );
+      const receipt = JSON.parse(receiptBytes);
       const state = await captureGitState(cwd);
       const environment = {
         platform: os.platform(),
@@ -192,28 +293,38 @@ export async function executionBudgetProofReceiptPasses(
         arch: os.arch(),
         node: process.version
       };
-      passed = receipt.id === receiptId
-        && receipt.status === 'passed'
-        && (!obligation.profile || receipt.profile === obligation.profile)
-        && receipt.git_commit === state.head
-        && receipt.git_tree === state.tree
-        && receipt.dirty_tree_fingerprint === state.dirty_tree_fingerprint
-        && JSON.stringify(receipt.environment || {}) === JSON.stringify(environment);
+      const terminalRelationships = {
+        receipt_id: receipt.id === receiptId,
+        passed: receipt.status === 'passed',
+        profile: !obligation.profile || receipt.profile === obligation.profile,
+        head: receipt.git_commit === state.head,
+        tree: receipt.git_tree === state.tree,
+        dirty_tree: receipt.dirty_tree_fingerprint === state.dirty_tree_fingerprint,
+        environment: JSON.stringify(receipt.environment || {}) === JSON.stringify(environment)
+      };
+      const validTerminal = Object.values(terminalRelationships).every(Boolean);
+      if (!validTerminal && diagnostics) {
+        diagnostics.reason = 'terminal_receipt_relationship';
+        diagnostics.relationships = terminalRelationships;
+      }
+      passed = validTerminal && await governedReceiptPasses(receipt, receiptBytes, 'verification');
     } catch (error) {
       if (error.code !== 'ENOENT') throw error;
+      if (diagnostics) diagnostics.reason = 'missing_verification_receipt';
     }
   }
   if (obligation.receipt_type === 'evidence') {
     try {
       const state = await captureGitState(cwd);
-      const rows = (await readFile(
+      const rawRows = (await readFile(
         path.join(runtimeDirectory, 'evidence', 'receipts.jsonl'),
         'utf8'
-      )).split('\n').filter(Boolean).map((line) => JSON.parse(line));
+      )).split('\n').filter(Boolean);
+      const rows = rawRows.map((line) => JSON.parse(line));
       const invalidated = new Set(rows
         .filter((row) => row.record_type === 'invalidation')
         .map((row) => row.receipt_id));
-      passed = rows.some((row) =>
+      const receipt = rows.find((row) =>
         row.id === receiptId
         && row.record_type !== 'invalidation'
         && row.exit_code === 0
@@ -224,6 +335,11 @@ export async function executionBudgetProofReceiptPasses(
         && (!obligation.scope || row.scope === obligation.scope)
         && (!obligation.command || row.command === obligation.command)
       );
+      const receiptLine = receipt
+        ? rawRows.find((line) => JSON.parse(line).id === receipt.id)
+        : null;
+      passed = Boolean(receipt)
+        && await governedReceiptPasses(receipt, `${receiptLine}\n`, 'evidence');
       if (passed) {
         const current = spawnSync(process.execPath, [
           evidenceScript, 'check', '--id', receiptId
@@ -279,6 +395,8 @@ export async function supersedeExecutionBudgetProof(runtimeDirectory, {
       proof: replacementProof,
       status: 'required',
       metric: obligation.metric,
+      required_at: recordedAt,
+      relationship: 'trusted_governed_receipt_must_precede_obligation',
       receipt_type: requiredProofType,
       ...(requiredProofKind ? { kind: requiredProofKind } : {}),
       ...(requiredProofScope ? { scope: requiredProofScope } : {}),
@@ -435,16 +553,36 @@ export function applyExecutionBudgetEvent(state, {
       strategy_change: strategyChange,
       required_proof: requiredProof
     });
-    state.proof_obligations.push({
-      proof: requiredProof,
-      status: 'required',
-      metric,
-      receipt_type: requiredProofType,
-      ...(requiredProofKind ? { kind: requiredProofKind } : {}),
-      ...(requiredProofScope ? { scope: requiredProofScope } : {}),
-      ...(requiredProofProfile ? { profile: requiredProofProfile } : {}),
-      ...(requiredProofCommand ? { command: requiredProofCommand } : {})
-    });
+    const existingProof = state.proof_obligations.find((row) =>
+      row.proof === requiredProof && row.status === 'required'
+    );
+    if (existingProof) {
+      const sameRelationship = existingProof.receipt_type === requiredProofType
+        && (existingProof.kind || null) === requiredProofKind
+        && (existingProof.scope || null) === requiredProofScope
+        && (existingProof.profile || null) === requiredProofProfile
+        && (existingProof.command || null) === requiredProofCommand;
+      if (!sameRelationship) {
+        throw new Error(`required proof identity has a conflicting receipt relationship: ${requiredProof}`);
+      }
+      existingProof.metrics = [...new Set([
+        ...(existingProof.metrics || [existingProof.metric]),
+        metric
+      ])];
+    } else {
+      state.proof_obligations.push({
+        proof: requiredProof,
+        status: 'required',
+        metric,
+        required_at: recordedAt,
+        relationship: 'trusted_governed_receipt_must_precede_obligation',
+        receipt_type: requiredProofType,
+        ...(requiredProofKind ? { kind: requiredProofKind } : {}),
+        ...(requiredProofScope ? { scope: requiredProofScope } : {}),
+        ...(requiredProofProfile ? { profile: requiredProofProfile } : {}),
+        ...(requiredProofCommand ? { command: requiredProofCommand } : {})
+      });
+    }
   }
   return {
     changed: true,

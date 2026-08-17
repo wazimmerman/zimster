@@ -6,7 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseOptions, writeLine } from './lib/cli.mjs';
 import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
-import { recordExecutionBudgetEvent } from './lib/execution-budget.mjs';
+import { beginGovernedExecution, finishGovernedExecution } from './lib/governed-execution.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 import { recordVerificationInRecovery } from './lib/run-control.mjs';
 
@@ -205,40 +205,42 @@ async function runPlan(plan) {
   let actionText = null;
   let warnings = 0;
   let budget = { status: 'not_required' };
+  let governed = null;
   const childEnvironment = { ...process.env };
   delete childEnvironment.NODE_TEST_CONTEXT;
-  if (plan.complete_suite === true) {
-    try {
-      const result = await recordExecutionBudgetEvent(runtime, {
-        metric: 'complete_suite_executions',
-        invalidation: options.invalidation ? String(options.invalidation) : null,
-        strategyChange: options['strategy-change'] ? String(options['strategy-change']) : null,
-        requiredProof: options['required-proof'] ? String(options['required-proof']) : null,
-        requiredProofType: options['required-proof-type']
-          ? String(options['required-proof-type'])
-          : null,
-        requiredProofKind: options['required-proof-kind']
-          ? String(options['required-proof-kind'])
-          : null,
-        requiredProofScope: options['required-proof-scope']
-          ? String(options['required-proof-scope'])
-          : null,
-        requiredProofProfile: options['required-proof-profile']
-          ? String(options['required-proof-profile'])
-          : null,
-        requiredProofCommand: options['required-proof-command']
-          ? String(options['required-proof-command'])
-          : null
-      });
-      budget = { status: result.status, ...result.detail };
-      if (!result.changed) {
-        failedStep = 'execution-budget';
-        actionText = `${result.status}: complete-suite execution requires an invalidation or strategy change`;
-      }
-    } catch (error) {
-      if (error.code === 'ENOENT') budget = { status: 'unavailable' };
-      else throw error;
+  governed = await beginGovernedExecution(runtime, root, {
+    sourceRoot: packageRoot,
+    issuer: 'zimster.verify',
+    commandArgv: [process.execPath, ...process.argv.slice(1)],
+    cwd: root,
+    profile: plan.profile,
+    context: { type: 'verification_plan', profile: plan.profile },
+    completeSuite: plan.complete_suite === true,
+    budgetOverride: {
+      invalidation: options.invalidation ? String(options.invalidation) : null,
+      strategyChange: options['strategy-change'] ? String(options['strategy-change']) : null,
+      requiredProof: options['required-proof'] ? String(options['required-proof']) : null,
+      requiredProofType: options['required-proof-type']
+        ? String(options['required-proof-type'])
+        : null,
+      requiredProofKind: options['required-proof-kind']
+        ? String(options['required-proof-kind'])
+        : null,
+      requiredProofScope: options['required-proof-scope']
+        ? String(options['required-proof-scope'])
+        : null,
+      requiredProofProfile: options['required-proof-profile']
+        ? String(options['required-proof-profile'])
+        : null,
+      requiredProofCommand: options['required-proof-command']
+        ? String(options['required-proof-command'])
+        : null
     }
+  });
+  budget = governed.budget;
+  if (!governed.admitted) {
+    failedStep = 'execution-budget';
+    actionText = `${budget.status}: governed verification execution was not admitted`;
   }
 
   for (const step of plan.steps) {
@@ -291,8 +293,10 @@ async function runPlan(plan) {
   const state = await captureGitState(root);
   const status = failedStep ? 'failed' : 'passed';
   const receipt = {
-    schema_version: 1,
+    schema_version: 2,
     id,
+    issuer: 'zimster.verify',
+    execution_id: governed.admitted ? governed.receipt.id : null,
     profile: plan.profile,
     status,
     started_at: startedAt,
@@ -312,11 +316,24 @@ async function runPlan(plan) {
     action: actionText,
     steps
   };
-  await writeFile(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, { flag: 'wx' });
+  const receiptBytes = `${JSON.stringify(receipt, null, 2)}\n`;
+  await writeFile(receiptPath, receiptBytes, { flag: 'wx' });
+  if (governed.admitted) {
+    await finishGovernedExecution(runtime, root, {
+      executionId: governed.receipt.id,
+      status,
+      exitCode: failedStep ? 1 : 0,
+      terminalReceiptType: 'verification',
+      terminalReceiptId: id,
+      terminalReceiptBytes: receiptBytes,
+      compactResult: { profile: plan.profile, warnings, failed_step: failedStep }
+    });
+  }
   await recordVerificationInRecovery(runtime, root, receipt);
   const summary = {
     schema_version: 1,
     id,
+    execution_id: receipt.execution_id,
     profile: plan.profile,
     status,
     warnings,

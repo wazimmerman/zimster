@@ -29,6 +29,8 @@
     "run:control": "node scripts/run-control.mjs",
     "run:refresh": "node scripts/run-control.mjs refresh",
     "run:check": "node scripts/run-control.mjs check",
+    "accounting:check": "node scripts/accounting-reconcile.mjs check",
+    "accounting:reconcile": "node scripts/accounting-reconcile.mjs reconcile",
     "context:index": "node scripts/context-index.mjs",
     "plan:conformance": "node scripts/plan-conformance.mjs",
     "sync:codex": "node scripts/sync-codex-plugin.mjs",

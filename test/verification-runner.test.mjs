@@ -252,10 +252,6 @@ test('verification runner carries a proof-backed strategy when a required suite 
       budget, 'init', '--profile', 'standard'
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
-    result = run(process.execPath, [
-      budget, 'record', '--metric', 'complete_suite_executions', '--amount', '3'
-    ], repo);
-    assert.equal(result.status, 0, result.stderr || result.stdout);
     const planFile = path.join(repo, 'plan.json');
     await writeFile(planFile, `${JSON.stringify({
       schema_version: 1,
@@ -267,6 +263,12 @@ test('verification runner carries a proof-backed strategy when a required suite 
         args: ['-e', 'process.exit(0);']
       }]
     })}\n`);
+    for (let index = 0; index < 3; index += 1) {
+      result = run(process.execPath, [
+        path.join(root, 'scripts/verify.mjs'), 'run', '--plan', planFile
+      ], repo);
+      assert.equal(result.status, 0, result.stderr || result.stdout);
+    }
     result = run(process.execPath, [
       path.join(root, 'scripts/verify.mjs'), 'run', '--plan', planFile,
       '--strategy-change', 'required refreshed final tree',

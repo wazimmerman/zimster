@@ -75,6 +75,12 @@ sensitive decisions lacking authority, missing review, required approval, or
 exhaustion escalates. Host permission and authorization prompts are never
 bypassed.
 
+Complete-suite and exact-duplicate usage is observational: governed execution
+receipts are the source of truth. `npm run accounting:check` fails when those
+receipts and `budget.json` disagree; `npm run accounting:reconcile` repairs the
+projection and appends an audit event. Commands run directly in a shell cannot
+be detected retrospectively and are reported as `not_observable`.
+
 Release channels are separate policy profiles. `public_beta` requires one
 exact-package `LIVE_VERIFIED` host plus bounded claims for every public harness.
 `stable` currently requires all six public harnesses to be `LIVE_VERIFIED`.

@@ -69,11 +69,16 @@ successful full-suite executions.
 
 Record commands with `<zimster-runtime>/scripts/evidence.mjs` when available. A receipt binds command, working
 -tree fingerprint, Git head/tree, cwd, environment, exit code, test discovery,
-counts, scope, and timestamps.
+counts, scope, and timestamps. `evidence.mjs run` and `verify.mjs run` also
+write a governed execution start before spawning, then bind the terminal
+receipt bytes to that execution. Manual `evidence.mjs record` is descriptive
+history and cannot satisfy an execution-budget proof.
 
 Reuse only valid focused evidence whose fingerprint and dependency cone remain
 unchanged. Report reusable duplicates rather than rerunning by habit. Final
 completion gates are always run fresh; `--reuse` never satisfies a final claim.
+A proof used to justify a budget override must already have completed before
+the override created the obligation; post-override receipts are circular.
 A correction invalidates every proof whose dependency cone includes it.
 An ordinary deterministic verification failure continues autonomously within
 the final-verification budget when it is in-scope, reversible, non-sensitive,

@@ -23,6 +23,11 @@ next slice. Resolve the ambiguity explicitly, then start or restore the current
 slice and checkpoint it. Missing historical suite/duplicate observations remain
 `unavailable` or `unverified`; they are not reconstructed from memory.
 
+After migration, `accounting-reconcile.mjs check` compares the 0.7.0 projected
+suite/duplicate counters with any governed 0.7.1 execution receipts. An audited
+`reconcile` may correct those two projections. Historical direct shell commands
+remain `not_observable`; migration never invents execution IDs for them.
+
 `run.md` is regenerated from canonical machine state after migration. Manual
 legacy prose remains historical context only and cannot outrank `run.json`,
 receipts, ledgers, checkpoints, budgets, or actual Git state.

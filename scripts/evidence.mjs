@@ -9,6 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parseOptions, required, integerOption } from './lib/cli.mjs';
 import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
 import { canonicalPath, repositoryRelativeIdentity, reviewFileIdentity } from './lib/path-identity.mjs';
@@ -19,9 +20,10 @@ import {
 } from './lib/evidence-validity.mjs';
 import { ensureRuntimeDirectory, migrateLegacyJsonlStore } from './lib/runtime.mjs';
 import { harnessCapabilities } from './lib/capabilities.mjs';
-import { recordExecutionBudgetEvent } from './lib/execution-budget.mjs';
+import { beginGovernedExecution, finishGovernedExecution } from './lib/governed-execution.mjs';
 
 const { positional, options, passthrough } = parseOptions(process.argv.slice(2));
+const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const commandName = positional[0];
 const root = await canonicalPath(findRepoRoot(process.cwd()));
 const workingDirectory = await canonicalPath(process.cwd());
@@ -69,33 +71,6 @@ function environment(hostVersion = null) {
 
 async function canonicalInputIdentities(inputs, base) {
   return Promise.all(inputs.map((input) => reviewFileIdentity(root, input, { base })));
-}
-
-async function accountForDuplicateExecution() {
-  let result;
-  try {
-    result = await recordExecutionBudgetEvent(await ensureRuntimeDirectory(root), {
-      metric: 'exact_duplicate_commands',
-      invalidation: options['invalidation-reason']
-        ? String(options['invalidation-reason'])
-        : null,
-      strategyChange: options['strategy-change']
-        ? String(options['strategy-change'])
-        : null,
-      requiredProof: options['required-proof']
-        ? String(options['required-proof'])
-        : null
-    });
-  } catch (error) {
-    if (error.code === 'ENOENT') return;
-    throw error;
-  }
-  if (!result.changed) {
-    writeLine(JSON.stringify({ status: result.status, ...result.detail }));
-    const error = new Error(result.status);
-    error.code = 'BUDGET_CONSTRAINED';
-    throw error;
-  }
 }
 
 async function init() {
@@ -260,8 +235,10 @@ function validateReceipt(receipt) {
 
 async function store(receipt) {
   await init();
-  await appendFile(receiptsFile, `${JSON.stringify(receipt)}\n`);
-  writeSync(process.stdout.fd, `${JSON.stringify(receipt)}\n`);
+  const bytes = `${JSON.stringify(receipt)}\n`;
+  await appendFile(receiptsFile, bytes);
+  writeSync(process.stdout.fd, bytes);
+  return bytes;
 }
 
 async function findReusable(command, kind, scope) {
@@ -417,8 +394,46 @@ async function main() {
       process.exitCode = 2;
       return;
     }
-    if (duplicate && options.force === true && options.final !== true) {
-      await accountForDuplicateExecution();
+    const runtime = await ensureRuntimeDirectory(root);
+    const governed = await beginGovernedExecution(runtime, root, {
+      sourceRoot: packageRoot,
+      issuer: 'zimster.evidence',
+      commandArgv: passthrough,
+      cwd: workingDirectory,
+      context: { type: 'evidence', kind: String(options.kind), scope: String(options.scope) },
+      completeSuite: false,
+      budgetOverride: {
+        invalidation: options['invalidation-reason']
+          ? String(options['invalidation-reason'])
+          : null,
+        strategyChange: options['strategy-change']
+          ? String(options['strategy-change'])
+          : null,
+        requiredProof: options['required-proof']
+          ? String(options['required-proof'])
+          : null,
+        requiredProofType: options['required-proof-type']
+          ? String(options['required-proof-type'])
+          : null,
+        requiredProofKind: options['required-proof-kind']
+          ? String(options['required-proof-kind'])
+          : null,
+        requiredProofScope: options['required-proof-scope']
+          ? String(options['required-proof-scope'])
+          : null,
+        requiredProofProfile: options['required-proof-profile']
+          ? String(options['required-proof-profile'])
+          : null,
+        requiredProofCommand: options['required-proof-command']
+          ? String(options['required-proof-command'])
+          : null
+      }
+    });
+    if (!governed.admitted) {
+      writeLine(JSON.stringify(governed.budget));
+      const error = new Error(governed.budget.status);
+      error.code = 'BUDGET_CONSTRAINED';
+      throw error;
     }
     const startedAt = new Date().toISOString();
     const result = spawnSync(passthrough[0], passthrough.slice(1), {
@@ -428,7 +443,24 @@ async function main() {
     });
     const endedAt = new Date().toISOString();
     const exitCode = result.status ?? 1;
-    await store(await buildReceipt({ startedAt, endedAt, exitCode }));
+    const receipt = await buildReceipt({ startedAt, endedAt, exitCode });
+    receipt.issuer = 'zimster.evidence';
+    receipt.execution_id = governed.receipt.id;
+    const receiptBytes = await store(receipt);
+    await finishGovernedExecution(runtime, root, {
+      executionId: governed.receipt.id,
+      status: exitCode === 0 ? 'passed' : 'failed',
+      exitCode,
+      terminalReceiptType: 'evidence',
+      terminalReceiptId: receipt.id,
+      terminalReceiptBytes: receiptBytes,
+      compactResult: {
+        kind: receipt.kind,
+        scope: receipt.scope,
+        tests: receipt.tests,
+        behavioral_evidence: receipt.behavioral_evidence
+      }
+    });
     process.exitCode = exitCode;
     return;
   }

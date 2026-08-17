@@ -46,12 +46,16 @@ Dependency-free Node 22 tools turn important policy into inspectable state:
   changes without touching the index;
 - `evidence.mjs` records local proof receipts and validity fingerprints;
 - `run-budget.mjs` enforces execution limits and proof-backed overrides;
+- `accounting-reconcile.mjs` derives suite and exact-duplicate counts from
+  durable governed execution identities, reports unobservable direct-shell
+  history honestly, and audits any correction;
 - `run-control.mjs` owns slice transitions, dirty recovery snapshots, resume
   reconciliation, and deterministic `run.md` refresh/check;
 - `phase-checkpoint.mjs` separates persistent logical ownership from bounded
   physical contexts and remains the legacy compact-checkpoint entry point;
-- `verify.mjs` runs profile-selected gates with full Git-local logs and one
-  compact receipt;
+- `verify.mjs` and `evidence.mjs run` persist a governed start before spawning,
+  bind candidate/runtime/governing-policy provenance, and finalize against the
+  exact terminal receipt bytes;
 - `installed-package-smoke.mjs` exercises exact candidate archives in isolated
   homes before review packaging;
 - `review-package.mjs` represents immutable canonical changes and mirror

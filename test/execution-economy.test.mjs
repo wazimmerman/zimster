@@ -117,6 +117,23 @@ test('execution budget accepts an over-limit strategy change only with a require
     let result = run(process.execPath, [budget, 'init', '--profile', 'standard'], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
 
+    const planFile = runtimePath(repo, 'proof-plan.json');
+    await writeFile(planFile, `${JSON.stringify({
+      schema_version: 1,
+      profile: 'release',
+      complete_suite: false,
+      steps: [{
+        id: 'proof',
+        command: process.execPath,
+        args: ['-e', 'process.exit(0);']
+      }]
+    })}\n`);
+    result = run(process.execPath, [
+      path.join(root, 'scripts/verify.mjs'), 'run', '--plan', planFile
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const releaseReceipt = JSON.parse(result.stdout);
+
     result = run(process.execPath, [
       budget, 'record', '--metric', 'complete_suite_executions', '--amount', '4',
       '--strategy-change', 'split final gate after reviewer invalidation'
@@ -138,13 +155,16 @@ test('execution budget accepts an over-limit strategy change only with a require
     assert.equal(state.usage.complete_suite_executions, 4);
     assert.equal(state.overrides.length, 1);
     assert.equal(state.overrides[0].strategy_change, 'split final gate after reviewer invalidation');
-    assert.deepEqual(state.proof_obligations, [{
-      proof: 'release:verify receipt',
-      status: 'required',
-      metric: 'complete_suite_executions',
-      receipt_type: 'verification',
-      profile: 'release'
-    }]);
+    assert.equal(state.proof_obligations[0].proof, 'release:verify receipt');
+    assert.equal(state.proof_obligations[0].status, 'required');
+    assert.equal(state.proof_obligations[0].metric, 'complete_suite_executions');
+    assert.equal(state.proof_obligations[0].receipt_type, 'verification');
+    assert.equal(state.proof_obligations[0].profile, 'release');
+    assert.match(state.proof_obligations[0].required_at, /^\d{4}-\d{2}-\d{2}T/);
+    assert.equal(
+      state.proof_obligations[0].relationship,
+      'trusted_governed_receipt_must_precede_obligation'
+    );
 
     const receiptDirectory = runtimePath(repo, 'verification/receipts');
     await mkdir(receiptDirectory, { recursive: true });
@@ -167,21 +187,6 @@ test('execution budget accepts an over-limit strategy change only with a require
     ], repo);
     assert.notEqual(result.status, 0, result.stderr || result.stdout);
     assert.match(result.stderr, /profile|relationship|release/i);
-    const planFile = runtimePath(repo, 'proof-plan.json');
-    await writeFile(planFile, `${JSON.stringify({
-      schema_version: 1,
-      profile: 'release',
-      steps: [{
-        id: 'proof',
-        command: process.execPath,
-        args: ['-e', 'process.exit(0);']
-      }]
-    })}\n`);
-    result = run(process.execPath, [
-      path.join(root, 'scripts/verify.mjs'), 'run', '--plan', planFile
-    ], repo);
-    assert.equal(result.status, 0, result.stderr || result.stdout);
-    const releaseReceipt = JSON.parse(result.stdout);
     await writeFile(path.join(repo, 'tracked.txt'), 'dirty after proof\n');
     result = run(process.execPath, [
       budget, 'prove', '--proof', 'release:verify receipt', '--receipt', releaseReceipt.id
@@ -208,6 +213,14 @@ test('budget proof satisfaction rejects an explicitly invalidated evidence recei
     const budget = path.join(root, 'scripts/run-budget.mjs');
     let result = run(process.execPath, [budget, 'init', '--profile', 'standard'], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
+    const evidence = path.join(root, 'scripts/evidence.mjs');
+    const proofArgv = [process.execPath, '-e', 'process.exit(0);'];
+    const proofCommand = proofArgv.join(' ');
+    result = run(process.execPath, [
+      evidence, 'run', '--kind', 'test', '--scope', 'affected', '--', ...proofArgv
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const receipt = JSON.parse(result.stdout);
     result = run(process.execPath, [
       budget, 'record', '--metric', 'complete_suite_executions', '--amount', '4',
       '--strategy-change', 'review correction',
@@ -215,17 +228,9 @@ test('budget proof satisfaction rejects an explicitly invalidated evidence recei
       '--required-proof-type', 'evidence',
       '--required-proof-kind', 'test',
       '--required-proof-scope', 'affected',
-      '--required-proof-command', 'node --test correction.test.mjs'
+      '--required-proof-command', proofCommand
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
-    const evidence = path.join(root, 'scripts/evidence.mjs');
-    result = run(process.execPath, [
-      evidence, 'record', '--kind', 'test', '--scope', 'affected',
-      '--command', 'node --test correction.test.mjs', '--exit-code', '0',
-      '--tests-passed', '1', '--tests-failed', '0'
-    ], repo);
-    assert.equal(result.status, 0, result.stderr || result.stdout);
-    const receipt = JSON.parse(result.stdout);
     result = run(process.execPath, [
       evidence, 'invalidate', '--id', receipt.id, '--reason', 'review found stale proof'
     ], repo);
@@ -234,7 +239,7 @@ test('budget proof satisfaction rejects an explicitly invalidated evidence recei
       budget, 'prove', '--proof', 'affected correction tests', '--receipt', receipt.id
     ], repo);
     assert.notEqual(result.status, 0, result.stderr || result.stdout);
-    assert.match(result.stderr, /invalidated|passing receipt/i);
+    assert.match(result.stderr, /invalidated|trusted governed receipt|current-tree/i);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }
@@ -246,6 +251,15 @@ test('budget proof satisfaction rejects reusable evidence from a different candi
     const budget = path.join(root, 'scripts/run-budget.mjs');
     let result = run(process.execPath, [budget, 'init', '--profile', 'standard'], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
+    const evidence = path.join(root, 'scripts/evidence.mjs');
+    const proofArgv = [process.execPath, '-e', 'process.exit(0);'];
+    const proofCommand = proofArgv.join(' ');
+    result = run(process.execPath, [
+      evidence, 'run', '--kind', 'test', '--scope', 'affected',
+      '--dependencies', 'tracked.txt', '--', ...proofArgv
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const receipt = JSON.parse(result.stdout);
     result = run(process.execPath, [
       budget, 'record', '--metric', 'complete_suite_executions', '--amount', '4',
       '--strategy-change', 'review correction',
@@ -253,18 +267,9 @@ test('budget proof satisfaction rejects reusable evidence from a different candi
       '--required-proof-type', 'evidence',
       '--required-proof-kind', 'test',
       '--required-proof-scope', 'affected',
-      '--required-proof-command', 'node --test correction.test.mjs'
+      '--required-proof-command', proofCommand
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
-
-    const evidence = path.join(root, 'scripts/evidence.mjs');
-    result = run(process.execPath, [
-      evidence, 'record', '--kind', 'test', '--scope', 'affected',
-      '--command', 'node --test correction.test.mjs', '--exit-code', '0',
-      '--tests-passed', '1', '--tests-failed', '0', '--dependencies', 'tracked.txt'
-    ], repo);
-    assert.equal(result.status, 0, result.stderr || result.stdout);
-    const receipt = JSON.parse(result.stdout);
 
     await writeFile(path.join(repo, 'unrelated.txt'), 'later candidate\n');
     assert.equal(run('git', ['add', 'unrelated.txt'], repo).status, 0);
@@ -297,6 +302,15 @@ test('a circular budget proof can only be superseded by an auditable enforceable
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
 
+    const evidence = path.join(root, 'scripts/evidence.mjs');
+    const proofArgv = [process.execPath, '-e', 'process.exit(0);'];
+    const proofCommand = proofArgv.join(' ');
+    result = run(process.execPath, [
+      evidence, 'run', '--kind', 'test', '--scope', 'focused', '--', ...proofArgv
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const receipt = JSON.parse(result.stdout);
+
     result = run(process.execPath, [
       budget, 'supersede',
       '--proof', 'circular release receipt',
@@ -305,7 +319,7 @@ test('a circular budget proof can only be superseded by an auditable enforceable
       '--required-proof-type', 'evidence',
       '--required-proof-kind', 'test',
       '--required-proof-scope', 'focused',
-      '--required-proof-command', 'node --test budget-regression.test.mjs'
+      '--required-proof-command', proofCommand
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(JSON.parse(result.stdout).status, 'BUDGET_PROOF_SUPERSEDED');
@@ -319,14 +333,6 @@ test('a circular budget proof can only be superseded by an auditable enforceable
     ], repo);
     assert.notEqual(result.status, 0, result.stderr || result.stdout);
 
-    const evidence = path.join(root, 'scripts/evidence.mjs');
-    result = run(process.execPath, [
-      evidence, 'record', '--kind', 'test', '--scope', 'focused',
-      '--command', 'node --test budget-regression.test.mjs', '--exit-code', '0',
-      '--tests-passed', '1', '--tests-failed', '0'
-    ], repo);
-    assert.equal(result.status, 0, result.stderr || result.stdout);
-    const receipt = JSON.parse(result.stdout);
     result = run(process.execPath, [
       budget, 'prove', '--proof', 'focused budget regression', '--receipt', receipt.id
     ], repo);
@@ -344,7 +350,7 @@ test('a circular budget proof can only be superseded by an auditable enforceable
       '--required-proof-type', 'evidence',
       '--required-proof-kind', 'test',
       '--required-proof-scope', 'focused',
-      '--required-proof-command', 'node --test budget-regression.test.mjs'
+      '--required-proof-command', proofCommand
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     state = JSON.parse(await readFile(runtimePath(repo, 'budget.json'), 'utf8'));
@@ -661,7 +667,7 @@ test('explicit reviewer invalidation prevents evidence reuse and preserves the r
   }
 });
 
-test('forced duplicate command execution increments the initialized run budget', async () => {
+test('forced duplicate governed execution increments the initialized run budget', async () => {
   const repo = await tempRepo();
   try {
     const budget = path.join(root, 'scripts/run-budget.mjs');
@@ -669,18 +675,15 @@ test('forced duplicate command execution increments the initialized run budget',
     let result = run(process.execPath, [budget, 'init', '--profile', 'standard'], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
 
-    const command = `${process.execPath} --version`;
     result = run(process.execPath, [
-      evidence, 'record', '--kind', 'command', '--scope', 'focused',
-      '--command', command,
-      '--command-argv', JSON.stringify([process.execPath, '--version']),
-      '--exit-code', '0'
+      evidence, 'run', '--kind', 'command', '--scope', 'focused',
+      '--', process.execPath, '-e', 'process.exit(0);'
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
 
     result = run(process.execPath, [
       evidence, 'run', '--kind', 'command', '--scope', 'focused', '--force',
-      '--', process.execPath, '--version'
+      '--', process.execPath, '-e', 'process.exit(0);'
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
 

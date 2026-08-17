@@ -158,9 +158,22 @@ consumers. Around 80%, stop optional work and prioritize required proof.
 Never lower a required quality gate silently.
 
 Initialize the machine-readable execution budget for Standard and High-risk
-runs. Record suites, duplicates, agent identities/depth, rechecks,
-corrections, context renewals, research, and exposed token thresholds. Crossing
-a limit needs a recorded strategy change/invalidation and named proof.
+runs. Run verification through `verify.mjs` and commands through
+`evidence.mjs run` so a durable governed-execution start exists before the
+process spawns. Suite and exact-duplicate counts are derived from those
+execution identities; use `accounting-reconcile.mjs check` before dependent
+claims and audited `reconcile` to repair a mismatch. Direct shell executions
+remain mechanically unobservable and must not be claimed as counted. Record
+agent identities/depth, rechecks, corrections, context renewals, research, and
+exposed token thresholds. Crossing a limit needs a recorded strategy
+change/invalidation and named proof.
+
+A budget proof must be a pre-existing passing governed verification/evidence
+receipt. Its terminal bytes must authenticate against the execution receipt,
+and its candidate, environment, runtime provenance, issuer, governing-policy
+role, and required relationship must match. A receipt created after the
+override is circular and cannot satisfy that override; manual `evidence record`
+receipts are never budget proofs.
 
 Use `<zimster-runtime>/scripts/convergence.mjs decide` for ordinary deterministic failure. Continue
 without repeated authorization only in-scope, reversible, non-sensitive,
