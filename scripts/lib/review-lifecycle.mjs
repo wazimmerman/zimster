@@ -267,8 +267,8 @@ function updateCandidateBeforeReview(state, event) {
 }
 
 function updateApprovedCandidateBeforeFinalReview(state, event) {
-  if (state.status !== 'approved' || state.stable || state.active_attempt_id) {
-    throw new Error('approved candidate can advance only before final-review stabilization');
+  if (state.status !== 'approved' || state.active_attempt_id) {
+    throw new Error('approved candidate can advance only before a final-review attempt is active');
   }
   validateCandidate(event.candidate);
   if (event.candidate.semantic_contract_sha256 !== state.candidate.semantic_contract_sha256) {
@@ -282,6 +282,7 @@ function updateApprovedCandidateBeforeFinalReview(state, event) {
   }
   const next = copy(state);
   next.candidate = structuredClone(event.candidate);
+  next.stable = false;
   return appendEvent(next, {
     type: 'approved_candidate_updated_before_final_review',
     candidate: structuredClone(event.candidate)
