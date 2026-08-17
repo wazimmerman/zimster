@@ -202,8 +202,26 @@ test('plan conformance detects requirement drift and blocks unverified release c
     })}\n`);
     result = run('plan-conformance.mjs', ['--phase', 'release'], directory);
     assert.notEqual(result.status, 0);
+    row.status = 'partially_verified';
+    row.evidence_refs = ['prepublication-receipt'];
+    row.proof_deferred_until = 'postpublication';
+    row.unavailable_proof = ['Registry and release observations do not exist before publication.'];
+    await writeFile(matrix, `${JSON.stringify({
+      schema_version: 1, candidate_head: head, candidate_tree: tree,
+      requirements: [row], observations: []
+    })}\n`);
+    result = run('plan-conformance.mjs', ['--phase', 'release'], directory);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    delete row.proof_deferred_until;
+    await writeFile(matrix, `${JSON.stringify({
+      schema_version: 1, candidate_head: head, candidate_tree: tree,
+      requirements: [row], observations: []
+    })}\n`);
+    result = run('plan-conformance.mjs', ['--phase', 'release'], directory);
+    assert.notEqual(result.status, 0);
     row.status = 'verified';
     row.evidence_refs = ['receipt-1'];
+    row.unavailable_proof = [];
     await writeFile(matrix, `${JSON.stringify({
       schema_version: 1, candidate_head: head, candidate_tree: tree,
       requirements: [row], observations: []

@@ -41,6 +41,12 @@ npm run postmortem
 git diff --check
 ```
 
+The pre-tag release-conformance gate admits a `partially_verified` requirement
+only when its remaining proof is explicitly deferred until `postpublication`,
+it has current prepublication evidence, and `unavailable_proof` states why the
+final observation cannot exist yet. Postpublication matrix evaluation must
+replace each deferral with exact published-surface evidence before closure.
+
 Inspect `git status --short`, `git diff`, `git diff --cached`, and every
 untracked file. A correction invalidates affected evidence and exact-head
 review. Re-run the applicable checks on the corrected tree.
