@@ -50,7 +50,7 @@ test('release evidence canonically binds authorization inputs and all five artif
     const commit = 'a'.repeat(40);
     const tree = 'b'.repeat(40);
     let result = run([
-      'create', '--version', '0.7.0', '--tag', 'v0.7.0', '--channel', 'public_beta',
+      'create', '--version', '0.7.2', '--tag', 'v0.7.2', '--channel', 'public_beta',
       '--commit', commit, '--tree', tree, '--standards-lock', 'config/standards-lock.json',
       '--semantic-review', semantic, '--host-matrix', matrix, '--verification', verification,
       '--dist', dist, '--output', output
@@ -61,11 +61,11 @@ test('release evidence canonically binds authorization inputs and all five artif
     assert.equal(evidence.commit, commit);
     assert.equal(evidence.tree, tree);
     assert.deepEqual(evidence.artifacts.map(({ name }) => name), [
-      'zimster-0.7.0-claude.zip', 'zimster-0.7.0-codex.zip',
-      'zimster-0.7.0-openai.zip', 'zimster-0.7.0-portable.zip', 'zimster-0.7.0.tgz'
+      'zimster-0.7.2-claude.zip', 'zimster-0.7.2-codex.zip',
+      'zimster-0.7.2-openai.zip', 'zimster-0.7.2-portable.zip', 'zimster-0.7.2.tgz'
     ]);
     result = run([
-      'verify', '--file', output, '--expected-tag', 'v0.7.0', '--expected-commit', commit,
+      'verify', '--file', output, '--expected-tag', 'v0.7.2', '--expected-commit', commit,
       '--expected-tree', tree, '--standards-lock', 'config/standards-lock.json',
       '--semantic-review', semantic, '--host-matrix', matrix, '--verification', verification,
       '--dist', dist
@@ -74,7 +74,7 @@ test('release evidence canonically binds authorization inputs and all five artif
 
     await writeFile(verification, '{"status":"changed"}\n');
     result = run([
-      'verify', '--file', output, '--expected-tag', 'v0.7.0', '--expected-commit', commit,
+      'verify', '--file', output, '--expected-tag', 'v0.7.2', '--expected-commit', commit,
       '--expected-tree', tree, '--standards-lock', 'config/standards-lock.json',
       '--semantic-review', semantic, '--host-matrix', matrix, '--verification', verification,
       '--dist', dist

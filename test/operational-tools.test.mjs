@@ -127,7 +127,7 @@ test('evidence receipts record harness capabilities and support a no-state opt-o
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const receipt = JSON.parse(result.stdout.trim());
     assert.equal(receipt.harness, 'codex');
-    assert.equal(receipt.capabilities.native_skill_loading, 'unverified');
+    assert.equal(receipt.capabilities.native_skill_loading, 'native');
 
     const optedOut = await tempRepo();
     try {
@@ -312,7 +312,7 @@ test('run-state initializer creates the durable record with machine-readable cap
     assert.ok(capabilityBlock, 'run record must carry a JSON capability receipt');
     const capabilityReceipt = JSON.parse(capabilityBlock[1]);
     assert.equal(capabilityReceipt.harness, 'codex');
-    assert.equal(capabilityReceipt.capabilities.native_skill_loading, 'unverified');
+    assert.equal(capabilityReceipt.capabilities.native_skill_loading, 'native');
     const runtimeDirectory = path.dirname(runMdPath);
     const runState = JSON.parse(await readFile(path.join(runtimeDirectory, 'run.json'), 'utf8'));
     assert.match(runState.id, /^[0-9a-f-]{36}$/);
@@ -377,7 +377,7 @@ test('run-state migration preserves legacy text separately and projects canonica
     assert.ok(capabilityBlock);
     const capabilityReceipt = JSON.parse(capabilityBlock[1]);
     assert.equal(capabilityReceipt.harness, 'codex');
-    assert.equal(capabilityReceipt.capabilities.native_skill_loading, 'unverified');
+    assert.equal(capabilityReceipt.capabilities.native_skill_loading, 'native');
     await assert.rejects(readFile(legacy, 'utf8'), /ENOENT/);
   } finally {
     await rm(repo, { recursive: true, force: true });

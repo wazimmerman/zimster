@@ -225,7 +225,7 @@ test('Claude guide documents local validation, lifecycle, restrictions, and hone
     /SessionStart/,
     /integration-reviewer/,
     /test-reviewer/,
-    /2\.1\.224/,
+    /2\.1\.226/,
     /12 skills, 4 agents, and 1 SessionStart hook/,
     /model-backed.*not|not.*model-backed/is
   ]) {
