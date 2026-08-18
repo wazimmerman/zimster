@@ -185,8 +185,8 @@ test('bootstrap policy enforces execution economy and phase-bounded ownership', 
 
 test('bootstrap distinguishes recoverable budgets from terminal hard stops', async () => {
   const bootstrap = await read('skills/using-zimster/SKILL.md');
-  assert.match(bootstrap, /only soft\s+or recoverable budgets.*strategy change.*proof/is);
-  assert.match(bootstrap, /hard lifecycle and economic limits.*never.*(?:strategy change|proof)/is);
+  assert.match(bootstrap, /only recoverable budgets.*strategy.*proof/is);
+  assert.match(bootstrap, /hard limits never/i);
   assert.match(bootstrap, /HARD_BUDGET_EXHAUSTED.*stop autonomous remediation/is);
 });
 

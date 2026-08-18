@@ -148,14 +148,10 @@ full required gates once. Around 60% of a stated budget, report its largest
 consumers. Around 80%, stop optional work and prioritize required proof.
 Never lower a required quality gate silently.
 
-Initialize the machine-readable execution budget for Standard and High-risk
-runs. Record suites, duplicates, agent identities/depth, rechecks,
-corrections, context renewals, research, and exposed token thresholds. Only soft
-or recoverable budgets may continue after a recorded strategy change,
-invalidation, and named proof. Hard lifecycle and economic limits never accept
-a strategy change, invalidation, proof, semantic digest, or new attempt ID.
-`HARD_BUDGET_EXHAUSTED`, `CIRCUIT_BREAKER`,
-`STRATEGY_ESCALATION_REQUIRES_OWNER`, and `BLOCKED` stop autonomous remediation.
+Record execution budgets for Standard/High-risk runs: suites, duplicates, agents,
+rechecks, corrections, renewals, research, and tokens. Only recoverable budgets
+accept strategy/proof overrides; hard limits never do. `HARD_BUDGET_EXHAUSTED`
+and every terminal state stop autonomous remediation.
 
 Use `<zimster-runtime>/scripts/convergence.mjs decide` for ordinary deterministic failure. Continue
 without repeated authorization only in-scope, reversible, non-sensitive,
