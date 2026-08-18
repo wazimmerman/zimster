@@ -238,12 +238,6 @@ test('review types and checkout integrity have non-overlapping assurance meaning
   assert.ok(reviewSchema.required.includes('review_type'));
   assert.ok(reviewSchema.required.includes('verdict'));
   assert.ok(reviewSchema.required.includes('checkout_integrity_result'));
-  const versionTwo = reviewSchema.allOf.find(
-    ({ if: condition }) => condition?.properties?.schema_version?.const === 2
-  );
-  for (const field of [
-    'attempt_type', 'attempt_id', 'seam_id', 'candidate_dirty_tree_fingerprint'
-  ]) assert.ok(versionTwo.then.required.includes(field));
   assert.ok(completionSchema.properties.state.enum.includes('SEMANTIC_REVIEW_APPROVED'));
   assert.ok(completionSchema.properties.state.enum.includes('CANDIDATE_COMPLETE'));
 });
@@ -304,20 +298,10 @@ test('review packages falsify claims and corrections invalidate affected approva
   const review = await read('skills/risk-adaptive-review/SKILL.md');
   const receiving = await read('skills/receiving-code-review/SKILL.md');
   assert.match(review, /semantic review package/i);
-  assert.match(review, /attempt-specific|one immutable.*per.*attempt/is);
-  assert.match(review, /review-lifecycle\.mjs/);
-  assert.match(review, /circuit.breaker.*fresh.*review|fresh.*review.*circuit.breaker/is);
   assert.match(review, /binding requirement IDs/i);
   assert.match(review, /attempt.*falsif|falsif.*intended acceptance claims/is);
   assert.match(review, /BLOCKED_BY_MISSING_EVIDENCE/);
   assert.match(receiving, /invalidate.*evidence|evidence.*invalidate/is);
   assert.match(receiving, /invalidate.*approval|approval.*invalidate/is);
   assert.match(receiving, /same reviewer.*one.*recheck|one.*recheck.*same reviewer/is);
-});
-
-test('completion requires durable review lifecycle and assurance accounting', async () => {
-  const verification = await read('skills/verification-before-completion/SKILL.md');
-  assert.match(verification, /--review-lifecycle/);
-  assert.match(verification, /--assurance-accounting/);
-  assert.match(verification, /observed.*dispatch.*budget|dispatch.*budget.*observed/is);
 });

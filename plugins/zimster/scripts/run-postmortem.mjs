@@ -1,45 +1,17 @@
 import { createHash } from 'node:crypto';
-import { mkdir, readFile, readdir, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseOptions, writeLine } from './lib/cli.mjs';
 import { findRepoRoot } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 import { readRunState } from './lib/run-state.mjs';
-import {
-  postmortemStateBinding,
-  validatePostmortemState
-} from './lib/postmortem-state.mjs';
 
-const { positional, options } = parseOptions(process.argv.slice(2));
+const { options } = parseOptions(process.argv.slice(2));
 const runtime = options.runtime
   ? path.resolve(process.cwd(), String(options.runtime))
   : await ensureRuntimeDirectory(findRepoRoot(process.cwd()));
 const generatedAt = options.now ? new Date(String(options.now)) : new Date();
 if (!Number.isFinite(generatedAt.getTime())) throw new Error('--now must be an ISO-8601 timestamp');
-
-async function writeAtomically(file, contents) {
-  const temporary = `${file}.temporary-${process.pid}-${Date.now()}`;
-  try {
-    await writeFile(temporary, contents, { flag: 'wx' });
-    await rename(temporary, file);
-  } finally {
-    await rm(temporary, { force: true });
-  }
-}
-
-if (positional[0] === 'check') {
-  const file = path.resolve(process.cwd(), String(options.file || ''));
-  if (!options.file) throw new Error('postmortem check requires --file');
-  const report = JSON.parse(await readFile(file, 'utf8'));
-  const validation = await validatePostmortemState(report, runtime);
-  writeLine(JSON.stringify({
-    schema_version: 1,
-    status: validation.current ? 'POSTMORTEM_CURRENT' : 'POSTMORTEM_STALE',
-    report: file,
-    reason: validation.reason
-  }));
-  if (!validation.current) process.exitCode = 2;
-} else {
 
 async function optionalJson(relative) {
   try {
@@ -349,8 +321,7 @@ if (!budget) {
 const report = {
   schema_version: 1,
   generated_at: generatedAt.toISOString(),
-  runtime: 'git-local:zimster',
-  source_state: await postmortemStateBinding(runtime),
+  runtime,
   metrics: {
     identities: metric('identities', identities),
     starts_and_resumes: metric('starts_and_resumes', startsAndResumes),
@@ -417,9 +388,7 @@ const identity = createHash('sha256').update(JSON.stringify(report)).digest('hex
 const directory = path.join(runtime, 'postmortems');
 const reportPath = path.join(directory, `${identity}.json`);
 await mkdir(directory, { recursive: true });
-const reportBytes = `${JSON.stringify(report, null, 2)}\n`;
-await writeAtomically(reportPath, reportBytes);
-await writeAtomically(path.join(directory, 'latest.json'), reportBytes);
+await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
 writeLine(JSON.stringify({
   schema_version: 1,
   status: 'created',
@@ -427,4 +396,3 @@ writeLine(JSON.stringify({
   unavailable_metrics: report.unavailable_metrics.length,
   report: reportPath
 }));
-}

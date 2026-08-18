@@ -1,11 +1,9 @@
 # Kimi Code
 
-Exact-final verification for Zimster 0.7.1 is `STRUCTURALLY_VALIDATED` because
-the Kimi CLI was unavailable. The exact npm package contains the Kimi manifest,
-session-start surface, and canonical skills. An earlier Kimi Code 0.36.1
-managed-copy install used an older candidate and remains historical context;
-managed-copy installation, reload, and model-backed execution are not
-established for the final artifact.
+Verification level for Zimster 0.7.0: `STRUCTURALLY_VALIDATED`; the Kimi CLI was
+`UNAVAILABLE` in the release environment. The native manifest uses documented
+fields, canonical skill paths, and exactly one `sessionStart.skill`. Managed
+installation, discovery, and model-backed execution are not claimed.
 
 ## Install
 
@@ -34,22 +32,15 @@ enabled installation.
 
 ## Diagnostics
 
-Use `/plugins info zimster` and `/plugins reload`. `sessionStart.skill` applies
-to new and resumed sessions, while a changed local source directory does not
-affect Kimi's managed copy until reinstall/reload.
+Use `/plugins info zimster` and `/plugins reload`. Because the CLI was absent,
+any Kimi-specific loading problem remains `UNAVAILABLE` release evidence until
+reproduced with the documented host.
 
 ## Verification status
 
-The exact final candidate is `STRUCTURALLY_VALIDATED`. Managed-copy
-installation, reload, model-backed behavior, and effective runtime tool
-restriction remain unverified.
+Only manifest and skill structure are `STRUCTURALLY_VALIDATED`. Installation,
+fresh-session discovery, and model-backed behavior are not release claims.
 
 Zimster maps only to Kimi's symbolic `primary`, a host-verified experimental
 `secondary`, or inheritance. Vendor model IDs are not stored in the manifest.
 Unsupported reviewer or routing controls remain explicit fallbacks.
-
-Kimi supports nested `Agent` and high-fanout `AgentSwarm`; prompt text alone is
-not a restriction. Every packaged Zimster agent declares `subagents: []`, which
-Kimi re-checks for both dispatch tools. Use a named packaged role when claiming
-that enforcement. A generic built-in agent remains outside that claim and must
-be detected through assurance accounting.

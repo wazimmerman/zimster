@@ -28,7 +28,7 @@ const requirementStates = new Set([
   'blocked_by_environment', 'blocked_by_requirement', 'not_applicable'
 ]);
 const observationStates = new Set(['valid', 'stale', 'invalidated', 'unavailable']);
-const requirementIdPattern = /^[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*-[0-9]{3,}$/;
+const requirementIdPattern = /^[A-Z][A-Z0-9]*-[0-9]{3,}$/;
 const stringList = (value) => Array.isArray(value)
   && new Set(value).size === value.length
   && value.every((item) => typeof item === 'string' && item.length > 0);
@@ -56,17 +56,7 @@ for (const requirement of requirements.requirements) {
   }
   if (!Array.isArray(row.implementation_locations) || row.implementation_locations.length === 0) errors.push(`requirement ${requirement.id} has no implementation location`);
   if (!Array.isArray(row.intended_acceptance_claims) || row.intended_acceptance_claims.length === 0) errors.push(`requirement ${requirement.id} has no acceptance claim`);
-  const deferredUntilPostpublication = row.status === 'partially_verified'
-    && row.proof_deferred_until === 'postpublication'
-    && Array.isArray(row.evidence_refs)
-    && row.evidence_refs.length > 0
-    && Array.isArray(row.unavailable_proof)
-    && row.unavailable_proof.length > 0;
-  if (
-    phase === 'release'
-    && !['verified', 'not_applicable'].includes(row.status)
-    && !deferredUntilPostpublication
-  ) errors.push(`requirement ${requirement.id} is ${row.status}, not release-conformant`);
+  if (phase === 'release' && !['verified', 'not_applicable'].includes(row.status)) errors.push(`requirement ${requirement.id} is ${row.status}, not release-conformant`);
   if (phase === 'release' && row.status === 'verified' && (!Array.isArray(row.evidence_refs) || row.evidence_refs.length === 0)) errors.push(`verified requirement ${requirement.id} has no evidence reference`);
 }
 for (const row of matrix.requirements) {

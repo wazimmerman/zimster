@@ -7,13 +7,10 @@ import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 import {
   initializeExecutionBudget,
   normalizeBudgetProfile,
-  reconcileExecutionBudgetProofIdentities,
   recordExecutionBudgetEvent,
-  satisfyExecutionBudgetProof,
-  supersedeExecutionBudgetProof
+  satisfyExecutionBudgetProof
 } from './lib/execution-budget.mjs';
-import { normalizeConvergenceMetric, validateConvergenceConfig } from './lib/convergence.mjs';
-import { withControlPlaneMutation } from './lib/control-plane-mutation.mjs';
+import { validateConvergenceConfig } from './lib/convergence.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
@@ -30,60 +27,21 @@ if (action === 'init') {
   const convergence = options.config
     ? validateConvergenceConfig(JSON.parse(await readFile(path.resolve(root, String(options.config)), 'utf8')))
     : null;
-  const { budgetFile, state } = await withControlPlaneMutation(runtime, root, {
-    mutationType: 'execution_budget_initialized',
-    atomicFailure: true
-  }, () => initializeExecutionBudget(runtime, profile, {
+  const { budgetFile, state } = await initializeExecutionBudget(runtime, profile, {
     tokenThreshold,
     limits: convergence?.autonomous_convergence.limits,
     overwrite: options.force === true
-  }));
+  });
   emit('BUDGET_INITIALIZED', { profile, limits: state.limits, path: budgetFile });
 } else if (action === 'record') {
   const metric = required(options, 'metric');
   const amount = integerOption(options, 'amount', 1);
   const agentId = options['agent-id'] ? String(options['agent-id']) : null;
-  let scope = options.scope ? String(options.scope) : null;
-  const semanticContract = options['semantic-contract-sha256']
-    ? String(options['semantic-contract-sha256'])
-    : null;
-  if (semanticContract !== null) {
-    if (normalizeConvergenceMetric(metric) !== 'correction_rechecks') {
-      throw new Error('--semantic-contract-sha256 is only valid for correction_rechecks');
-    }
-    if (!scope || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(scope)) {
-      throw new Error('semantic correction rechecks require a safe --scope seam ID');
-    }
-    if (!/^[0-9a-f]{64}$/.test(semanticContract)) {
-      throw new Error('--semantic-contract-sha256 must be a lowercase SHA-256 digest');
-    }
-    let lifecycle;
-    try {
-      lifecycle = JSON.parse(await readFile(
-        path.join(runtime, 'review-lifecycle', `${scope}.json`),
-        'utf8'
-      ));
-    } catch (error) {
-      if (error.code === 'ENOENT') throw new Error(`review lifecycle is not initialized: ${scope}`);
-      throw error;
-    }
-    if (lifecycle.seam_id !== scope
-      || lifecycle.status !== 'correction_recheck_required'
-      || lifecycle.candidate?.semantic_contract_sha256 !== semanticContract) {
-      throw new Error(
-        '--semantic-contract-sha256 must match the current lifecycle semantic contract and an authorized correction recheck state'
-      );
-    }
-    scope = `${scope}@${semanticContract}`;
-  }
+  const scope = options.scope ? String(options.scope) : null;
   const invalidation = options.invalidation ? String(options.invalidation) : null;
   const strategyChange = options['strategy-change'] ? String(options['strategy-change']) : null;
   const requiredProof = options['required-proof'] ? String(options['required-proof']) : null;
-  const result = await withControlPlaneMutation(runtime, root, {
-    mutationType: 'execution_budget_event_recorded',
-    didMutate: (value) => value.changed === true,
-    atomicFailure: true
-  }, () => recordExecutionBudgetEvent(runtime, {
+  const result = await recordExecutionBudgetEvent(runtime, {
     metric,
     amount,
     agentId,
@@ -98,45 +56,17 @@ if (action === 'init') {
     requiredProofCommand: options['required-proof-command'] ? String(options['required-proof-command']) : null,
     candidateStable: options['candidate-stable'] === true || options['candidate-stable'] === 'true',
     candidateHead: options['candidate-head'] ? String(options['candidate-head']) : null
-  }));
+  });
   emit(result.status, result.detail);
   if (['BUDGET_CONSTRAINED', 'BUDGET_PROOF_REQUIRED', 'FINAL_REVIEW_RESERVED'].includes(result.status)) {
     process.exitCode = 2;
   }
 } else if (action === 'prove') {
-  const result = await withControlPlaneMutation(runtime, root, {
-    mutationType: 'execution_budget_proof_satisfied',
-    atomicFailure: true
-  }, () => satisfyExecutionBudgetProof(runtime, {
+  const result = await satisfyExecutionBudgetProof(runtime, {
     proof: required(options, 'proof'),
     receiptId: required(options, 'receipt')
-  }));
-  emit(result.status, result.detail);
-} else if (action === 'supersede') {
-  const result = await withControlPlaneMutation(runtime, root, {
-    mutationType: 'execution_budget_proof_superseded',
-    atomicFailure: true
-  }, () => supersedeExecutionBudgetProof(runtime, {
-    proof: required(options, 'proof'),
-    replacementProof: required(options, 'replacement-proof'),
-    reason: required(options, 'reason'),
-    requiredProofType: required(options, 'required-proof-type'),
-    requiredProofKind: options['required-proof-kind'] ? String(options['required-proof-kind']) : null,
-    requiredProofScope: options['required-proof-scope'] ? String(options['required-proof-scope']) : null,
-    requiredProofProfile: options['required-proof-profile'] ? String(options['required-proof-profile']) : null,
-    requiredProofCommand: options['required-proof-command'] ? String(options['required-proof-command']) : null
-  }));
-  emit(result.status, result.detail);
-} else if (action === 'reconcile-identities') {
-  const result = await withControlPlaneMutation(runtime, root, {
-    mutationType: 'execution_budget_proof_identities_reconciled',
-    atomicFailure: true
-  }, () => reconcileExecutionBudgetProofIdentities(runtime, {
-    proof: required(options, 'proof'),
-    bindings: JSON.parse(required(options, 'bindings')),
-    reason: required(options, 'reason')
-  }));
+  });
   emit(result.status, result.detail);
 } else {
-  throw new Error('Usage: run-budget.mjs <init|record|prove|supersede|reconcile-identities> [options]');
+  throw new Error('Usage: run-budget.mjs <init|record|prove> [options]');
 }

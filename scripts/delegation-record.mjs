@@ -5,8 +5,6 @@ import { parseOptions, required, writeError, writeLine } from './lib/cli.mjs';
 import { findRepoRoot, gitValue } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 import { validateDelegationDecision } from './lib/model-routing.mjs';
-import { reconcileExecutionAccounting } from './lib/governed-execution.mjs';
-import { withControlPlaneMutation } from './lib/control-plane-mutation.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
@@ -49,18 +47,6 @@ async function main() {
   }
   if (action !== 'decide') throw new Error('Usage: delegation-record.mjs <decide|list>');
   const selected = booleanOption('selected');
-  let activeRun = null;
-  try {
-    activeRun = JSON.parse(await readFile(path.join(runtime, 'run.json'), 'utf8'));
-  } catch (error) {
-    if (error.code !== 'ENOENT') throw error;
-  }
-  if (selected && activeRun?.schema_version === 3) {
-    const accounting = await reconcileExecutionAccounting(runtime, root, { mutate: false });
-    if (accounting.status !== 'ACCOUNTING_CURRENT') {
-      throw new Error(`${accounting.status}: optional delegation requires current governed execution accounting`);
-    }
-  }
   const decision = {
     schema_version: 1,
     id: randomUUID(),
@@ -79,9 +65,7 @@ async function main() {
     acceptance_proof: required(options, 'acceptance-proof')
   });
   validateDelegationDecision(decision);
-  await withControlPlaneMutation(runtime, root, {
-    mutationType: 'delegation_decision_recorded'
-  }, () => appendFile(file, `${JSON.stringify(decision)}\n`));
+  await appendFile(file, `${JSON.stringify(decision)}\n`);
   writeLine(JSON.stringify(decision));
 }
 

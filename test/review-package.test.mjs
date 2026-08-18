@@ -80,8 +80,7 @@ test('review package keeps authoritative changes and hashes generated mirrors wi
         },
         unavailable_proof: ['Independent review pending.'],
         status: 'partially_verified',
-        intended_acceptance_claims: ['Semantic review inputs are complete.'],
-        tdd_evidence: 'not_claimed'
+        intended_acceptance_claims: ['Semantic review inputs are complete.']
       }],
       observations: []
     }));
@@ -90,9 +89,6 @@ test('review package keeps authoritative changes and hashes generated mirrors wi
       path.join(root, 'scripts/review-package.mjs'),
       '--base', base,
       '--head', head,
-      '--attempt-type', 'final_integration_review',
-      '--attempt-id', 'attempt-final',
-      '--seam-id', 'release-policy',
       '--requirements', requirements,
       '--binding-requirements', bindingRequirements,
       '--matrix', matrix,
@@ -112,11 +108,6 @@ test('review package keeps authoritative changes and hashes generated mirrors wi
     assert.equal(summary.head, head);
 
     const review = JSON.parse(await readFile(summary.package, 'utf8'));
-    assert.equal(review.attempt_type, 'final_integration_review');
-    assert.equal(review.attempt_id, 'attempt-final');
-    assert.equal(review.seam_id, 'release-policy');
-    assert.equal(review.candidate_checkout.head, head);
-    assert.match(review.candidate_checkout.dirty_tree_fingerprint, /^[0-9a-f]{64}$/);
     assert.deepEqual(review.authoritative_changed_files.map(({ path: file }) => file), [
       'scripts/example.mjs'
     ]);
@@ -158,27 +149,6 @@ test('review package keeps authoritative changes and hashes generated mirrors wi
     assert.match(diff, /scripts\/example\.mjs/);
     assert.doesNotMatch(diff, /plugins\/zimster/);
 
-    const repeated = run(process.execPath, [
-      path.join(root, 'scripts/review-package.mjs'),
-      '--base', base,
-      '--head', head,
-      '--attempt-type', 'final_integration_review',
-      '--attempt-id', 'attempt-final',
-      '--seam-id', 'release-policy',
-      '--requirements', requirements,
-      '--binding-requirements', bindingRequirements,
-      '--matrix', matrix,
-      '--interfaces', 'interface.json',
-      '--lenses', 'mission,state-authority',
-      '--risk-signals', 'build-tool,shared-adapter-control-flow',
-      '--intended-claims', JSON.stringify(['Semantic review inputs are complete.']),
-      '--unavailable-proof', JSON.stringify(['Independent review pending.']),
-      '--requested-state', 'CANDIDATE_COMPLETE'
-    ], repo);
-    assert.equal(repeated.status, 0, repeated.stderr || repeated.stdout);
-    assert.equal(JSON.parse(repeated.stdout).status, 'existing');
-    assert.equal(JSON.parse(repeated.stdout).id, summary.id);
-
     const invalidation = run(process.execPath, [
       path.join(root, 'scripts/evidence.mjs'), 'invalidate',
       '--id', receipt.id,
@@ -189,9 +159,6 @@ test('review package keeps authoritative changes and hashes generated mirrors wi
       path.join(root, 'scripts/review-package.mjs'),
       '--base', base,
       '--head', head,
-      '--attempt-type', 'final_integration_review',
-      '--attempt-id', 'attempt-final',
-      '--seam-id', 'release-policy',
       '--requirements', requirements,
       '--binding-requirements', bindingRequirements,
       '--matrix', matrix,
@@ -227,9 +194,6 @@ test('review package keeps authoritative changes and hashes generated mirrors wi
       path.join(root, 'scripts/review-package.mjs'),
       '--base', base,
       '--head', head,
-      '--attempt-type', 'new_design_review',
-      '--attempt-id', 'attempt-redesign',
-      '--seam-id', 'release-policy',
       '--requirements', requirements,
       '--binding-requirements', bindingRequirements,
       '--matrix', matrix,
@@ -264,75 +228,10 @@ test('review package rejects mutable base or head references', async () => {
     await commit(repo, 'base');
     const result = run(process.execPath, [
       path.join(root, 'scripts/review-package.mjs'),
-      '--base', 'main', '--head', 'HEAD',
-      '--attempt-type', 'initial_review',
-      '--attempt-id', 'attempt-initial',
-      '--seam-id', 'fixture-seam'
+      '--base', 'main', '--head', 'HEAD'
     ], repo);
     assert.notEqual(result.status, 0, result.stderr || result.stdout);
     assert.match(result.stderr, /immutable|40-character|sha/i);
-  } finally {
-    await rm(repo, { recursive: true, force: true });
-  }
-});
-
-test('review package rejects an existing head outside the immutable base ancestry', async () => {
-  const repo = await mkdtemp(path.join(os.tmpdir(), 'zimster-review-ancestry-'));
-  try {
-    assert.equal(run('git', ['init', '-b', 'main'], repo).status, 0);
-    assert.equal(run('git', ['config', 'user.name', 'Zimster Test'], repo).status, 0);
-    assert.equal(run('git', ['config', 'user.email', 'test@example.com'], repo).status, 0);
-    await writeFile(path.join(repo, 'tracked.txt'), 'base\n');
-    const base = await commit(repo, 'base');
-    const tree = run('git', ['rev-parse', `${base}^{tree}`], repo).stdout.trim();
-    const unrelated = run('git', ['commit-tree', tree, '-m', 'unrelated'], repo).stdout.trim();
-    const result = run(process.execPath, [
-      path.join(root, 'scripts/review-package.mjs'),
-      '--base', base, '--head', unrelated,
-      '--attempt-type', 'initial_review',
-      '--attempt-id', 'attempt-unrelated',
-      '--seam-id', 'fixture-seam'
-    ], repo);
-    assert.notEqual(result.status, 0, result.stderr || result.stdout);
-    assert.match(result.stderr, /base.*ancestor|ancestry/i);
-  } finally {
-    await rm(repo, { recursive: true, force: true });
-  }
-});
-
-test('review package preserves reconstructable dirty tracked and untracked state', async () => {
-  const repo = await mkdtemp(path.join(os.tmpdir(), 'zimster-review-dirty-'));
-  try {
-    assert.equal(run('git', ['init', '-b', 'main'], repo).status, 0);
-    assert.equal(run('git', ['config', 'user.name', 'Zimster Test'], repo).status, 0);
-    assert.equal(run('git', ['config', 'user.email', 'test@example.com'], repo).status, 0);
-    await writeFile(path.join(repo, 'tracked.txt'), 'base\n');
-    const base = await commit(repo, 'base');
-    await writeFile(path.join(repo, 'tracked.txt'), 'dirty tracked\n');
-    await writeFile(path.join(repo, 'untracked.bin'), Buffer.from([0, 1, 2, 255]));
-
-    const result = run(process.execPath, [
-      path.join(root, 'scripts/review-package.mjs'),
-      '--base', base, '--head', base,
-      '--attempt-type', 'initial_review',
-      '--attempt-id', 'attempt-dirty',
-      '--seam-id', 'dirty-seam'
-    ], repo);
-    assert.equal(result.status, 0, result.stderr || result.stdout);
-    const review = JSON.parse(await readFile(JSON.parse(result.stdout).package, 'utf8'));
-    assert.equal(review.candidate_checkout.current_checkout_observed, true);
-    assert.equal(review.dirty_state.dirty_tree_fingerprint,
-      review.candidate_checkout.dirty_tree_fingerprint);
-    assert.equal(review.dirty_state.reconstructable, true);
-    assert.match(await readFile(review.dirty_state.tracked_patch, 'utf8'), /dirty tracked/);
-    assert.deepEqual(review.dirty_state.untracked_files, [{
-      path: 'untracked.bin',
-      kind: 'file',
-      mode: 33188,
-      bytes: 4,
-      sha256: '3d1f57c984978ef98a18378c8166c1cb8ede02c03eeb6aee7e2f121dfeee3e56',
-      content_base64: 'AAEC/w=='
-    }]);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

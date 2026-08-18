@@ -6,11 +6,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseOptions, writeLine } from './lib/cli.mjs';
 import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
-import { beginGovernedExecution, finishGovernedExecution } from './lib/governed-execution.mjs';
+import { recordExecutionBudgetEvent } from './lib/execution-budget.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
-import { recordVerificationInRecovery } from './lib/run-control.mjs';
-import { withControlPlaneMutation } from './lib/control-plane-mutation.mjs';
-import { inputDigest } from './lib/evidence-validity.mjs';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const script = (name) => path.join(packageRoot, 'scripts', name);
@@ -30,11 +27,7 @@ const commonAfterPackage = [
   nodeStep('secret-scan', 'secret-scan.mjs'),
   nodeStep('installed-package-smoke', 'installed-package-smoke.mjs'),
   nodeStep('host-smoke', 'host-smoke.mjs'),
-  nodeStep('review-package', 'review-package.mjs', [
-    '--attempt-type', 'initial_review',
-    '--attempt-id', 'goal-verification',
-    '--seam-id', 'whole-change'
-  ])
+  nodeStep('review-package', 'review-package.mjs')
 ];
 const BUILTIN_PROFILES = Object.freeze({
   goal: {
@@ -76,14 +69,6 @@ function validatePlan(plan) {
     throw new Error('verification plan requires at least one step');
   }
   const ids = new Set();
-  const claimArray = (step, field) => {
-    if (step[field] === undefined) return [];
-    if (!Array.isArray(step[field])
-      || !step[field].every((value) => typeof value === 'string' && value.trim())) {
-      throw new Error(`verification step ${field} must be an array of non-empty strings`);
-    }
-    return step[field];
-  };
   for (const step of plan.steps) {
     if (
       !step
@@ -112,15 +97,6 @@ function validatePlan(plan) {
       }
     }
     if (ids.has(step.id)) throw new Error(`duplicate verification step id: ${step.id}`);
-    for (const requirementId of claimArray(step, 'requirement_ids')) {
-      if (!/^[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*-[0-9]{3,}$/.test(requirementId)) {
-        throw new Error(`verification step has malformed requirement ID: ${requirementId}`);
-      }
-    }
-    claimArray(step, 'establishes');
-    claimArray(step, 'does_not_establish');
-    claimArray(step, 'environment_scopes');
-    claimArray(step, 'input_files');
     ids.add(step.id);
   }
   return plan;
@@ -139,8 +115,7 @@ async function selectedPlan() {
   if (profile === 'release' && action === 'run') {
     const requiredSemanticOptions = [
       'requirements', 'binding-requirements', 'matrix', 'reviews', 'review-package',
-      'review-lifecycle', 'assurance-accounting', 'execution-budget',
-      'load-bearing-review-obligations', 'attempt-type', 'attempt-id', 'seam-id'
+      'load-bearing-review-obligations'
     ];
     const missing = requiredSemanticOptions.filter((name) => !options[name]);
     if (missing.length || options['owner-verified'] !== true) {
@@ -158,7 +133,7 @@ async function selectedPlan() {
     const reviewOptions = [
       'base', 'head', 'requirements', 'binding-requirements', 'matrix',
       'lenses', 'risk-signals', 'intended-claims', 'unavailable-proof',
-      'requested-state', 'interfaces', 'attempt-type', 'attempt-id', 'seam-id'
+      'requested-state', 'interfaces'
     ];
     for (const name of reviewOptions) {
       if (options[name]) reviewStep.args.push(`--${name}`, String(options[name]));
@@ -172,9 +147,6 @@ async function selectedPlan() {
       '--matrix', String(options.matrix),
       '--reviews', String(options.reviews),
       '--review-package', String(options['review-package']),
-      '--review-lifecycle', String(options['review-lifecycle']),
-      '--assurance-accounting', String(options['assurance-accounting']),
-      '--execution-budget', String(options['execution-budget']),
       '--load-bearing-review-obligations', String(options['load-bearing-review-obligations']),
       '--release-channel', String(options['release-channel'] || 'public_beta')
     );
@@ -204,46 +176,9 @@ function digest(text) {
 }
 
 function actionable(result, reason) {
-  const outputLines = [result.stderr, result.stdout]
-    .map((value) => String(value || '').trim())
-    .filter(Boolean)
-    .join('\n')
-    .split('\n')
-    .map((line) => line.trim())
-    .filter(Boolean);
-  const line = outputLines.find((candidate) =>
-    /(?:AssertionError|Error)(?: \[[^\]]+\])?:\s+\S/.test(candidate)
-      && !/['"]?test failed['"]?/i.test(candidate)
-  ) || outputLines.at(-1) || reason;
+  const source = String(result.stderr || result.stdout || reason).trim();
+  const line = source.split('\n').filter(Boolean).at(-1) || reason;
   return line.length > 300 ? `${line.slice(0, 297)}...` : line;
-}
-
-async function fingerprintStepInputs(step) {
-  const fingerprints = [];
-  for (const input of step.input_files || []) {
-    try {
-      fingerprints.push({
-        input,
-        digest: await inputDigest(path.resolve(root, input))
-      });
-    } catch (error) {
-      return { fingerprints, failure: { input, error } };
-    }
-  }
-  return { fingerprints, failure: null };
-}
-
-function fingerprintFailureResult(failure, prior = null) {
-  const detail = [failure.error?.code, failure.error?.message]
-    .filter(Boolean).join(': ');
-  return {
-    status: 1,
-    stdout: String(prior?.stdout || ''),
-    stderr: [
-      String(prior?.stderr || '').trimEnd(),
-      `verification step input fingerprint failed: ${failure.input}${detail ? ` (${detail})` : ''}`
-    ].filter(Boolean).join('\n') + '\n'
-  };
 }
 
 async function runPlan(plan) {
@@ -261,45 +196,38 @@ async function runPlan(plan) {
   let actionText = null;
   let warnings = 0;
   let budget = { status: 'not_required' };
-  let governed = null;
-  const childEnvironment = { ...process.env };
-  delete childEnvironment.NODE_TEST_CONTEXT;
-  governed = await withControlPlaneMutation(runtime, root, {
-    mutationType: 'governed_verification_started',
-    didMutate: (value) => value.admitted === true
-  }, () => beginGovernedExecution(runtime, root, {
-    sourceRoot: packageRoot,
-    issuer: 'zimster.verify',
-    commandArgv: [process.execPath, ...process.argv.slice(1)],
-    cwd: root,
-    profile: plan.profile,
-    context: { type: 'verification_plan', profile: plan.profile },
-    completeSuite: plan.complete_suite === true,
-    budgetOverride: {
-      invalidation: options.invalidation ? String(options.invalidation) : null,
-      strategyChange: options['strategy-change'] ? String(options['strategy-change']) : null,
-      requiredProof: options['required-proof'] ? String(options['required-proof']) : null,
-      requiredProofType: options['required-proof-type']
-        ? String(options['required-proof-type'])
-        : null,
-      requiredProofKind: options['required-proof-kind']
-        ? String(options['required-proof-kind'])
-        : null,
-      requiredProofScope: options['required-proof-scope']
-        ? String(options['required-proof-scope'])
-        : null,
-      requiredProofProfile: options['required-proof-profile']
-        ? String(options['required-proof-profile'])
-        : null,
-      requiredProofCommand: options['required-proof-command']
-        ? String(options['required-proof-command'])
-        : null
+  if (plan.complete_suite === true) {
+    try {
+      const result = await recordExecutionBudgetEvent(runtime, {
+        metric: 'complete_suite_executions',
+        invalidation: options.invalidation ? String(options.invalidation) : null,
+        strategyChange: options['strategy-change'] ? String(options['strategy-change']) : null,
+        requiredProof: options['required-proof'] ? String(options['required-proof']) : null,
+        requiredProofType: options['required-proof-type']
+          ? String(options['required-proof-type'])
+          : null,
+        requiredProofKind: options['required-proof-kind']
+          ? String(options['required-proof-kind'])
+          : null,
+        requiredProofScope: options['required-proof-scope']
+          ? String(options['required-proof-scope'])
+          : null,
+        requiredProofProfile: options['required-proof-profile']
+          ? String(options['required-proof-profile'])
+          : null,
+        requiredProofCommand: options['required-proof-command']
+          ? String(options['required-proof-command'])
+          : null
+      });
+      budget = { status: result.status, ...result.detail };
+      if (!result.changed) {
+        failedStep = 'execution-budget';
+        actionText = `${result.status}: complete-suite execution requires an invalidation or strategy change`;
+      }
+    } catch (error) {
+      if (error.code === 'ENOENT') budget = { status: 'unavailable' };
+      else throw error;
     }
-  }));
-  budget = governed.budget;
-  if (!governed.admitted) {
-    failedStep = 'execution-budget';
-    actionText = `${budget.status}: governed verification execution was not admitted`;
   }
 
   for (const step of plan.steps) {
@@ -308,38 +236,14 @@ async function runPlan(plan) {
       continue;
     }
     const started = performance.now();
-    const beforeFingerprint = await fingerprintStepInputs(step);
-    const inputFingerprints = beforeFingerprint.fingerprints;
-    let inputFingerprintFailure = beforeFingerprint.failure;
-    const missingInput = inputFingerprints.find(({ digest: value }) => value === 'missing');
-    let result = inputFingerprintFailure
-      ? fingerprintFailureResult(inputFingerprintFailure)
-      : missingInput
-      ? {
-          status: 1,
-          stdout: '',
-          stderr: `verification step executed input is missing: ${missingInput.input}\n`
-        }
-      : spawnSync(step.command, step.args, {
-          cwd: root,
-          encoding: 'utf8',
-          env: childEnvironment,
-          shell: false,
-          maxBuffer: 128 * 1024 * 1024
-        });
+    const result = spawnSync(step.command, step.args, {
+      cwd: root,
+      encoding: 'utf8',
+      env: process.env,
+      shell: false,
+      maxBuffer: 128 * 1024 * 1024
+    });
     const durationMs = Math.round((performance.now() - started) * 1000) / 1000;
-    let changedInput = null;
-    if (!inputFingerprintFailure && !missingInput) {
-      const afterFingerprint = await fingerprintStepInputs(step);
-      inputFingerprintFailure = afterFingerprint.failure;
-      if (inputFingerprintFailure) {
-        result = fingerprintFailureResult(inputFingerprintFailure, result);
-      } else {
-        changedInput = afterFingerprint.fingerprints.find(({ input, digest: current }) =>
-          inputFingerprints.find((prior) => prior.input === input)?.digest !== current
-        ) || null;
-      }
-    }
     const log = logText(step, result);
     const logPath = path.join(logDirectory, `${step.id}.log`);
     await writeFile(logPath, log);
@@ -349,19 +253,12 @@ async function runPlan(plan) {
       : false;
     const unexpectedStderr = (result.status ?? 1) === 0 && stderr.trim() !== '' && !expectedStderr;
     if (unexpectedStderr) warnings += 1;
-    const failed = (result.status ?? 1) !== 0
-      || unexpectedStderr || Boolean(changedInput) || Boolean(inputFingerprintFailure);
-    const reason = inputFingerprintFailure
-      ? 'input_fingerprint_error'
-      : missingInput
-      ? 'missing_input'
-      : unexpectedStderr
+    const failed = (result.status ?? 1) !== 0 || unexpectedStderr;
+    const reason = unexpectedStderr
       ? 'unexpected_stderr'
-      : changedInput
-        ? 'executed_input_changed'
-        : failed
-          ? 'nonzero_exit'
-          : null;
+      : failed
+        ? 'nonzero_exit'
+        : null;
     steps.push({
       id: step.id,
       command_argv: [step.command, ...step.args],
@@ -371,12 +268,7 @@ async function runPlan(plan) {
       exit_code: result.status ?? 1,
       duration_ms: durationMs,
       log: logPath,
-      log_sha256: digest(log),
-      requirement_ids: [...(step.requirement_ids || [])],
-      establishes: [...(step.establishes || [])],
-      does_not_establish: [...(step.does_not_establish || [])],
-      environment_scopes: [...(step.environment_scopes || [])],
-      input_fingerprints: inputFingerprints
+      log_sha256: digest(log)
     });
     if (failed) {
       failedStep = step.id;
@@ -388,10 +280,8 @@ async function runPlan(plan) {
   const state = await captureGitState(root);
   const status = failedStep ? 'failed' : 'passed';
   const receipt = {
-    schema_version: 2,
+    schema_version: 1,
     id,
-    issuer: 'zimster.verify',
-    execution_id: governed.admitted ? governed.receipt.id : null,
     profile: plan.profile,
     status,
     started_at: startedAt,
@@ -411,24 +301,10 @@ async function runPlan(plan) {
     action: actionText,
     steps
   };
-  const receiptBytes = `${JSON.stringify(receipt, null, 2)}\n`;
-  await writeFile(receiptPath, receiptBytes, { flag: 'wx' });
-  if (governed.admitted) {
-    await finishGovernedExecution(runtime, root, {
-      executionId: governed.receipt.id,
-      status,
-      exitCode: failedStep ? 1 : 0,
-      terminalReceiptType: 'verification',
-      terminalReceiptId: id,
-      terminalReceiptBytes: receiptBytes,
-      compactResult: { profile: plan.profile, warnings, failed_step: failedStep }
-    });
-  }
-  await recordVerificationInRecovery(runtime, root, receipt);
+  await writeFile(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, { flag: 'wx' });
   const summary = {
     schema_version: 1,
     id,
-    execution_id: receipt.execution_id,
     profile: plan.profile,
     status,
     warnings,

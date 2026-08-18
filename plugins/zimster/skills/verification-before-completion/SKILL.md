@@ -69,21 +69,11 @@ successful full-suite executions.
 
 Record commands with `<zimster-runtime>/scripts/evidence.mjs` when available. A receipt binds command, working
 -tree fingerprint, Git head/tree, cwd, environment, exit code, test discovery,
-counts, scope, and timestamps. `evidence.mjs run` and `verify.mjs run` also
-write a governed execution start before spawning, then bind the terminal
-receipt bytes to that execution. Manual `evidence.mjs record` is descriptive
-history and cannot satisfy an execution-budget proof.
-
-Successful helper-backed evidence, verification, review, budget, accounting,
-and finalization mutations must leave the run revision, recovery checkpoint,
-audit event, and derived `run.md` synchronized. Resume any durable transaction
-marker before relying on later evidence.
+counts, scope, and timestamps.
 
 Reuse only valid focused evidence whose fingerprint and dependency cone remain
 unchanged. Report reusable duplicates rather than rerunning by habit. Final
 completion gates are always run fresh; `--reuse` never satisfies a final claim.
-A proof used to justify a budget override must already have completed before
-the override created the obligation; post-override receipts are circular.
 A correction invalidates every proof whose dependency cone includes it.
 An ordinary deterministic verification failure continues autonomously within
 the final-verification budget when it is in-scope, reversible, non-sensitive,
@@ -104,18 +94,6 @@ git diff --cached
 Use `<zimster-runtime>/scripts/change-snapshot.mjs` to include all untracked files without
 modifying the index, or read every untracked file directly. `git diff` alone is
 not a complete review when new files exist.
-
-Run the read-only canonical coherence check before final-review admission and
-again for completion:
-
-```text
-node <zimster-runtime>/scripts/coherence-preflight.mjs check \
-  --operation completion --seam-id <stable-id>
-```
-
-Do not continue from `COHERENCE_BLOCKED`. Reconcile each named canonical owner,
-refresh the derived `run.md`, and obtain fresh evidence where the report marks
-receipts or proofs stale. The check must not be used as a repair command.
 
 ## Verification ladder
 
@@ -146,16 +124,8 @@ node <zimster-runtime>/scripts/semantic-assurance.mjs complete \
   --requirements <binding.json> --matrix <matrix.json> \
   --evidence <receipts.jsonl> --reviews <reviews.json> \
   --review-package <review-package.json> \
-  --review-lifecycle <review-lifecycle.json> \
-  --assurance-accounting <assurance-accounting.json> \
-  --load-bearing-review-obligations <obligations.json> \
-  --execution-budget .git/zimster/budget.json
+  --load-bearing-review-obligations <obligations.json>
 ```
-
-`semantic-assurance.mjs complete` invokes the same canonical completion
-preflight. Its lifecycle, assurance-accounting, and execution-budget inputs
-must resolve to their authoritative Git-local files; copied snapshots cannot
-substitute for canonical state.
 
 Eligible Micro work may complete owner-only when deterministic eligibility is
 supplied with `--micro-eligibility <eligibility.json>`. The record binds the
@@ -168,30 +138,11 @@ evidence references and final integration review. Every eligibility or
 obligation reference must name evidence that explicitly supports the record's
 exact requirement ID and exact claim; a fresh receipt for another requirement
 or a narrower claim is rejected. Boolean self-attestations are rejected.
-Standard and High-risk completion also rejects every pending or unproved
-execution-budget override, so override proof must be non-circular and durably
-satisfied before completion. Completion accepts only the authoritative
-Git-local budget and revalidates every satisfied proof against the current
-ledger, invalidations, environment, and exact candidate tree. For evidence-type
-proofs, require the receipt commit and tree to equal the current candidate even
-when ordinary dependency-cone evidence reuse would pass; a copied or
-caller-authored budget snapshot is not completion evidence. If review discovers
-a circular proof relationship, or a correction makes a satisfied proof stale,
-use `run-budget.mjs supersede` to preserve the old receipt and link an
-enforceable replacement rather than editing the budget ledger.
 Correction rechecks and reserved final-review accounting are separate; the
 reserved review applies only after the exact candidate head stops changing.
 Owner-inline review is `self_review`. Checkout
 integrity (`REVIEW_CHECKOUT_UNCHANGED` or `REVIEW_CHECKOUT_CHANGED`) never
 implies semantic approval.
-
-Before Standard or High-risk completion, reconcile supported host observations
-with Zimster's dispatch ledger, budget agent identities, and durable typed
-review attempts using `assurance-accounting.mjs reconcile`. Missing host
-lineage is unavailable evidence, not proof. Any observed agent absent from
-dispatch or budget accounting, any missing observed/recorded review attempt,
-any lifecycle reviewer absent from observed accounted agents, or descendant
-depth above one invalidates the dependent completion claim.
 
 ## Honest states
 

@@ -4,16 +4,13 @@ import { captureGitState, gitValue } from './git-state.mjs';
 
 export async function buildMetadata(sourceRoot, packageTarget) {
   let embedded = null;
-  for (const candidate of [
-    path.join(sourceRoot, 'skills', 'using-zimster', 'references', 'build-metadata.json'),
-    path.join(sourceRoot, 'references', 'build-metadata.json')
-  ]) {
-    try {
-      embedded = JSON.parse(await readFile(candidate, 'utf8'));
-      break;
-    } catch {
-      // Source trees can bootstrap metadata from package.json alone.
-    }
+  try {
+    embedded = JSON.parse(await readFile(
+      path.join(sourceRoot, 'skills', 'using-zimster', 'references', 'build-metadata.json'),
+      'utf8'
+    ));
+  } catch {
+    // Source trees can bootstrap metadata from package.json alone.
   }
   let version;
   try {

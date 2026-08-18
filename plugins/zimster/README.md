@@ -23,7 +23,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/wazimmerman/zimster/releases/tag/v0.7.1"><img alt="Current public-beta release: v0.7.1" src="https://img.shields.io/badge/public_beta-v0.7.1-5b8def"></a>
+  <a href="https://github.com/wazimmerman/zimster/releases/tag/v0.7.0"><img alt="Current public-beta release: v0.7.0" src="https://img.shields.io/badge/public_beta-v0.7.0-5b8def"></a>
   <a href="https://github.com/wazimmerman/zimster/actions/workflows/ci.yml"><img alt="CI status" src="https://github.com/wazimmerman/zimster/actions/workflows/ci.yml/badge.svg"></a>
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-2ea44f"></a>
 </p>
@@ -208,17 +208,17 @@ rules, and convergence controls.
 
 ## Supported harnesses
 
-Version 0.7.1 reports support per tested capability. Installation and structural
+Version 0.7.0 reports support per tested capability. Installation and structural
 validation do not imply live, model-backed execution.
 
 | Harness | Current verification level | Installation path | Principal limitation |
 |---|---|---|---|
-| Codex CLI 0.147.0 | `INSTALLED_PACKAGE_VERIFIED` | Full Codex ZIP or Git/custom marketplace | Exact-package install is verified; role templates require explicit project/user registration and managed Desktop is separately scoped |
-| Claude Code 2.1.233 | `INSTALLED_PACKAGE_VERIFIED` | Full Claude ZIP or GitHub marketplace | Strict validation plus isolated marketplace install, component inventory, and plugin details passed; model-backed restriction proof remains separate |
-| Grok 1.0.0 | `INSTALLED_PACKAGE_VERIFIED` | Portable Agent Plugin ZIP | Validation plus isolated local install, list, and details passed; a repository root is not automatically enabled |
-| Kimi Code 0.36.1 | `INSTALLED_PACKAGE_VERIFIED` | Primary npm package or local plugin source | Isolated managed-copy installation, reload, enabled/healthy status, `using-zimster` session start, and skill instructions passed; model-backed execution remains separate |
-| OpenCode 1.18.18 | `LIVE_VERIFIED` | Primary npm package or copied skills | Exact npm-package skill discovery is the live claim; model-backed execution is not implied |
-| Pi 0.84.2 | `INSTALLED_PACKAGE_VERIFIED` | Primary npm package | Exact-package installation is the claim; optional 0.50.0 delegation is separate and disabled by default |
+| Codex 0.146.1 | `INSTALLED_PACKAGE_VERIFIED` | Full Codex ZIP or Git/custom marketplace | Isolated registration and installation passed; no comparative benchmark covers the changed final v0.7 candidate |
+| Claude Code 2.1.224 | `STRUCTURALLY_VALIDATED` | Full Claude ZIP or GitHub marketplace | The exact package structure validates with 12 skills, 4 agents, and the SessionStart hook; isolated installation and model-backed execution are not established |
+| Grok 1.0.0 | `STRUCTURALLY_VALIDATED` | Portable Agent Plugin ZIP | The root manifest and all 12 skills validate structurally; isolated installation, skill discovery, and model-backed execution are not established |
+| Kimi Code | `UNAVAILABLE` | Primary npm package or copied skills | The CLI was absent, so only the documented adapter structure was validated |
+| OpenCode 1.18.13 | `LIVE_VERIFIED` | Primary npm package or copied skills | Exact npm-package skill discovery passed; model-backed execution was not run |
+| Pi 0.84.1 | `INSTALLED_PACKAGE_VERIFIED` | Primary npm package | Isolated package installation passed; optional delegation remains disabled by default |
 
 The vocabulary is intentionally narrow:
 
@@ -278,11 +278,11 @@ Harness-specific installation and verification details are available for
 [Grok](docs/GROK.md), [Kimi Code](docs/KIMI.md),
 [OpenCode](docs/OPENCODE.md), and [Pi](docs/PI.md).
 The [Cursor adapter](docs/CURSOR.md) is an ancillary skills-only surface and is
-not one of the v0.7.1 release hosts.
+not one of the v0.7.0 release hosts.
 
 ## Public beta
 
-Version 0.7.1 is the current public beta. See [Known limitations](docs/KNOWN_LIMITATIONS.md)
+Version 0.7.0 is the current public beta. See [Known limitations](docs/KNOWN_LIMITATIONS.md)
 for host-specific support and current constraints.
 
 During v0.7 development, Zimster was evaluated in a controlled 24-run DeepSWE

@@ -27,20 +27,6 @@
 Public registry acceptance is external follow-up. A validated submission bundle
 is required; universal registry availability is not a tag gate.
 
-## 0.7.1 corrective patch
-
-- Enforce the single same-reviewer correction recheck and persist a circuit
-  breaker that blocks reviewer shopping, final review, and completion.
-- Bind typed review attempts to stable IDs and separately reconstructable
-  immutable packages, including dirty candidate state.
-- Reconcile observed agent/review activity with durable dispatch, budget, and
-  depth accounting before dependent completion claims.
-- Refresh the six public harness targets and narrowly adapt Codex roles, Claude
-  and Kimi descendant restrictions, and Pi's optional delegation contract.
-
-This correction does not absorb the 0.8 semantic-assurance expansion, 0.9
-visual companion, or 1.0 stabilization and official-directory publication.
-
 ## 0.8: Semantic assurance and evidence sufficiency
 
 Semantic assurance will:

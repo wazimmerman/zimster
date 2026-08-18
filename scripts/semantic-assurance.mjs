@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseOptions, required, writeError, writeLine } from './lib/cli.mjs';
 import {
@@ -10,19 +10,7 @@ import {
 } from './lib/semantic-assurance.mjs';
 import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
 import { evidenceStalenessReason } from './lib/evidence-validity.mjs';
-import {
-  analyzeExecutionBudgetProofIdentities,
-  correctionRecheckEpochIssues,
-  executionBudgetProofReceiptPasses
-} from './lib/execution-budget.mjs';
-import { normalizeConvergenceMetric } from './lib/convergence.mjs';
-import { canonicalPath } from './lib/path-identity.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
-import { evaluateCoherence } from './lib/coherence-preflight.mjs';
-import { withControlPlaneMutation } from './lib/control-plane-mutation.mjs';
-import { validateReviewLifecycle } from './lib/review-lifecycle.mjs';
-import { authenticateFinalReviewAuthorization } from './lib/review-authorization.mjs';
-import { authenticateGovernedEvidenceReceipt } from './lib/governed-terminal-auth.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
@@ -44,15 +32,18 @@ async function jsonDocument(option) {
 }
 
 async function evidenceRecords(checkout) {
-  const runtime = await ensureRuntimeDirectory(root);
+  const runtime = options.evidence
+    ? null
+    : await ensureRuntimeDirectory(root);
   const file = options.evidence
     ? path.resolve(process.cwd(), String(options.evidence))
     : path.join(runtime, 'evidence', 'receipts.jsonl');
   let rows;
-  let rawLines;
   try {
-    rawLines = (await readFile(file, 'utf8')).split('\n').filter(Boolean);
-    rows = rawLines.map((line) => JSON.parse(line));
+    rows = (await readFile(file, 'utf8'))
+      .split('\n')
+      .filter(Boolean)
+      .map((line) => JSON.parse(line));
   } catch (error) {
     if (error.code === 'ENOENT') return [];
     throw error;
@@ -62,7 +53,6 @@ async function evidenceRecords(checkout) {
       .filter((row) => row.record_type === 'invalidation')
       .map((row) => row.receipt_id)
   );
-  const rawLineById = new Map(rawLines.map((line) => [JSON.parse(line).id, line]));
   const records = [];
   for (const row of rows.filter((item) => item.record_type !== 'invalidation')) {
     const staleReason = invalidated.has(row.id)
@@ -72,11 +62,6 @@ async function evidenceRecords(checkout) {
         : null;
     records.push({
       ...row,
-      governed_execution_authenticated: await authenticateGovernedEvidenceReceipt(
-        runtime,
-        row,
-        `${rawLineById.get(row.id)}\n`
-      ),
       status: invalidated.has(row.id) || staleReason
         ? 'stale'
         : row.exit_code === 0 ? 'valid' : 'failed',
@@ -101,106 +86,9 @@ async function evaluatedMatrix() {
     result: evaluateRequirementMatrix({
       bindingRequirements: requirements.requirements,
       matrix: matrixDocument.value,
-      evidence: await evidenceRecords(checkout),
-      phase: options.phase ? String(options.phase) : 'candidate'
+      evidence: await evidenceRecords(checkout)
     })
   };
-}
-
-async function authoritativeReviewLifecycles(runtimeDirectory) {
-  const directory = path.join(runtimeDirectory, 'review-lifecycle');
-  let files;
-  try {
-    files = (await readdir(directory)).filter((file) => file.endsWith('.json')).sort();
-  } catch (error) {
-    if (error.code === 'ENOENT') return [];
-    throw error;
-  }
-  return Promise.all(files.map(async (file) =>
-    validateReviewLifecycle(JSON.parse(await readFile(path.join(directory, file), 'utf8')))
-  ));
-}
-
-async function executionBudgetIssues(budget, runtimeDirectory, reviewLifecycles) {
-  if (!budget || budget.schema_version !== 1) {
-    return ['execution budget must be schema v1'];
-  }
-  if (
-    !budget.limits || typeof budget.limits !== 'object'
-    || !budget.usage || typeof budget.usage !== 'object'
-    || !Array.isArray(budget.overrides)
-    || !Array.isArray(budget.proof_obligations)
-  ) {
-    return ['execution budget requires limits, usage, override, and proof-obligation records'];
-  }
-  const issues = [];
-  const graph = analyzeExecutionBudgetProofIdentities(budget);
-  const validSatisfiedProofs = new Set();
-  function satisfied(proofName, sourceType, sourceIndex, seen = new Set()) {
-    const index = graph.resolve(proofName, sourceType, sourceIndex);
-    if (index === null || seen.has(index)) return false;
-    seen.add(index);
-    const proof = budget.proof_obligations[index];
-    if (proof?.status === 'satisfied') return validSatisfiedProofs.has(index);
-    if (proof?.status === 'superseded') {
-      return satisfied(proof.superseded_by, 'supersession', index, seen);
-    }
-    return false;
-  }
-  for (const [index, proof] of budget.proof_obligations.entries()) {
-    if (proof.status === 'required') {
-      issues.push(`pending execution-budget proof: ${proof.proof || 'unnamed'}`);
-    } else if (proof.status === 'superseded') {
-      if (!proof.superseded_by || !proof.supersession_reason || !proof.superseded_at) {
-        issues.push(`execution-budget proof has an incomplete supersession record: ${proof.proof || 'unnamed'}`);
-      }
-    } else if (proof.status !== 'satisfied' || !proof.receipt_id) {
-      issues.push(`execution-budget proof is not durably satisfied: ${proof.proof || 'unnamed'}`);
-    } else {
-      const relationshipIsEnforceable = proof.receipt_type === 'verification'
-        ? Boolean(proof.profile)
-        : proof.receipt_type === 'evidence'
-          ? Boolean(proof.kind && proof.scope && proof.command)
-          : false;
-      if (!relationshipIsEnforceable) {
-        issues.push(`execution-budget proof has no enforceable receipt relationship: ${proof.proof || 'unnamed'}`);
-      } else if (await executionBudgetProofReceiptPasses(
-        runtimeDirectory,
-        proof,
-        proof.receipt_id,
-        { cwd: root }
-      )) {
-        validSatisfiedProofs.add(index);
-      } else {
-        issues.push(
-          `execution-budget proof receipt ${proof.receipt_id} is absent, invalidated, stale, environment-mismatched, or outside the exact candidate: ${proof.proof || 'unnamed'}`
-        );
-      }
-    }
-  }
-  issues.push(...correctionRecheckEpochIssues(budget, reviewLifecycles));
-  for (const [index, override] of budget.overrides.entries()) {
-    if (!satisfied(override.required_proof, 'override', index)) {
-      issues.push(`execution-budget override lacks satisfied proof: ${override.required_proof || 'unnamed'}`);
-    }
-  }
-  issues.push(...graph.issues.filter((issue) => !issues.includes(issue)));
-  for (const [metric, value] of Object.entries(budget.usage)) {
-    if (normalizeConvergenceMetric(metric) !== metric) continue;
-    if (metric === 'correction_rechecks') continue;
-    const limit = budget.limits[metric];
-    if (!Number.isInteger(value) || !Number.isInteger(limit) || value <= limit) continue;
-    const coveringOverride = budget.overrides.find((override, index) =>
-      normalizeConvergenceMetric(override.metric) === metric
-      && Number.isInteger(override.value)
-      && override.value >= value
-      && satisfied(override.required_proof, 'override', index)
-    );
-    if (!coveringOverride) {
-      issues.push(`execution-budget usage exceeds its limit without a proof-backed override: ${metric}=${value}/${limit}`);
-    }
-  }
-  return [...new Set(issues)];
 }
 
 async function matrixDecision() {
@@ -256,22 +144,6 @@ async function completionDecision() {
     if (error.code !== 'ENOENT') throw error;
   }
   const profile = required(options, 'profile');
-  const runtimeDirectory = profile === 'micro' ? null : await ensureRuntimeDirectory(root);
-  const executionBudgetDocument = profile === 'micro'
-    ? null
-    : await jsonDocument('execution-budget');
-  const executionBudget = executionBudgetDocument?.value || null;
-  const reviewLifecycleDocument = profile === 'micro'
-    ? null
-    : await jsonDocument('review-lifecycle');
-  const assuranceAccountingDocument = profile === 'micro'
-    ? null
-    : await jsonDocument('assurance-accounting');
-  const reviewLifecycle = reviewLifecycleDocument?.value || null;
-  const reviewLifecycles = profile === 'micro'
-    ? []
-    : await authoritativeReviewLifecycles(runtimeDirectory);
-  const assuranceAccounting = assuranceAccountingDocument?.value || null;
   const reviewPackage = profile === 'micro'
     ? null
     : await jsonFile('review-package');
@@ -284,59 +156,12 @@ async function completionDecision() {
       packageIssues.push('review package semantic contract differs from the current contract');
     }
   }
-  const budgetPathIssues = executionBudgetDocument
-    && await canonicalPath(executionBudgetDocument.file)
-      !== await canonicalPath(path.join(runtimeDirectory, 'budget.json'))
-    ? ['completion requires the authoritative Git-local execution budget']
-    : [];
-  const lifecyclePathIssues = reviewLifecycleDocument
-    && await canonicalPath(reviewLifecycleDocument.file)
-      !== await canonicalPath(path.join(
-        runtimeDirectory,
-        'review-lifecycle',
-        `${reviewLifecycle.seam_id}.json`
-      ), { allowMissing: true })
-    ? ['completion requires the authoritative Git-local review lifecycle']
-    : [];
-  const accountingPathIssues = assuranceAccountingDocument
-    && await canonicalPath(assuranceAccountingDocument.file)
-      !== await canonicalPath(
-        path.join(runtimeDirectory, 'assurance-accounting', 'latest.json'),
-        { allowMissing: true }
-      )
-    ? ['completion requires the authoritative Git-local assurance accounting receipt']
-    : [];
-  const budgetIssues = executionBudget
-    ? await executionBudgetIssues(executionBudget, runtimeDirectory, reviewLifecycles)
-    : [];
-  const reviewerAuthorizationIssues = [];
-  if (reviewLifecycle) {
-    try {
-      await authenticateFinalReviewAuthorization(runtimeDirectory, reviewLifecycle, { cwd: root });
-    } catch (error) {
-      reviewerAuthorizationIssues.push(error.message);
-    }
-  }
-  const coherence = await evaluateCoherence(runtimeDirectory, root, {
-    operation: 'completion',
-    seamId: reviewLifecycle?.seam_id || 'whole-release',
-    profile
-  });
-  const completionInputIssues = [
-    ...packageIssues,
-    ...budgetPathIssues,
-    ...lifecyclePathIssues,
-    ...accountingPathIssues,
-    ...budgetIssues,
-    ...reviewerAuthorizationIssues,
-    ...coherence.issues
-  ];
-  const finalMatrixResult = completionInputIssues.length
+  const finalMatrixResult = packageIssues.length
     ? {
         ...matrixResult,
         valid: false,
         allowed_claims: [],
-        issues: [...matrixResult.issues, ...completionInputIssues]
+        issues: [...matrixResult.issues, ...packageIssues]
       }
     : matrixResult;
   const result = evaluateCandidateCompletion({
@@ -352,7 +177,6 @@ async function completionDecision() {
     candidateHead: matrix.candidate_head,
     candidateTree: matrix.candidate_tree,
     reviewPackageId: reviewPackage?.id,
-    reviewPackageSeamId: reviewPackage?.seam_id,
     semanticContractSha256,
     requiredLenses: reviewPackage?.lenses || [],
     loadBearingReviewObligations: options['load-bearing-review-obligations']
@@ -360,17 +184,8 @@ async function completionDecision() {
       : null,
     hostSmokeReceipt,
     releaseChannel: options['release-channel'] ? String(options['release-channel']) : 'public_beta',
-    correctionPending: options['correction-pending'] === true,
-    reviewLifecycle,
-    reviewLifecycles,
-    assuranceAccounting
+    correctionPending: options['correction-pending'] === true
   });
-  if (result.state === COMPLETION_STATES.CANDIDATE_COMPLETE) {
-    await withControlPlaneMutation(runtimeDirectory, root, {
-      mutationType: 'candidate_completion_recorded',
-      atomicFailure: true
-    }, async () => result);
-  }
   writeLine(JSON.stringify(result));
   writeError(`${result.state} review=${result.review_id || 'none'} claims=${result.allowed_claims.length}`);
   for (const reason of result.reasons) writeError(`- ${reason}`);
@@ -382,5 +197,5 @@ if (action === 'matrix') {
 } else if (action === 'complete') {
   await completionDecision();
 } else {
-  throw new Error('Usage: semantic-assurance.mjs <matrix|complete> --requirements <file> --matrix <file> [--evidence <jsonl>] [--reviews <json>] [--review-package <json>] [--review-lifecycle <json>] [--assurance-accounting <json>] [--execution-budget <json>]');
+  throw new Error('Usage: semantic-assurance.mjs <matrix|complete> --requirements <file> --matrix <file> [--evidence <jsonl>] [--reviews <json>] [--review-package <json>]');
 }

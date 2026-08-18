@@ -21,15 +21,9 @@ When multi-agent tools are available:
   role config referenced by `[agents.<role>].config_file`, then inheritance;
 - record requested and effective values with the dispatch recorder;
 - use a named bounded task for exploration, review, or disjoint work;
-- create with `spawn_agent`, steer a running turn with `send_message`, and use
-  `followup_task` to resume the same idle reviewer for its one correction
-  recheck;
-- use `wait_agent` for completion, `list_agents` for an observed topology
-  snapshot, and `interrupt_agent` only to stop an active turn while preserving
-  the reusable agent identity;
+- resume the same reviewer for a correction recheck;
 - keep agent depth at one; subagents do not recruit agents;
-- retain completed/idle identities as historical lifecycle evidence; current
-  Multi-Agent V2 has no close operation.
+- close agents after their bounded responsibility.
 
 Treat `codex debug models` or app-server catalog output as session/version
 evidence, not durable policy. Never edit the active Codex user configuration;

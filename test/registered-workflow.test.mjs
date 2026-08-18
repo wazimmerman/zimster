@@ -112,7 +112,7 @@ test('context index supports four evidence states and human-gated promotion', as
   }
 });
 
-test('run initializer creates canonical journal v3 with plan, decisions, slices, evidence, and risks', async () => {
+test('run initializer creates journal v2 with plan, decisions, slices, evidence, and risks', async () => {
   const repo = await mkdtemp(path.join(os.tmpdir(), 'zimster-journal-'));
   try {
     assert.equal(spawnSync('git', ['init', '-b', 'main'], { cwd: repo }).status, 0);
@@ -127,7 +127,7 @@ test('run initializer creates canonical journal v3 with plan, decisions, slices,
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const runtime = path.dirname(result.stdout.trim());
     const journal = JSON.parse(await readFile(path.join(runtime, 'run.json'), 'utf8'));
-    assert.equal(journal.schema_version, 3);
+    assert.equal(journal.schema_version, 2);
     assert.deepEqual(journal.plan, { id: 'plan-007', source: 'approved plan' });
     for (const field of ['decisions', 'slice_commits', 'evidence', 'verifications', 'unresolved_risks']) {
       assert.deepEqual(journal[field], []);
@@ -161,8 +161,7 @@ test('plan conformance detects requirement drift and blocks unverified release c
       id: 'PLAN-001', authoritative_text: 'Ship the portable contract.', source: 'approved-plan',
       implementation_locations: ['plugin.json'], evidence_refs: [],
       evidence_scope: { git_tree: tree, environment: 'node' }, unavailable_proof: [],
-      status: 'unverified', intended_acceptance_claims: ['Portable contract ships.'],
-      tdd_evidence: 'not_claimed'
+      status: 'unverified', intended_acceptance_claims: ['Portable contract ships.']
     };
     await writeFile(matrix, `${JSON.stringify({
       schema_version: 1, candidate_head: '0'.repeat(40), candidate_tree: tree,
@@ -203,26 +202,8 @@ test('plan conformance detects requirement drift and blocks unverified release c
     })}\n`);
     result = run('plan-conformance.mjs', ['--phase', 'release'], directory);
     assert.notEqual(result.status, 0);
-    row.status = 'partially_verified';
-    row.evidence_refs = ['prepublication-receipt'];
-    row.proof_deferred_until = 'postpublication';
-    row.unavailable_proof = ['Registry and release observations do not exist before publication.'];
-    await writeFile(matrix, `${JSON.stringify({
-      schema_version: 1, candidate_head: head, candidate_tree: tree,
-      requirements: [row], observations: []
-    })}\n`);
-    result = run('plan-conformance.mjs', ['--phase', 'release'], directory);
-    assert.equal(result.status, 0, result.stderr || result.stdout);
-    delete row.proof_deferred_until;
-    await writeFile(matrix, `${JSON.stringify({
-      schema_version: 1, candidate_head: head, candidate_tree: tree,
-      requirements: [row], observations: []
-    })}\n`);
-    result = run('plan-conformance.mjs', ['--phase', 'release'], directory);
-    assert.notEqual(result.status, 0);
     row.status = 'verified';
     row.evidence_refs = ['receipt-1'];
-    row.unavailable_proof = [];
     await writeFile(matrix, `${JSON.stringify({
       schema_version: 1, candidate_head: head, candidate_tree: tree,
       requirements: [row], observations: []

@@ -1,6 +1,6 @@
 # Pi
 
-Verification target for Zimster 0.7.1: `INSTALLED_PACKAGE_VERIFIED` on Pi 0.84.1.
+Verification level for Zimster 0.7.0: `INSTALLED_PACKAGE_VERIFIED` on Pi 0.84.1.
 An isolated local package install and `pi list` succeeded. Dependency-free
 tests verify the extension factory, declared skill resources, duplicate
 bootstrap guard, and delegation fallback. Model-backed discovery was not run.
@@ -22,7 +22,7 @@ source before installation.
 ## Update
 
 ```text
-pi update --extensions
+pi update npm:zimster
 ```
 
 Use `-l` for project-local settings. Start a fresh session after changing
@@ -44,23 +44,18 @@ source and inspect startup diagnostics before attributing behavior to Zimster.
 
 ## Verification status
 
-Exact npm-package installation targets Pi 0.84.1.
+Exact npm-package installation is `INSTALLED_PACKAGE_VERIFIED` on Pi 0.84.1.
 Fresh model-backed discovery and the optional delegation transport remain
 unverified.
 
 ## Optional delegation
 
-Owner-inline execution is the default. `.pi/delegation.ts` bridges the supported
-`pi-subagents/delegation` request/response/cancel event contract from optional
-`pi-subagents` 0.50.0. It correlates stable request/owner/node identities, caps
-active owned leaves at two, rejects nonzero requested depth, and preserves
-terminal/cancellation states. Zimster never installs that transport silently;
-missing or incompatible event transport returns `inline_required`.
-
-The bridge does not turn a prompt into a sandbox and does not prove that a
-selected Pi agent lacks its own delegation tools. Use restricted configured
-agents where available and require Zimster's agent/depth accounting receipt;
-observed descendant activity invalidates completion.
+Owner-inline execution is the default. `.pi/delegation.ts` exposes only
+`probe`, `launch`, `status`, `cancel`, and `collect`. If an owner explicitly
+installs the pinned optional `pi-subagents` 0.42.1 transport, Zimster prohibits
+nested subagents and caps parallel implementers at two. Zimster never installs
+that transport silently. Missing or incompatible transport returns an
+`inline_required` result.
 
 `pi --list-models` is session-scoped catalog evidence, not proof of effective
 model routing.

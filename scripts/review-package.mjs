@@ -1,22 +1,14 @@
 import { createHash } from 'node:crypto';
-import { lstat, mkdir, readFile, readlink, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { parseOptions, required, writeLine } from './lib/cli.mjs';
-import {
-  captureGitState,
-  findRepoRoot,
-  gitValue,
-  runGit,
-  untrackedFiles
-} from './lib/git-state.mjs';
+import { parseOptions, writeLine } from './lib/cli.mjs';
+import { captureGitState, findRepoRoot, gitValue, runGit } from './lib/git-state.mjs';
 import { evidenceStalenessReason } from './lib/evidence-validity.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 import {
   selectSemanticLenses,
   semanticContractDigest
 } from './lib/semantic-assurance.mjs';
-import { REVIEW_ATTEMPT_TYPES } from './lib/review-lifecycle.mjs';
-import { authenticateGovernedEvidenceReceipt } from './lib/governed-terminal-auth.mjs';
 
 const { options } = parseOptions(process.argv.slice(2));
 const root = findRepoRoot(process.cwd());
@@ -24,17 +16,6 @@ const head = String(options.head || gitValue(['rev-parse', 'HEAD'], root, '')).t
 const defaultBase = gitValue(['merge-base', 'origin/main', head], root, null)
   || gitValue(['rev-parse', `${head}^`], root, head);
 const base = String(options.base || defaultBase || '').toLowerCase();
-const attemptType = required(options, 'attempt-type');
-const attemptId = required(options, 'attempt-id');
-const seamId = required(options, 'seam-id');
-if (!REVIEW_ATTEMPT_TYPES.includes(attemptType)) {
-  throw new Error(`--attempt-type must be one of ${REVIEW_ATTEMPT_TYPES.join(', ')}`);
-}
-for (const [name, value] of [['attempt-id', attemptId], ['seam-id', seamId]]) {
-  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(value)) {
-    throw new Error(`--${name} must be a stable safe identifier`);
-  }
-}
 
 function immutableCommit(name, value) {
   if (!/^[0-9a-f]{40}$/.test(value)) {
@@ -71,56 +52,6 @@ function fileAt(commit, relative) {
 
 immutableCommit('base', base);
 immutableCommit('head', head);
-if (runGit(['merge-base', '--is-ancestor', base, head], root, {
-  allowFailure: true
-}).status !== 0) {
-  throw new Error('--base must be an ancestor of --head');
-}
-const currentState = await captureGitState(root);
-const cleanFingerprint = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
-const candidateCheckout = {
-  head,
-  tree: gitValue(['rev-parse', `${head}^{tree}`], root, null),
-  dirty_tree_fingerprint: currentState.head === head
-    ? currentState.dirty_tree_fingerprint
-    : cleanFingerprint,
-  current_checkout_observed: currentState.head === head
-};
-const dirtyTrackedPatch = currentState.head === head
-  ? Buffer.from(runGit([
-      'diff', '--binary', '--no-ext-diff', '--no-color', head
-    ], root, { encoding: 'buffer' }).stdout)
-  : Buffer.alloc(0);
-const dirtyUntrackedFiles = [];
-if (currentState.head === head) {
-  for (const relative of untrackedFiles(root)) {
-    const absolute = path.join(root, ...relative.split('/'));
-    const metadata = await lstat(absolute);
-    if (metadata.isSymbolicLink()) {
-      const target = await readlink(absolute);
-      dirtyUntrackedFiles.push({
-        path: relative,
-        kind: 'symlink',
-        mode: metadata.mode,
-        target,
-        sha256: sha256(Buffer.from(target))
-      });
-      continue;
-    }
-    if (!metadata.isFile()) {
-      throw new Error(`dirty review package cannot reconstruct non-file untracked path: ${relative}`);
-    }
-    const data = await readFile(absolute);
-    dirtyUntrackedFiles.push({
-      path: relative,
-      kind: 'file',
-      mode: metadata.mode,
-      bytes: data.length,
-      sha256: sha256(data),
-      content_base64: data.toString('base64')
-    });
-  }
-}
 const changed = runGit(['diff', '--name-only', '-z', `${base}..${head}`], root, {
   encoding: 'buffer'
 }).stdout.toString('utf8').split('\0').filter(Boolean).sort();
@@ -197,7 +128,7 @@ if (bindingFile) {
     throw new Error('binding requirements contain duplicate IDs');
   }
   for (const id of requirementIds) {
-    if (!/^[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*-[0-9]{3,}$/.test(id)) {
+    if (!/^[A-Z][A-Z0-9]*-[0-9]{3,}$/.test(id)) {
       throw new Error(`binding requirements contain malformed ID ${id}`);
     }
   }
@@ -263,10 +194,8 @@ const requestedCompletionState = String(options['requested-state'] || 'PARTIALLY
 const runtime = await ensureRuntimeDirectory(root);
 let evidence = [];
 try {
-  const ledgerLines = (await readFile(path.join(runtime, 'evidence', 'receipts.jsonl'), 'utf8'))
-    .split('\n').filter(Boolean);
-  const rows = ledgerLines.map((line) => JSON.parse(line));
-  const lineById = new Map(ledgerLines.map((line) => [JSON.parse(line).id, line]));
+  const rows = (await readFile(path.join(runtime, 'evidence', 'receipts.jsonl'), 'utf8'))
+    .split('\n').filter(Boolean).map((line) => JSON.parse(line));
   const invalidated = new Map(
     rows.filter((row) => row.record_type === 'invalidation')
       .map((row) => [row.receipt_id, row.reason])
@@ -309,12 +238,6 @@ try {
       requirement_ids: row.requirement_ids || [],
       establishes: row.establishes || [],
       does_not_establish: row.does_not_establish || [],
-      claim_bindings: row.claim_bindings || [],
-      governed_execution_authenticated: await authenticateGovernedEvidenceReceipt(
-        runtime,
-        row,
-        `${lineById.get(row.id)}\n`
-      ),
       environment_scope: row.environment_scope || null,
       ...(explicitReason ? { invalidation_reason: explicitReason } : {}),
       ...(naturalReason ? { natural_staleness_reason: naturalReason } : {})
@@ -325,12 +248,8 @@ try {
 }
 
 const identity = sha256(JSON.stringify({
-  attempt_type: attemptType,
-  attempt_id: attemptId,
-  seam_id: seamId,
   base,
   head,
-  candidate_checkout: candidateCheckout,
   requirements: requirements?.sha256 || null,
   binding_requirements: bindingRequirements?.sha256 || null,
   requirement_matrix: requirementMatrix?.sha256 || null,
@@ -346,7 +265,7 @@ const identity = sha256(JSON.stringify({
 const directory = path.join(runtime, 'reviews', identity);
 const packagePath = path.join(directory, 'review-package.json');
 const diffPath = path.join(directory, 'authoritative.diff');
-const dirtyPatchPath = path.join(directory, 'dirty-tracked.diff');
+await mkdir(directory, { recursive: true });
 const canonicalPaths = authoritative.map(({ path: relative }) => relative);
 const diff = canonicalPaths.length
   ? runGit([
@@ -354,21 +273,12 @@ const diff = canonicalPaths.length
     ...canonicalPaths
   ], root).stdout
   : '';
+await writeFile(diffPath, diff);
 const reviewPackage = {
-  schema_version: 2,
+  schema_version: 1,
   id: identity,
-  attempt_type: attemptType,
-  attempt_id: attemptId,
-  seam_id: seamId,
   base,
   head,
-  candidate_checkout: candidateCheckout,
-  dirty_state: {
-    dirty_tree_fingerprint: candidateCheckout.dirty_tree_fingerprint,
-    reconstructable: true,
-    tracked_patch: dirtyPatchPath,
-    untracked_files: dirtyUntrackedFiles
-  },
   requirements,
   binding_requirements: bindingRequirements,
   requirement_matrix: requirementMatrix,
@@ -385,45 +295,11 @@ const reviewPackage = {
   generated_mirrors: generated,
   evidence
 };
-const packageContents = `${JSON.stringify(reviewPackage, null, 2)}\n`;
-const reviewsDirectory = path.dirname(directory);
-const temporaryDirectory = path.join(
-  reviewsDirectory,
-  `.temporary-${identity}-${process.pid}-${Date.now()}`
-);
-await mkdir(reviewsDirectory, { recursive: true });
-await mkdir(temporaryDirectory, { recursive: false });
-let status = 'created';
-try {
-  await writeFile(path.join(temporaryDirectory, 'authoritative.diff'), diff, { flag: 'wx' });
-  await writeFile(path.join(temporaryDirectory, 'dirty-tracked.diff'), dirtyTrackedPatch, { flag: 'wx' });
-  await writeFile(path.join(temporaryDirectory, 'review-package.json'), packageContents, { flag: 'wx' });
-  try {
-    await rename(temporaryDirectory, directory);
-  } catch (error) {
-    if (!['EEXIST', 'ENOTEMPTY'].includes(error.code)) throw error;
-    const [existingPackage, existingDiff, existingDirtyPatch] = await Promise.all([
-      readFile(packagePath, 'utf8'),
-      readFile(diffPath, 'utf8'),
-      readFile(dirtyPatchPath)
-    ]);
-    if (existingPackage !== packageContents
-      || existingDiff !== diff
-      || Buffer.compare(existingDirtyPatch, dirtyTrackedPatch) !== 0) {
-      throw new Error(`immutable review package collision or mutation detected: ${identity}`);
-    }
-    status = 'existing';
-  }
-} finally {
-  await rm(temporaryDirectory, { recursive: true, force: true });
-}
+await writeFile(packagePath, `${JSON.stringify(reviewPackage, null, 2)}\n`);
 writeLine(JSON.stringify({
-  schema_version: 2,
-  status,
+  schema_version: 1,
+  status: 'created',
   id: identity,
-  attempt_type: attemptType,
-  attempt_id: attemptId,
-  seam_id: seamId,
   base,
   head,
   authoritative_files: authoritative.length,

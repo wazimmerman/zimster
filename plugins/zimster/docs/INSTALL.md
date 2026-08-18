@@ -1,6 +1,6 @@
 # Installation and lifecycle
 
-Zimster 0.7.1 is a portable public beta. Verify the artifact checksum,
+Zimster 0.7.0 is a portable release candidate. Verify the artifact checksum,
 use an isolated host configuration for the first install, inspect discovered
 components, and start a fresh session. Installation never implies model-backed
 execution; see `COMPATIBILITY.md` for claim scope.
@@ -63,8 +63,8 @@ package path. Use `PI_CODING_AGENT_DIR` for isolation. See `PI.md`.
 ## Kimi Code native plugin
 
 Use `/plugins install <path-or-url>`, then `/plugins info zimster` and
-`/plugins reload`. Kimi keeps a managed copy, so reinstall/reload after changing
-a local source and follow the bounded claims in `KIMI.md`.
+`/plugins reload`. The CLI was unavailable for the 0.7.0 smoke, so follow the
+bounded claims in `KIMI.md`.
 
 ## Skills-only installation
 

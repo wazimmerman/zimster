@@ -1,13 +1,10 @@
 # Claude Code
 
-Exact-final verification for Zimster 0.7.1 is `STRUCTURALLY_VALIDATED` on
-Claude Code 2.1.226. Strict validation covered
-12 skills, 4 agents, and one SessionStart hook in the exact Claude archive,
-plus the package manifest. An earlier
-isolated 2.1.233 marketplace install used an older candidate and is historical
-context, not authorization for the final artifact. Marketplace installation
-and authenticated model-backed invocation remain unverified for the final
-candidate.
+Verification level for Zimster 0.7.0: `STRUCTURALLY_VALIDATED` for the exact
+package manifest, 12 skills, 4 agents, and 1 SessionStart hook on the Claude
+Code 2.1.224 validation surface. Isolated installation, fresh discovery, and
+authenticated model-backed invocation are not established by the release
+receipt.
 
 ## Validate and install
 
@@ -46,13 +43,3 @@ The `integration-reviewer` is read/search-only. The `test-reviewer` adds bounded
 shell access and worktree isolation for one named probe. These declarations and
 their validators are verified structurally; this release does not claim that a
 model-backed session proved every effective restriction.
-
-Since 2.1.232, interactive fork mode and background defaults can preserve more
-parent context and capabilities than older guidance assumed. A fork retains the
-parent tool pool; `-p` and SDK defaults differ. Claude now supports nested
-subagents, so Zimster does not rely on a host-wide no-nesting assumption. Every
-packaged Zimster role mechanically withholds `Agent` through an allowlist or
-`disallowedTools: Agent`; exercise that denial before broadening a live claim.
-`SendMessage` can steer or resume a completed agent by identity, so the bounded
-correction recheck must resume the same recorded reviewer rather than spawn a
-near-synonymous replacement.

@@ -2,7 +2,6 @@
 name: zimster-scout
 description: Perform one bounded read-only repository investigation and return evidence paths.
 tools: Read, Grep, Glob
-subagents: []
 maxTurns: 12
 ---
 

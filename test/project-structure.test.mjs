@@ -5,7 +5,6 @@ import { exists, json } from './helpers.mjs';
 const requiredFiles = [
   'plugin.json',
   '.codex-plugin/plugin.json',
-  'templates/codex-agents/zimster-integration-reviewer.toml',
   '.claude-plugin/plugin.json',
   '.cursor/commands/using-zimster.md',
   '.kimi-plugin/plugin.json',
@@ -27,7 +26,6 @@ const requiredFiles = [
   'docs/CONFIGURATION.md',
   'docs/KNOWN_LIMITATIONS.md',
   'docs/MIGRATING-0.5.0.md',
-  'docs/MIGRATING-0.7.0.md',
   'docs/COMPATIBILITY.md',
   'docs/GROK.md',
   'docs/RELEASING.md',
@@ -43,8 +41,6 @@ const requiredFiles = [
   'scripts/installed-package-smoke.mjs',
   'scripts/host-smoke.mjs',
   'scripts/review-package.mjs',
-  'scripts/review-lifecycle.mjs',
-  'scripts/assurance-accounting.mjs',
   'scripts/semantic-assurance.mjs',
   'scripts/capability-cache.mjs',
   'scripts/run-postmortem.mjs',
@@ -55,9 +51,6 @@ const requiredFiles = [
   'scripts/evidence.mjs',
   'scripts/run-budget.mjs',
   'scripts/phase-checkpoint.mjs',
-  'scripts/run-control.mjs',
-  'scripts/accounting-reconcile.mjs',
-  'scripts/coherence-preflight.mjs',
   'scripts/dispatch-record.mjs',
   'scripts/delegation-record.mjs',
   'scripts/model-routing.mjs',
@@ -73,16 +66,8 @@ const requiredFiles = [
   'scripts/lib/tar-reader.mjs',
   'scripts/lib/runtime.mjs',
   'scripts/lib/run-state.mjs',
-  'scripts/lib/run-control.mjs',
-  'scripts/lib/run-summary.mjs',
-  'scripts/lib/governed-execution.mjs',
-  'scripts/lib/coherence-preflight.mjs',
-  'scripts/lib/control-plane-mutation.mjs',
   'scripts/lib/semantic-assurance.mjs',
-  'scripts/lib/review-lifecycle.mjs',
   'scripts/lib/evidence-validity.mjs',
-  'scripts/lib/governed-terminal-auth.mjs',
-  'scripts/lib/postmortem-state.mjs',
   'scripts/lib/config-layers.mjs',
   'scripts/lib/model-routing.mjs',
   'scripts/lib/convergence.mjs',
@@ -100,17 +85,9 @@ const requiredFiles = [
   'schemas/requirement-matrix.schema.json',
   'schemas/semantic-review.schema.json',
   'schemas/review-records.schema.json',
-  'schemas/review-lifecycle.schema.json',
-  'schemas/assurance-accounting.schema.json',
   'schemas/completion-decision.schema.json',
   'schemas/context-index.schema.json',
   'schemas/work-journal.schema.json',
-  'schemas/run-state.schema.json',
-  'schemas/recovery-checkpoint.schema.json',
-  'schemas/governed-execution.schema.json',
-  'schemas/accounting-reconciliation.schema.json',
-  'schemas/coherence-preflight.schema.json',
-  'schemas/control-plane-transaction.schema.json',
   'schemas/release-evidence.schema.json',
   'schemas/benchmark-result.schema.json',
   'schemas/benchmark-campaign-result.schema.json',
@@ -166,9 +143,6 @@ test('semantic assurance is exposed as a dependency-free project command', async
   const packageJson = await json('package.json');
   assert.equal(packageJson.scripts.assurance, 'node scripts/semantic-assurance.mjs');
   assert.equal(packageJson.dependencies, undefined);
-  assert.equal(packageJson.scripts['run:control'], 'node scripts/run-control.mjs');
-  assert.equal(packageJson.scripts['run:refresh'], 'node scripts/run-control.mjs refresh');
-  assert.equal(packageJson.scripts['run:check'], 'node scripts/run-control.mjs check');
 });
 
 
