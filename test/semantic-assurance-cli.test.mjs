@@ -1,27 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { root } from './helpers.mjs';
-import {
-  applyReviewLifecycleEvent,
-  createReviewLifecycle
-} from '../scripts/lib/review-lifecycle.mjs';
 
 const CLEAN_FINGERPRINT = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
-
-function claimProvenance(contents = 'candidate\n') {
-  return {
-    dependency_cone: ['tracked.txt'],
-    dependency_fingerprints: [{
-      input: 'tracked.txt',
-      digest: `file:${createHash('sha256').update(contents).digest('hex')}`
-    }]
-  };
-}
 
 function semanticContractSha256(bindingRequirements, matrix) {
   const byId = (left, right) => left.id.localeCompare(right.id);
@@ -36,12 +22,10 @@ function semanticContractSha256(bindingRequirements, matrix) {
       source: entry.source,
       implementation_locations: [...entry.implementation_locations].sort(),
       evidence_scope: {
+        git_tree: entry.evidence_scope?.git_tree || null,
         environment: entry.evidence_scope?.environment || null
       },
-      intended_acceptance_claims: [...entry.intended_acceptance_claims].sort(),
-      ...(entry.tdd_behavior_ids
-        ? { tdd_behavior_ids: [...entry.tdd_behavior_ids].sort() }
-        : {})
+      intended_acceptance_claims: [...entry.intended_acceptance_claims].sort()
     })).sort(byId)
   })).digest('hex');
 }
@@ -51,196 +35,6 @@ function run(args, cwd = root) {
     path.join(root, 'scripts/semantic-assurance.mjs'),
     ...args
   ], { cwd, encoding: 'utf8' });
-}
-
-function governedClaimReceipt(repo, requirementId, claim, input = 'tracked.txt') {
-  const result = spawnSync(process.execPath, [
-    path.join(root, 'scripts/evidence.mjs'), 'run', '--force',
-    '--kind', 'test', '--scope', `claim-${requirementId.toLowerCase()}`,
-    '--requirement-ids', JSON.stringify([requirementId]),
-    '--establishes', JSON.stringify([claim]),
-    '--environment-scope', 'node-linux',
-    '--inputs', JSON.stringify([input]),
-    '--claim-bindings', JSON.stringify([{
-      requirement_id: requirementId,
-      claim,
-      inputs: [input]
-    }]),
-    '--', process.execPath, '-e', 'process.exit(0)'
-  ], { cwd: repo, encoding: 'utf8' });
-  assert.equal(result.status, 0, result.stderr || result.stdout);
-  return JSON.parse(result.stdout.trim().split('\n').at(-1));
-}
-
-function generatePostmortem(repo) {
-  const result = spawnSync(process.execPath, [
-    path.join(root, 'scripts/run-postmortem.mjs')
-  ], { cwd: repo, encoding: 'utf8' });
-  assert.equal(result.status, 0, result.stderr || result.stdout);
-}
-
-test('aggregate over-limit coverage resolves the explicit covering-override occurrence', async () => {
-  const source = await readFile(path.join(root, 'scripts/semantic-assurance.mjs'), 'utf8');
-  assert.match(
-    source,
-    /budget\.overrides\.find\(\(override, index\)[\s\S]*satisfied\(override\.required_proof, 'override', index\)/,
-    'covering override proof resolution must retain its occurrence source and index'
-  );
-});
-
-test('completion delegates correction-recheck over-limit accounting to semantic epochs', async () => {
-  const source = await readFile(path.join(root, 'scripts/semantic-assurance.mjs'), 'utf8');
-  assert.match(source, /correctionRecheckEpochIssues\(budget, reviewLifecycles\)/);
-  assert.match(source, /authoritativeReviewLifecycles\(runtimeDirectory\)/);
-  assert.match(
-    source,
-    /if \(metric === 'correction_rechecks'\) continue;/,
-    'aggregate history must not override authenticated per-epoch hard cardinality'
-  );
-});
-
-async function assuranceFiles(directory, {
-  repo, base, head, tree, semanticContractSha256, reviewPackageId
-}) {
-  const runtimeDirectory = path.join(repo, '.git', 'zimster');
-  let initialized = spawnSync(process.execPath, [
-    path.join(root, 'scripts/init-run.mjs'),
-    '--profile', 'high-risk', '--reason', 'semantic assurance fixture'
-  ], { cwd: repo, encoding: 'utf8' });
-  assert.equal(initialized.status, 0, initialized.stderr || initialized.stdout);
-  initialized = spawnSync(process.execPath, [
-    path.join(root, 'scripts/run-control.mjs'), 'start',
-    '--slice-id', 'completion-candidate',
-    '--remaining-obligations', '[]',
-    '--next-action', 'Evaluate completion',
-    '--next-command', 'node scripts/semantic-assurance.mjs complete'
-  ], { cwd: repo, encoding: 'utf8' });
-  assert.equal(initialized.status, 0, initialized.stderr || initialized.stdout);
-  const lifecyclePath = path.join(runtimeDirectory, 'review-lifecycle', 'release-policy.json');
-  const accountingPath = path.join(runtimeDirectory, 'assurance-accounting', 'latest.json');
-  const executionBudgetPath = path.join(runtimeDirectory, 'budget.json');
-  const candidate = {
-    base_sha: base,
-    head_sha: head,
-    tree_sha: tree,
-    dirty_tree_fingerprint: CLEAN_FINGERPRINT,
-    semantic_contract_sha256: semanticContractSha256
-  };
-  let lifecycle = createReviewLifecycle({
-    seam_id: 'release-policy', reviewer_identity: 'reviewer-1', candidate
-  });
-  lifecycle = applyReviewLifecycleEvent(lifecycle, {
-    type: 'attempt_started',
-    attempt: {
-      attempt_type: 'initial_review', attempt_id: 'attempt-initial',
-      seam_id: 'release-policy', reviewer_identity: 'reviewer-1',
-      review_package_id: 'package-initial', candidate
-    }
-  });
-  lifecycle = applyReviewLifecycleEvent(lifecycle, {
-    type: 'verdict_recorded', attempt_id: 'attempt-initial', verdict: 'approved', findings: []
-  });
-  lifecycle = applyReviewLifecycleEvent(lifecycle, { type: 'candidate_stabilized' });
-  lifecycle = applyReviewLifecycleEvent(lifecycle, {
-    type: 'attempt_started',
-    attempt: {
-      attempt_type: 'final_integration_review', attempt_id: 'attempt-final',
-      seam_id: 'release-policy', reviewer_identity: 'reviewer-1',
-      review_package_id: reviewPackageId, candidate
-    }
-  });
-  lifecycle = applyReviewLifecycleEvent(lifecycle, {
-    type: 'verdict_recorded', attempt_id: 'attempt-final', verdict: 'approved', findings: []
-  });
-  await mkdir(path.dirname(lifecyclePath), { recursive: true });
-  await writeFile(lifecyclePath, JSON.stringify(lifecycle));
-  const auxiliaryPath = path.join(runtimeDirectory, 'review-lifecycle', 'auxiliary-seam.json');
-  const correctedAuxiliaryCandidate = { ...candidate, head_sha: 'b'.repeat(40) };
-  let auxiliary = createReviewLifecycle({
-    seam_id: 'auxiliary-seam', reviewer_identity: 'reviewer-1', candidate
-  });
-  auxiliary = applyReviewLifecycleEvent(auxiliary, {
-    type: 'attempt_started',
-    attempt: {
-      attempt_type: 'initial_review', attempt_id: 'auxiliary-initial',
-      seam_id: 'auxiliary-seam', reviewer_identity: 'reviewer-1',
-      review_package_id: 'auxiliary-package-initial', candidate
-    }
-  });
-  auxiliary = applyReviewLifecycleEvent(auxiliary, {
-    type: 'verdict_recorded', attempt_id: 'auxiliary-initial', verdict: 'needs_correction',
-    findings: [{ severity: 'Important', summary: 'Exercise aggregate multi-seam accounting.' }]
-  });
-  auxiliary = applyReviewLifecycleEvent(auxiliary, {
-    type: 'correction_recorded', candidate: correctedAuxiliaryCandidate
-  });
-  auxiliary = applyReviewLifecycleEvent(auxiliary, {
-    type: 'attempt_started',
-    attempt: {
-      attempt_type: 'correction_recheck', attempt_id: 'auxiliary-recheck',
-      seam_id: 'auxiliary-seam', reviewer_identity: 'reviewer-1',
-      review_package_id: 'auxiliary-package-recheck', candidate: correctedAuxiliaryCandidate
-    }
-  });
-  auxiliary = applyReviewLifecycleEvent(auxiliary, {
-    type: 'verdict_recorded', attempt_id: 'auxiliary-recheck', verdict: 'approved', findings: []
-  });
-  await writeFile(auxiliaryPath, JSON.stringify(auxiliary));
-  await mkdir(path.dirname(accountingPath), { recursive: true });
-  await writeFile(accountingPath, JSON.stringify({
-    schema_version: 1,
-    candidate_head: head,
-    candidate_tree: tree,
-    observed_agent_ids: ['reviewer-1'],
-    dispatch_agent_ids: ['reviewer-1'],
-    budget_agent_ids: ['reviewer-1'],
-    observed_review_attempt_ids: [
-      'attempt-initial', 'attempt-final', 'auxiliary-initial', 'auxiliary-recheck'
-    ],
-    recorded_review_attempt_ids: [
-      'attempt-initial', 'attempt-final', 'auxiliary-initial', 'auxiliary-recheck'
-    ],
-    recorded_review_attempt_counts: {
-      correction_rechecks: 1,
-      final_integration_reviews: 1
-    },
-    budget_review_attempt_counts: {
-      correction_rechecks: 1,
-      final_integration_reviews: 1
-    },
-    observed_max_depth: 1,
-    allowed_max_depth: 1,
-    reconciliation_complete: true
-  }));
-  await writeFile(executionBudgetPath, JSON.stringify({
-    schema_version: 1,
-    profile: 'high-risk',
-    limits: {
-      correction_rechecks: 2,
-      final_integration_reviews: 2,
-      complete_suite_executions: 3,
-      exact_duplicate_commands: 2
-    },
-    usage: {
-      correction_rechecks: 1,
-      final_integration_reviews: 1,
-      complete_suite_executions: 0,
-      exact_duplicate_commands: 0
-    },
-    scoped_usage: {
-      correction_rechecks: {
-        [`auxiliary-seam@${semanticContractSha256}`]: 1
-      }
-    },
-    overrides: [],
-    proof_obligations: [],
-    events: []
-  }));
-  const refreshed = spawnSync(process.execPath, [
-    path.join(root, 'scripts/run-control.mjs'), 'refresh'
-  ], { cwd: repo, encoding: 'utf8' });
-  assert.equal(refreshed.status, 0, refreshed.stderr || refreshed.stdout);
-  return { lifecyclePath, accountingPath, executionBudgetPath };
 }
 
 test('matrix CLI emits machine-readable coverage and a human summary', async () => {
@@ -267,9 +61,6 @@ test('matrix CLI emits machine-readable coverage and a human summary', async () 
       schema_version: 1,
       requirements: [{ id: 'MATRIX-001', text: 'Validate matrix coverage.' }]
     }));
-    const receipt = governedClaimReceipt(
-      repo, 'MATRIX-001', 'Matrix coverage is validated.'
-    );
     await writeFile(matrixPath, JSON.stringify({
       schema_version: 1,
       candidate_head: head,
@@ -279,16 +70,26 @@ test('matrix CLI emits machine-readable coverage and a human summary', async () 
         authoritative_text: 'Validate matrix coverage.',
         source: 'plan.md#matrix-001',
         implementation_locations: ['scripts/semantic-assurance.mjs'],
-        evidence_refs: [receipt.id],
+        evidence_refs: ['receipt-1'],
         evidence_scope: { git_tree: tree, environment: 'node-linux' },
         unavailable_proof: [],
         status: 'verified',
-        intended_acceptance_claims: ['Matrix coverage is validated.'],
-        tdd_evidence: 'not_claimed'
+        intended_acceptance_claims: ['Matrix coverage is validated.']
       }],
       observations: []
     }));
-    await writeFile(evidencePath, `${JSON.stringify(receipt)}\n`);
+    await writeFile(evidencePath, `${JSON.stringify({
+      schema_version: 2,
+      id: 'receipt-1',
+      exit_code: 0,
+      git_commit: head,
+      git_tree: tree,
+      dirty_tree_fingerprint: CLEAN_FINGERPRINT,
+      requirement_ids: ['MATRIX-001'],
+      establishes: ['Matrix coverage is validated.'],
+      does_not_establish: [],
+      environment_scope: 'node-linux'
+    })}\n`);
 
     const result = run([
       'matrix',
@@ -334,9 +135,6 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       schema_version: 1,
       requirements: [{ id: 'GATE-001', text: 'Gate candidate completion.' }]
     };
-    const claimReceipt = governedClaimReceipt(
-      repo, 'GATE-001', 'Candidate completion is gated.'
-    );
     const requirementMatrix = {
       schema_version: 1,
       candidate_head: candidateHead,
@@ -346,12 +144,11 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
         authoritative_text: 'Gate candidate completion.',
         source: 'plan.md#gate-001',
         implementation_locations: ['scripts/semantic-assurance.mjs'],
-        evidence_refs: [claimReceipt.id],
+        evidence_refs: ['receipt-1'],
         evidence_scope: { git_tree: candidateTree, environment: 'node-linux' },
         unavailable_proof: [],
         status: 'verified',
-        intended_acceptance_claims: ['Candidate completion is gated.'],
-        tdd_evidence: 'not_claimed'
+        intended_acceptance_claims: ['Candidate completion is gated.']
       }],
       observations: []
     };
@@ -361,11 +158,22 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       .update(await import('node:fs/promises').then(({ readFile }) => readFile(matrixPath)))
       .digest('hex');
     const contractSha256 = semanticContractSha256(bindingRequirements, requirementMatrix);
-    await writeFile(evidencePath, `${JSON.stringify(claimReceipt)}\n`);
+    await writeFile(evidencePath, `${JSON.stringify({
+      schema_version: 2,
+      id: 'receipt-1',
+      exit_code: 0,
+      git_commit: candidateHead,
+      git_tree: candidateTree,
+      dirty_tree_fingerprint: CLEAN_FINGERPRINT,
+      requirement_ids: ['GATE-001'],
+      establishes: ['Candidate completion is gated.'],
+      does_not_establish: [],
+      environment_scope: 'node-linux'
+    })}\n`);
     await writeFile(reviewsPath, JSON.stringify({
       schema_version: 1,
       reviews: [{
-        schema_version: 2,
+        schema_version: 1,
         id: 'review-001',
         review_type: 'independent_review',
         owner_inline: false,
@@ -383,10 +191,6 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
         unverified_obligations: [],
         reviewed_at: '2026-07-30T12:00:00.000Z',
         review_package_id: 'package-001',
-        attempt_type: 'final_integration_review',
-        attempt_id: 'attempt-final',
-        seam_id: 'release-policy',
-        candidate_dirty_tree_fingerprint: CLEAN_FINGERPRINT,
         requirement_matrix_sha256: matrixSha256,
         semantic_contract_sha256: contractSha256,
         checkout_integrity_result: 'REVIEW_CHECKOUT_UNCHANGED'
@@ -395,7 +199,6 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
     await writeFile(reviewPackagePath, JSON.stringify({
       schema_version: 1,
       id: 'package-001',
-      seam_id: 'release-policy',
       base: 'a'.repeat(40),
       head: candidateHead,
       requirement_matrix: {
@@ -406,15 +209,6 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       semantic_contract: { sha256: contractSha256 },
       lenses: ['mission-scope']
     }));
-    const assurance = await assuranceFiles(directory, {
-      repo,
-      base: 'a'.repeat(40),
-      head: candidateHead,
-      tree: candidateTree,
-      semanticContractSha256: contractSha256,
-      reviewPackageId: 'package-001'
-    });
-    generatePostmortem(repo);
 
     let result = run([
       'complete',
@@ -424,127 +218,13 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       '--matrix', matrixPath,
       '--evidence', evidencePath,
       '--reviews', reviewsPath,
-      '--review-package', reviewPackagePath,
-      '--review-lifecycle', assurance.lifecyclePath,
-      '--assurance-accounting', assurance.accountingPath,
-      '--execution-budget', assurance.executionBudgetPath
+      '--review-package', reviewPackagePath
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const decision = JSON.parse(result.stdout);
     assert.equal(decision.state, 'CANDIDATE_COMPLETE');
     assert.deepEqual(decision.allowed_claims, ['Candidate completion is gated.']);
     assert.match(result.stderr, /CANDIDATE_COMPLETE.*review=review-001/i);
-
-    await writeFile(path.join(repo, '.git', 'zimster', 'run.md'), '# stale summary\n');
-    result = run([
-      'complete',
-      '--profile', 'standard',
-      '--owner-verified',
-      '--requirements', requirementsPath,
-      '--matrix', matrixPath,
-      '--evidence', evidencePath,
-      '--reviews', reviewsPath,
-      '--review-package', reviewPackagePath,
-      '--review-lifecycle', assurance.lifecyclePath,
-      '--assurance-accounting', assurance.accountingPath,
-      '--execution-budget', assurance.executionBudgetPath
-    ], repo);
-    assert.equal(result.status, 2, result.stderr || result.stdout);
-    assert.match(JSON.parse(result.stdout).reasons.join('\n'), /STALE_RUN_SUMMARY/i);
-    const refreshed = spawnSync(process.execPath, [
-      path.join(root, 'scripts/run-control.mjs'), 'refresh'
-    ], { cwd: repo, encoding: 'utf8' });
-    assert.equal(refreshed.status, 0, refreshed.stderr || refreshed.stdout);
-
-    const forgedBudgetPath = path.join(directory, 'forged-execution-budget.json');
-    await writeFile(forgedBudgetPath, JSON.stringify({
-      schema_version: 1,
-      profile: 'high-risk',
-      overrides: [],
-      proof_obligations: []
-    }));
-    result = run([
-      'complete',
-      '--profile', 'standard',
-      '--owner-verified',
-      '--requirements', requirementsPath,
-      '--matrix', matrixPath,
-      '--evidence', evidencePath,
-      '--reviews', reviewsPath,
-      '--review-package', reviewPackagePath,
-      '--review-lifecycle', assurance.lifecyclePath,
-      '--assurance-accounting', assurance.accountingPath,
-      '--execution-budget', forgedBudgetPath
-    ], repo);
-    assert.equal(result.status, 2, result.stderr || result.stdout);
-    assert.match(
-      JSON.parse(result.stdout).reasons.join('\n'),
-      /authoritative Git-local execution budget/i
-    );
-
-    await writeFile(assurance.executionBudgetPath, JSON.stringify({
-      schema_version: 1,
-      profile: 'high-risk',
-      limits: { final_integration_reviews: 2 },
-      usage: { final_integration_reviews: 3 },
-      overrides: [{
-        metric: 'final_integration_reviews',
-        value: 3,
-        limit: 2,
-        required_proof: 'fresh-focused-proof'
-      }],
-      proof_obligations: [{
-        proof: 'fresh-focused-proof',
-        status: 'required',
-        metric: 'final_integration_reviews',
-        receipt_type: 'evidence'
-      }]
-    }));
-    result = run([
-      'complete',
-      '--profile', 'standard',
-      '--owner-verified',
-      '--requirements', requirementsPath,
-      '--matrix', matrixPath,
-      '--evidence', evidencePath,
-      '--reviews', reviewsPath,
-      '--review-package', reviewPackagePath,
-      '--review-lifecycle', assurance.lifecyclePath,
-      '--assurance-accounting', assurance.accountingPath,
-      '--execution-budget', assurance.executionBudgetPath
-    ], repo);
-    assert.equal(result.status, 2, result.stderr || result.stdout);
-    assert.match(JSON.parse(result.stdout).reasons.join('\n'), /pending execution-budget proof/i);
-    await writeFile(assurance.executionBudgetPath, JSON.stringify({
-      schema_version: 1,
-      profile: 'high-risk',
-      limits: { final_integration_reviews: 2 },
-      usage: { final_integration_reviews: 3 },
-      overrides: [{
-        metric: 'final_integration_reviews',
-        value: 3,
-        limit: 2,
-        required_proof: 'fresh-focused-proof'
-      }],
-      proof_obligations: [{
-        proof: 'fresh-focused-proof',
-        status: 'superseded',
-        metric: 'final_integration_reviews',
-        receipt_type: 'evidence',
-        superseded_by: 'replacement-focused-proof',
-        supersession_reason: 'The original proof relationship was circular.',
-        superseded_at: '2026-08-16T12:00:00.000Z'
-      }, {
-        proof: 'replacement-focused-proof',
-        status: 'satisfied',
-        metric: 'final_integration_reviews',
-        receipt_type: 'evidence',
-        kind: 'test',
-        scope: 'focused',
-        command: 'focused-proof',
-        receipt_id: 'focused-proof-receipt'
-      }]
-    }));
 
     requirementMatrix.observations.push({
       id: 'final-evidence-state',
@@ -555,8 +235,7 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       environment_scope: 'node-linux',
       git_commit: candidateHead,
       git_tree: candidateTree,
-      dirty_tree_fingerprint: CLEAN_FINGERPRINT,
-      ...claimProvenance()
+      dirty_tree_fingerprint: CLEAN_FINGERPRINT
     });
     await writeFile(matrixPath, JSON.stringify(requirementMatrix));
     result = run([
@@ -567,64 +246,10 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       '--matrix', matrixPath,
       '--evidence', evidencePath,
       '--reviews', reviewsPath,
-      '--review-package', reviewPackagePath,
-      '--review-lifecycle', assurance.lifecyclePath,
-      '--assurance-accounting', assurance.accountingPath,
-      '--execution-budget', assurance.executionBudgetPath
+      '--review-package', reviewPackagePath
     ], repo);
-    assert.equal(result.status, 2, result.stderr || result.stdout);
-    assert.match(
-      JSON.parse(result.stdout).reasons.join('\n'),
-      /proof receipt.*focused-proof-receipt/i
-    );
-
-    const proofEnvironment = {
-      platform: os.platform(),
-      release: os.release(),
-      arch: os.arch(),
-      node: process.version,
-      npm: spawnSync('npm', ['--version'], { encoding: 'utf8' }).stdout.trim(),
-      host_version: null
-    };
-    const runtimeEvidenceDirectory = path.join(repo, '.git', 'zimster', 'evidence');
-    await mkdir(runtimeEvidenceDirectory, { recursive: true });
-    await writeFile(path.join(runtimeEvidenceDirectory, 'receipts.jsonl'), `${JSON.stringify({
-      schema_version: 2,
-      id: 'focused-proof-receipt',
-      kind: 'test',
-      scope: 'focused',
-      command: 'focused-proof',
-      exit_code: 0,
-      git_head: candidateHead,
-      git_commit: candidateHead,
-      git_tree: candidateTree,
-      dirty_tree_fingerprint: CLEAN_FINGERPRINT,
-      environment: proofEnvironment,
-      environment_fingerprint: createHash('sha256')
-        .update(JSON.stringify(proofEnvironment)).digest('hex'),
-      dependency_cone: [],
-      dependency_fingerprints: [],
-      inputs: [],
-      input_fingerprints: []
-    })}\n`);
-    result = run([
-      'complete',
-      '--profile', 'standard',
-      '--owner-verified',
-      '--requirements', requirementsPath,
-      '--matrix', matrixPath,
-      '--evidence', evidencePath,
-      '--reviews', reviewsPath,
-      '--review-package', reviewPackagePath,
-      '--review-lifecycle', assurance.lifecyclePath,
-      '--assurance-accounting', assurance.accountingPath,
-      '--execution-budget', assurance.executionBudgetPath
-    ], repo);
-    assert.equal(result.status, 2, result.stderr || result.stdout);
-    assert.match(
-      JSON.parse(result.stdout).reasons.join('\n'),
-      /stale or unauthenticated|governed|proof receipt/i
-    );
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(JSON.parse(result.stdout).state, 'CANDIDATE_COMPLETE');
 
     await writeFile(path.join(repo, 'tracked.txt'), 'corrected\n');
     assert.equal(spawnSync('git', ['add', 'tracked.txt'], { cwd: repo }).status, 0);
@@ -637,10 +262,7 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       '--matrix', matrixPath,
       '--evidence', evidencePath,
       '--reviews', reviewsPath,
-      '--review-package', reviewPackagePath,
-      '--review-lifecycle', assurance.lifecyclePath,
-      '--assurance-accounting', assurance.accountingPath,
-      '--execution-budget', assurance.executionBudgetPath
+      '--review-package', reviewPackagePath
     ], repo);
     assert.equal(result.status, 2, result.stderr || result.stdout);
     const staleDecision = JSON.parse(result.stdout);
@@ -677,9 +299,6 @@ test('completion CLI rejects a review that is not bound to its exact package and
       schema_version: 1,
       requirements: [{ id: 'GATE-001', text: 'Bind approval to exact inputs.' }]
     }));
-    const claimReceipt = governedClaimReceipt(
-      repo, 'GATE-001', 'Approval is bound to exact inputs.'
-    );
     await writeFile(matrixPath, JSON.stringify({
       schema_version: 1,
       candidate_head: candidateHead,
@@ -689,12 +308,11 @@ test('completion CLI rejects a review that is not bound to its exact package and
         authoritative_text: 'Bind approval to exact inputs.',
         source: 'requirements.md#gate-001',
         implementation_locations: ['scripts/semantic-assurance.mjs'],
-        evidence_refs: [claimReceipt.id],
+        evidence_refs: ['receipt-1'],
         evidence_scope: { git_tree: candidateTree, environment: 'node-linux' },
         unavailable_proof: [],
         status: 'verified',
-        intended_acceptance_claims: ['Approval is bound to exact inputs.'],
-        tdd_evidence: 'not_claimed'
+        intended_acceptance_claims: ['Approval is bound to exact inputs.']
       }],
       observations: []
     }));
@@ -704,11 +322,22 @@ test('completion CLI rejects a review that is not bound to its exact package and
       JSON.parse(await import('node:fs/promises').then(({ readFile }) => readFile(requirementsPath))),
       JSON.parse(matrixBytes)
     );
-    await writeFile(evidencePath, `${JSON.stringify(claimReceipt)}\n`);
+    await writeFile(evidencePath, `${JSON.stringify({
+      schema_version: 2,
+      id: 'receipt-1',
+      exit_code: 0,
+      git_commit: candidateHead,
+      git_tree: candidateTree,
+      dirty_tree_fingerprint: CLEAN_FINGERPRINT,
+      requirement_ids: ['GATE-001'],
+      establishes: ['Approval is bound to exact inputs.'],
+      does_not_establish: [],
+      environment_scope: 'node-linux'
+    })}\n`);
     await writeFile(reviewsPath, JSON.stringify({
       schema_version: 1,
       reviews: [{
-        schema_version: 2,
+        schema_version: 1,
         id: 'review-001',
         review_type: 'independent_review',
         owner_inline: false,
@@ -726,10 +355,6 @@ test('completion CLI rejects a review that is not bound to its exact package and
         unverified_obligations: [],
         reviewed_at: '2026-07-30T12:00:00.000Z',
         review_package_id: 'stale-package',
-        attempt_type: 'final_integration_review',
-        attempt_id: 'attempt-final',
-        seam_id: 'release-policy',
-        candidate_dirty_tree_fingerprint: CLEAN_FINGERPRINT,
         requirement_matrix_sha256: matrixSha256,
         semantic_contract_sha256: contractSha256,
         checkout_integrity_result: 'REVIEW_CHECKOUT_UNCHANGED'
@@ -744,15 +369,6 @@ test('completion CLI rejects a review that is not bound to its exact package and
       semantic_contract: { sha256: contractSha256 },
       lenses: ['mission-scope']
     }));
-    const assurance = await assuranceFiles(directory, {
-      repo,
-      base: 'a'.repeat(40),
-      head: candidateHead,
-      tree: candidateTree,
-      semanticContractSha256: contractSha256,
-      reviewPackageId: 'current-package'
-    });
-    generatePostmortem(repo);
     const result = run([
       'complete',
       '--profile', 'standard',
@@ -761,10 +377,7 @@ test('completion CLI rejects a review that is not bound to its exact package and
       '--matrix', matrixPath,
       '--evidence', evidencePath,
       '--reviews', reviewsPath,
-      '--review-package', packagePath,
-      '--review-lifecycle', assurance.lifecyclePath,
-      '--assurance-accounting', assurance.accountingPath,
-      '--execution-budget', assurance.executionBudgetPath
+      '--review-package', packagePath
     ], repo);
     assert.equal(result.status, 2, result.stderr || result.stdout);
     assert.match(JSON.parse(result.stdout).reasons.join('\n'), /package/i);
@@ -792,12 +405,23 @@ test('matrix CLI marks naturally stale dependency evidence invalid', async () =>
       schema_version: 1,
       requirements: [{ id: 'EVIDENCE-001', text: 'Reject stale evidence.' }]
     }));
-    const receipt = governedClaimReceipt(
-      repo,
-      'EVIDENCE-001',
-      'Fresh dependencies are enforced.',
-      'dependency.txt'
-    );
+    const receiptResult = spawnSync(process.execPath, [
+      path.join(root, 'scripts/evidence.mjs'),
+      'record',
+      '--kind', 'test',
+      '--scope', 'focused',
+      '--command', 'node --test',
+      '--exit-code', '0',
+      '--tests-passed', '1',
+      '--tests-failed', '0',
+      '--dependencies', 'dependency.txt',
+      '--requirement-ids', 'EVIDENCE-001',
+      '--establishes', 'Fresh dependencies are enforced.',
+      '--does-not-establish', 'Unrelated behavior is compatible.',
+      '--environment-scope', 'node-linux'
+    ], { cwd: repo, encoding: 'utf8' });
+    assert.equal(receiptResult.status, 0, receiptResult.stderr || receiptResult.stdout);
+    const receipt = JSON.parse(receiptResult.stdout);
     await writeFile(matrixPath, JSON.stringify({
       schema_version: 1,
       candidate_head: head,
@@ -808,11 +432,10 @@ test('matrix CLI marks naturally stale dependency evidence invalid', async () =>
         source: 'requirements.md#evidence-001',
         implementation_locations: ['scripts/semantic-assurance.mjs'],
         evidence_refs: [receipt.id],
-        evidence_scope: { git_tree: tree, environment: 'node-linux' },
+        evidence_scope: { git_tree: 'any', environment: 'node-linux' },
         unavailable_proof: [],
         status: 'verified',
-        intended_acceptance_claims: ['Fresh dependencies are enforced.'],
-        tdd_evidence: 'not_claimed'
+        intended_acceptance_claims: ['Fresh dependencies are enforced.']
       }],
       observations: []
     }));

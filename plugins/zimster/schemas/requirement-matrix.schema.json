@@ -27,7 +27,7 @@
   "$defs": {
     "requirementId": {
       "type": "string",
-      "pattern": "^[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*-[0-9]{3,}$"
+      "pattern": "^[A-Z][A-Z0-9]*-[0-9]{3,}$"
     },
     "stringList": {
       "type": "array",
@@ -45,8 +45,7 @@
         "evidence_scope",
         "unavailable_proof",
         "status",
-        "intended_acceptance_claims",
-        "tdd_evidence"
+        "intended_acceptance_claims"
       ],
       "properties": {
         "id": {"$ref": "#/$defs/requirementId"},
@@ -69,7 +68,6 @@
           "additionalProperties": false
         },
         "unavailable_proof": {"$ref": "#/$defs/stringList"},
-        "proof_deferred_until": {"enum": ["postpublication"]},
         "not_applicable_reason": {"type": "string", "minLength": 1},
         "status": {
           "enum": [
@@ -82,14 +80,7 @@
             "not_applicable"
           ]
         },
-        "intended_acceptance_claims": {"$ref": "#/$defs/stringList"},
-        "tdd_evidence": {"enum": ["required", "not_claimed"]},
-        "tdd_behavior_ids": {
-          "type": "array",
-          "items": {"type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$"},
-          "uniqueItems": true,
-          "minItems": 1
-        }
+        "intended_acceptance_claims": {"$ref": "#/$defs/stringList"}
       },
       "allOf": [
         {
@@ -103,14 +94,6 @@
               "evidence_refs": {"minItems": 1}
             }
           }
-        },
-        {
-          "if": {
-            "properties": {"tdd_evidence": {"const": "required"}},
-            "required": ["tdd_evidence"]
-          },
-          "then": {"required": ["tdd_behavior_ids"]},
-          "else": {"not": {"required": ["tdd_behavior_ids"]}}
         }
       ],
       "additionalProperties": false

@@ -1,12 +1,10 @@
 # Codex
 
-Verification target for Zimster 0.7.1: `INSTALLED_PACKAGE_VERIFIED` on
-standalone Codex CLI 0.147.0. The
-managed Desktop runtime observed during release work was
-0.147.0-alpha.6.6; it is separate evidence and exposed a smaller spawn schema.
-Marketplace installation, generated-mirror integrity, and role-template parsing
-are deterministic checks. A model-backed role/tool inventory remains a separate
-live proof.
+Verification level for Zimster 0.7.0: `INSTALLED_PACKAGE_VERIFIED` on Codex CLI
+0.146.1. Isolated marketplace registration and installation reported version
+0.7.0 and the expected installed path. The generated mirror and listing
+contracts pass deterministic validation. A fresh isolated model-backed prompt
+against the 0.7.0 archive has not yet been scored.
 
 ## Install and inspect
 
@@ -50,24 +48,7 @@ cachebuster suffix without changing the release version.
 
 ## Capability mapping
 
-Codex supplies native Agent Skills, optional agents, and host-conditional
-per-spawn model/reasoning settings. Current V2 exposes `spawn_agent`,
-`send_message`, `followup_task`, `wait_agent`, `list_agents`, and
-`interrupt_agent`; it does not expose V1's `close_agent`. Interrupt stops an
-active turn but keeps the agent reusable, and `followup_task` starts another
-turn on an idle agent.
-
-## Reviewer role registration
-
-The plugin manifest cannot register Codex agent roles. To claim a named
-Zimster role, explicitly copy the desired files from
-`templates/codex-agents/` into project `.codex/agents/` or personal
-`$CODEX_HOME/agents/`, then start a fresh session. The templates apply a
-read-only sandbox and disable both agent settings and multi-agent feature
-flags. Zimster never edits personal configuration silently.
-
-Some managed Desktop schemas do not expose `agent_type`, `model`, or
-`reasoning_effort`. In those sessions a generic spawned agent is not proof that
-a Zimster role was selected. Use dispatch/budget/depth reconciliation and fail
-closed if role binding or descendant-tool removal cannot be observed. Requested
-and effective model identity remain separate evidence.
+Codex supplies native Agent Skills, explicit per-run model/reasoning settings,
+and optional agents. Requested and effective model identity remain separate
+evidence. Zimster never edits active user configuration and never treats
+installation as proof of model-backed behavior.

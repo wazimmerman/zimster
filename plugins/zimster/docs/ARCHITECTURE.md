@@ -46,53 +46,17 @@ Dependency-free Node 22 tools turn important policy into inspectable state:
   changes without touching the index;
 - `evidence.mjs` records local proof receipts and validity fingerprints;
 - `run-budget.mjs` enforces execution limits and proof-backed overrides;
-- `accounting-reconcile.mjs` derives suite and exact-duplicate counts from
-  durable governed execution identities, reports unobservable direct-shell
-  history honestly, and audits any correction;
-- `run-control.mjs` owns slice transitions, dirty recovery snapshots, resume
-  reconciliation, and deterministic `run.md` refresh/check;
-- `control-plane-mutation.mjs` serializes successful cross-store mutations,
-  writes a phase marker before the canonical write, advances the run revision,
-  refreshes the recovery checkpoint and derived summary, appends transaction-
-  bound audit events, and validates invariants before returning;
 - `phase-checkpoint.mjs` separates persistent logical ownership from bounded
-  physical contexts and remains the legacy compact-checkpoint entry point;
-- `verify.mjs` and `evidence.mjs run` persist a governed start before spawning,
-  bind candidate/runtime/governing-policy provenance, and finalize against the
-  exact terminal receipt bytes;
+  physical contexts;
+- `verify.mjs` runs profile-selected gates with full Git-local logs and one
+  compact receipt;
 - `installed-package-smoke.mjs` exercises exact candidate archives in isolated
   homes before review packaging;
 - `review-package.mjs` represents immutable canonical changes and mirror
-  hashes without duplicating generated content, plus typed stable attempt IDs,
-  reconstructable dirty state, binding requirement IDs, matrix state, intended
-  claims, evidence scope, unavailable proof, and lenses;
-- `review-lifecycle.mjs` persists one-reviewer typed attempt transitions and a
-  hard cardinality of one primary review, one correction recheck, and two
-  final integration reviews per semantic contract; exhaustion enters durable
-  strategy escalation rather than opening another attempt;
-- `review-authorization.mjs` admits final approval only from the approved
-  verdict of the exact final-review attempt. Owner-managed dispatch/routing
-  rows cannot authenticate a post-review reviewer result, so caller-authored
-  rebuttal or deferral dispositions fail closed. Historical records remain
-  preserved for audit but cannot authorize completion;
-- review attempt IDs are globally unique across canonical seam lifecycles, and
-  final completion binds the approved lifecycle attempt to the immutable
-  review package's exact seam and package identity;
-- `run-budget.mjs` admits a post-redesign correction recheck only when its
-  explicit semantic-contract digest matches the current lifecycle candidate
-  and that lifecycle is in the authorized recheck state, keeping budget scope
-  aligned with the lifecycle's semantic epoch; candidate completion loads
-  every canonical seam lifecycle and reconciles run-global aggregate history
-  only to distinct authenticated lifecycle epochs across those seams;
-- `coherence-preflight.mjs` compares the canonical run, checkpoint, derived
-  summary, governed accounting, budget proofs, review lifecycle, assurance
-  accounting, and exact checkout before final review, completion, or release;
-- `assurance-accounting.mjs` reconciles supported host observations with
-  dispatch, budget, review-attempt, and depth records and fails closed;
-- `semantic-assurance.mjs` validates the requirement-to-evidence matrix,
-  authenticates the Git-local execution budget, revalidates every override
-  proof receipt against the current candidate and ledger, and deterministically
-  gates candidate completion;
+  hashes without duplicating generated content, plus binding requirement IDs,
+  matrix state, intended claims, evidence scope, unavailable proof, and lenses;
+- `semantic-assurance.mjs` validates the requirement-to-evidence matrix and
+  deterministically gates candidate completion;
 - `capability-cache.mjs` decides whether one host contract needs refreshed
   research;
 - `run-postmortem.mjs` aggregates run-scoped observed/inferred/unavailable
@@ -117,62 +81,6 @@ No run receipt or model record is uploaded. Normal runtime artifacts live
 under the worktree-safe Git administrative path returned by
 `git rev-parse --git-path zimster`, outside product history.
 
-An interrupted transaction has only two honest recovery paths. A durable
-`canonical_mutation_applied` marker lets `resume` finish the revision,
-checkpoint, event, and summary deterministically. A marker that remains merely
-`started` enters `RECOVERY_RECONCILIATION_REQUIRED`; Zimster preserves it and
-does not guess whether the canonical command succeeded. When the owning store
-proves that argument validation or another pre-write failure made no canonical
-mutation, `run-control.mjs reconcile` archives the original marker with the
-explicit reason, durable evidence, and candidate observed at reconciliation;
-it never silently deletes the ambiguous record.
-
-Execution-budget proof labels are immutable identities. A satisfied or
-superseded label cannot be reused by a later override, and both semantic and
-coherence gates reject ambiguous lookup. A historical duplicate remains in
-place: `run-budget.mjs reconcile-identities` appends occurrence fingerprints
-and source-to-occurrence bindings so validators traverse an explicit graph
-without rewriting history or using last-wins lookup.
-
-Self-host evidence has two layers. Candidate-bound evidence establishes that
-the exact implementation can reconstruct and reconcile durable observations;
-it does not depend on mutable current lifecycle or accounting files. The live
-coherence gate separately requires assurance accounting to match the current
-lifecycle and budget immediately before review, completion, and release. This
-keeps capability proof stable while mutable authorization state still fails
-closed when it advances.
-
-When an exact governed verification has already executed bounded commands,
-`evidence.mjs bridge-verification` can derive claim-scoped evidence without
-re-execution. The bridge authenticates the upstream governed execution,
-candidate, environment, profile, terminal receipt digest, selected passing
-steps, and every selected log digest. The bridge operation also records its own
-governed begin/finish lifecycle, so the derived receipt's exact terminal bytes
-authenticate independently rather than borrowing the upstream execution's
-identity. Success and post-admission failure compensation share one
-control-plane transaction. An identical terminal result can resume after a
-partial receipt or event write, while conflicting terminal results fail closed.
-The derived receipt names the upstream verification and logs as
-fingerprinted inputs. Each verification step must
-declare its requirement IDs, positive claims, exclusions, and environment
-scopes before execution. Executed helper programs are declared as
-`input_files`, fingerprinted before execution, checked again afterward, and
-carried into derived evidence. Each bridge receipt derives from one step only,
-can select only a subset of its positive contract, and must preserve every
-declared exclusion. It cannot bridge a failed, stale, handcrafted, changed, or
-unselected step or broaden a step's claims after observing its result.
-
-Claim-establishing receipts are authenticated governed terminal records with
-explicit requirement/claim/input-fingerprint bindings. Nonempty parallel
-arrays alone do not prove that relationship; receipts without a valid exact
-binding remain diagnostic.
-
-Exact release reconstruction uses tracked helpers. Clean-checkout
-reproducibility builds and secret-scans the artifact set in two independent
-detached clones. Self-host reconstruction runs the durable accounting,
-recovery, transaction, and coherence integration fixtures in a fresh detached
-clone; it does not read the live review lifecycle or assurance projection.
-
 ## Codex source and package flow
 
 ```text
@@ -189,30 +97,20 @@ changed, or extra files. Packaging refuses a stale mirror.
 
 ## Execution state
 
-Create Git-local durable state when there is more than one slice, any subagent
-or independent review, pending external/hardware proof, more than one commit
-boundary, compaction risk, or a resumed session. `run.json` owns run identity
-and workflow position: current slice/status, distinct next slice, completed
-slices, exact next action/command, and guard assertions. Execution, evidence,
-review, dispatch/delegation, and convergence ledgers own their observed facts;
-`budget.json` owns policy and reconciled projections. A checkpoint is a compact
-revision-bound recovery snapshot. `run.md` owns no mutable fact: the centralized
-renderer deterministically derives it from these canonical stores and actual
-Git state.
+Create the Git-local `zimster/run.md` when there is more than one slice, any subagent or
+independent review, pending external/hardware proof, more than one commit
+boundary, compaction risk, or a resumed session. It stores mission,
+profile/rationale, Git disposition, architecture, current slice, evidence IDs,
+dispatch IDs, open findings, unavailable proof, budget, and next action.
 
 Detailed logs, diffs, and transcripts remain separate artifacts.
 Projects may opt into a project-defined audit documentation path; normal
 operation never turns approval or run bookkeeping into a standalone commit.
 
-The logical implementation owner persists across physical contexts. Record a
-slice start before implementation, then checkpoint material milestones,
-verification failures/corrections, evidence/review/budget transitions, and
-intentional context renewal. Dirty work is valid in-progress state: the
-checkpoint carries base/current Git identity, dirty fingerprint, touched files,
-obligations, compact failure, receipt validity, review/budget position, guards,
-and exact continuation. It never embeds the full objective, passing logs,
-historical diffs, or transcript. Resume reconciles actual Git state; ambiguity
-reports `RECOVERY_RECONCILIATION_REQUIRED` rather than inventing history.
+The logical implementation owner persists across physical contexts. A compact
+checkpoint at a coherent slice boundary carries only the next dependency cone,
+valid receipt references, and budget position; it never embeds the full
+objective, passing logs, historical diffs, or transcript.
 
 ## Git state and review representation
 
@@ -243,12 +141,6 @@ An evidence receipt includes:
   harness scope;
 - whether it was a final gate.
 
-Semantic completion derives evidence purpose rather than trusting schema
-presence: only requirement/claim-bound receipts with fingerprinted input or
-dependency provenance establish claims. Unbound receipts are diagnostic.
-Prospective TDD proof uses explicit behavior-matched, governed RED/GREEN receipt
-pairs; absent historical RED evidence remains unavailable.
-
 Focused evidence may be reused only on the same fingerprint. Documentation-only
 changes rerun only affected provenance/packaging proof until the final gate is
 due. Final gates are always fresh. Duplicate evidence is surfaced instead of
@@ -268,18 +160,10 @@ Owner-inline work is always self-review. A review package binds the immutable
 base/head, complete canonical snapshot, relevant unchanged interfaces, matrix,
 evidence state, claims, unavailable proof, and selected lenses. Review attempts
 to falsify those claims. Approval binds a stable semantic-contract digest over
-binding text, intended claims, implementation locations, and stable evidence
-environment scope. Candidate Git tree identity, receipt references, statuses,
-observations, and verification results remain separately validated so final
-proof can advance without invalidating an unchanged reviewed contract.
-
-Review-package risk signals expand deterministically into their combined
-semantic lenses. Public contracts, trust boundaries, external/live services,
-shared adapters, plugin systems, durable state, migration, and release side
-effects cannot silently collapse to only the framework-defaults lens; their
-union includes the applicable scope, state, security, persistence, protocol,
-fallback, falsifiability, resource, external-service, framework, and shared
-control-flow lenses.
+binding text, intended claims, implementation locations, and evidence scope.
+Mutable receipt references, statuses, observations, and verification results
+remain separately validated so final proof can advance without invalidating an
+unchanged reviewed contract.
 
 Host evidence is independent per harness. Receipt states distinguish live,
 installed-package, structural, authentication-blocked, unavailable, and
@@ -340,24 +224,11 @@ cleaning it.
 ```text
 complete initial finding batch
 → owner fixes Critical/Important findings together
-→ owner may append further exact-candidate corrections before recheck starts
 → same reviewer performs one scoped resumed recheck
 → reserve final integration review until the exact candidate head is stable
 → require another exact-head review after any final-review correction
 → circuit breaker for load-bearing residuals
 ```
-
-Those pre-recheck correction events update one candidate lineage; they do not
-consume or create review attempts. Once the recheck starts, its exact candidate
-is immutable.
-
-An approved semantic candidate may advance its exact head and tree before a
-final integration attempt is active without resetting bounded review
-accounting, provided its semantic-contract digest and immutable base do not
-change. The advance always clears stability, so a pre-admission correction
-discovered after stabilization must renew exact evidence and stabilize again.
-The reserved final integration review supplies the exact-head approval; once
-that attempt is active, the assembly transition is closed.
 
 Residuals route to technical adjudication, design/requirement blocker,
 explicit deferral, diagnosis, or partial evidence instead of an unbounded

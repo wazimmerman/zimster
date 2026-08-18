@@ -45,11 +45,6 @@ jobs:
           test "$(git rev-list -n 1 "$GITHUB_REF_NAME")" = "$GITHUB_SHA"
       - run: npm run check
       - run: npm run version:check -- --tag "$GITHUB_REF_NAME"
-      - name: Materialize signed release inputs
-        run: |
-          npm run release:evidence -- extract-tag \
-            --tag "$GITHUB_REF_NAME" \
-            --output-dir release/evidence
       - name: Verify signed release authorization and artifact digests
         id: authorization
         env:
@@ -62,7 +57,6 @@ jobs:
             --semantic-review release/evidence/semantic-review.json \
             --host-matrix release/evidence/host-matrix.json \
             --verification release/evidence/verification.json \
-            --postmortem release/evidence/postmortem.json \
             --dist dist \
             --github-output "$GITHUB_OUTPUT"
       - run: npm run checksums

@@ -11,20 +11,6 @@ import { root } from './helpers.mjs';
 
 const CLEAN_FINGERPRINT = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
 
-test('release reconstruction helpers are exact-candidate programs with fresh-checkout boundaries', async () => {
-  const reproducibility = await readFile(
-    path.join(root, 'scripts/clean-checkout-reproducibility.mjs'), 'utf8'
-  );
-  const selfHost = await readFile(path.join(root, 'scripts/selfhost-reconstruction.mjs'), 'utf8');
-  assert.match(reproducibility, /clone/);
-  assert.match(reproducibility, /checkout/);
-  assert.match(reproducibility, /secret-scan\.mjs/);
-  assert.match(selfHost, /clone/);
-  assert.match(selfHost, /checkout/);
-  assert.match(selfHost, /governed-execution\.test\.mjs/);
-  assert.doesNotMatch(selfHost, /assurance-accounting\/latest\.json|review-lifecycle\/whole-release\.json/);
-});
-
 async function createExactPortableArchive(dist, head = 'a'.repeat(40), tree = 'b'.repeat(40)) {
   await mkdir(dist, { recursive: true });
   await createZip(path.join(dist, 'zimster-0.6.0-portable.zip'), [
@@ -276,40 +262,6 @@ test('host smoke runs a configured command from the extracted exact candidate', 
     ], root);
     assert.notEqual(stale.status, 0);
     assert.match(stale.stderr, /archive provenance.*candidate head and tree/i);
-  } finally {
-    await rm(directory, { recursive: true, force: true });
-  }
-});
-
-test('host smoke rejects an available CLI whose observed version differs from the documented release target', async () => {
-  const directory = await mkdtemp(path.join(os.tmpdir(), 'zimster-host-version-'));
-  try {
-    const dist = path.join(directory, 'dist');
-    await createExactPortableArchive(dist);
-    const config = path.join(directory, 'host-smoke.json');
-    await writeFile(config, `${JSON.stringify({
-      schema_version: 1,
-      hosts: [{
-        id: 'versioned-host',
-        candidate: 'portable',
-        proof_kind: 'exact_package_install_and_fresh_session_discovery',
-        command: process.execPath,
-        version_args: ['--version'],
-        expected_version_pattern: '^documented-host-9\\.9\\.9$',
-        args: ['-e', '']
-      }]
-    })}\n`);
-    const result = run(process.execPath, [
-      path.join(root, 'scripts/host-smoke.mjs'),
-      '--config', config, '--dist', dist,
-      '--candidate-head', 'a'.repeat(40), '--candidate-tree', 'b'.repeat(40),
-      '--dirty-tree-fingerprint', CLEAN_FINGERPRINT
-    ], root);
-    assert.notEqual(result.status, 0, result.stderr || result.stdout);
-    const summary = JSON.parse(result.stdout);
-    assert.equal(summary.status, 'failed');
-    assert.match(summary.failures[0].action, /observed host version.*documented release target/i);
-    assert.equal(summary.hosts[0].verification_state, 'UNAVAILABLE');
   } finally {
     await rm(directory, { recursive: true, force: true });
   }

@@ -2,7 +2,6 @@
 name: zimster-diagnostician
 description: Reproduce and isolate a defect that survived two owner attempts.
 tools: Read, Grep, Glob, Bash
-subagents: []
 maxTurns: 24
 ---
 

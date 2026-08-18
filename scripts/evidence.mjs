@@ -5,31 +5,23 @@ import {
   writeFile
 } from 'node:fs/promises';
 import { writeSync } from 'node:fs';
-import { createHash, randomUUID } from 'node:crypto';
+import { randomUUID } from 'node:crypto';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { parseOptions, required, integerOption } from './lib/cli.mjs';
 import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
 import { canonicalPath, repositoryRelativeIdentity, reviewFileIdentity } from './lib/path-identity.mjs';
 import {
   evidenceStalenessReason,
   fingerprintJson,
-  fingerprintPathIdentities,
-  inputDigest
+  fingerprintPathIdentities
 } from './lib/evidence-validity.mjs';
 import { ensureRuntimeDirectory, migrateLegacyJsonlStore } from './lib/runtime.mjs';
 import { harnessCapabilities } from './lib/capabilities.mjs';
-import { beginGovernedExecution, finishGovernedExecution } from './lib/governed-execution.mjs';
-import { executionBudgetProofReceiptPasses } from './lib/execution-budget.mjs';
-import {
-  evidenceCheckpointChanges,
-  withControlPlaneMutation
-} from './lib/control-plane-mutation.mjs';
+import { recordExecutionBudgetEvent } from './lib/execution-budget.mjs';
 
 const { positional, options, passthrough } = parseOptions(process.argv.slice(2));
-const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const commandName = positional[0];
 const root = await canonicalPath(findRepoRoot(process.cwd()));
 const workingDirectory = await canonicalPath(process.cwd());
@@ -39,32 +31,6 @@ let receiptsFile;
 
 function writeLine(value, stream = process.stdout) {
   writeSync(stream.fd, `${value}\n`);
-}
-
-function verificationBridgeTestFault(name) {
-  if (process.env.NODE_TEST_CONTEXT
-    && process.env.ZIMSTER_TEST_BRIDGE_FAULT === name) {
-    throw new Error(`injected verification bridge fault: ${name}`);
-  }
-}
-
-async function resumeWrittenTerminalization(runtime, repo, args) {
-  const file = path.join(runtime, 'executions', 'receipts', `${args.executionId}.json`);
-  let receipt;
-  try {
-    receipt = JSON.parse(await readFile(file, 'utf8'));
-  } catch (error) {
-    if (error.code === 'ENOENT') return false;
-    throw error;
-  }
-  const expectedDigest = createHash('sha256').update(args.terminalReceiptBytes).digest('hex');
-  if (receipt.status !== args.status
-    || receipt.exit_code !== args.exitCode
-    || receipt.terminal_receipt_type !== args.terminalReceiptType
-    || receipt.terminal_receipt_id !== args.terminalReceiptId
-    || receipt.terminal_receipt_sha256 !== expectedDigest) return false;
-  await finishGovernedExecution(runtime, repo, args);
-  return true;
 }
 
 function listOption(name) {
@@ -105,6 +71,33 @@ async function canonicalInputIdentities(inputs, base) {
   return Promise.all(inputs.map((input) => reviewFileIdentity(root, input, { base })));
 }
 
+async function accountForDuplicateExecution() {
+  let result;
+  try {
+    result = await recordExecutionBudgetEvent(await ensureRuntimeDirectory(root), {
+      metric: 'exact_duplicate_commands',
+      invalidation: options['invalidation-reason']
+        ? String(options['invalidation-reason'])
+        : null,
+      strategyChange: options['strategy-change']
+        ? String(options['strategy-change'])
+        : null,
+      requiredProof: options['required-proof']
+        ? String(options['required-proof'])
+        : null
+    });
+  } catch (error) {
+    if (error.code === 'ENOENT') return;
+    throw error;
+  }
+  if (!result.changed) {
+    writeLine(JSON.stringify({ status: result.status, ...result.detail }));
+    const error = new Error(result.status);
+    error.code = 'BUDGET_CONSTRAINED';
+    throw error;
+  }
+}
+
 async function init() {
   const runtime = await ensureRuntimeDirectory(root);
   await migrateLegacyJsonlStore(root, runtime, 'evidence', 'receipts.jsonl');
@@ -139,32 +132,6 @@ function commandArgvOption() {
   return value;
 }
 
-function claimBindingsOption(availableFingerprints) {
-  if (options['claim-bindings'] === undefined) return [];
-  let value;
-  try {
-    value = JSON.parse(String(options['claim-bindings']));
-  } catch {
-    throw new Error('--claim-bindings must be a JSON array');
-  }
-  if (!Array.isArray(value)) throw new Error('--claim-bindings must be a JSON array');
-  const byInput = new Map(availableFingerprints.map((row) => [row.input, row]));
-  return value.map((binding, index) => {
-    if (!binding || typeof binding !== 'object' || Array.isArray(binding)
-      || typeof binding.requirement_id !== 'string'
-      || typeof binding.claim !== 'string' || !binding.claim.trim()
-      || !Array.isArray(binding.inputs) || !binding.inputs.length
-      || !binding.inputs.every((input) => typeof input === 'string' && byInput.has(input))) {
-      throw new Error(`--claim-bindings entry ${index} must bind requirement_id and claim to declared canonical inputs`);
-    }
-    return {
-      requirement_id: binding.requirement_id,
-      claim: binding.claim,
-      input_fingerprints: binding.inputs.map((input) => ({ ...byInput.get(input) }))
-    };
-  });
-}
-
 function testDiscovery(options, passed, failed) {
   if (options['test-discovery']) {
     const value = String(options['test-discovery']);
@@ -191,18 +158,15 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
   const discovery = testDiscovery(options, passed, failed);
   const harness = options.harness ? String(options.harness) : null;
   const explicitBehavior = options['behavioral-evidence'];
-  const tddPhase = options['tdd-phase'] ? String(options['tdd-phase']) : null;
   const inputs = await canonicalInputIdentities(listOption('inputs'), workingDirectory);
   const behavioralEvidence = explicitBehavior === undefined
-    ? (exitCode === 0 || tddPhase === 'red') && discovery === 'tests_executed'
+    ? exitCode === 0 && discovery === 'tests_executed'
     : ['true', '1', 'yes'].includes(String(explicitBehavior).toLowerCase());
   const recordedEnvironment = environment(options['host-version'] ? String(options['host-version']) : null);
   const dependencies = await canonicalInputIdentities(listOption('dependencies'), root);
-  const dependencyFingerprints = await fingerprintPathIdentities(root, dependencies);
-  const inputFingerprints = await fingerprintPathIdentities(root, inputs);
   const requirementIds = listOption('requirement-ids');
   for (const id of requirementIds) {
-    if (!/^[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*-[0-9]{3,}$/.test(id)) {
+    if (!/^[A-Z][A-Z0-9]*-[0-9]{3,}$/.test(id)) {
       throw new Error(`malformed requirement ID: ${id}`);
     }
   }
@@ -246,23 +210,14 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
       skipped
     },
     dependency_cone: dependencies,
-    dependency_fingerprints: dependencyFingerprints,
+    dependency_fingerprints: await fingerprintPathIdentities(root, dependencies),
     inputs,
-    input_fingerprints: inputFingerprints,
+    input_fingerprints: await fingerprintPathIdentities(root, inputs),
     requirement_ids: requirementIds,
     establishes: listOption('establishes'),
     does_not_establish: listOption('does-not-establish'),
-    claim_bindings: claimBindingsOption([
-      ...dependencyFingerprints,
-      ...inputFingerprints
-    ]),
     environment_scope: options['environment-scope']
       ? String(options['environment-scope'])
-      : null,
-    tdd_phase: tddPhase,
-    tdd_behavior_id: options['tdd-behavior'] ? String(options['tdd-behavior']) : null,
-    tdd_red_receipt_id: options['tdd-red-receipt']
-      ? String(options['tdd-red-receipt'])
       : null,
     notes: options.notes ? String(options.notes) : null
   };
@@ -301,57 +256,12 @@ function validateReceipt(receipt) {
   )) {
     throw new Error('behavioral evidence requires executed tests and a successful command (except explicit red evidence)');
   }
-  if (receipt.tdd_phase !== null) {
-    if (!['red', 'green'].includes(receipt.tdd_phase)) {
-      throw new Error('--tdd-phase must be red or green');
-    }
-    if (!receipt.tdd_behavior_id || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(receipt.tdd_behavior_id)) {
-      throw new Error('TDD evidence requires a stable kebab-case --tdd-behavior');
-    }
-    if (receipt.tdd_phase === 'red' && (
-      receipt.kind !== 'red'
-      || receipt.exit_code === 0
-      || discovery !== 'tests_executed'
-      || !Number.isInteger(failed)
-      || failed <= 0
-      || receipt.tdd_red_receipt_id !== null
-    )) {
-      throw new Error('TDD RED evidence requires kind red, failing executed tests, and no predecessor');
-    }
-    if (receipt.tdd_phase === 'green' && (
-      receipt.exit_code !== 0
-      || discovery !== 'tests_executed'
-      || !Number.isInteger(passed)
-      || passed <= 0
-      || !receipt.tdd_red_receipt_id
-    )) {
-      throw new Error('TDD GREEN evidence requires passing executed tests and --tdd-red-receipt');
-    }
-  } else if (receipt.tdd_behavior_id !== null || receipt.tdd_red_receipt_id !== null) {
-    throw new Error('TDD behavior or RED predecessor metadata requires --tdd-phase');
-  }
-  const provenance = new Set([
-    ...(receipt.dependency_fingerprints || []),
-    ...(receipt.input_fingerprints || [])
-  ].map(({ input, digest }) => `${input}\0${digest}`));
-  for (const [index, binding] of (receipt.claim_bindings || []).entries()) {
-    if (!receipt.requirement_ids.includes(binding.requirement_id)
-      || !receipt.establishes.includes(binding.claim)
-      || !Array.isArray(binding.input_fingerprints)
-      || !binding.input_fingerprints.length
-      || !binding.input_fingerprints.every(({ input, digest }) =>
-        provenance.has(`${input}\0${digest}`)
-      )) {
-      throw new Error(`claim binding ${index} must bind a declared requirement and claim to receipt provenance`);
-    }
-  }
 }
 
 async function store(receipt) {
   await init();
-  const bytes = `${JSON.stringify(receipt)}\n`;
-  await appendFile(receiptsFile, bytes);
-  return bytes;
+  await appendFile(receiptsFile, `${JSON.stringify(receipt)}\n`);
+  writeSync(process.stdout.fd, `${JSON.stringify(receipt)}\n`);
 }
 
 async function findReusable(command, kind, scope) {
@@ -424,353 +334,8 @@ async function main() {
     await init();
     const exitCode = integerOption(options, 'exit-code');
     if (exitCode === undefined) throw new Error('--exit-code is required');
-    const receipt = await buildReceipt({ exitCode });
-    const runtime = await ensureRuntimeDirectory(root);
-    const bytes = await withControlPlaneMutation(runtime, root, {
-      mutationType: 'evidence_recorded',
-      checkpointChanges: () => evidenceCheckpointChanges(runtime, {
-        id: receipt.id,
-        status: exitCode === 0 ? 'valid' : 'stale',
-        ...(exitCode === 0 ? {} : { invalidation_reason: 'recorded evidence did not pass' })
-      })
-    }, () => store(receipt));
-    writeSync(process.stdout.fd, bytes);
+    await store(await buildReceipt({ exitCode }));
     return;
-  }
-  if (commandName === 'bridge-verification') {
-    await init();
-    const runtime = await ensureRuntimeDirectory(root);
-    const verificationId = required(options, 'verification-receipt');
-    if (!/^[a-zA-Z0-9._-]+$/.test(verificationId)) {
-      throw new Error('--verification-receipt must be a safe receipt id');
-    }
-    const requestedSteps = listOption('steps');
-    if (requestedSteps.length !== 1) {
-      throw new Error('claim-scoped evidence must derive from a single selected step contract');
-    }
-    required(options, 'kind');
-    required(options, 'scope');
-    required(options, 'environment-scope');
-    const verificationFile = path.join(
-      runtime,
-      'verification',
-      'receipts',
-      `${verificationId}.json`
-    );
-    const verificationBytes = await readFile(verificationFile, 'utf8');
-    const verification = JSON.parse(verificationBytes);
-    const diagnostics = {};
-    const authenticated = await executionBudgetProofReceiptPasses(runtime, {
-      required_at: new Date(Math.max(Date.now(), Date.parse(verification.ended_at) + 1)).toISOString(),
-      receipt_type: 'verification',
-      profile: verification.profile
-    }, verificationId, { cwd: root, diagnostics });
-    if (!authenticated || verification.status !== 'passed') {
-      throw new Error(
-        `upstream governed verification is not authenticated and passing: ${verificationId} (${JSON.stringify(diagnostics)})`
-      );
-    }
-    const byId = new Map((verification.steps || []).map((step) => [step.id, step]));
-    const selected = requestedSteps.map((id) => {
-      const step = byId.get(id);
-      if (!step || step.status !== 'passed' || step.exit_code !== 0) {
-        throw new Error(`selected verification step is not passing: ${id}`);
-      }
-      return step;
-    });
-    const [contract] = selected;
-    const allowedRequirements = new Set(contract.requirement_ids || []);
-    const allowedEstablishes = new Set(contract.establishes || []);
-    const allowedExclusions = new Set(contract.does_not_establish || []);
-    const allowedEnvironments = new Set(contract.environment_scopes || []);
-    const requestedRequirements = listOption('requirement-ids');
-    const requestedEstablishes = listOption('establishes');
-    const requestedExclusions = listOption('does-not-establish');
-    const requestedEnvironment = String(options['environment-scope']);
-    if (requestedRequirements.length !== 1 || requestedEstablishes.length !== 1) {
-      throw new Error(
-        'claim-scoped evidence must bind one exact requirement and claim pair per receipt'
-      );
-    }
-    const undeclared = [
-      ...requestedRequirements.filter((value) => !allowedRequirements.has(value)),
-      ...requestedEstablishes.filter((value) => !allowedEstablishes.has(value)),
-      ...requestedExclusions.filter((value) => !allowedExclusions.has(value)),
-      ...(allowedEnvironments.has(requestedEnvironment) ? [] : [requestedEnvironment])
-    ];
-    if (undeclared.length) {
-      throw new Error(
-        `bridge claim was not declared by selected verification steps: ${undeclared.join('; ')}`
-      );
-    }
-    const omittedCaveats = [...allowedExclusions]
-      .filter((value) => !requestedExclusions.includes(value));
-    if (omittedCaveats.length) {
-      throw new Error(
-        `bridge omitted required does_not_establish caveat: ${omittedCaveats.join('; ')}`
-      );
-    }
-    const logRoot = path.resolve(runtime, 'verification', 'logs', verificationId);
-    for (const step of selected) {
-      const log = path.resolve(step.log || '');
-      if (log !== logRoot && !log.startsWith(`${logRoot}${path.sep}`)) {
-        throw new Error(`verification step log escapes its receipt directory: ${step.id}`);
-      }
-      const digest = createHash('sha256').update(await readFile(log)).digest('hex');
-      if (digest !== step.log_sha256) {
-        throw new Error(`verification step log digest does not match: ${step.id}`);
-      }
-      for (const input of step.input_fingerprints || []) {
-        const current = await inputDigest(path.resolve(root, input.input));
-        if (current !== input.digest) {
-          throw new Error(`verification step executed input fingerprint changed: ${input.input}`);
-        }
-      }
-    }
-    const bridgeCommandArgv = [
-      'zimster:evidence-bridge',
-      '--verification-receipt', verificationId,
-      '--steps', JSON.stringify(requestedSteps),
-      '--requirement-ids', JSON.stringify(requestedRequirements),
-      '--establishes', JSON.stringify(requestedEstablishes),
-      '--does-not-establish', JSON.stringify(requestedExclusions),
-      '--environment-scope', requestedEnvironment
-    ];
-    const governed = await withControlPlaneMutation(runtime, root, {
-      mutationType: 'governed_evidence_bridge_started',
-      didMutate: (value) => value.admitted === true
-    }, () => beginGovernedExecution(runtime, root, {
-      sourceRoot: packageRoot,
-      issuer: 'zimster.evidence',
-      commandArgv: bridgeCommandArgv,
-      cwd: workingDirectory,
-      context: {
-        type: 'evidence',
-        kind: String(options.kind),
-        scope: String(options.scope),
-        source: 'verification-bridge'
-      },
-      completeSuite: false
-    }));
-    if (!governed.admitted) {
-      writeLine(JSON.stringify(governed.budget));
-      const error = new Error(governed.budget.status);
-      error.code = 'BUDGET_CONSTRAINED';
-      throw error;
-    }
-    let terminalized = false;
-    try {
-      options.command = `verification:${verificationId}#${requestedSteps.join(',')}`;
-      options['command-argv'] = JSON.stringify(bridgeCommandArgv);
-      options.source = 'verification-bridge';
-      options.inputs = JSON.stringify([
-        verificationFile,
-        ...selected.map(({ log }) => log),
-        ...selected.flatMap((step) => (step.input_fingerprints || []).map(({ input }) => input))
-      ]);
-      const receipt = await buildReceipt({ exitCode: 0 });
-      const stepInputDigests = new Set(
-        (contract.input_fingerprints || []).map(({ digest }) => digest)
-      );
-      const boundFingerprints = stepInputDigests.size
-        ? receipt.input_fingerprints.filter(({ digest }) => stepInputDigests.has(digest))
-        : receipt.input_fingerprints;
-      if ((requestedRequirements.length || requestedEstablishes.length) && !boundFingerprints.length) {
-        throw new Error('claim-scoped verification step has no fingerprinted executed provenance');
-      }
-      receipt.claim_bindings = requestedRequirements.flatMap((requirementId) =>
-        requestedEstablishes.map((claim) => ({
-          requirement_id: requirementId,
-          claim,
-          input_fingerprints: boundFingerprints.map((row) => ({ ...row }))
-        }))
-      );
-      receipt.upstream_verification_receipt_id = verificationId;
-      receipt.upstream_verification_execution_id = verification.execution_id;
-      receipt.upstream_verification_step_ids = requestedSteps;
-      receipt.upstream_verification_step_contracts = selected.map((step) => ({
-        id: step.id,
-        requirement_ids: [...(step.requirement_ids || [])],
-        establishes: [...(step.establishes || [])],
-        does_not_establish: [...(step.does_not_establish || [])],
-        environment_scopes: [...(step.environment_scopes || [])],
-        input_fingerprints: [...(step.input_fingerprints || [])]
-      }));
-      receipt.upstream_verification_authenticated = true;
-      receipt.issuer = 'zimster.evidence';
-      receipt.execution_id = governed.receipt.id;
-      validateReceipt(receipt);
-      options.inputs = '[]';
-      options.dependencies = '[]';
-      options['requirement-ids'] = '[]';
-      options.establishes = '[]';
-      options['does-not-establish'] = '[]';
-      options['claim-bindings'] = '[]';
-      options['behavioral-evidence'] = 'false';
-      options['invalidation-reason'] = 'verification bridge failed after admission';
-      options.notes = 'Diagnostic terminal receipt for an admitted verification bridge failure.';
-      for (const name of [
-        'tdd-phase', 'tdd-behavior', 'tdd-red-receipt',
-        'test-discovery', 'tests-discovered', 'tests-passed', 'tests-failed', 'tests-skipped'
-      ]) delete options[name];
-      const failedReceipt = await buildReceipt({
-        startedAt: governed.receipt.started_at,
-        exitCode: 1
-      });
-      failedReceipt.issuer = 'zimster.evidence';
-      failedReceipt.execution_id = governed.receipt.id;
-      const result = await withControlPlaneMutation(runtime, root, {
-        mutationType: 'evidence_bridge_terminalized',
-        checkpointChanges: ({ reference }) => evidenceCheckpointChanges(runtime, reference)
-      }, async () => {
-        let terminalBytes;
-        let successFinishAttempted = false;
-        try {
-          verificationBridgeTestFault('before-success-store');
-          terminalBytes = await store(receipt);
-          verificationBridgeTestFault('before-success-finish');
-          const finishArgs = {
-            executionId: governed.receipt.id,
-            status: 'passed',
-            exitCode: 0,
-            terminalReceiptType: 'evidence',
-            terminalReceiptId: receipt.id,
-            terminalReceiptBytes: terminalBytes,
-            compactResult: {
-              kind: receipt.kind,
-              scope: receipt.scope,
-              source: receipt.source,
-              requirement_ids: receipt.requirement_ids,
-              establishes: receipt.establishes
-            }
-          };
-          successFinishAttempted = true;
-          try {
-            await finishGovernedExecution(runtime, root, finishArgs);
-          } catch (error) {
-            if (!(await resumeWrittenTerminalization(runtime, root, finishArgs))) throw error;
-          }
-          terminalized = true;
-          return {
-            bytes: terminalBytes,
-            reference: { id: receipt.id, status: 'valid' },
-            error: null
-          };
-        } catch (error) {
-          if (successFinishAttempted && terminalBytes) {
-            const finishArgs = {
-              executionId: governed.receipt.id,
-              status: 'passed',
-              exitCode: 0,
-              terminalReceiptType: 'evidence',
-              terminalReceiptId: receipt.id,
-              terminalReceiptBytes: terminalBytes,
-              compactResult: {
-                kind: receipt.kind,
-                scope: receipt.scope,
-                source: receipt.source,
-                requirement_ids: receipt.requirement_ids,
-                establishes: receipt.establishes
-              }
-            };
-            if (await resumeWrittenTerminalization(runtime, root, finishArgs)) {
-              terminalized = true;
-              return {
-                bytes: terminalBytes,
-                reference: { id: receipt.id, status: 'valid' },
-                error
-              };
-            }
-          }
-          failedReceipt.invalidation_reason = `verification bridge failed after admission: ${error.message}`;
-          validateReceipt(failedReceipt);
-          const failureBytes = await store(failedReceipt);
-          const failureArgs = {
-            executionId: governed.receipt.id,
-            status: 'failed',
-            exitCode: 1,
-            terminalReceiptType: 'evidence',
-            terminalReceiptId: failedReceipt.id,
-            terminalReceiptBytes: failureBytes,
-            compactResult: {
-              kind: failedReceipt.kind,
-              scope: failedReceipt.scope,
-              source: failedReceipt.source,
-              invalidation_reason: failedReceipt.invalidation_reason
-            }
-          };
-          try {
-            await finishGovernedExecution(runtime, root, failureArgs);
-          } catch (finishError) {
-            if (!(await resumeWrittenTerminalization(runtime, root, failureArgs))) throw finishError;
-          }
-          terminalized = true;
-          return {
-            bytes: failureBytes,
-            reference: {
-              id: failedReceipt.id,
-              status: 'stale',
-              invalidation_reason: failedReceipt.invalidation_reason
-            },
-            error
-          };
-        }
-      });
-      if (result.error) throw result.error;
-      writeSync(process.stdout.fd, result.bytes);
-      return;
-    } catch (error) {
-      if (terminalized) throw error;
-      options.command = `verification:${verificationId}#${requestedSteps.join(',')}`;
-      options['command-argv'] = JSON.stringify(bridgeCommandArgv);
-      options.source = 'verification-bridge';
-      options.inputs = '[]';
-      options.dependencies = '[]';
-      options['requirement-ids'] = '[]';
-      options.establishes = '[]';
-      options['does-not-establish'] = '[]';
-      options['claim-bindings'] = '[]';
-      options['behavioral-evidence'] = 'false';
-      options['invalidation-reason'] = `verification bridge failed after admission: ${error.message}`;
-      options.notes = 'Diagnostic terminal receipt for an admitted verification bridge failure.';
-      for (const name of [
-        'tdd-phase', 'tdd-behavior', 'tdd-red-receipt',
-        'test-discovery', 'tests-discovered', 'tests-passed', 'tests-failed', 'tests-skipped'
-      ]) delete options[name];
-      const failedReceipt = await buildReceipt({
-        startedAt: governed.receipt.started_at,
-        exitCode: 1
-      });
-      failedReceipt.issuer = 'zimster.evidence';
-      failedReceipt.execution_id = governed.receipt.id;
-      const failureBytes = await withControlPlaneMutation(runtime, root, {
-        mutationType: 'governed_evidence_bridge_failed',
-        checkpointChanges: () => evidenceCheckpointChanges(runtime, {
-          id: failedReceipt.id,
-          status: 'stale',
-          invalidation_reason: failedReceipt.invalidation_reason
-        })
-      }, async () => {
-        const terminalBytes = await store(failedReceipt);
-        await finishGovernedExecution(runtime, root, {
-          executionId: governed.receipt.id,
-          status: 'failed',
-          exitCode: 1,
-          terminalReceiptType: 'evidence',
-          terminalReceiptId: failedReceipt.id,
-          terminalReceiptBytes: terminalBytes,
-          compactResult: {
-            kind: failedReceipt.kind,
-            scope: failedReceipt.scope,
-            source: failedReceipt.source,
-            invalidation_reason: failedReceipt.invalidation_reason
-          }
-        });
-        return terminalBytes;
-      });
-      terminalized = failureBytes.length > 0;
-      throw error;
-    }
   }
   if (commandName === 'check') {
     await init();
@@ -808,15 +373,7 @@ async function main() {
       reason,
       invalidated_at: new Date().toISOString()
     };
-    const runtime = await ensureRuntimeDirectory(root);
-    await withControlPlaneMutation(runtime, root, {
-      mutationType: 'evidence_invalidated',
-      checkpointChanges: () => evidenceCheckpointChanges(runtime, {
-        id,
-        status: 'stale',
-        invalidation_reason: reason
-      })
-    }, () => appendFile(receiptsFile, `${JSON.stringify(invalidation)}\n`));
+    await appendFile(receiptsFile, `${JSON.stringify(invalidation)}\n`);
     writeSync(process.stdout.fd, `${JSON.stringify(invalidation)}\n`);
     return;
   }
@@ -860,49 +417,8 @@ async function main() {
       process.exitCode = 2;
       return;
     }
-    const runtime = await ensureRuntimeDirectory(root);
-    const governed = await withControlPlaneMutation(runtime, root, {
-      mutationType: 'governed_evidence_started',
-      didMutate: (value) => value.admitted === true
-    }, () => beginGovernedExecution(runtime, root, {
-      sourceRoot: packageRoot,
-      issuer: 'zimster.evidence',
-      commandArgv: passthrough,
-      cwd: workingDirectory,
-      context: { type: 'evidence', kind: String(options.kind), scope: String(options.scope) },
-      completeSuite: false,
-      budgetOverride: {
-        invalidation: options['invalidation-reason']
-          ? String(options['invalidation-reason'])
-          : null,
-        strategyChange: options['strategy-change']
-          ? String(options['strategy-change'])
-          : null,
-        requiredProof: options['required-proof']
-          ? String(options['required-proof'])
-          : null,
-        requiredProofType: options['required-proof-type']
-          ? String(options['required-proof-type'])
-          : null,
-        requiredProofKind: options['required-proof-kind']
-          ? String(options['required-proof-kind'])
-          : null,
-        requiredProofScope: options['required-proof-scope']
-          ? String(options['required-proof-scope'])
-          : null,
-        requiredProofProfile: options['required-proof-profile']
-          ? String(options['required-proof-profile'])
-          : null,
-        requiredProofCommand: options['required-proof-command']
-          ? String(options['required-proof-command'])
-          : null
-      }
-    }));
-    if (!governed.admitted) {
-      writeLine(JSON.stringify(governed.budget));
-      const error = new Error(governed.budget.status);
-      error.code = 'BUDGET_CONSTRAINED';
-      throw error;
+    if (duplicate && options.force === true && options.final !== true) {
+      await accountForDuplicateExecution();
     }
     const startedAt = new Date().toISOString();
     const result = spawnSync(passthrough[0], passthrough.slice(1), {
@@ -912,39 +428,11 @@ async function main() {
     });
     const endedAt = new Date().toISOString();
     const exitCode = result.status ?? 1;
-    const receipt = await buildReceipt({ startedAt, endedAt, exitCode });
-    receipt.issuer = 'zimster.evidence';
-    receipt.execution_id = governed.receipt.id;
-    const receiptBytes = await withControlPlaneMutation(runtime, root, {
-      mutationType: 'governed_evidence_finished',
-      checkpointChanges: () => evidenceCheckpointChanges(runtime, {
-        id: receipt.id,
-        status: exitCode === 0 ? 'valid' : 'stale',
-        ...(exitCode === 0 ? {} : { invalidation_reason: 'governed evidence command failed' })
-      })
-    }, async () => {
-      const bytes = await store(receipt);
-      await finishGovernedExecution(runtime, root, {
-        executionId: governed.receipt.id,
-        status: exitCode === 0 ? 'passed' : 'failed',
-        exitCode,
-        terminalReceiptType: 'evidence',
-        terminalReceiptId: receipt.id,
-        terminalReceiptBytes: bytes,
-        compactResult: {
-          kind: receipt.kind,
-          scope: receipt.scope,
-          tests: receipt.tests,
-          behavioral_evidence: receipt.behavioral_evidence
-        }
-      });
-      return bytes;
-    });
-    writeSync(process.stdout.fd, receiptBytes);
+    await store(await buildReceipt({ startedAt, endedAt, exitCode }));
     process.exitCode = exitCode;
     return;
   }
-  throw new Error('Usage: evidence.mjs <init|record|bridge-verification|check|find|invalidate|list|run> [options]');
+  throw new Error('Usage: evidence.mjs <init|record|check|find|invalidate|list|run> [options]');
 }
 
 main().catch((error) => {

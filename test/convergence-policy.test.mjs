@@ -15,7 +15,7 @@ import { root } from './helpers.mjs';
 
 const limits = {
   correction_commits: 2,
-  correction_rechecks: 1,
+  correction_rechecks: 2,
   final_integration_reviews: 2,
   final_verification_attempts: 2,
   complete_suite_executions: 3,
@@ -57,18 +57,9 @@ test('CONV-001: correction rechecks cannot consume the reserved exact-head integ
     metric: 'correction_rechecks',
     scope: 'release-policy'
   });
-  assert.equal(correction.status, 'BUDGET_WARNING');
+  assert.equal(correction.status, 'BUDGET_OK');
   assert.equal(state.scoped_usage.correction_rechecks['release-policy'], 1);
   assert.equal(state.usage.final_integration_reviews, 0);
-
-  const forbiddenSecondRecheck = applyExecutionBudgetEvent(state, {
-    metric: 'correction_rechecks',
-    scope: 'release-policy',
-    invalidation: 'rename the review attempt',
-    strategyChange: 'use a replacement reviewer'
-  });
-  assert.equal(forbiddenSecondRecheck.status, 'BUDGET_CONSTRAINED');
-  assert.equal(state.scoped_usage.correction_rechecks['release-policy'], 1);
 
   const premature = applyExecutionBudgetEvent(state, {
     metric: 'final_integration_reviews',
@@ -93,23 +84,6 @@ test('CONV-001: correction rechecks cannot consume the reserved exact-head integ
   });
   assert.equal(correctedFinal.status, 'BUDGET_WARNING');
   assert.equal(state.usage.final_integration_reviews, 2);
-});
-
-test('CONV-001: correction recheck cardinality stays one even when a soft profile limit is higher', () => {
-  const state = createBudgetState('high-risk', {
-    limits: { ...limits, correction_rechecks: 2 }
-  });
-  let result = applyExecutionBudgetEvent(state, {
-    metric: 'correction_rechecks',
-    scope: `whole-release@${'a'.repeat(64)}`
-  });
-  assert.equal(result.status, 'BUDGET_WARNING');
-  result = applyExecutionBudgetEvent(state, {
-    metric: 'correction_rechecks',
-    scope: `whole-release@${'a'.repeat(64)}`
-  });
-  assert.equal(result.status, 'BUDGET_CONSTRAINED');
-  assert.equal(result.detail.limit, 1);
 });
 
 test('CONV-002 and CONV-003: ordinary failures continue through the boundary and exhaustion escalates', () => {
@@ -168,16 +142,16 @@ test('BOOT-001: run initialization snapshots candidate configuration as isolated
   const acceptedDirectory = await mkdtemp(path.join(os.tmpdir(), 'zimster-accepted-policy-'));
   try {
     assert.equal(spawnSync('git', ['init', '-q'], { cwd: repo }).status, 0);
-    const acceptedContents = `${JSON.stringify({
-      schema_version: 1,
-      autonomous_convergence: { enabled: true, limits }
-    }, null, 2)}\n`;
-    const acceptedDigest = createHash('sha256').update(acceptedContents).digest('hex');
     await writeFile(path.join(repo, 'README.md'), 'fixture\n');
     spawnSync('git', ['add', 'README.md'], { cwd: repo });
     assert.equal(spawnSync('git', ['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '-qm', 'fixture'], { cwd: repo }).status, 0);
     const acceptedPolicy = path.join(acceptedDirectory, 'convergence.json');
+    const acceptedContents = `${JSON.stringify({
+      schema_version: 1,
+      autonomous_convergence: { enabled: true, limits }
+    }, null, 2)}\n`;
     await writeFile(acceptedPolicy, acceptedContents);
+    const acceptedDigest = createHash('sha256').update(acceptedContents).digest('hex');
     let result = spawnSync(process.execPath, [
       path.join(root, 'scripts/init-run.mjs'), '--profile', 'high-risk',
       '--self-hosting-candidate', '0.6.0', '--convergence-config', 'candidate-policy.json'
@@ -236,7 +210,7 @@ test('BOOT-001: convergence preserves module resource identity under Windows pat
     const initialized = spawnSync(process.execPath, [
       path.join(root, 'scripts/init-run.mjs'), '--profile', 'high-risk'
     ], { cwd: repo, encoding: 'utf8' });
-    if (initialized.status !== 0) assert.ifError(initialized.error);
+    assert.ifError(initialized.error);
     assert.equal(initialized.status, 0, initialized.stderr || initialized.stdout);
 
     const convergenceUrl = pathToFileURL(path.join(root, 'scripts/convergence.mjs')).href;
@@ -262,7 +236,7 @@ export async function resolve(specifier, context, nextResolve) {
       '--reversible', 'true', '--authorized', 'true',
       '--deterministic', 'true', '--locality', 'local'
     ], { cwd: repo, encoding: 'utf8' });
-    if (result.status !== 0) assert.ifError(result.error);
+    assert.ifError(result.error);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(JSON.parse(result.stdout).outcome, 'continue');
   } finally {

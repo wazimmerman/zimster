@@ -21,10 +21,7 @@ Generate concrete project `.claude/agents/` or user agent overrides only to an
 explicit output with Zimster ownership markers and a removal manifest. Those
 host definitions intentionally outrank plugin definitions. Record requested
 and effective model values; do not treat the requested value as proof. The root
-conversation remains implementation owner. Current Claude can nest subagents,
-so each packaged Zimster role withholds `Agent` through its allowed tool set or
-`disallowedTools: Agent`; do not generalize that scoped restriction to built-in
-or user-defined agents.
+conversation remains implementation owner, and subagents cannot delegate.
 
 Test a local checkout with Claude Code's plugin-directory development option
 and inspect hook output before marketplace publication.

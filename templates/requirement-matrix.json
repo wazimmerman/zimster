@@ -21,8 +21,7 @@
       "status": "unverified",
       "intended_acceptance_claims": [
         "Replace this with the narrow claim the named proof can establish."
-      ],
-      "tdd_evidence": "not_claimed"
+      ]
     }
   ],
   "observations": []

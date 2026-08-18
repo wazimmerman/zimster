@@ -33,7 +33,7 @@ test('evidence receipts bound requirements, claims, and environment scope', asyn
       '--tests-passed', '1',
       '--tests-failed', '0',
       '--tests-skipped', '0',
-      '--requirement-ids', 'EVIDENCE-001,CLAIM-001,CTRL-PACKAGE-001',
+      '--requirement-ids', 'EVIDENCE-001,CLAIM-001',
       '--establishes', JSON.stringify([
         'Default wrapper invocation works.',
         'Arguments, quoting, and order are forwarded.'
@@ -41,20 +41,12 @@ test('evidence receipts bound requirements, claims, and environment scope', asyn
       '--does-not-establish', JSON.stringify([
         'Custom locations, inherited configuration, and precedence are compatible.'
       ]),
-      '--inputs', 'fixture.txt',
-      '--claim-bindings', JSON.stringify([{
-        requirement_id: 'EVIDENCE-001',
-        claim: 'Default wrapper invocation works.',
-        inputs: ['fixture.txt']
-      }]),
       '--environment-scope', 'native-default-wrapper-harness',
       '--harness', 'codex'
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const receipt = JSON.parse(result.stdout);
-    assert.deepEqual(receipt.requirement_ids, [
-      'EVIDENCE-001', 'CLAIM-001', 'CTRL-PACKAGE-001'
-    ]);
+    assert.deepEqual(receipt.requirement_ids, ['EVIDENCE-001', 'CLAIM-001']);
     assert.deepEqual(receipt.establishes, [
       'Default wrapper invocation works.',
       'Arguments, quoting, and order are forwarded.'
@@ -63,8 +55,6 @@ test('evidence receipts bound requirements, claims, and environment scope', asyn
       'Custom locations, inherited configuration, and precedence are compatible.'
     ]);
     assert.equal(receipt.environment_scope, 'native-default-wrapper-harness');
-    assert.equal(receipt.claim_bindings[0].requirement_id, 'EVIDENCE-001');
-    assert.equal(receipt.claim_bindings[0].input_fingerprints[0].input, 'fixture.txt');
 
     const ledgerPath = path.join(repo, '.git', 'zimster', 'evidence', 'receipts.jsonl');
     const ledger = (await readFile(ledgerPath, 'utf8')).trim().split('\n').map(JSON.parse);
@@ -87,17 +77,10 @@ test('evidence schema accepts runtime scopes and requires semantic scope fields 
     'requirement_ids',
     'establishes',
     'does_not_establish',
-    'claim_bindings',
     'environment_scope'
   ]) {
     assert.equal(versionTwoRule.then.required.includes(field), true);
   }
-  const idPattern = new RegExp(schema.properties.requirement_ids.items.pattern);
-  assert.equal(idPattern.test('CTRL-PACKAGE-001'), true);
-  assert.equal(idPattern.test('CTRL-package-001'), false);
-  assert.deepEqual(schema.properties.tdd_phase.enum, ['red', 'green', null]);
-  assert.equal(schema.properties.tdd_behavior_id.pattern, '^[a-z0-9]+(?:-[a-z0-9]+)*$');
-  assert.deepEqual(schema.properties.tdd_red_receipt_id.type, ['string', 'null']);
 });
 
 test('semantic review schema binds the stable semantic contract separately from matrix state', async () => {
@@ -110,12 +93,6 @@ test('semantic review schema binds the stable semantic contract separately from 
     type: 'string',
     pattern: '^[0-9a-f]{64}$'
   });
-  assert.deepEqual(schema.properties.attempt_type.enum, [
-    'initial_review',
-    'correction_recheck',
-    'new_design_review',
-    'final_integration_review'
-  ]);
 });
 
 test('requirement matrix schema and template use exact-tree scopes and the pending lifecycle state', async () => {
@@ -133,6 +110,4 @@ test('requirement matrix schema and template use exact-tree scopes and the pendi
   assert.ok(schema.$defs.requirement.properties.status.enum.includes('pending'));
   assert.match(template.requirements[0].evidence_scope.git_tree, /^[0-9a-f]{40}$/);
   assert.equal(template.requirements[0].evidence_scope.git_tree, template.candidate_tree);
-  const idPattern = new RegExp(schema.$defs.requirementId.pattern);
-  assert.equal(idPattern.test('CTRL-PACKAGE-001'), true);
 });

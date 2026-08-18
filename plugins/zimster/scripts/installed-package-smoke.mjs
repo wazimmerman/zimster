@@ -3,7 +3,6 @@ import { spawnSync } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
 import { parseOptions, writeLine } from './lib/cli.mjs';
 import { archivePathProblem, readStoredZip } from './lib/zip-reader.mjs';
 import { readTarGzip } from './lib/tar-reader.mjs';
@@ -52,313 +51,34 @@ function execute(file, args, cwd, env) {
   return String(result.stdout || '').trim();
 }
 
-function executeResult(file, args, cwd, env) {
-  return spawnSync(process.execPath, [file, ...args], {
-    cwd,
-    env,
-    encoding: 'utf8',
-    shell: false,
-    maxBuffer: 32 * 1024 * 1024
-  });
-}
-
-function git(args, cwd) {
-  const result = spawnSync('git', args, { cwd, encoding: 'utf8', shell: false });
-  if (result.status !== 0) throw new Error(result.stderr || `git ${args.join(' ')} failed`);
-  return String(result.stdout || '').trim();
-}
-
-function parseJson(label, value) {
-  try {
-    return JSON.parse(value);
-  } catch (error) {
-    throw new Error(`${label} returned invalid JSON: ${error.message}; output=${JSON.stringify(value)}`);
-  }
-}
-
-function parseTerminalJson(label, value) {
-  return parseJson(label, String(value || '').trim().split('\n').filter(Boolean).at(-1));
-}
-
 async function exercisePackagedWorkflow(runtimeRoot, fixture, home) {
   await mkdir(fixture, { recursive: true });
-  git(['init', '-q', '-b', 'main'], fixture);
-  git(['config', 'user.name', 'Zimster Package Smoke'], fixture);
-  git(['config', 'user.email', 'smoke@example.invalid'], fixture);
+  const initialized = spawnSync('git', ['init', '-q', '-b', 'main'], {
+    cwd: fixture,
+    encoding: 'utf8',
+    shell: false
+  });
+  if (initialized.status !== 0) throw new Error(initialized.stderr || 'fixture git init failed');
   await writeFile(path.join(fixture, 'fixture.txt'), 'packaged helper workflow\n');
-  git(['add', 'fixture.txt'], fixture);
-  git(['commit', '-qm', 'fixture'], fixture);
-  const env = isolatedEnvironment(home);
   execute(
     path.join(runtimeRoot, 'scripts', 'init-run.mjs'),
-    [
-      '--profile', 'high-risk', '--harness', 'codex',
-      '--next-slice-id', 'slice-1', '--next-slice-title', 'Packaged control path',
-      '--next-action', 'Start the packaged slice',
-      '--next-command', 'node scripts/run-control.mjs start'
-    ],
+    ['--profile', 'micro', '--harness', 'codex', '--audit-path', '.audit/run.md'],
     fixture,
-    env
+    isolatedEnvironment(home)
   );
-  const runtime = git(['rev-parse', '--path-format=absolute', '--git-path', 'zimster'], fixture);
-  let runSummary = await readFile(path.join(runtime, 'run.md'), 'utf8');
-  if (!runSummary.includes('Profile: high-risk') || !runSummary.includes('slice-1')) {
-    throw new Error('packaged init-run helper did not initialize canonical High-risk state');
+  const run = await readFile(path.join(fixture, '.audit', 'run.md'), 'utf8');
+  if (!run.includes('Profile: Micro') || !run.includes('Harness capability receipt')) {
+    throw new Error('packaged init-run helper did not continue the durable-state workflow');
   }
   execute(
-    path.join(runtimeRoot, 'scripts', 'run-control.mjs'),
-    [
-      'start', '--slice-id', 'slice-1', '--slice-title', 'Packaged control path',
-      '--next-slice-id', 'slice-2', '--remaining-obligations', '["run packaged verification"]',
-      '--next-action', 'Checkpoint dirty package work',
-      '--next-command', 'node scripts/run-control.mjs checkpoint'
-    ],
+    path.join(runtimeRoot, 'scripts', 'change-snapshot.mjs'),
+    ['--output', '.audit/change-snapshot.md'],
     fixture,
-    env
+    isolatedEnvironment(home)
   );
-  await writeFile(path.join(fixture, 'fixture.txt'), 'packaged helper correction\n');
-  await writeFile(path.join(fixture, 'second.txt'), 'dirty uncommitted package work\n');
-  const checkpoint = parseJson('packaged checkpoint', execute(
-    path.join(runtimeRoot, 'scripts', 'run-control.mjs'),
-    [
-      'checkpoint', '--status', 'in_progress',
-      '--completed-obligations', '["initialize exact package"]',
-      '--remaining-obligations', '["run packaged verification"]',
-      '--next-action', 'Run governed packaged verification',
-      '--next-command', 'node scripts/evidence.mjs run'
-    ],
-    fixture,
-    env
-  )).checkpoint;
-  if (checkpoint.current_slice?.id !== 'slice-1'
-    || checkpoint.repository_state?.touched_files?.length !== 2) {
-    throw new Error('packaged dirty checkpoint did not preserve the current slice and touched files');
-  }
-  const evidence = parseJson('packaged governed evidence', execute(
-    path.join(runtimeRoot, 'scripts', 'evidence.mjs'),
-    [
-      'run', '--kind', 'test', '--scope', 'focused',
-      '--test-discovery', 'tests_executed', '--tests-passed', '1', '--',
-      process.execPath, '-e', 'process.exit(0)'
-    ],
-    fixture,
-    env
-  ));
-  if (!evidence.execution_id || evidence.exit_code !== 0) {
-    throw new Error('packaged governed evidence did not produce an authenticated execution receipt');
-  }
-  const tddState = path.join(fixture, 'tdd-state.txt');
-  await writeFile(tddState, 'red\n');
-  const tddCommand = [
-    process.execPath,
-    '-e',
-    "const fs=require('node:fs');if(fs.readFileSync('tdd-state.txt','utf8').trim()!=='green')process.exit(1)"
-  ];
-  const redResult = executeResult(
-    path.join(runtimeRoot, 'scripts', 'evidence.mjs'),
-    [
-      'run', '--force', '--kind', 'red', '--scope', 'packaged-tdd-red',
-      '--test-discovery', 'tests_executed', '--tests-discovered', '1',
-      '--tests-passed', '0', '--tests-failed', '1', '--tests-skipped', '0',
-      '--requirement-ids', '["CTRL-TDD-EVIDENCE-001"]',
-      '--inputs', '["tdd-state.txt"]',
-      '--tdd-phase', 'red', '--tdd-behavior', 'packaged-behavior',
-      '--', ...tddCommand
-    ],
-    fixture,
-    env
-  );
-  if (redResult.status !== 1) {
-    throw new Error(`packaged governed TDD RED did not fail meaningfully: ${redResult.stderr || redResult.stdout}`);
-  }
-  const red = parseTerminalJson('packaged governed TDD RED', redResult.stdout);
-  await writeFile(tddState, 'green\n');
-  const greenResult = executeResult(
-    path.join(runtimeRoot, 'scripts', 'evidence.mjs'),
-    [
-      'run', '--force', '--kind', 'test', '--scope', 'packaged-tdd-green',
-      '--test-discovery', 'tests_executed', '--tests-discovered', '1',
-      '--tests-passed', '1', '--tests-failed', '0', '--tests-skipped', '0',
-      '--requirement-ids', '["CTRL-TDD-EVIDENCE-001"]',
-      '--inputs', '["tdd-state.txt"]',
-      '--tdd-phase', 'green', '--tdd-behavior', 'packaged-behavior',
-      '--tdd-red-receipt', red.id,
-      '--', ...tddCommand
-    ],
-    fixture,
-    env
-  );
-  if (greenResult.status !== 0) {
-    throw new Error(`packaged governed TDD GREEN did not pass: ${greenResult.stderr || greenResult.stdout}`);
-  }
-  const green = parseTerminalJson('packaged governed TDD GREEN', greenResult.stdout);
-  const ledgerLines = (await readFile(path.join(runtime, 'evidence', 'receipts.jsonl'), 'utf8'))
-    .split('\n').filter(Boolean);
-  const ledgerById = new Map(ledgerLines.map((line) => [JSON.parse(line).id, line]));
-  const { authenticateGovernedEvidenceReceipt } = await import(pathToFileURL(path.join(
-    runtimeRoot, 'scripts', 'lib', 'governed-terminal-auth.mjs'
-  )).href);
-  const authenticatedRed = await authenticateGovernedEvidenceReceipt(
-    runtime, red, `${ledgerById.get(red.id)}\n`
-  );
-  const authenticatedGreen = await authenticateGovernedEvidenceReceipt(
-    runtime, green, `${ledgerById.get(green.id)}\n`
-  );
-  const { evaluateTddEvidencePair } = await import(pathToFileURL(path.join(
-    runtimeRoot, 'scripts', 'lib', 'semantic-assurance.mjs'
-  )).href);
-  const pair = evaluateTddEvidencePair({
-    requirementId: 'CTRL-TDD-EVIDENCE-001',
-    behaviorId: 'packaged-behavior',
-    greenEvidence: [{ ...green, governed_execution_authenticated: authenticatedGreen }],
-    allEvidence: [
-      { ...red, governed_execution_authenticated: authenticatedRed },
-      { ...green, governed_execution_authenticated: authenticatedGreen }
-    ]
-  });
-  if (pair.status !== 'verified') {
-    throw new Error('packaged workflow did not authenticate a behavior-matched RED/GREEN pair');
-  }
-  const resumed = parseJson('packaged resume', execute(
-    path.join(runtimeRoot, 'scripts', 'run-control.mjs'),
-    ['resume'],
-    fixture,
-    env
-  ));
-  if (resumed.current_slice?.id !== 'slice-1'
-    || !resumed.repository_state?.touched_files?.some((file) =>
-      String(file).endsWith('tdd-state.txt')
-    )) {
-    throw new Error('fresh packaged resume lost dirty current-slice state');
-  }
-  const accounting = parseJson('packaged accounting reconciliation', execute(
-    path.join(runtimeRoot, 'scripts', 'accounting-reconcile.mjs'),
-    ['reconcile', '--reason', 'exact-package smoke'],
-    fixture,
-    env
-  ));
-  if (!['ACCOUNTING_CURRENT', 'ACCOUNTING_RECONCILED'].includes(accounting.status)
-    || accounting.unobserved_direct_shell_commands !== 'not_observable') {
-    throw new Error('packaged accounting reconciliation is not auditable');
-  }
-  execute(path.join(runtimeRoot, 'scripts', 'run-control.mjs'), ['check'], fixture, env);
-  await writeFile(path.join(runtime, 'run.md'), '# stale packaged summary\n');
-  let checked = executeResult(
-    path.join(runtimeRoot, 'scripts', 'run-control.mjs'), ['check'], fixture, env
-  );
-  if (checked.status !== 2 || !String(checked.stdout).includes('STALE_RUN_SUMMARY')) {
-    throw new Error('packaged run summary drift was not detected');
-  }
-  execute(path.join(runtimeRoot, 'scripts', 'run-control.mjs'), ['refresh'], fixture, env);
-  execute(path.join(runtimeRoot, 'scripts', 'run-control.mjs'), ['check'], fixture, env);
-
-  const lifecycleModule = pathToFileURL(path.join(
-    runtimeRoot,
-    'scripts',
-    'lib',
-    'review-lifecycle.mjs'
-  )).href;
-  const lifecycleOutput = path.join(fixture, '.lifecycle-probe.json');
-  const lifecycleProbe = `
-import { writeFileSync } from 'node:fs';
-import { applyReviewLifecycleEvent as apply, createReviewLifecycle as create } from ${JSON.stringify(lifecycleModule)};
-const clean = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
-const candidate = (head = 'b'.repeat(40)) => ({ base_sha: 'a'.repeat(40), head_sha: head, tree_sha: 'c'.repeat(40), dirty_tree_fingerprint: clean, semantic_contract_sha256: 'd'.repeat(64) });
-let state = create({ seam_id: 'package-smoke', reviewer_identity: 'reviewer', candidate: candidate() });
-const start = (type, id, head = 'b'.repeat(40)) => apply(state, { type: 'attempt_started', attempt: { attempt_type: type, attempt_id: id, seam_id: 'package-smoke', reviewer_identity: 'reviewer', review_package_id: 'package-' + id, candidate: candidate(head) } });
-state = start('initial_review', 'initial');
-state = apply(state, { type: 'verdict_recorded', attempt_id: 'initial', verdict: 'approved', findings: [] });
-state = apply(state, { type: 'candidate_stabilized' });
-state = start('final_integration_review', 'final-1');
-state = apply(state, { type: 'verdict_recorded', attempt_id: 'final-1', verdict: 'needs_correction', findings: [{ severity: 'Important', summary: 'first' }] });
-state = apply(state, { type: 'correction_recorded', candidate: candidate('e'.repeat(40)) });
-state = apply(state, { type: 'candidate_stabilized' });
-state = start('final_integration_review', 'final-2', 'e'.repeat(40));
-state = apply(state, { type: 'verdict_recorded', attempt_id: 'final-2', verdict: 'needs_correction', findings: [{ severity: 'Important', summary: 'second' }] });
-if (state.status !== 'strategy_escalation_required') throw new Error('missing durable escalation');
-let rejected = false;
-try { state = start('final_integration_review', 'final-3', 'e'.repeat(40)); } catch { rejected = true; }
-if (!rejected) throw new Error('third final review was admitted');
-let selfAssertedRejected = false;
-try {
-  state = apply(state, {
-    type: 'breaker_disposition_recorded',
-    disposition: 'reviewer_rebutted_with_evidence',
-    reason: 'caller-authored verification claims are not reviewer decisions',
-    evidence_refs: [{
-      receipt_type: 'verification',
-      receipt_id: 'forged',
-      execution_id: 'forged',
-      authentication: 'governed-execution-v1',
-      candidate: candidate('e'.repeat(40)),
-      environment: {},
-      step_ids: ['trivial'],
-      finding_fingerprints: ['f'.repeat(64)]
-    }]
-  });
-} catch { selfAssertedRejected = true; }
-if (!selfAssertedRejected) throw new Error('self-asserted review proof was admitted');
-writeFileSync(${JSON.stringify(lifecycleOutput)}, JSON.stringify({
-  status: state.status,
-  self_asserted_review_proof_rejected: selfAssertedRejected
-}));
-`;
-  execute('--input-type=module', ['-e', lifecycleProbe], fixture, env);
-  const lifecycle = JSON.parse(await readFile(lifecycleOutput, 'utf8'));
-  await rm(lifecycleOutput, { force: true });
-  if (lifecycle.status !== 'strategy_escalation_required'
-    || lifecycle.self_asserted_review_proof_rejected !== true) {
-    throw new Error('packaged hard lifecycle did not enter strategy escalation');
-  }
-
-  const semanticModule = pathToFileURL(path.join(
-    runtimeRoot, 'scripts', 'lib', 'semantic-assurance.mjs'
-  )).href;
-  const postmortemModule = pathToFileURL(path.join(
-    runtimeRoot, 'scripts', 'lib', 'postmortem-state.mjs'
-  )).href;
-  const acceptanceProbeRoot = path.join(home, 'acceptance-evidence-probe');
-  const acceptanceOutput = path.join(home, 'acceptance-evidence-probe.json');
-  const acceptanceProbe = `
-import { mkdir, writeFile } from 'node:fs/promises';
-import { classifyEvidencePurpose as classify, evaluateRequirementMatrix as matrix } from ${JSON.stringify(semanticModule)};
-import { postmortemStateBinding as bind, validatePostmortemState as validate } from ${JSON.stringify(postmortemModule)};
-const diagnostic = classify({ status: 'valid', requirement_ids: [], establishes: ['claim'], dependency_cone: [], dependency_fingerprints: [] });
-if (diagnostic.purpose !== 'diagnostic') throw new Error('unbound evidence established a claim');
-const omitted = matrix({ bindingRequirements: [{ id: 'TDD-001', text: 'Explicit TDD claim status.' }], matrix: { schema_version: 1, candidate_head: 'a'.repeat(40), candidate_tree: 'b'.repeat(40), requirements: [{ id: 'TDD-001', authoritative_text: 'Explicit TDD claim status.', source: 'package-smoke', implementation_locations: ['scripts/evidence.mjs'], evidence_refs: [], evidence_scope: { git_tree: 'b'.repeat(40), environment: 'node' }, unavailable_proof: ['TDD evidence unavailable.'], status: 'unverified', intended_acceptance_claims: [] }], observations: [] }, evidence: [], phase: 'candidate' });
-if (!omitted.issues.some((issue) => issue.includes('tdd_evidence'))) throw new Error('omitted TDD claim status bypassed packaged matrix enforcement');
-const runtime = ${JSON.stringify(acceptanceProbeRoot)};
-await mkdir(runtime, { recursive: true });
-await writeFile(runtime + '/budget.json', '{"usage":{"complete_suite_executions":1}}\\n');
-const report = { source_state: await bind(runtime) };
-if (!(await validate(report, runtime)).current) throw new Error('fresh packaged postmortem binding was rejected');
-await writeFile(runtime + '/budget.json', '{"usage":{"complete_suite_executions":2}}\\n');
-if ((await validate(report, runtime)).current) throw new Error('stale packaged postmortem binding was accepted');
-await writeFile(${JSON.stringify(acceptanceOutput)}, JSON.stringify({ diagnostic: true, tdd: true, postmortem_staleness: true }));
-`;
-  execute('--input-type=module', ['-e', acceptanceProbe], fixture, env);
-  const acceptance = JSON.parse(await readFile(acceptanceOutput, 'utf8'));
-  await rm(acceptanceOutput, { force: true });
-  if (!acceptance.diagnostic || !acceptance.tdd || !acceptance.postmortem_staleness) {
-    throw new Error('packaged acceptance evidence probe was incomplete');
-  }
-
-  checked = executeResult(
-    path.join(runtimeRoot, 'scripts', 'coherence-preflight.mjs'),
-    ['check', '--operation', 'completion', '--profile', 'high-risk'],
-    fixture,
-    env
-  );
-  if (checked.status !== 2
-    || parseJson('packaged completion preflight', checked.stdout).status !== 'COHERENCE_BLOCKED') {
-    throw new Error('packaged completion preflight did not fail closed on dirty incomplete state');
-  }
-
-  runSummary = await readFile(path.join(runtime, 'run.md'), 'utf8');
-  if (runSummary.includes('[Describe the required outcome')
-    || !runSummary.includes('slice-1')
-    || !runSummary.includes(evidence.id)) {
-    throw new Error('packaged run.md retained placeholders or omitted current evidence');
+  const snapshot = await readFile(path.join(fixture, '.audit', 'change-snapshot.md'), 'utf8');
+  if (!snapshot.includes('fixture.txt')) {
+    throw new Error('packaged change-snapshot helper did not continue the review workflow');
   }
   JSON.parse(execute(
     path.join(runtimeRoot, 'scripts', 'model-routing.mjs'),
@@ -423,10 +143,10 @@ try {
         isolatedEnvironment(home)
       ));
     }
-    if (target === 'claude' || target === 'codex' || target === 'openai' || target === 'portable') {
+    if (target === 'codex' || target === 'openai' || target === 'portable') {
       const runtimeRoot = target === 'codex'
         ? packageRoot
-        : (target === 'claude' ? packageRoot : path.join(packageRoot, 'skills', 'using-zimster'));
+        : path.join(packageRoot, 'skills', 'using-zimster');
       await exercisePackagedWorkflow(
         runtimeRoot,
         path.join(temporary, target, 'workflow-fixture'),
@@ -458,21 +178,6 @@ try {
   if ([...npmNames].some((name) => name.startsWith('package/plugins/zimster/'))) {
     throw new Error('npm candidate contains the generated Codex mirror');
   }
-  const npmExtracted = path.join(temporary, 'npm', 'package');
-  const npmHome = path.join(temporary, 'npm', 'home');
-  await mkdir(npmHome, { recursive: true });
-  for (const entry of npmEntries) {
-    if (!entry.name.startsWith('package/') || entry.name.endsWith('/')) continue;
-    const relative = entry.name.slice('package/'.length);
-    const target = path.join(npmExtracted, ...relative.split('/'));
-    await mkdir(path.dirname(target), { recursive: true });
-    await writeFile(target, entry.data);
-  }
-  await exercisePackagedWorkflow(
-    npmExtracted,
-    path.join(temporary, 'npm', 'workflow-fixture'),
-    npmHome
-  );
   targets.push({
     target: 'npm', status: 'passed', archive: npmName,
     sha256: createHash('sha256').update(await readFile(npmArchive)).digest('hex')

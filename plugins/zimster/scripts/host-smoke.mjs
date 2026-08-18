@@ -10,7 +10,6 @@ import { archivePathProblem, readStoredZip } from './lib/zip-reader.mjs';
 import { readTarGzip } from './lib/tar-reader.mjs';
 import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
-import { withControlPlaneMutation } from './lib/control-plane-mutation.mjs';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { options } = parseOptions(process.argv.slice(2));
@@ -319,37 +318,11 @@ try {
       ...(modelBackedExecution ? ['model_backed_execution'] : [])
     ];
     let hostVersion = host.host_version || null;
-    let versionFailure = null;
     if (Array.isArray(host.version_args)) {
       const versionResult = spawnSync(String(host.command), host.version_args, {
         encoding: 'utf8', shell: false, env: process.env
       });
       if (versionResult.status === 0) hostVersion = String(versionResult.stdout || '').trim() || hostVersion;
-      else if (host.expected_version_pattern) {
-        versionFailure = 'the configured host version command did not succeed';
-      }
-    }
-    if (host.expected_version_pattern) {
-      let expectedVersion;
-      try {
-        expectedVersion = new RegExp(String(host.expected_version_pattern));
-      } catch {
-        throw new Error(`host ${host.id} expected_version_pattern must be a valid regular expression`);
-      }
-      if (!versionFailure && !expectedVersion.test(hostVersion || '')) {
-        versionFailure = `observed host version ${hostVersion || '(unavailable)'} differs from the documented release target`;
-      }
-    }
-    if (versionFailure) {
-      failures.push({ id: host.id, exit_code: 1, action: versionFailure });
-      hostResults.push(hostRecord(host, {
-        verificationState: 'UNAVAILABLE',
-        candidate,
-        hostVersion,
-        commandsOrObservations: [[host.command, ...(host.args || [])].join(' ')],
-        knownLimitations: [versionFailure]
-      }));
-      continue;
     }
     const liveRecord = hostRecord(host, {
       verificationState: successVerificationState,
@@ -422,21 +395,7 @@ try {
   }
   if (receipt) {
     await mkdir(path.dirname(receipt), { recursive: true });
-    let canonical = null;
-    let repo = null;
-    let runtime = null;
-    try {
-      repo = findRepoRoot(process.cwd());
-      runtime = await ensureRuntimeDirectory(repo);
-      canonical = path.join(runtime, 'host-smoke', 'latest.json');
-    } catch {}
-    if (canonical && path.resolve(receipt) === path.resolve(canonical)) {
-      await withControlPlaneMutation(runtime, repo, {
-        mutationType: 'host_smoke_recorded'
-      }, () => writeFile(receipt, `${JSON.stringify(summary, null, 2)}\n`));
-    } else {
-      await writeFile(receipt, `${JSON.stringify(summary, null, 2)}\n`);
-    }
+    await writeFile(receipt, `${JSON.stringify(summary, null, 2)}\n`);
     summary.receipt = receipt;
   }
   writeLine(JSON.stringify(summary));

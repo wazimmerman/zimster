@@ -1,4 +1,4 @@
-import { mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { parseOptions, required, integerOption, writeError, writeLine } from './lib/cli.mjs';
@@ -15,7 +15,6 @@ import {
   recoverProposalClaim,
   reserveProposalForDispatch
 } from './lib/proposal-state.mjs';
-import { withControlPlaneMutation } from './lib/control-plane-mutation.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
@@ -40,13 +39,7 @@ async function rows() {
 }
 
 async function replaceRows(records) {
-  const temporary = `${file}.temporary-${process.pid}-${Date.now()}`;
-  try {
-    await writeFile(temporary, records.map((row) => JSON.stringify(row)).join('\n') + (records.length ? '\n' : ''), { flag: 'wx' });
-    await rename(temporary, file);
-  } finally {
-    await rm(temporary, { force: true });
-  }
+  await writeFile(file, records.map((row) => JSON.stringify(row)).join('\n') + (records.length ? '\n' : ''));
 }
 
 function addInheritanceWarning(row) {
@@ -143,23 +136,17 @@ async function main() {
     }
     row.completed_at = new Date().toISOString();
     addInheritanceWarning(row);
-    const runtime = await ensureRuntimeDirectory(root);
-    await withControlPlaneMutation(runtime, root, {
-      mutationType: 'dispatch_record_updated',
-      atomicFailure: true
-    }, () => replaceRows(records));
+    await replaceRows(records);
     writeLine(JSON.stringify(row));
     return;
   }
   if (action === 'recover') {
     const runtime = await ensureRuntimeDirectory(root);
-    const result = await withControlPlaneMutation(runtime, root, {
-      mutationType: 'dispatch_claim_recovered'
-    }, () => recoverProposalClaim(
+    const result = await recoverProposalClaim(
       runtime,
       required(options, 'proposal-id'),
       required(options, 'claim-id')
-    ));
+    );
     writeLine(JSON.stringify(result));
     return;
   }
@@ -282,13 +269,9 @@ async function main() {
       created_at: new Date().toISOString()
     };
     await init();
-    const recorded = await withControlPlaneMutation(runtime, root, {
-      mutationType: 'dispatch_record_committed'
-    }, async () => {
-      const reservation = await reserveProposalForDispatch(runtime, proposal.id);
-      row.proposal_claim_id = reservation.claim.id;
-      return commitDispatchClaim(runtime, reservation.claim.id, row);
-    });
+    const reservation = await reserveProposalForDispatch(runtime, proposal.id);
+    row.proposal_claim_id = reservation.claim.id;
+    const recorded = await commitDispatchClaim(runtime, reservation.claim.id, row);
     writeLine(JSON.stringify(recorded));
     return;
   }

@@ -71,21 +71,6 @@ test('packaging is deterministic and emits the five public channel artifacts', a
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/semantic-assurance.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/run-budget.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/phase-checkpoint.mjs')), true);
-    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/run-control.mjs')), true);
-    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/accounting-reconcile.mjs')), true);
-    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/coherence-preflight.mjs')), true);
-    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/run-control.mjs')), true);
-    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/run-summary.mjs')), true);
-    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/governed-execution.mjs')), true);
-    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/coherence-preflight.mjs')), true);
-    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/review-authorization.mjs')), true);
-    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/control-plane-mutation.mjs')), true);
-    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/schemas/run-state.schema.json')), true);
-    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/schemas/recovery-checkpoint.schema.json')), true);
-    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/schemas/governed-execution.schema.json')), true);
-    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/schemas/accounting-reconciliation.schema.json')), true);
-    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/schemas/coherence-preflight.schema.json')), true);
-    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/schemas/control-plane-transaction.schema.json')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/execution-budget.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/verify.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/archive-safety.mjs')), true);
@@ -207,7 +192,6 @@ test('packaging is deterministic and emits the five public channel artifacts', a
     assert.equal(portableArchive.includes(Buffer.from('"support_policy": "claim_scoped_host_receipts_v1"')), true);
     assert.equal(portableEntries.has('skills/using-zimster/scripts/init-run.mjs'), true);
     assert.equal(portableEntries.has('skills/using-zimster/scripts/lib/runtime.mjs'), true);
-    assert.equal(portableEntries.has('skills/using-zimster/scripts/lib/review-authorization.mjs'), true);
     assert.equal(portableEntries.has('skills/using-zimster/config/model-routing.json'), true);
 
     const npmArtifact = byName.get(`zimster-${version}.tgz`);

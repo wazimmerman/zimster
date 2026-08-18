@@ -1,36 +1,5 @@
 # Changelog
 
-## 0.7.1 - 2026-08-16
-
-- Add durable current-slice recovery, deterministic `run.md`, governed suite
-  accounting, authenticated non-circular proofs, finite review escalation,
-  centralized state transactions, coherence preflight, and exact-package
-  control-plane smoke alongside the issue #6 review corrections. Explicit
-  assurance reconciliation can also audit-repair stale budget projections from
-  authoritative lifecycle and dispatch ledgers. Exhausted reviews fail closed:
-  owner-managed dispatch/routing records and caller-authored verification claims
-  cannot impersonate a reviewer result or authorize approval. Legacy approvals
-  using that evidence reconcile into circuit-breaker or strategy-escalation
-  state without losing history. A pre-review semantic-digest correction is also
-  recoverable without consuming an attempt, while Git ancestry enforces the
-  immutable release base. A user-added binding acceptance change may likewise
-  open a genuine new semantic epoch from an approved candidate before final
-  review, without creating a replacement seam.
-- Distinguish diagnostic receipts from fingerprint-backed claim evidence, bind
-  postmortems to the durable state they summarize and embed a current report in
-  release authorization, and require authentic prospective RED/GREEN receipts
-  for any explicit TDD compliance claim instead of reconstructing history.
-- Require authenticated exact requirement/claim/input bindings, explicit TDD
-  claim status on every matrix row, authentic governed package-smoke RED/GREEN
-  receipts, and a current canonical postmortem at every terminal coherence gate.
-- Derive one exact requirement/claim pair per verification-bridge receipt so
-  multi-claim steps cannot create ambiguous Cartesian proof relationships, and
-  govern each derived receipt through its own authenticated terminal execution.
-  Require that exact binding again in every completion-proof consumer and
-  terminalize post-admission bridge failures as authenticated stale diagnostics
-  within the active control-plane transaction. Make terminal finalization
-  idempotently resumable after a partial durable write without duplicate events.
-
 ## 0.7.0 - 2026-08-07
 
 - Adopt portable Agent Plugin standards, reproducible marketplace artifacts,

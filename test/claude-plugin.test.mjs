@@ -142,7 +142,7 @@ test('Claude SessionStart covers startup resume clear and compact with one compa
     assert.match(context, /Owner-inline review is always `self_review`/);
     assert.match(context, /cannot satisfy Standard or\s+High-risk independent review/);
     assert.match(context, /Only the deterministic completion gate may\s+emit `CANDIDATE_COMPLETE`/);
-    assert.match(context, /scripts\/init-run\.mjs[\s\S]*git rev-parse --git-path zimster[\s\S]*outside product history/);
+    assert.match(context, /scripts\/init-run\.mjs[\s\S]*git rev-parse --git-path zimster\/run\.md/);
     assert.match(context, /config\/model-routing\.json[\s\S]*scripts\/dispatch-record\.mjs/);
     assert.match(context, /Never lower a required\s+quality gate silently/);
     assert.match(context, /The logical owner is continuous/);
@@ -225,8 +225,8 @@ test('Claude guide documents local validation, lifecycle, restrictions, and hone
     /SessionStart/,
     /integration-reviewer/,
     /test-reviewer/,
-    /2\.1\.233/,
-    /12 skills, 4 agents, and (?:1|one)\s+SessionStart hook/,
+    /2\.1\.224/,
+    /12 skills, 4 agents, and 1 SessionStart hook/,
     /model-backed.*not|not.*model-backed/is
   ]) {
     assert.match(guide, pattern);

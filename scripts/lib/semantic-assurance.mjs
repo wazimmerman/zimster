@@ -1,14 +1,9 @@
 import { createHash } from 'node:crypto';
-import {
-  REVIEW_ATTEMPT_TYPES,
-  validateAssuranceAccounting,
-  validateReviewLifecycle
-} from './review-lifecycle.mjs';
 
 const SHA_PATTERN = /^[0-9a-f]{40}$/;
 const SHA256_PATTERN = /^[0-9a-f]{64}$/;
 const CLEAN_DIRTY_TREE_FINGERPRINT = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
-const REQUIREMENT_ID_PATTERN = /^[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*-[0-9]{3,}$/;
+const REQUIREMENT_ID_PATTERN = /^[A-Z][A-Z0-9]*-[0-9]{3,}$/;
 const REQUIREMENT_STATES = Object.freeze([
   'pending',
   'verified',
@@ -211,14 +206,12 @@ export function semanticContractDigest({ bindingRequirements, matrix }) {
       source: entry.source,
       implementation_locations: [...(entry.implementation_locations || [])].sort(),
       evidence_scope: {
+        git_tree: entry.evidence_scope?.git_tree || null,
         environment: entry.evidence_scope?.environment || null
       },
       intended_acceptance_claims: [
         ...(entry.intended_acceptance_claims || [])
-      ].sort(),
-      ...(entry.tdd_behavior_ids
-        ? { tdd_behavior_ids: [...entry.tdd_behavior_ids].sort() }
-        : {})
+      ].sort()
     })).sort(byId)
   };
   return createHash('sha256').update(JSON.stringify(contract)).digest('hex');
@@ -255,9 +248,6 @@ export function validateReviewRecord(record) {
   if (!record || typeof record !== 'object' || Array.isArray(record)) {
     throw new Error('review record must be an object');
   }
-  if (![1, 2].includes(record.schema_version)) {
-    throw new Error('review record schema_version must be 1 or 2');
-  }
   if (!REVIEW_TYPES.includes(record.review_type)) {
     throw new Error('review_type must be self_review or independent_review');
   }
@@ -265,18 +255,6 @@ export function validateReviewRecord(record) {
     throw new Error('owner-inline review must use self_review');
   }
   for (const field of ['id', 'review_package_id']) requireString(record, field);
-  if (record.schema_version === 2) {
-    for (const field of ['attempt_id', 'seam_id']) requireString(record, field);
-    if (!REVIEW_ATTEMPT_TYPES.includes(record.attempt_type)) {
-      throw new Error('review record has an unsupported attempt_type');
-    }
-    if (!SHA256_PATTERN.test(record.candidate_dirty_tree_fingerprint || '')) {
-      throw new Error('review record requires candidate_dirty_tree_fingerprint');
-    }
-    if (record.attempt_type === 'final_integration_review' && record.review_scope !== 'integration') {
-      throw new Error('final_integration_review must use integration review scope');
-    }
-  }
   if (!SHA256_PATTERN.test(record.requirement_matrix_sha256 || '')) {
     throw new Error('review record requires requirement_matrix_sha256');
   }
@@ -335,8 +313,6 @@ export function independentApprovalFor({
   candidateBase,
   candidateHead,
   reviewPackageId,
-  reviewAttemptId = null,
-  reviewSeamId,
   semanticContractSha256,
   requiredLenses = [],
   reviews,
@@ -349,8 +325,8 @@ export function independentApprovalFor({
   if (!SHA_PATTERN.test(candidateBase || '')) {
     throw new Error('independentApprovalFor requires an immutable candidate base');
   }
-  if (!reviewPackageId || !reviewSeamId || !SHA256_PATTERN.test(semanticContractSha256 || '')) {
-    throw new Error('independentApprovalFor requires the review package, seam, and semantic contract identity');
+  if (!reviewPackageId || !SHA256_PATTERN.test(semanticContractSha256 || '')) {
+    throw new Error('independentApprovalFor requires the review package and semantic contract identity');
   }
   if (!Array.isArray(requiredLenses) || !requiredLenses.length) {
     throw new Error('independentApprovalFor requires semantic lenses from the review package');
@@ -396,30 +372,7 @@ export function independentApprovalFor({
       reason: 'independent review does not cover the current review package'
     };
   }
-  const exactAttemptReviews = reviewAttemptId
-    ? exactPackageReviews.filter((record) =>
-      record.schema_version === 2
-      && record.attempt_id === reviewAttemptId
-      && record.attempt_type === 'final_integration_review')
-    : exactPackageReviews;
-  if (!exactAttemptReviews.length) {
-    return {
-      approved: false,
-      state: COMPLETION_STATES.REVIEW_PENDING,
-      reason: 'independent review does not cover the final integration attempt'
-    };
-  }
-  const exactSeamReviews = exactAttemptReviews.filter(
-    (record) => record.seam_id === reviewSeamId
-  );
-  if (!exactSeamReviews.length) {
-    return {
-      approved: false,
-      state: COMPLETION_STATES.REVIEW_PENDING,
-      reason: 'independent review does not cover the selected review seam'
-    };
-  }
-  const exactContractReviews = exactSeamReviews.filter(
+  const exactContractReviews = exactPackageReviews.filter(
     (record) => record.semantic_contract_sha256 === semanticContractSha256
   );
   if (!exactContractReviews.length) {
@@ -503,156 +456,20 @@ function uniqueIds(records, label, issues) {
   return seen;
 }
 
-function completeFingerprintBinding(items, fingerprints) {
-  return Array.isArray(items)
-    && items.length > 0
-    && Array.isArray(fingerprints)
-    && fingerprints.length === items.length
-    && items.every((input, index) =>
-      fingerprints[index]?.input === input
-      && typeof fingerprints[index]?.digest === 'string'
-      && fingerprints[index].digest.length > 0
-    );
-}
-
-function fingerprintKey({ input, digest } = {}) {
-  return typeof input === 'string' && typeof digest === 'string'
-    ? `${input}\0${digest}`
-    : null;
-}
-
-function validClaimBindings(item) {
-  const provenance = new Set([
-    ...(item?.dependency_fingerprints || []),
-    ...(item?.input_fingerprints || [])
-  ].map(fingerprintKey).filter(Boolean));
-  return (Array.isArray(item?.claim_bindings) ? item.claim_bindings : []).filter((binding) =>
-    binding
-    && item?.requirement_ids?.includes(binding.requirement_id)
-    && item?.establishes?.includes(binding.claim)
-    && Array.isArray(binding.input_fingerprints)
-    && binding.input_fingerprints.length > 0
-    && binding.input_fingerprints.every((fingerprint) =>
-      provenance.has(fingerprintKey(fingerprint))
-    )
-  );
-}
-
-function claimBindingIssue(item, requirementId, claim) {
-  return validClaimBindings(item).some((binding) =>
-    binding.requirement_id === requirementId && binding.claim === claim
-  )
-    ? null
-    : `evidence ${item.id} lacks an exact authenticated claim binding for ${requirementId}: "${claim}"`;
-}
-
-export function classifyEvidencePurpose(item) {
-  if (item?.kind === 'postmortem') {
-    return {
-      purpose: 'diagnostic',
-      reason: 'postmortems are durable-state-bound release inputs, not requirement receipts'
-    };
-  }
-  const requirementBound = Array.isArray(item?.requirement_ids)
-    && item.requirement_ids.length > 0;
-  const claimBound = Array.isArray(item?.establishes)
-    && item.establishes.length > 0;
-  const dependencyBound = completeFingerprintBinding(
-    item?.dependency_cone,
-    item?.dependency_fingerprints
-  ) || completeFingerprintBinding(item?.inputs, item?.input_fingerprints);
-  const authenticated = item?.governed_execution_authenticated === true;
-  const explicitlyBound = validClaimBindings(item).length > 0;
-  if (item?.status === 'valid' && authenticated && requirementBound && claimBound
-    && dependencyBound && explicitlyBound) {
-    return {
-      purpose: 'claim_establishing',
-      reason: null
-    };
-  }
-  const missing = [
-    ...(requirementBound ? [] : ['requirement IDs']),
-    ...(claimBound ? [] : ['established claims']),
-    ...(dependencyBound ? [] : ['fingerprinted input or dependency provenance']),
-    ...(authenticated ? [] : ['authenticated governed execution']),
-    ...(explicitlyBound ? [] : ['exact requirement/claim/provenance binding'])
-  ];
-  return {
-    purpose: 'diagnostic',
-    reason: missing.length
-      ? `missing ${missing.join(', ')}`
-      : `receipt status is ${item?.status || 'unavailable'}`
-  };
-}
-
-export function evaluateTddEvidencePair({
-  requirementId,
-  behaviorId,
-  greenEvidence = [],
-  allEvidence = []
-}) {
-  const green = greenEvidence.find((item) =>
-    item.tdd_phase === 'green'
-    && item.tdd_behavior_id === behaviorId
-    && typeof item.tdd_red_receipt_id === 'string'
-  );
-  const red = green
-    ? allEvidence.find((item) => item.id === green.tdd_red_receipt_id)
-    : null;
-  const redEnded = Date.parse(red?.ended_at);
-  const greenStarted = Date.parse(green?.started_at);
-  const redValid = red
-    && red.governed_execution_authenticated === true
-    && red.tdd_phase === 'red'
-    && red.tdd_behavior_id === behaviorId
-    && red.tdd_red_receipt_id === null
-    && red.requirement_ids?.includes(requirementId)
-    && red.kind === 'red'
-    && Number.isInteger(red.exit_code)
-    && red.exit_code !== 0
-    && red.tests?.discovery === 'tests_executed'
-    && Number.isInteger(red.tests?.failed)
-    && red.tests.failed > 0;
-  const greenValid = green
-    && green.governed_execution_authenticated === true
-    && green.exit_code === 0
-    && green.tests?.discovery === 'tests_executed'
-    && Number.isInteger(green.tests?.passed)
-    && green.tests.passed > 0
-    && typeof green.command_identity === 'string'
-    && red?.command_identity === green.command_identity
-    && red?.environment_scope === green.environment_scope;
-  const chronologyValid = Number.isFinite(redEnded)
-    && Number.isFinite(greenStarted)
-    && redEnded <= greenStarted;
-  return {
-    behavior_id: behaviorId,
-    green_receipt_id: green?.id || null,
-    red_receipt_id: red?.id || green?.tdd_red_receipt_id || null,
-    status: redValid && greenValid && chronologyValid ? 'verified' : 'unavailable'
-  };
-}
-
 function evidenceIssue(entry, item, matrix) {
   if (!item) return 'referenced evidence is missing';
   if (item.status !== 'valid') return `evidence ${item.id} is ${item.status || 'not valid'}`;
-  const classification = classifyEvidencePurpose(item);
-  if (classification.purpose !== 'claim_establishing') {
-    return `diagnostic evidence ${item.id} cannot establish requirement ${entry.id}: ${classification.reason}`;
-  }
   if (!item.requirement_ids?.includes(entry.id)) {
     return `evidence ${item.id} does not support requirement ${entry.id}`;
   }
   const evidenceTree = entry.evidence_scope?.git_tree;
-  if (evidenceTree !== matrix.candidate_tree) {
-    return `evidence ${item.id} does not apply to the candidate Git tree`;
-  }
-  if (
+  const bindsCandidateTree = evidenceTree === matrix.candidate_tree;
+  if (bindsCandidateTree && (
     item.git_commit !== matrix.candidate_head || item.git_tree !== matrix.candidate_tree
-  ) {
+  )) {
     return `evidence ${item.id} does not apply to the candidate Git tree`;
   }
-  if (item.dirty_tree_fingerprint !== CLEAN_DIRTY_TREE_FINGERPRINT) {
+  if (bindsCandidateTree && item.dirty_tree_fingerprint !== CLEAN_DIRTY_TREE_FINGERPRINT) {
     return `evidence ${item.id} came from a dirty checkout, not the committed candidate tree`;
   }
   const expectedEnvironment = entry.evidence_scope?.environment;
@@ -665,19 +482,13 @@ function evidenceIssue(entry, item, matrix) {
 export function evaluateRequirementMatrix({
   bindingRequirements,
   matrix,
-  evidence = [],
-  phase = 'postpublication'
+  evidence = []
 }) {
-  if (!['candidate', 'postpublication'].includes(phase)) {
-    throw new Error('matrix evaluation phase must be candidate or postpublication');
-  }
   const issues = [];
   const unverified = [];
-  const deferred = [];
   const allowedClaims = new Set();
   const validEvidenceIds = new Set();
   const evidenceSupport = new Map();
-  const tddEvidence = [];
   const counts = Object.fromEntries(REQUIREMENT_STATES.map((state) => [state, 0]));
   if (!matrix || matrix.schema_version !== 1) issues.push('matrix schema_version must be 1');
   if (!SHA_PATTERN.test(matrix?.candidate_head || '')) {
@@ -709,9 +520,6 @@ export function evaluateRequirementMatrix({
     if (evidenceById.has(item.id)) issues.push(`duplicate evidence ID ${item.id}`);
     evidenceById.set(item.id, item);
   }
-  const classifications = new Map(
-    [...evidenceById].map(([id, item]) => [id, classifyEvidencePurpose(item)])
-  );
   const bindingById = new Map(bindings.map((item) => [item.id, item]));
   for (const entry of entries) {
     if (!REQUIREMENT_STATES.includes(entry.status)) {
@@ -735,22 +543,6 @@ export function evaluateRequirementMatrix({
     if (!Array.isArray(entry.intended_acceptance_claims)) {
       issues.push(`${entry.id}: intended_acceptance_claims must be an array`);
     }
-    if (!['required', 'not_claimed'].includes(entry.tdd_evidence)) {
-      issues.push(`${entry.id}: tdd_evidence must be required or not_claimed`);
-    }
-    if (entry.tdd_evidence === 'required' && (
-      !Array.isArray(entry.tdd_behavior_ids)
-      || !entry.tdd_behavior_ids.length
-      || !entry.tdd_behavior_ids.every((id) =>
-        typeof id === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id)
-      )
-    )) {
-      issues.push(`${entry.id}: tdd_behavior_ids must contain stable kebab-case behavior IDs`);
-      unverified.push(`${entry.id}: TDD evidence unavailable because no governed behaviors were identified`);
-    }
-    if (entry.tdd_evidence === 'not_claimed' && entry.tdd_behavior_ids !== undefined) {
-      issues.push(`${entry.id}: tdd_behavior_ids are forbidden when tdd_evidence is not_claimed`);
-    }
     const references = Array.isArray(entry.evidence_refs) ? entry.evidence_refs : [];
     const usableEvidence = [];
     for (const reference of references) {
@@ -766,14 +558,7 @@ export function evaluateRequirementMatrix({
           id: item.id,
           requirement_ids: [...(item.requirement_ids || [])].sort(),
           establishes: [...(item.establishes || [])].sort(),
-          does_not_establish: [...(item.does_not_establish || [])].sort(),
-          claim_bindings: validClaimBindings(item).map((binding) => ({
-            requirement_id: binding.requirement_id,
-            claim: binding.claim,
-            input_fingerprints: binding.input_fingerprints.map((fingerprint) => ({
-              ...fingerprint
-            }))
-          }))
+          does_not_establish: [...(item.does_not_establish || [])].sort()
         });
       }
     }
@@ -790,41 +575,18 @@ export function evaluateRequirementMatrix({
         const explicitlyExcluded = usableEvidence.some(
           (item) => item.does_not_establish?.includes(claim)
         );
-        const established = usableEvidence.some((item) =>
-          item.establishes?.includes(claim) && !claimBindingIssue(item, entry.id, claim)
+        const established = usableEvidence.some(
+          (item) => item.establishes?.includes(claim)
         );
         if (explicitlyExcluded || !established) {
           const reason = explicitlyExcluded
             ? `evidence explicitly does not establish the broader claim "${claim}"`
-            : usableEvidence.some((item) => item.establishes?.includes(claim))
-              ? claimBindingIssue(
-                usableEvidence.find((item) => item.establishes?.includes(claim)),
-                entry.id,
-                claim
-              )
-              : `evidence scope does not establish claim "${claim}"`;
+            : `evidence scope does not establish claim "${claim}"`;
           issues.push(`${entry.id}: ${reason}`);
           unverified.push(`${entry.id}: ${reason}`);
         } else {
           allowedClaims.add(claim);
         }
-      }
-      for (const behaviorId of entry.tdd_evidence === 'required'
-        ? (entry.tdd_behavior_ids || [])
-        : []) {
-        const tdd = evaluateTddEvidencePair({
-          requirementId: entry.id,
-          behaviorId,
-          greenEvidence: usableEvidence,
-          allEvidence: evidenceRecords
-        });
-        if (tdd.status !== 'verified') {
-          const reason = `${entry.id}: TDD evidence unavailable for behavior ${behaviorId}`;
-          issues.push(reason);
-          unverified.push(reason);
-          for (const claim of entry.intended_acceptance_claims || []) allowedClaims.delete(claim);
-        }
-        tddEvidence.push(tdd);
       }
     } else if (entry.status === 'not_applicable') {
       if (typeof entry.not_applicable_reason !== 'string' || !entry.not_applicable_reason.trim()) {
@@ -835,13 +597,6 @@ export function evaluateRequirementMatrix({
         issues.push(`${entry.id}: not_applicable status requires scoped evidence`);
         unverified.push(`${entry.id}: not_applicable status lacks usable evidence`);
       }
-    } else if (
-      phase === 'candidate'
-      && entry.proof_deferred_until === 'postpublication'
-      && entry.status === 'partially_verified'
-      && entry.unavailable_proof?.length
-    ) {
-      deferred.push(`${entry.id}: ${entry.unavailable_proof.join('; ')}`);
     } else {
       const reason = entry.unavailable_proof?.join('; ') || `status is ${entry.status}`;
       unverified.push(`${entry.id}: ${reason}`);
@@ -851,21 +606,11 @@ export function evaluateRequirementMatrix({
     valid: issues.length === 0 && unverified.length === 0,
     binding_requirement_ids: [...bindingIds].sort(),
     valid_evidence_ids: [...validEvidenceIds].sort(),
-    claim_establishing_evidence_ids: [...classifications]
-      .filter(([, classification]) => classification.purpose === 'claim_establishing')
-      .map(([id]) => id).sort(),
-    diagnostic_evidence_ids: [...classifications]
-      .filter(([, classification]) => classification.purpose === 'diagnostic')
-      .map(([id]) => id).sort(),
     evidence_support: [...evidenceSupport.values()].sort((left, right) =>
       left.id.localeCompare(right.id)
     ),
     counts,
     allowed_claims: [...allowedClaims].sort(),
-    tdd_evidence: tddEvidence.sort((left, right) =>
-      left.behavior_id.localeCompare(right.behavior_id)
-    ),
-    deferred_obligations: [...new Set(deferred)].sort(),
     unverified_obligations: [...new Set(unverified)].sort(),
     issues: [...new Set(issues)].sort()
   };
@@ -887,13 +632,7 @@ function proofRefsSupport(references, requirementId, claim, matrixResult) {
       return item
         && item.requirement_ids.includes(requirementId)
         && item.establishes.includes(claim)
-        && !item.does_not_establish.includes(claim)
-        && item.claim_bindings?.some((binding) =>
-          binding.requirement_id === requirementId
-          && binding.claim === claim
-          && Array.isArray(binding.input_fingerprints)
-          && binding.input_fingerprints.length > 0
-        );
+        && !item.does_not_establish.includes(claim);
     });
 }
 
@@ -952,16 +691,12 @@ export function evaluateCandidateCompletion({
   candidateHead,
   candidateTree,
   reviewPackageId,
-  reviewPackageSeamId,
   semanticContractSha256,
   requiredLenses = [],
   loadBearingReviewObligations = null,
   hostSmokeReceipt = null,
   releaseChannel = 'public_beta',
-  correctionPending = false,
-  reviewLifecycle = null,
-  reviewLifecycles = null,
-  assuranceAccounting = null
+  correctionPending = false
 }) {
   if (!['micro', 'standard', 'high-risk'].includes(profile)) {
     throw new Error('profile must be micro, standard, or high-risk');
@@ -1032,52 +767,6 @@ export function evaluateCandidateCompletion({
       reasons: ['independent semantic review is unavailable']
     });
   }
-  if (correctionPending && !reviewLifecycle) {
-    return result(COMPLETION_STATES.REVIEW_PENDING, {
-      allowedClaims,
-      reasons: ['correction invalidated prior approval; bounded recheck is required']
-    });
-  }
-  try {
-    validateReviewLifecycle(reviewLifecycle, {
-      candidateHead,
-      candidateTree,
-      requireFinalApproval: true
-    });
-    const activeAttempts = reviewLifecycle.attempts.filter(({ attempt_id }) =>
-      !reviewLifecycle.invalidated_attempt_ids.includes(attempt_id)
-    );
-    const selectedFinalAttempt = activeAttempts.at(-1);
-    if (!reviewPackageSeamId || reviewPackageSeamId !== reviewLifecycle.seam_id) {
-      throw new Error('review package seam does not match the selected review lifecycle');
-    }
-    if (selectedFinalAttempt?.seam_id !== reviewLifecycle.seam_id
-      || selectedFinalAttempt?.review_package_id !== reviewPackageId) {
-      throw new Error('selected final approval does not bind the current review package and seam');
-    }
-    const accountingLifecycles = reviewLifecycles || [reviewLifecycle];
-    for (const lifecycle of accountingLifecycles) validateReviewLifecycle(lifecycle);
-    const accountingAttempts = accountingLifecycles.flatMap(({ attempts = [] }) => attempts);
-    validateAssuranceAccounting(assuranceAccounting, {
-      candidateHead,
-      candidateTree,
-      recordedReviewAttemptIds: accountingAttempts.map(({ attempt_id }) => attempt_id),
-      recordedReviewAttemptCounts: {
-        correction_rechecks: accountingAttempts.filter(({ attempt_type }) =>
-          attempt_type === 'correction_recheck'
-        ).length,
-        final_integration_reviews: accountingAttempts.filter(({ attempt_type }) =>
-          attempt_type === 'final_integration_review'
-        ).length
-      },
-      requiredReviewerIdentities: accountingLifecycles.map(({ reviewer_identity }) => reviewer_identity)
-    });
-  } catch (error) {
-    return result(COMPLETION_STATES.REVIEW_PENDING, {
-      allowedClaims,
-      reasons: [error.message]
-    });
-  }
   if (correctionPending) {
     return result(COMPLETION_STATES.REVIEW_PENDING, {
       allowedClaims,
@@ -1103,8 +792,6 @@ export function evaluateCandidateCompletion({
     candidateBase,
     candidateHead,
     reviewPackageId,
-    reviewAttemptId: reviewLifecycle.attempts.at(-1)?.attempt_id || null,
-    reviewSeamId: reviewLifecycle.seam_id,
     semanticContractSha256,
     requiredLenses,
     reviews,
@@ -1125,44 +812,6 @@ export function evaluateCandidateCompletion({
 
 export function selectSemanticLenses(signals = []) {
   const requested = new Set(signals);
-  const semanticSignalGroups = [
-    {
-      lens: 'mission-scope-compliance',
-      signals: ['public-contract', 'release-side-effects']
-    },
-    {
-      lens: 'state-authority-and-stale-work',
-      signals: ['durable-state', 'release-side-effects']
-    },
-    {
-      lens: 'security-trust-boundaries',
-      signals: ['auth-trust']
-    },
-    {
-      lens: 'persistence-migration-rollback',
-      signals: ['durable-state', 'migration', 'release-side-effects']
-    },
-    {
-      lens: 'api-protocol-compatibility',
-      signals: ['public-contract', 'shared-adapter', 'migration']
-    },
-    {
-      lens: 'error-retry-fallback-semantics',
-      signals: ['external-service', 'shared-adapter', 'durable-state', 'migration', 'release-side-effects']
-    },
-    {
-      lens: 'test-falsifiability-and-edge-cases',
-      signals: ['auth-trust', 'external-service', 'live-only', 'shared-adapter', 'durable-state', 'migration', 'release-side-effects']
-    },
-    {
-      lens: 'performance-resource-limits',
-      signals: ['external-service', 'durable-state']
-    },
-    {
-      lens: 'os-hardware-external-service-truthfulness',
-      signals: ['external-service', 'live-only', 'release-side-effects']
-    }
-  ];
   const frameworkSignals = [
     'build-tool',
     'wrapper-adapter',
@@ -1176,7 +825,6 @@ export function selectSemanticLenses(signals = []) {
     'convention-heavy-framework'
   ];
   const sharedControlFlowSignals = [
-    'shared-adapter',
     'shared-adapter-control-flow',
     'shared-provider-control-flow',
     'shared-platform-control-flow',
@@ -1184,9 +832,6 @@ export function selectSemanticLenses(signals = []) {
     'common-specialized-branching'
   ];
   const lenses = [];
-  for (const { lens, signals: lensSignals } of semanticSignalGroups) {
-    if (lensSignals.some((signal) => requested.has(signal))) lenses.push(lens);
-  }
   if (frameworkSignals.some((signal) => requested.has(signal))) {
     lenses.push('framework-defaults-and-conventions');
   }

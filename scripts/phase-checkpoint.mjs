@@ -7,8 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { parseOptions, integerOption, required } from './lib/cli.mjs';
 import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
-import { appendRunEvent, readRunState } from './lib/run-state.mjs';
-import { resumeRun } from './lib/run-control.mjs';
+import { appendRunEvent } from './lib/run-state.mjs';
 
 const REQUIRED_FIELDS = Object.freeze([
   'mission_digest',
@@ -41,11 +40,6 @@ const root = findRepoRoot(process.cwd());
 const runtime = await ensureRuntimeDirectory(root);
 const checkpointFile = path.join(runtime, 'checkpoints', 'current.json');
 const evidenceScript = path.join(path.dirname(fileURLToPath(import.meta.url)), 'evidence.mjs');
-const canonicalRunState = await readRunState(runtime);
-
-if (action === 'create' && canonicalRunState?.schema_version === 3) {
-  throw new Error('schema-3 runs require run-control.mjs checkpoint so canonical state and run.md remain synchronized');
-}
 
 function output(value) {
   writeSync(process.stdout.fd, `${JSON.stringify(value)}\n`);
@@ -190,19 +184,7 @@ async function reconcileEvidenceReferences(references, { requireDeclaredState = 
   }));
 }
 
-let handledByCanonicalRecovery = false;
-if (action === 'resume') {
-  if (canonicalRunState?.schema_version === 3) {
-    const result = await resumeRun(runtime, root);
-    output(result.checkpoint);
-    if (result.recoveryRequired) process.exitCode = 2;
-    handledByCanonicalRecovery = true;
-  }
-}
-
-if (handledByCanonicalRecovery) {
-  // The schema-3 control plane owns reconciliation and summary refresh.
-} else if (action === 'create') {
+if (action === 'create') {
   const inputFile = path.resolve(process.cwd(), required(options, 'input'));
   const maxBytes = integerOption(options, 'max-bytes', 16 * 1024);
   if (!Number.isInteger(maxBytes) || maxBytes <= 0) throw new Error('--max-bytes must be a positive integer');

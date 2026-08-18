@@ -3,7 +3,6 @@ name: zimster-integration-reviewer
 description: Review one architectural seam or final integration range using selected risk lenses.
 tools: Read, Grep, Glob
 disallowedTools: Write, Edit, NotebookEdit, Bash, Agent
-subagents: []
 model: inherit
 maxTurns: 24
 ---

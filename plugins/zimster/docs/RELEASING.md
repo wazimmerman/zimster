@@ -22,7 +22,7 @@ Synchronize versions through the repository command:
 npm run version:bump -- <next-version> --note "Release summary"
 ```
 
-For v0.7.1 the candidate must satisfy the standards lock, canonical/generated
+For v0.7.0 the candidate must satisfy the standards lock, canonical/generated
 mirror equality, current host evidence, benchmark evidence policy, and
 plan-conformance gate. Registry acceptance is a later external event, not a tag
 gate.
@@ -40,12 +40,6 @@ npm run plan:conformance -- --phase release
 npm run postmortem
 git diff --check
 ```
-
-The pre-tag release-conformance gate admits a `partially_verified` requirement
-only when its remaining proof is explicitly deferred until `postpublication`,
-it has current prepublication evidence, and `unavailable_proof` states why the
-final observation cannot exist yet. Postpublication matrix evaluation must
-replace each deferral with exact published-surface evidence before closure.
 
 Inspect `git status --short`, `git diff`, `git diff --cached`, and every
 untracked file. A correction invalidates affected evidence and exact-head
@@ -67,14 +61,6 @@ digests, npm allowlist exclusions, and absence of credentials or private
 planning material. Smoke-test each available host in a fresh isolated home and
 record unavailable capabilities without broadening the claim.
 
-The installed-package smoke runs every artifact that supplies the mechanical
-runtime through High-risk initialization, durable slice start, dirty
-checkpoint, governed execution, fresh-process resume, audited accounting,
-summary drift detection/repair, hard lifecycle exhaustion, and fail-closed
-completion coherence. OpenAI/portable skill bundles are tested at their
-embedded runtime path so provenance cannot silently fall back to a source-tree
-identity.
-
 Run installed-package smoke before the final integration review. In particular,
 register and install the exact Codex ZIP with an isolated `CODEX_HOME`. Run the
 secret scan over both tracked content and every artifact before accepting the
@@ -84,29 +70,13 @@ checksums.
 
 The canonical payload conforms to `schemas/release-evidence.schema.json` and
 binds the version, tag, channel, commit, tree, standards-lock hash,
-semantic-review hash, host-matrix hash, verification results, current
-postmortem, artifact names, and SHA-256 digests. Schema version 3 embeds the
-exact semantic-review, host-matrix, verification, and durable-state-bound
-postmortem inputs. Release-evidence creation rejects a postmortem whose
-relevant budget, dispatch, review, correction, suite, or evidence source state
-has changed. Release CI materializes those signed
-inputs before verifying their digests, so publication never depends on files
-that cannot be part of the exact reviewed tree. Generate and validate the
-payload with the release-evidence tools, then place that exact JSON in a signed
-annotated tag targeting the reviewed commit.
+semantic-review hash, host-matrix hash, verification results, artifact names,
+and SHA-256 digests. Generate and validate it with the release-evidence tools,
+then place that exact JSON in a signed annotated tag targeting the reviewed
+commit.
 
 Never move, delete, or recreate a published tag. Correct a released defect with
 a patch version.
-
-The release verification profile exercises postmortem generation, but its own
-terminal suite receipt changes relevant durable state. Regenerate the
-postmortem after the final exact suite, validate it once, and pass that current
-report to `release:evidence create`.
-
-Generation atomically refreshes `.git/zimster/postmortems/latest.json`.
-Final-review, completion, and release coherence validate that canonical report
-against current durable budgets, dispatches, reviews, evidence, and suites;
-any later relevant mutation makes it stale until regeneration.
 
 ## Verification-only CI
 

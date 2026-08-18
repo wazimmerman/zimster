@@ -15,10 +15,7 @@ node <zimster>/scripts/init-run.mjs \
   --harness codex \
   --reason "public plugin compatibility" \
   --triggers "more than one vertical slice,independent review" \
-  --commit-policy "commit at verified slice boundaries" \
-  --next-slice-id slice-1 \
-  --next-slice-title "First observable slice" \
-  --next-action "Start Slice 1 before editing"
+  --commit-policy "commit at verified slice boundaries"
 ```
 
 The command refuses to overwrite an existing run unless `--force` is explicit.
@@ -32,90 +29,18 @@ unverified.
 Standard and High-risk initialization also creates a run identity, lifecycle
 event stream, and machine-readable execution budget. Use
 `scripts/run-budget.mjs record` for measured events and
-`scripts/run-budget.mjs prove` to satisfy a proof-backed override. If a proof
-relationship is later shown to be circular, `scripts/run-budget.mjs supersede`
-preserves the original obligation and links one enforceable replacement; it
-never erases the original override. Proof labels cannot be reused after they
-become satisfied or superseded. If an older ledger already contains duplicate
-labels, `scripts/run-budget.mjs reconcile-identities` requires explicit
-override/supersession occurrence bindings and appends a fingerprinted
-reconciliation record; it does not rename or remove either historical row.
+`scripts/run-budget.mjs prove` to satisfy a proof-backed override.
 
-If one governed verification already ran the bounded commands needed by
-several matrix claims, derive narrow evidence without repeating them:
-
-```text
-node <zimster>/scripts/evidence.mjs bridge-verification \
-  --verification-receipt <id> \
-  --steps '["step-id"]' \
-  --kind verification --scope <claim-scope> \
-  --requirement-ids '["REQ-001"]' \
-  --establishes '["Narrow claim"]' \
-  --environment-scope <scope>
-```
-
-The bridge accepts only a passing exact-candidate governed verification and
-digest-matching selected logs. Its receipt records the upstream verification
-and does not create another execution or consume duplicate-command budget.
-The selected verification steps must declare `requirement_ids`, `establishes`,
-`does_not_establish`, and `environment_scopes` in the plan before execution.
-An executed helper is also declared in `input_files`. The verifier fingerprints
-those bytes before and after execution, and the bridge carries them into the
-evidence dependency set. A bridge selects exactly one passing step, every
-bridged field must be a subset of that step's declarations, and every declared
-`does_not_establish` caveat must be retained. A passing result therefore cannot
-be recombined or broadened afterward.
-
-Each bridge receipt binds one exact requirement and one exact claim. Create
-multiple derived receipts when a passing step supports multiple matrix rows;
-the bridge never invents a Cartesian pairing after execution.
-
-Start a slice durably before editing, checkpoint meaningful dirty progress, and
-resume from actual repository state:
-
-```text
-node <zimster>/scripts/run-control.mjs start \
-  --slice-id slice-1 --slice-title "First observable slice" \
-  --next-slice-id slice-2 \
-  --remaining-obligations '["focused behavior","affected gate"]' \
-  --next-action "Implement the focused behavior" \
-  --next-command "node --test test/focused.test.mjs"
-
-node <zimster>/scripts/run-control.mjs checkpoint \
-  --status awaiting_verification \
-  --completed-obligations '["focused behavior"]' \
-  --remaining-obligations '["affected gate"]' \
-  --next-action "Run the affected gate" \
-  --next-command "npm test"
-
-node <zimster>/scripts/run-control.mjs resume
-```
-
-The checkpoint derives HEAD/tree, dirty fingerprint, and touched files; it can
-also preserve compact corrections, findings, and generic side-effect guards.
-`resume` reconciles uncheckpointed dirty progress only when a durably started
-current slice supplies attribution. An unexpected HEAD or dirty legacy work
-without a current slice reports `RECOVERY_RECONCILIATION_REQUIRED`.
-
-`run.md` is derived. Use `run-control.mjs check` (or `npm run run:check`) to
-report `STALE_RUN_SUMMARY`, and `run-control.mjs refresh` (or
-`npm run run:refresh`) to regenerate deterministic bytes. Do not resolve drift
-by treating a manual Markdown edit as authoritative. The legacy
-`phase-checkpoint.mjs` compact interface remains readable during migration.
+At a coherent slice boundary, create a bounded checkpoint with
+`scripts/phase-checkpoint.mjs create --input <compact-json>`. A continued
+physical context uses `phase-checkpoint.mjs resume`; logical ownership remains
+with the same root owner.
 
 Pass `--convergence-config <path>` to snapshot validated limits. A self-hosting
 candidate instead passes `--self-hosting-candidate <version>`,
 `--accepted-policy-config <outside-repository-path>`, and the independently
 known `--accepted-policy-sha256 <digest>`. Initialization rejects candidate-tree
 policy and records the accepted artifact identity in the bootstrap receipt.
-For a durable self-host run, bind the same accepted bytes to an immutable
-pre-candidate Git object and materialize them under the Git-local runtime:
-
-```text
-node <zimster>/scripts/init-run.mjs bind-accepted-policy \
-  --commit <accepted-commit-sha> --path config/convergence.json \
-  --sha256 <independently-known-digest>
-```
 
 ## Delegation, routing, and convergence
 
@@ -158,11 +83,7 @@ npm run postmortem
 Capability status is scoped to one host. Expiry, version change, validator
 contradiction, a task changing that integration, or an explicit fresh-research
 request are the only refresh triggers. The postmortem is run-scoped and keeps
-incompatible token meters separate. It records a digest manifest for the
-canonical durable inputs used to derive it. Validate it with
-`npm run postmortem -- check --file <report>`; any relevant later durable-state
-change returns `POSTMORTEM_STALE`, requiring regeneration before release
-authorization.
+incompatible token meters separate.
 
 ## Canonical command inventory
 
@@ -212,188 +133,6 @@ guard reports exact affected files and never stages, repairs, resets, or
 discards them. Declared inputs may be absolute attachment or Git-local paths
 outside the worktree.
 
-## Immutable review attempts and circuit breaker
-
-Create a separate Git-local package for each typed attempt:
-
-Declare every applicable `--risk-signals` value when creating the package.
-High-risk release signals are additive: `public-contract`, `auth-trust`,
-`external-service`, `live-only`, `shared-adapter`, `plugin-system`,
-`durable-state`, `migration`, and `release-side-effects` select the combined
-semantic review rather than a single lens. The package's selected lens set is
-the completion gate's required lens set.
-
-```text
-node <zimster>/scripts/review-package.mjs \
-  --attempt-type initial_review --attempt-id <stable-id> --seam-id <stable-id> \
-  --base <sha> --head <sha> \
-  --binding-requirements <binding.json> --matrix <matrix.json>
-
-node <zimster>/scripts/review-lifecycle.mjs init \
-  --seam-id <stable-id> --reviewer-identity <stable-reviewer-id> \
-  --base <sha> --head <sha> --tree <tree> \
-  --dirty-tree-fingerprint <sha256> --semantic-contract-sha256 <sha256>
-
-node <zimster>/scripts/review-lifecycle.mjs start \
-  --seam-id <stable-id> --attempt-type initial_review \
-  --attempt-id <stable-id> --reviewer-identity <stable-reviewer-id> \
-  --review-package <git-local-review-package.json>
-```
-
-Record `verdict`, one owner `correction`, and the same reviewer's one
-`correction_recheck`. A failed recheck persists the circuit breaker. The CLI
-rejects another recheck, replacement-reviewer shopping, final review, and
-completion until an evidence-backed `disposition` is recorded. A design
-revision must change the semantic-contract digest and invalidates prior
-attempts. `final_integration_review` is a distinct exact-head type after
-`stabilize`; it never expands the correction-recheck allowance. Each semantic
-contract permits at most one primary attempt, one correction recheck, and two
-final integration attempts. A second failed final attempt enters durable
-`strategy_escalation_required`; neither a new attempt ID nor a generic budget
-override can reset that hard limit.
-
-An approval disposition is not a verification-plan escape hatch. A passed
-command may not authorize itself by declaring a `review-finding:*` value, and
-owner-managed dispatch/routing rows cannot prove that a reviewer authored a
-later result. Until a harness supplies a trusted reviewer-output attestation,
-`reviewer_rebutted_with_evidence`, `non_load_bearing_deferral`, and the
-`reviewer-disposition` command fail closed. Use `design_revision`,
-`blocked_by_requirement`, or `partial_or_blocked`; only an approved exact
-final-review verdict can produce `final_approved`.
-
-Every candidate command also verifies that `base_sha` is a Git ancestor of
-`head_sha`; an existing but unrelated or predating head cannot preserve the
-base merely by repeating its SHA string.
-
-After semantic approval and before a final integration attempt is active,
-`candidate` may advance the exact head/tree only while retaining the approved
-semantic-contract digest and immutable base. Any such advance clears
-`stable`, including when a pre-admission defect is discovered after an earlier
-stabilization, so exact evidence must be renewed and `stabilize` repeated. This
-does not create another primary or correction recheck; the reserved final
-integration review still must approve the resulting exact candidate. Once a
-final attempt is active, candidate changes require the applicable
-final-correction or design-revision transition.
-
-Attempt IDs are run-global identities, not merely seam-local labels. Assurance
-reconciliation rejects an ID repeated in any canonical lifecycle. Candidate
-completion also requires the approved final attempt, semantic review record,
-and immutable review package to agree on the exact seam, attempt ID, and
-package ID.
-
-When a genuine design revision has created a new semantic review epoch, reserve
-its correction recheck with the lifecycle-authenticated digest:
-
-```text
-node <zimster>/scripts/run-budget.mjs record \
-  --metric correction_rechecks --scope <seam-id> \
-  --semantic-contract-sha256 <current-lifecycle-sha256>
-```
-
-The command rejects a missing lifecycle, a digest mismatch, or any lifecycle
-state other than `correction_recheck_required`. The resulting budget scope is
-the seam plus the authenticated semantic digest, so historical epochs remain
-visible without consuming the new epoch's single recheck.
-Candidate completion loads every canonical seam lifecycle, cross-checks the
-run-global aggregate against their durable attempts, rejects more than one
-recheck in any seam/semantic epoch, and accepts a legacy per-seam aggregate
-scope only when its count reconciles to otherwise unrepresented authenticated
-epochs for that same seam.
-
-Before the required primary attempt starts, `review-lifecycle.mjs candidate`
-may update the exact head/tree/dirty identity while preserving the same
-semantic-contract digest. It consumes no attempt and cannot be used to smuggle
-in a contract change; changed semantics still require `design_revision`.
-A mistaken pre-review design digest may be corrected with another explicit
-`design_revision` before any attempt starts; it consumes no attempt, preserves
-the immutable base, and records both semantic candidates in lifecycle history.
-If binding acceptance requirements change after primary approval but before a
-final-review attempt starts, record the genuine `design_revision` directly from
-the approved state. It preserves the immutable release base, invalidates the
-prior semantic epoch, and requires a new-design review; starting a replacement
-seam or silently retaining the prior digest is not an equivalent transition.
-
-A load-bearing final integration finding may also require `design_revision`
-when its correction changes the stable semantic contract. That disposition is
-recorded directly from `final_correction_required`, invalidates prior attempts,
-and requires new-design approval before another final integration review.
-
-Before admitting a final integration attempt, inspect the whole canonical
-control plane without repairing it:
-
-```text
-node <zimster>/scripts/coherence-preflight.mjs check \
-  --operation review --seam-id <stable-id>
-```
-
-`COHERENCE_BLOCKED` reports every detected drift or stale dependency. Repair
-the owning state through its normal command, regenerate `run.md`, and rerun the
-check. Do not edit the derived summary or copy state into alternate paths.
-
-## Synchronized state mutations
-
-Supported evidence add/invalidate/run, governed verification start/result,
-review lifecycle, budget/proof, accounting, dispatch/delegation, convergence,
-host evidence, completion, and release-evidence commands pass successful
-canonical writes through one Git-local mutation boundary. That boundary uses a
-runtime lock, atomic writes where the store permits them, transaction-bound
-audit rows, a revision-matched checkpoint, deterministic `run.md` refresh, and
-post-write invariants.
-
-If a fresh process finds an in-flight marker, run:
-
-```text
-node <zimster>/scripts/run-control.mjs resume
-```
-
-A canonical-write marker is completed mechanically. A pre-write/ambiguous
-marker remains visible in the checkpoint and `run.md` as
-`RECOVERY_RECONCILIATION_REQUIRED`; do not delete it or claim the operation
-succeeded without reconciling the owning store.
-
-If the owning store proves that a `started` transaction made no canonical
-mutation, archive it through the evidence-required no-op disposition:
-
-```text
-node <zimster>/scripts/run-control.mjs reconcile \
-  --transaction-id <id> \
-  --disposition no_canonical_mutation \
-  --reason <why-the-owning-store-did-not-change> \
-  --evidence <durable-observation>
-```
-
-The command refuses a changed run-state revision, preserves the original
-marker under `transactions/reconciled/`, records whether the candidate changed
-after interruption, advances the canonical revision, and refreshes the
-checkpoint and `run.md`.
-
-Reconcile supported host observations before completion:
-
-```text
-node <zimster>/scripts/assurance-accounting.mjs reconcile \
-  --observed <candidate-bound-host-observation.json>
-```
-
-The receipt fails closed unless observed agent IDs exactly match dispatch and
-budget identities, observed attempt IDs exactly match durable lifecycle
-attempts, every lifecycle reviewer is an observed accounted agent, and observed
-depth is at most one. When the host cannot expose
-authoritative activity, report reconciliation unavailable rather than using an
-empty observation as proof.
-
-If durable dispatch or lifecycle ledgers prove that budget projections are
-stale, repair only those projections with an explicit audit reason:
-
-```text
-node <zimster>/scripts/assurance-accounting.mjs reconcile \
-  --observed <candidate-bound-host-observation.json> \
-  --repair-projections --reason <why-the-ledger-outranks-the-projection>
-```
-
-The repair preserves lifecycle and dispatch history, records every prior and
-corrected value, and still fails closed when the host observation itself does
-not match the authoritative ledgers.
-
 ## Evidence receipts
 
 Initialize or record supplied evidence:
@@ -432,28 +171,6 @@ New receipts may also carry `--requirement-ids`, `--establishes`,
 `--does-not-establish`, and `--environment-scope`. Use JSON arrays when a claim
 contains commas. This prevents a narrow native harness or fixture from being
 reported as broad compatibility proof.
-
-Claim-establishing governed runs also use `--claim-bindings` to map each exact
-requirement and claim to canonical entries already declared through `--inputs`
-or `--dependencies`. The verification bridge creates the same binding from the
-selected step's authenticated input fingerprints.
-
-Completion classifies a receipt as `claim_establishing` only when it binds at
-least one requirement and established claim to fingerprinted inputs or
-dependencies. Other receipts remain useful diagnostics but cannot satisfy a
-requirement. Downstream Micro-eligibility and High-risk load-bearing proof
-consumers recheck the same exact requirement, claim, and provenance binding;
-broad receipt arrays never substitute for it. An admitted verification bridge
-always records an authenticated passed or failed terminal receipt. Failure
-compensation stays within the bridge's active control-plane transaction, and
-terminal finalization resumes an identical partially written result without
-duplicating finish events. Failure receipts are stale diagnostics and cannot
-establish claims. Every matrix row
-declares `tdd_evidence` as `required` or
-`not_claimed`; a prospective TDD claim additionally names `tdd_behavior_ids`
-and requires authenticated governed `red` and `green` evidence for
-the same behavior in chronological order. If the RED receipt was never
-captured, report TDD evidence unavailable; never reconstruct it from history.
 
 Test-discovery values are `not_reached`, `zero_discovered`, `tests_executed`,
 and `unknown`. `unknown` and `not_reached` carry no counts; `zero_discovered`
@@ -501,35 +218,17 @@ npm run assurance -- complete \
   --matrix <requirement-matrix.json> \
   --evidence <receipts.jsonl> \
   --reviews <review-records.json> \
-  --review-package <review-package.json> \
-  --review-lifecycle <review-lifecycle.json> \
-  --assurance-accounting <assurance-accounting.json> \
-  --execution-budget .git/zimster/budget.json
+  --review-package <review-package.json>
 ```
 
 The first command reports coverage and proof/claim blockers. The second also
-performs the same canonical coherence preflight and requires a clean current
-checkout and profile-appropriate review. Owner-inline
+requires a clean current checkout and profile-appropriate review. Owner-inline
 inspection is `self_review`; Standard and High-risk need clean-context
 `independent_review` for the exact base/head, package ID, stable
-semantic-contract digest, required lens set, and a reconciled execution budget
-with every override proof durably satisfied. Standard and High-risk completion
-accept only the authoritative Git-local budget; a copied or caller-authored
-snapshot is rejected. Each satisfied proof is rechecked against the current
-evidence or verification ledger, invalidations, environment, and exact
-candidate tree. Evidence-type budget proof receipts must match the current Git
-commit and tree even when their dependency cone remains reusable for ordinary
-evidence purposes. Proof receipts must be issued by a governed execution whose
-terminal bytes authenticate against the execution ledger, and the execution
-must finish before the override creates the obligation. Post-override receipts
-are circular; manual `evidence record` receipts are not budget proofs. When a
-correction makes a satisfied proof stale,
-`run-budget.mjs supersede` preserves the old receipt and links a new required
-proof before completion can resume. The contract digest covers
-binding meaning, intended claims, implementation locations, and stable evidence
-environment scope. Candidate Git tree identity, mutable receipt references,
-statuses, observations, and verification results are validated separately.
-High-risk obligation records bind the candidate
+semantic-contract digest, and required lens set. The contract digest covers
+binding meaning, intended claims, implementation locations, and evidence scope;
+mutable receipt references, statuses, observations, and verification results
+are validated separately. High-risk obligation records bind the candidate
 head/tree to evidence references that match the exact requirement ID and exact
 established claim; Micro uses `--micro-eligibility`
 with all risk dimensions Low, no hard trigger or public contract, and
@@ -537,11 +236,6 @@ candidate-bound deterministic proof references with the same exact
 requirement-and-claim linkage. Boolean eligibility or
 load-bearing switches are not accepted. Review unavailable produces
 `OWNER_VERIFIED_REVIEW_UNAVAILABLE` or another non-candidate state.
-
-Release-evidence creation repeats the preflight for `release` and binds its
-requested commit and tree to the coherent checkout. A successful earlier
-completion receipt cannot authorize release after any run, checkpoint,
-accounting, lifecycle, proof, summary, or checkout drift.
 
 ## Release controls
 

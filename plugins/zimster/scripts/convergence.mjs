@@ -10,7 +10,6 @@ import {
   normalizeConvergenceMetric,
   validateConvergenceConfig
 } from './lib/convergence.mjs';
-import { withControlPlaneMutation } from './lib/control-plane-mutation.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
 const root = findRepoRoot(process.cwd());
@@ -70,9 +69,7 @@ async function main() {
   });
   const directory = path.join(runtime, 'convergence');
   await mkdir(directory, { recursive: true });
-  await withControlPlaneMutation(runtime, root, {
-    mutationType: 'convergence_decision_recorded'
-  }, () => appendFile(path.join(directory, 'decisions.jsonl'), `${JSON.stringify(record)}\n`));
+  await appendFile(path.join(directory, 'decisions.jsonl'), `${JSON.stringify(record)}\n`);
   writeLine(JSON.stringify(record));
 }
 

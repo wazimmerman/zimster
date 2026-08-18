@@ -1,86 +1,20 @@
 import { createHash } from 'node:crypto';
-import { access, mkdir, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, readFile, realpath, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { integerOption, parseOptions, required, writeLine } from './lib/cli.mjs';
-import { findRepoRoot, gitValue, runGit } from './lib/git-state.mjs';
+import { findRepoRoot, gitValue } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory, resolveAuditPath } from './lib/runtime.mjs';
 import { harnessCapabilities } from './lib/capabilities.mjs';
 import { initializeExecutionBudget } from './lib/execution-budget.mjs';
 import { validateConvergenceConfig } from './lib/convergence.mjs';
 import { initializeRunState } from './lib/run-state.mjs';
-import { refreshRunSummary } from './lib/run-summary.mjs';
-import { withControlPlaneMutation } from './lib/control-plane-mutation.mjs';
 
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const { positional, options } = parseOptions(process.argv.slice(2));
+const { options } = parseOptions(process.argv.slice(2));
 const repo = findRepoRoot(process.cwd());
 const auditPath = options['audit-path'] ? String(options['audit-path']) : null;
 const runtimeDirectory = auditPath ? null : await ensureRuntimeDirectory(repo);
-
-async function writeJsonAtomic(file, value) {
-  await mkdir(path.dirname(file), { recursive: true });
-  const temporary = `${file}.temporary-${process.pid}-${Date.now()}`;
-  try {
-    await writeFile(temporary, `${JSON.stringify(value, null, 2)}\n`, { flag: 'wx' });
-    await rename(temporary, file);
-  } finally {
-    await rm(temporary, { force: true });
-  }
-}
-
-if (positional[0] === 'bind-accepted-policy') {
-  if (!runtimeDirectory) throw new Error('accepted policy binding requires the Git-local runtime');
-  const commit = required(options, 'commit').toLowerCase();
-  const policyPath = required(options, 'path');
-  const expected = required(options, 'sha256').toLowerCase();
-  if (!/^[0-9a-f]{40}$/.test(commit)) throw new Error('--commit must be an immutable commit SHA');
-  if (path.isAbsolute(policyPath) || policyPath.split(/[\\/]/).includes('..')) {
-    throw new Error('--path must be a safe repository-relative path');
-  }
-  if (!/^[0-9a-f]{64}$/.test(expected)) throw new Error('--sha256 must be lowercase SHA-256');
-  if (runGit(['merge-base', '--is-ancestor', commit, 'HEAD'], repo, { allowFailure: true }).status !== 0) {
-    throw new Error('accepted policy commit must be an ancestor of the candidate');
-  }
-  const object = runGit(['show', `${commit}:${policyPath}`], repo, {
-    allowFailure: true,
-    encoding: 'buffer'
-  });
-  if (object.status !== 0) throw new Error('accepted policy Git object is unavailable');
-  const bytes = Buffer.from(object.stdout);
-  const actual = createHash('sha256').update(bytes).digest('hex');
-  if (actual !== expected) throw new Error('accepted policy Git object digest mismatch');
-  validateConvergenceConfig(JSON.parse(bytes.toString('utf8')));
-  const bootstrapFile = path.join(runtimeDirectory, 'bootstrap.json');
-  const bootstrap = JSON.parse(await readFile(bootstrapFile, 'utf8'));
-  if (bootstrap.governing_policy !== 'external_accepted_policy'
-    || bootstrap.candidate_rules_authoritative !== false) {
-    throw new Error('accepted policy binding requires an isolated self-host bootstrap');
-  }
-  const artifact = path.join(runtimeDirectory, 'accepted-policy', `${actual}.json`);
-  await withControlPlaneMutation(runtimeDirectory, repo, {
-    mutationType: 'accepted_policy_bound',
-    atomicFailure: false
-  }, async () => {
-    await mkdir(path.dirname(artifact), { recursive: true });
-    try {
-      await writeFile(artifact, bytes, { flag: 'wx' });
-    } catch (error) {
-      if (error.code !== 'EEXIST' || createHash('sha256')
-        .update(await readFile(artifact)).digest('hex') !== actual) throw error;
-    }
-    await writeJsonAtomic(bootstrapFile, {
-      ...bootstrap,
-      accepted_policy: {
-        path: artifact,
-        sha256: actual,
-        immutable_source: { kind: 'git_object', commit, path: policyPath }
-      }
-    });
-  });
-  writeLine(JSON.stringify({ status: 'ACCEPTED_POLICY_BOUND', commit, path: policyPath, sha256: actual, artifact }));
-  process.exit(0);
-}
 const target = auditPath
   ? resolveAuditPath(repo, auditPath)
   : path.join(runtimeDirectory, 'run.md');
@@ -98,12 +32,6 @@ const capabilityReceipt = {
   harness,
   capabilities: harness ? await harnessCapabilities(harness) : null
 };
-const nextSliceId = options['next-slice-id'] ? String(options['next-slice-id']) : null;
-const nextSliceTitle = options['next-slice-title'] ? String(options['next-slice-title']) : null;
-if (nextSliceTitle && !nextSliceId) throw new Error('--next-slice-title requires --next-slice-id');
-const nextSlice = nextSliceId ? { id: nextSliceId, title: nextSliceTitle || nextSliceId } : null;
-const exactNextAction = options['next-action'] ? String(options['next-action']) : null;
-const exactNextCommand = options['next-command'] ? String(options['next-command']) : null;
 const capabilitySection = `## Harness capability receipt\n\n\`\`\`json\n${JSON.stringify(capabilityReceipt, null, 2)}\n\`\`\``;
 const selfHostingCandidate = options['self-hosting-candidate']
   ? String(options['self-hosting-candidate'])
@@ -140,7 +68,7 @@ if (selfHostingCandidate) {
 function withCapabilityReceipt(contents) {
   const existing = /## Harness capability receipt\n\n```json\n[\s\S]*?\n```/;
   if (existing.test(contents)) return contents.replace(existing, capabilitySection);
-  const architecture = '## Architecture and state ownership';
+  const architecture = '## Architecture and current slice';
   if (contents.includes(architecture)) {
     return contents.replace(architecture, `${capabilitySection}\n\n${architecture}`);
   }
@@ -150,7 +78,7 @@ function withCapabilityReceipt(contents) {
 let template = await readFile(path.join(scriptRoot, 'templates', 'run.md'), 'utf8');
 template = template
   .replace('## Mission and constraints', '## Mission and constraints\n\n[Describe the required outcome and binding constraints.]')
-  .replace('## Architecture and state ownership', `## Profile and rationale\n\n- Profile: ${normalizedProfile}\n- Rationale: ${reason}\n- Durable-state triggers: ${triggers.join('; ')}\n\n## Architecture and state ownership`)
+  .replace('## Architecture and current slice', `## Profile and rationale\n\n- Profile: ${normalizedProfile}\n- Rationale: ${reason}\n- Durable-state triggers: ${triggers.join('; ')}\n\n## Architecture and current slice`)
   .replace('## Completed evidence', `## Git disposition\n\n- Branch: ${branch || 'DETACHED'}\n- Starting head: ${head}\n- Commit policy: ${commitPolicy}\n\n## Dispatch records\n\n[Reference Git-local zimster/dispatches IDs; include requested/effective model or unverified.]\n\n## Completed evidence`);
 template = withCapabilityReceipt(template);
 
@@ -174,27 +102,17 @@ if (!auditPath && options.force !== true) {
     if (error.code !== 'ENOENT') throw error;
   }
 }
-if (auditPath || normalizedProfile === 'Micro') {
-  try {
-    await writeFile(target, template, { flag: options.force === true ? 'w' : 'wx' });
-  } catch (error) {
-    if (error.code === 'EEXIST') throw new Error(`${target} already exists; pass --force to replace it`);
-    throw error;
-  }
+try {
+  await writeFile(target, template, { flag: options.force === true ? 'w' : 'wx' });
+} catch (error) {
+  if (error.code === 'EEXIST') throw new Error(`${target} already exists; pass --force to replace it`);
+  throw error;
 }
 if (!auditPath && normalizedProfile !== 'Micro') {
   await initializeRunState(runtimeDirectory, {
     startingHead: head,
     planId: String(options['plan-id'] || 'unregistered-plan'),
     planSource: String(options['plan-source'] || 'user-approved request'),
-    profile: normalizedProfile.toLowerCase().replace(/\s+/g, '-'),
-    profileRationale: reason,
-    durableStateTriggers: triggers,
-    branch,
-    capabilityReceipt,
-    nextSlice,
-    exactNextAction,
-    exactNextCommand,
     overwrite: options.force === true
   });
   await initializeExecutionBudget(runtimeDirectory, normalizedProfile, {
@@ -218,6 +136,5 @@ if (!auditPath && normalizedProfile !== 'Micro') {
       created_at: new Date().toISOString()
     }, null, 2)}\n`, { flag: options.force === true ? 'w' : 'wx' });
   }
-  await refreshRunSummary(runtimeDirectory, { repo });
 }
 writeLine(target);

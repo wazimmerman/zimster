@@ -4,7 +4,7 @@
   "type": "object",
   "required": ["schema_version", "version", "tag", "channel", "commit", "tree", "standards_lock_sha256", "semantic_review_sha256", "host_matrix_sha256", "verification_sha256", "artifacts"],
   "properties": {
-    "schema_version": { "enum": [1, 2, 3] },
+    "schema_version": { "const": 1 },
     "version": { "type": "string", "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$" },
     "tag": { "type": "string", "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+$" },
     "channel": { "enum": ["public_beta", "stable"] },
@@ -14,18 +14,6 @@
     "semantic_review_sha256": { "$ref": "#/$defs/sha256" },
     "host_matrix_sha256": { "$ref": "#/$defs/sha256" },
     "verification_sha256": { "$ref": "#/$defs/sha256" },
-    "postmortem_sha256": { "$ref": "#/$defs/sha256" },
-    "embedded_inputs": {
-      "type": "object",
-      "required": ["semantic_review_base64", "host_matrix_base64", "verification_base64"],
-      "properties": {
-        "semantic_review_base64": { "$ref": "#/$defs/base64" },
-        "host_matrix_base64": { "$ref": "#/$defs/base64" },
-        "verification_base64": { "$ref": "#/$defs/base64" },
-        "postmortem_base64": { "$ref": "#/$defs/base64" }
-      },
-      "additionalProperties": false
-    },
     "artifacts": {
       "type": "array", "minItems": 5, "maxItems": 5,
       "items": {
@@ -39,23 +27,6 @@
       }
     }
   },
-  "allOf": [{
-    "if": { "properties": { "schema_version": { "const": 2 } } },
-    "then": { "required": ["embedded_inputs"] }
-  }, {
-    "if": { "properties": { "schema_version": { "const": 3 } } },
-    "then": {
-      "required": ["embedded_inputs", "postmortem_sha256"],
-      "properties": {
-        "embedded_inputs": {
-          "required": ["semantic_review_base64", "host_matrix_base64", "verification_base64", "postmortem_base64"]
-        }
-      }
-    }
-  }],
-  "$defs": {
-    "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
-    "base64": { "type": "string", "minLength": 1, "pattern": "^[A-Za-z0-9+/]+={0,2}$" }
-  },
+  "$defs": { "sha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" } },
   "additionalProperties": false
 }

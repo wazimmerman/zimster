@@ -25,7 +25,7 @@
     "checkout_integrity_result"
   ],
   "properties": {
-    "schema_version": {"enum": [1, 2]},
+    "schema_version": {"const": 1},
     "id": {"type": "string", "minLength": 1},
     "review_type": {"enum": ["self_review", "independent_review"]},
     "owner_inline": {"type": "boolean"},
@@ -37,7 +37,7 @@
     "reviewed_requirement_ids": {
       "type": "array",
       "uniqueItems": true,
-      "items": {"type": "string", "pattern": "^[A-Z][A-Z0-9]*(?:-[A-Z][A-Z0-9]*)*-[0-9]{3,}$"}
+      "items": {"type": "string", "pattern": "^[A-Z][A-Z0-9]*-[0-9]{3,}$"}
     },
     "intended_claims": {
       "type": "array",
@@ -77,20 +77,6 @@
     },
     "reviewed_at": {"type": "string", "format": "date-time"},
     "review_package_id": {"type": "string", "minLength": 1},
-    "attempt_type": {
-      "enum": [
-        "initial_review",
-        "correction_recheck",
-        "new_design_review",
-        "final_integration_review"
-      ]
-    },
-    "attempt_id": {"type": "string", "minLength": 1},
-    "seam_id": {"type": "string", "minLength": 1},
-    "candidate_dirty_tree_fingerprint": {
-      "type": "string",
-      "pattern": "^[0-9a-f]{64}$"
-    },
     "requirement_matrix_sha256": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
@@ -107,24 +93,9 @@
       ]
     }
   },
-  "allOf": [
-    {
-      "anyOf": [
-        {"required": ["reviewer_identity"]},
-        {"required": ["dispatch_record_id"]}
-      ]
-    },
-    {
-      "if": {"properties": {"schema_version": {"const": 2}}},
-      "then": {
-        "required": [
-          "attempt_type",
-          "attempt_id",
-          "seam_id",
-          "candidate_dirty_tree_fingerprint"
-        ]
-      }
-    }
+  "anyOf": [
+    {"required": ["reviewer_identity"]},
+    {"required": ["dispatch_record_id"]}
   ],
   "additionalProperties": false
 }

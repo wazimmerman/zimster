@@ -34,11 +34,10 @@ Owner-inline inspection is `self_review`; it cannot satisfy Standard or
 High-risk `independent_review`. Approval applies only to the exact candidate
 base/head, review-package ID, stable semantic-contract digest, and required
 lens set. The digest covers binding text, intended claims, implementation
-locations, and stable evidence-environment scope. It excludes the candidate Git
-tree along with mutable evidence references, statuses, observations, and
-verification results. Exact head/tree binding remains mandatory in the review
-package, lifecycle, matrix, and receipts. Final evidence may advance without
-invalidating approval when that contract and the candidate are unchanged.
+locations, and evidence scope, but excludes mutable evidence references,
+statuses, observations, and verification results. Final evidence may advance
+without invalidating approval when that contract and the candidate are
+unchanged.
 If review is unavailable, use `OWNER_VERIFIED_REVIEW_UNAVAILABLE`, never
 approval. `CANDIDATE_COMPLETE` requires the profile-appropriate semantic
 approval and complete matrix evidence. High-risk work requires all
@@ -65,10 +64,8 @@ fallback, use `git add -N <untracked paths>` followed by `git diff`, or read
 every untracked file directly. Restore no index state by guessing; record what
 was inspected.
 
-For committed work, include base/head and the complete branch range. For dirty
-or no-commit work, the change snapshot is an inspection aid; the authoritative
-attempt-specific package is created by `review-package.mjs` and preserves the
-dirty-tree fingerprint, tracked binary patch, and exact untracked payloads.
+For committed work, include base/head and the complete branch range. For
+no-commit work, the change snapshot is the authoritative review package.
 
 ## Review lenses
 
@@ -123,10 +120,8 @@ review obligation.
 
 ## Semantic review package
 
-Create one immutable, attempt-specific semantic review package for every
-`initial_review`, `correction_recheck`, `new_design_review`, and
-`final_integration_review`. Never refresh one mutable package across attempts.
-Each package must provide paths and hashes for:
+Create one immutable semantic review package. It must provide paths and hashes
+for:
 
 - mission and binding requirement IDs;
 - stable-ID requirement-to-evidence matrix;
@@ -137,19 +132,6 @@ Each package must provide paths and hashes for:
   invalidation state;
 - known unavailable proof;
 - intended acceptance claims and requested completion state.
-
-Create it with stable attempt and seam identities:
-
-```text
-node <zimster-runtime>/scripts/review-package.mjs \
-  --attempt-type <type> --attempt-id <stable-id> --seam-id <stable-id> \
-  --base <sha> --head <sha> <semantic-input-options>
-```
-
-Then start and persist the matching lifecycle attempt with
-`review-lifecycle.mjs`. The package path must remain beneath the Git-local
-`zimster/reviews/<package-id>/` directory; a package collision or mutation
-fails closed.
 
 The reviewer must attempt to falsify every intended acceptance claim and report
 each unverified obligation. A clean package is necessary but is not approval.
@@ -192,48 +174,17 @@ performs one resumed recheck over original findings and the fix range only.
 Correction/recheck accounting is separate from the reserved exact-final-head
 integration review. Do not consume that reserved review before the candidate
 stops changing. A defect found by the final review invalidates that head's
-approval and requires a new exact-head review within finalization budget. When
-the final correction changes stable semantic meaning, record an explicit
-`design_revision` with evidence, invalidate prior attempts, and complete the
-new-design review before reserving the replacement final integration review.
-The hard per-contract cardinality is one primary review, one correction
-recheck, and two final integration reviews. The second failed final review
-enters durable strategy escalation. A generic execution-budget override or a
-fresh attempt ID cannot create a third final review.
-
-For user-added binding acceptance requirements after primary approval but before
-final review, record `design_revision` from the approved state. Preserve the base,
-invalidate the old epoch, and never hide it behind an update or replacement seam.
+approval and requires a new exact-head review within finalization budget.
 
 ## Circuit breaker
 
 If a load-bearing finding remains after the recheck, stop the loop. Choose one
 evidence-backed route:
 
-1. reviewer wrong: revise the design for a new semantic review epoch or stop for owner escalation;
+1. reviewer wrong: record technical ruling and proof;
 2. contradictory requirement/design: `BLOCKED_BY_REQUIREMENT` or return to owner;
-3. real but non-load-bearing: record a partial result unless a trusted host can attest the reviewer result;
+3. real but non-load-bearing: record explicit deferral;
 4. real and load-bearing: revise design or stop blocked;
 5. evidence unavailable: report the strongest partial state.
 
 Silent dismissal is forbidden.
-
-The failed `correction_recheck` persists `circuit_breaker_active` and consumes
-the seam's only recheck. While active, `review-lifecycle.mjs` rejects another
-recheck, a replacement or freshly named reviewer, final integration review,
-and candidate completion. Resolve it only with a fail-closed supported
-disposition. A `design_revision` resets review accounting only when the
-semantic-contract digest changes and prior attempt approval/evidence is
-invalidated.
-
-Owner-managed dispatch/routing rows and verification labels cannot authenticate
-a post-review reviewer result. Until the harness provides a trusted
-reviewer-output attestation, `reviewer_rebutted_with_evidence`,
-`non_load_bearing_deferral`, and `reviewer-disposition` fail closed. Choose
-`design_revision`, `blocked_by_requirement`, or `partial_or_blocked`; only an
-approved exact final-review verdict can authorize completion.
-
-Before starting a final integration review, run
-`coherence-preflight.mjs check --operation review --seam-id <stable-id>`.
-Proceed only on `COHERENCE_CURRENT`; the check is read-only and every reported
-drift remains visible until its canonical owner is reconciled.

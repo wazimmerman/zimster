@@ -10,10 +10,6 @@ import {
   validateHostSmokeReceipt,
   validateReviewRecord
 } from '../scripts/lib/semantic-assurance.mjs';
-import {
-  applyReviewLifecycleEvent,
-  createReviewLifecycle
-} from '../scripts/lib/review-lifecycle.mjs';
 
 const SHA_A = 'a'.repeat(40);
 const SHA_B = 'b'.repeat(40);
@@ -25,7 +21,7 @@ const REQUIRED_LENSES = ['mission-scope', 'test-falsifiability'];
 
 function review(overrides = {}) {
   return {
-    schema_version: 2,
+    schema_version: 1,
     id: 'review-001',
     review_type: 'independent_review',
     owner_inline: false,
@@ -43,10 +39,6 @@ function review(overrides = {}) {
     unverified_obligations: [],
     reviewed_at: '2026-07-30T12:00:00.000Z',
     review_package_id: 'package-001',
-    attempt_type: 'final_integration_review',
-    attempt_id: 'attempt-final',
-    seam_id: 'release-policy',
-    candidate_dirty_tree_fingerprint: CLEAN_FINGERPRINT,
     requirement_matrix_sha256: MATRIX_SHA,
     semantic_contract_sha256: CONTRACT_SHA,
     checkout_integrity_result: 'REVIEW_CHECKOUT_UNCHANGED',
@@ -60,8 +52,6 @@ function approvalOptions(overrides = {}) {
     candidateBase: SHA_A,
     candidateHead: SHA_B,
     reviewPackageId: 'package-001',
-    reviewAttemptId: 'attempt-final',
-    reviewSeamId: 'release-policy',
     semanticContractSha256: CONTRACT_SHA,
     requiredLenses: REQUIRED_LENSES,
     reviews: [review({ semantic_lenses: REQUIRED_LENSES })],
@@ -122,12 +112,6 @@ test('approved clean-context independent review satisfies the exact Standard can
       reviewId: 'review-001'
     }
   );
-});
-
-test('independent approval is bound to the selected review seam', () => {
-  const result = independentApprovalFor(approvalOptions({ reviewSeamId: 'whole-release' }));
-  assert.equal(result.approved, false);
-  assert.match(result.reason, /seam/i);
 });
 
 test('an approved review cannot carry load-bearing findings or unresolved obligations', () => {
@@ -248,9 +232,6 @@ test('semantic contract digest ignores proof state but changes with binding mean
   mutableProofState.requirements[0].evidence_refs = ['later-final-receipt'];
   mutableProofState.requirements[0].unavailable_proof = ['Final proof pending.'];
   mutableProofState.observations.push({ id: 'later-final-observation' });
-  mutableProofState.candidate_head = SHA_A;
-  mutableProofState.candidate_tree = 'e'.repeat(40);
-  mutableProofState.requirements[0].evidence_scope.git_tree = 'e'.repeat(40);
   assert.equal(
     semanticContractDigest({ bindingRequirements, matrix: mutableProofState }),
     digest
@@ -268,12 +249,6 @@ test('semantic contract digest ignores proof state but changes with binding mean
     semanticContractDigest({ bindingRequirements, matrix: changedClaim }),
     digest
   );
-  const changedEvidenceEnvironment = structuredClone(matrix);
-  changedEvidenceEnvironment.requirements[0].evidence_scope.environment = 'native-host';
-  assert.notEqual(
-    semanticContractDigest({ bindingRequirements, matrix: changedEvidenceEnvironment }),
-    digest
-  );
   const changedImplementationContract = structuredClone(matrix);
   changedImplementationContract.requirements[0].implementation_locations = [
     'scripts/changed-contract.mjs'
@@ -283,12 +258,6 @@ test('semantic contract digest ignores proof state but changes with binding mean
       bindingRequirements,
       matrix: changedImplementationContract
     }),
-    digest
-  );
-  const changedTddContract = structuredClone(matrix);
-  changedTddContract.requirements[0].tdd_behavior_ids = ['exact-behavior'];
-  assert.notEqual(
-    semanticContractDigest({ bindingRequirements, matrix: changedTddContract }),
     digest
   );
 });
@@ -311,7 +280,6 @@ function matrixEntry(id, overrides = {}) {
     unavailable_proof: [],
     status: 'verified',
     intended_acceptance_claims: [`Claim ${id}.`],
-    tdd_evidence: 'not_claimed',
     ...overrides
   };
 }
@@ -327,20 +295,6 @@ function scopedEvidence(id, overrides = {}) {
     git_commit: SHA_B,
     git_tree: TREE,
     dirty_tree_fingerprint: CLEAN_FINGERPRINT,
-    dependency_cone: ['scripts/example.mjs'],
-    dependency_fingerprints: [{
-      input: 'scripts/example.mjs',
-      digest: 'file:' + 'f'.repeat(64)
-    }],
-    claim_bindings: [{
-      requirement_id: id,
-      claim: `Claim ${id}.`,
-      input_fingerprints: [{
-        input: 'scripts/example.mjs',
-        digest: 'file:' + 'f'.repeat(64)
-      }]
-    }],
-    governed_execution_authenticated: true,
     ...overrides
   };
 }
@@ -358,34 +312,6 @@ function evaluate(entries, bindingRequirements, evidence) {
     evidence
   });
 }
-
-test('candidate evaluation defers explicitly postpublication proof without claiming it verified', () => {
-  const entry = matrixEntry('FLOW-001', {
-    status: 'partially_verified',
-    unavailable_proof: ['Signed tag, CI publication, and published surfaces are downstream events.'],
-    proof_deferred_until: 'postpublication'
-  });
-  const input = {
-    bindingRequirements: binding('FLOW-001'),
-    matrix: {
-      schema_version: 1,
-      candidate_head: SHA_B,
-      candidate_tree: TREE,
-      requirements: [entry],
-      observations: []
-    },
-    evidence: [scopedEvidence('FLOW-001')]
-  };
-
-  const candidate = evaluateRequirementMatrix({ ...input, phase: 'candidate' });
-  assert.equal(candidate.valid, true);
-  assert.deepEqual(candidate.allowed_claims, []);
-  assert.match(candidate.deferred_obligations.join('\n'), /FLOW-001.*downstream/i);
-
-  const postpublication = evaluateRequirementMatrix({ ...input, phase: 'postpublication' });
-  assert.equal(postpublication.valid, false);
-  assert.match(postpublication.unverified_obligations.join('\n'), /FLOW-001.*downstream/i);
-});
 
 test('a complete matrix derives only evidence-backed acceptance claims', () => {
   const result = evaluate(
@@ -405,171 +331,6 @@ test('a complete matrix derives only evidence-backed acceptance claims', () => {
   });
   assert.deepEqual(result.allowed_claims, ['Claim CLAIM-001.', 'Claim MATRIX-001.']);
   assert.deepEqual(result.unverified_obligations, []);
-});
-
-test('unbound schema-valid receipts remain diagnostic and cannot establish requirements', () => {
-  const claim = 'Claim MATRIX-001.';
-  const diagnostic = scopedEvidence('MATRIX-001', {
-    requirement_ids: [],
-    dependency_cone: [],
-    dependency_fingerprints: [],
-    establishes: [claim]
-  });
-  const result = evaluate(
-    [matrixEntry('MATRIX-001')],
-    binding('MATRIX-001'),
-    [diagnostic]
-  );
-
-  assert.equal(result.valid, false);
-  assert.deepEqual(result.diagnostic_evidence_ids, ['evidence-MATRIX-001']);
-  assert.deepEqual(result.claim_establishing_evidence_ids, []);
-  assert.match(result.issues.join('\n'), /diagnostic.*cannot establish requirement/i);
-});
-
-test('claim receipts require fingerprinted input or dependency provenance', () => {
-  const evidence = scopedEvidence('MATRIX-001', {
-    dependency_cone: [],
-    dependency_fingerprints: [],
-    inputs: [],
-    input_fingerprints: []
-  });
-  const result = evaluate(
-    [matrixEntry('MATRIX-001')],
-    binding('MATRIX-001'),
-    [evidence]
-  );
-
-  assert.equal(result.valid, false);
-  assert.deepEqual(result.diagnostic_evidence_ids, ['evidence-MATRIX-001']);
-  assert.match(result.issues.join('\n'), /fingerprinted input or dependency/i);
-});
-
-test('claim-establishing evidence requires authenticated exact claim-to-input binding', () => {
-  const claim = 'Claim MATRIX-001.';
-  for (const [label, evidence] of [
-    ['unauthenticated receipt', scopedEvidence('MATRIX-001', {
-      governed_execution_authenticated: false
-    })],
-    ['unrelated claim binding', scopedEvidence('MATRIX-001', {
-      claim_bindings: [{
-        requirement_id: 'MATRIX-001',
-        claim: 'A different claim.',
-        input_fingerprints: [{
-          input: 'scripts/example.mjs',
-          digest: 'file:' + 'f'.repeat(64)
-        }]
-      }]
-    })],
-    ['unbound provenance', scopedEvidence('MATRIX-001', {
-      claim_bindings: [{
-        requirement_id: 'MATRIX-001',
-        claim,
-        input_fingerprints: [{
-          input: 'scripts/unrelated.mjs',
-          digest: 'file:' + '0'.repeat(64)
-        }]
-      }]
-    })]
-  ]) {
-    const result = evaluate([matrixEntry('MATRIX-001')], binding('MATRIX-001'), [evidence]);
-    assert.equal(result.valid, false, label);
-    assert.deepEqual(result.allowed_claims, [], label);
-    assert.match(result.issues.join('\n'), /authenticated|claim binding|provenance/i, label);
-  }
-});
-
-test('postmortem reports remain diagnostic rather than satisfying matrix claims', () => {
-  const result = evaluate(
-    [matrixEntry('MATRIX-001')],
-    binding('MATRIX-001'),
-    [scopedEvidence('MATRIX-001', { kind: 'postmortem' })]
-  );
-  assert.equal(result.valid, false);
-  assert.deepEqual(result.diagnostic_evidence_ids, ['evidence-MATRIX-001']);
-  assert.match(result.issues.join('\n'), /postmortem.*not requirement receipts/i);
-});
-
-test('prospective TDD claims require an authenticated behavior-matched RED then GREEN pair', () => {
-  const entry = matrixEntry('TDD-001', {
-    evidence_refs: ['green-evidence'],
-    intended_acceptance_claims: ['Behavior is implemented.'],
-    tdd_evidence: 'required',
-    tdd_behavior_ids: ['behavior-one']
-  });
-  const red = scopedEvidence('TDD-001', {
-    id: 'red-evidence',
-    status: 'failed',
-    kind: 'red',
-    exit_code: 1,
-    started_at: '2026-08-17T10:00:00.000Z',
-    ended_at: '2026-08-17T10:01:00.000Z',
-    tests: { discovery: 'tests_executed', discovered: 1, passed: 0, failed: 1, skipped: 0 },
-    command_identity: 'a'.repeat(64),
-    governed_execution_authenticated: true,
-    tdd_phase: 'red',
-    tdd_behavior_id: 'behavior-one',
-    tdd_red_receipt_id: null
-  });
-  const green = scopedEvidence('TDD-001', {
-    id: 'green-evidence',
-    establishes: ['Behavior is implemented.'],
-    claim_bindings: [{
-      requirement_id: 'TDD-001',
-      claim: 'Behavior is implemented.',
-      input_fingerprints: [{
-        input: 'scripts/example.mjs',
-        digest: 'file:' + 'f'.repeat(64)
-      }]
-    }],
-    exit_code: 0,
-    started_at: '2026-08-17T10:02:00.000Z',
-    ended_at: '2026-08-17T10:03:00.000Z',
-    tests: { discovery: 'tests_executed', discovered: 1, passed: 1, failed: 0, skipped: 0 },
-    command_identity: 'a'.repeat(64),
-    governed_execution_authenticated: true,
-    tdd_phase: 'green',
-    tdd_behavior_id: 'behavior-one',
-    tdd_red_receipt_id: 'red-evidence'
-  });
-
-  const verified = evaluate([entry], binding('TDD-001'), [red, green]);
-  assert.equal(verified.valid, true);
-  assert.deepEqual(verified.tdd_evidence, [{
-    behavior_id: 'behavior-one',
-    green_receipt_id: 'green-evidence',
-    red_receipt_id: 'red-evidence',
-    status: 'verified'
-  }]);
-
-  for (const [label, changed] of [
-    ['missing RED', [green]],
-    ['passing RED', [{ ...red, exit_code: 0 }, green]],
-    ['mismatched behavior', [red, { ...green, tdd_behavior_id: 'behavior-two' }]],
-    ['mismatched command', [red, { ...green, command_identity: 'b'.repeat(64) }]],
-    ['unauthenticated RED', [{ ...red, governed_execution_authenticated: false }, green]],
-    ['reversed chronology', [{ ...red, ended_at: '2026-08-17T10:04:00.000Z' }, green]]
-  ]) {
-    const result = evaluate([entry], binding('TDD-001'), changed);
-    assert.equal(result.valid, false, label);
-    assert.deepEqual(result.allowed_claims, [], label);
-    assert.match(result.unverified_obligations.join('\n'), /TDD evidence unavailable/i, label);
-  }
-});
-
-test('every requirement explicitly identifies whether it makes a TDD claim', () => {
-  const omitted = matrixEntry('TDD-001');
-  delete omitted.tdd_evidence;
-  const omittedResult = evaluate([omitted], binding('TDD-001'), [scopedEvidence('TDD-001')]);
-  assert.equal(omittedResult.valid, false);
-  assert.match(omittedResult.issues.join('\n'), /tdd_evidence.*required.*not_claimed/i);
-
-  const bypass = matrixEntry('TDD-001', {
-    tdd_evidence: 'required'
-  });
-  const bypassResult = evaluate([bypass], binding('TDD-001'), [scopedEvidence('TDD-001')]);
-  assert.equal(bypassResult.valid, false);
-  assert.match(bypassResult.unverified_obligations.join('\n'), /TDD evidence unavailable/i);
 });
 
 test('not_applicable requirements require a reason and scoped evidence', () => {
@@ -681,20 +442,6 @@ test('exact-tree evidence scope still requires the candidate head, tree, and cle
   }
 });
 
-test('stale declared evidence scope cannot bypass exact-candidate validation', () => {
-  const staleTree = 'e'.repeat(40);
-  const result = evaluate(
-    [matrixEntry('MATRIX-001', {
-      evidence_scope: { git_tree: staleTree, environment: 'node-linux' }
-    })],
-    binding('MATRIX-001'),
-    [scopedEvidence('MATRIX-001', { git_tree: staleTree })]
-  );
-  assert.equal(result.valid, false);
-  assert.deepEqual(result.allowed_claims, []);
-  assert.match(result.unverified_obligations.join('\n'), /candidate Git tree/i);
-});
-
 const COMPLETE_MATRIX = Object.freeze({
   valid: true,
   binding_requirement_ids: ['ASSURANCE-001', 'GATE-001', 'GATE-002'],
@@ -704,23 +451,13 @@ const COMPLETE_MATRIX = Object.freeze({
       id: 'evidence-micro',
       requirement_ids: ['GATE-001'],
       establishes: ['Micro eligibility is deterministically established.'],
-      does_not_establish: [],
-      claim_bindings: [{
-        requirement_id: 'GATE-001',
-        claim: 'Micro eligibility is deterministically established.',
-        input_fingerprints: [{ input: 'micro-proof.json', digest: '1'.repeat(64) }]
-      }]
+      does_not_establish: []
     },
     {
       id: 'evidence-load-bearing',
       requirement_ids: ['GATE-002'],
       establishes: ['High-risk load-bearing architecture is satisfied.'],
-      does_not_establish: [],
-      claim_bindings: [{
-        requirement_id: 'GATE-002',
-        claim: 'High-risk load-bearing architecture is satisfied.',
-        input_fingerprints: [{ input: 'load-bearing-proof.json', digest: '2'.repeat(64) }]
-      }]
+      does_not_establish: []
     }
   ],
   counts: {
@@ -776,70 +513,6 @@ function loadBearingObligations(overrides = {}) {
   };
 }
 
-function approvedLifecycle(candidate, reviewPackageId = 'package-001') {
-  let state = createReviewLifecycle({
-    seam_id: 'release-policy', reviewer_identity: 'reviewer-1', candidate
-  });
-  state = applyReviewLifecycleEvent(state, {
-    type: 'attempt_started',
-    attempt: {
-      attempt_type: 'initial_review', attempt_id: 'attempt-initial',
-      seam_id: 'release-policy', reviewer_identity: 'reviewer-1',
-      review_package_id: 'package-initial', candidate
-    }
-  });
-  state = applyReviewLifecycleEvent(state, {
-    type: 'verdict_recorded', attempt_id: 'attempt-initial', verdict: 'approved', findings: []
-  });
-  state = applyReviewLifecycleEvent(state, { type: 'candidate_stabilized' });
-  state = applyReviewLifecycleEvent(state, {
-    type: 'attempt_started',
-    attempt: {
-      attempt_type: 'final_integration_review', attempt_id: 'attempt-final',
-      seam_id: 'release-policy', reviewer_identity: 'reviewer-1',
-      review_package_id: reviewPackageId, candidate
-    }
-  });
-  return applyReviewLifecycleEvent(state, {
-    type: 'verdict_recorded', attempt_id: 'attempt-final', verdict: 'approved', findings: []
-  });
-}
-
-function completionAssurance({ candidateHead = SHA_B, candidateTree = TREE } = {}) {
-  const candidate = {
-    base_sha: SHA_A,
-    head_sha: candidateHead,
-    tree_sha: candidateTree,
-    dirty_tree_fingerprint: CLEAN_FINGERPRINT,
-    semantic_contract_sha256: CONTRACT_SHA
-  };
-  return {
-    reviewLifecycle: approvedLifecycle(candidate),
-    reviewPackageSeamId: 'release-policy',
-    assuranceAccounting: {
-      schema_version: 1,
-      candidate_head: candidateHead,
-      candidate_tree: candidateTree,
-      observed_agent_ids: ['reviewer-1'],
-      dispatch_agent_ids: ['reviewer-1'],
-      budget_agent_ids: ['reviewer-1'],
-      observed_review_attempt_ids: ['attempt-initial', 'attempt-final'],
-      recorded_review_attempt_ids: ['attempt-initial', 'attempt-final'],
-      recorded_review_attempt_counts: {
-        correction_rechecks: 0,
-        final_integration_reviews: 1
-      },
-      budget_review_attempt_counts: {
-        correction_rechecks: 0,
-        final_integration_reviews: 1
-      },
-      observed_max_depth: 1,
-      allowed_max_depth: 1,
-      reconciliation_complete: true
-    }
-  };
-}
-
 test('eligible Micro work can complete owner-only', () => {
   assert.deepEqual(evaluateCandidateCompletion({
     profile: 'micro',
@@ -882,25 +555,6 @@ test('Micro completion rejects boolean self-attestation and stale eligibility re
   }
 });
 
-test('Micro completion requires an exact claim binding in every proof reference', () => {
-  const matrixResult = structuredClone(COMPLETE_MATRIX);
-  matrixResult.evidence_support[0].claim_bindings = [{
-    requirement_id: 'GATE-002',
-    claim: 'Micro eligibility is deterministically established.',
-    input_fingerprints: [{ input: 'micro-proof.json', digest: '1'.repeat(64) }]
-  }];
-  const result = evaluateCandidateCompletion({
-    profile: 'micro',
-    microEligibility: microEligibility(),
-    ownerVerified: true,
-    matrixResult,
-    candidateHead: SHA_B,
-    candidateTree: TREE
-  });
-  assert.equal(result.state, COMPLETION_STATES.PARTIALLY_VERIFIED);
-  assert.match(result.reasons.join('\n'), /Micro.*eligibility/i);
-});
-
 test('Standard and High-risk work with only self-review remain review pending', () => {
   const selfReview = review({
     review_type: 'self_review',
@@ -910,7 +564,6 @@ test('Standard and High-risk work with only self-review remain review pending', 
   for (const profile of ['standard', 'high-risk']) {
     const result = evaluateCandidateCompletion({
       profile,
-      ...completionAssurance(),
       ownerVerified: true,
       reviewUnavailable: false,
       matrixResult: COMPLETE_MATRIX,
@@ -931,7 +584,6 @@ test('Standard and High-risk work with only self-review remain review pending', 
 test('complete Standard proof and exact independent approval reach candidate complete', () => {
   assert.deepEqual(evaluateCandidateCompletion({
     profile: 'standard',
-    ...completionAssurance(),
     ownerVerified: true,
     reviewUnavailable: false,
     matrixResult: COMPLETE_MATRIX,
@@ -951,38 +603,6 @@ test('complete Standard proof and exact independent approval reach candidate com
     review_id: 'review-001',
     reasons: []
   });
-});
-
-test('candidate completion binds selected final approval to the package seam and package ID', () => {
-  const assurance = completionAssurance();
-  const mismatchedLifecycle = approvedLifecycle({
-    base_sha: SHA_A,
-    head_sha: SHA_B,
-    tree_sha: TREE,
-    dirty_tree_fingerprint: CLEAN_FINGERPRINT,
-    semantic_contract_sha256: CONTRACT_SHA
-  }, 'different-package');
-  for (const override of [
-    { reviewPackageSeamId: 'whole-release' },
-    { reviewLifecycle: mismatchedLifecycle }
-  ]) {
-    const result = evaluateCandidateCompletion({
-      profile: 'standard',
-      ...assurance,
-      ...override,
-      ownerVerified: true,
-      matrixResult: COMPLETE_MATRIX,
-      reviews: [review({ intended_claims: ['Candidate claim.'], semantic_lenses: REQUIRED_LENSES })],
-      candidateHead: SHA_B,
-      candidateTree: TREE,
-      candidateBase: SHA_A,
-      reviewPackageId: 'package-001',
-      semanticContractSha256: CONTRACT_SHA,
-      requiredLenses: REQUIRED_LENSES
-    });
-    assert.equal(result.state, COMPLETION_STATES.REVIEW_PENDING);
-    assert.match(result.reasons.join('\n'), /seam|package/i);
-  }
 });
 
 function hostVerificationReceipt({
@@ -1075,7 +695,6 @@ test('BETA-003 public beta accepts unavailable optional hosts with one exact-pac
   });
   const base = {
     profile: 'standard', ownerVerified: true, reviewUnavailable: false,
-    ...completionAssurance(),
     matrixResult, reviews: [betaReview], candidateHead: SHA_B, candidateTree: TREE,
     candidateBase: SHA_A, reviewPackageId: 'package-001',
     semanticContractSha256: CONTRACT_SHA, requiredLenses: REQUIRED_LENSES
@@ -1179,7 +798,6 @@ test('BETA-003 expired host evidence cannot satisfy the public-beta live floor',
 test('missing or stale matrix proof blocks candidate completion', () => {
   const result = evaluateCandidateCompletion({
     profile: 'standard',
-    ...completionAssurance(),
     ownerVerified: true,
     reviewUnavailable: false,
     matrixResult: {
@@ -1203,7 +821,6 @@ test('missing or stale matrix proof blocks candidate completion', () => {
 test('approval for an older head cannot approve a corrected candidate', () => {
   const result = evaluateCandidateCompletion({
     profile: 'standard',
-    ...completionAssurance({ candidateHead: 'e'.repeat(40) }),
     ownerVerified: true,
     reviewUnavailable: false,
     matrixResult: COMPLETE_MATRIX,
@@ -1250,55 +867,9 @@ test('a correction invalidates prior approval until the bounded recheck', () => 
   assert.match(result.reasons.join('\n'), /correction.*recheck/i);
 });
 
-test('Standard and High-risk completion fail closed without lifecycle and accounting receipts', () => {
-  const common = {
-    profile: 'standard',
-    ownerVerified: true,
-    matrixResult: COMPLETE_MATRIX,
-    reviews: [review({
-      intended_claims: ['Candidate claim.'],
-      semantic_lenses: REQUIRED_LENSES
-    })],
-    candidateHead: SHA_B,
-    candidateTree: TREE,
-    candidateBase: SHA_A,
-    reviewPackageId: 'package-001',
-    semanticContractSha256: CONTRACT_SHA,
-    requiredLenses: REQUIRED_LENSES
-  };
-  const missingBoth = evaluateCandidateCompletion(common);
-  assert.equal(missingBoth.state, COMPLETION_STATES.REVIEW_PENDING);
-  assert.match(missingBoth.reasons.join('\n'), /lifecycle|accounting/i);
-});
-
-test('an unresolved lifecycle circuit breaker prevents candidate completion', () => {
-  const result = evaluateCandidateCompletion({
-    profile: 'standard',
-    ownerVerified: true,
-    matrixResult: COMPLETE_MATRIX,
-    reviews: [review({ intended_claims: ['Candidate claim.'], semantic_lenses: REQUIRED_LENSES })],
-    candidateHead: SHA_B,
-    candidateTree: TREE,
-    candidateBase: SHA_A,
-    reviewPackageId: 'package-001',
-    semanticContractSha256: CONTRACT_SHA,
-    requiredLenses: REQUIRED_LENSES,
-    reviewLifecycle: {
-      schema_version: 1,
-      seam_id: 'release-policy',
-      status: 'circuit_breaker_active',
-      circuit_breaker_active: true
-    },
-    assuranceAccounting: {}
-  });
-  assert.equal(result.state, COMPLETION_STATES.REVIEW_PENDING);
-  assert.match(result.reasons.join('\n'), /circuit breaker/i);
-});
-
 test('High-risk work fails closed when load-bearing review obligations are not recorded', () => {
   const result = evaluateCandidateCompletion({
     profile: 'high-risk',
-    ...completionAssurance(),
     ownerVerified: true,
     reviewUnavailable: false,
     matrixResult: COMPLETE_MATRIX,
@@ -1358,7 +929,6 @@ test('High-risk completion rejects boolean or stale load-bearing attestations', 
   ]) {
     const result = evaluateCandidateCompletion({
       profile: 'high-risk',
-      ...completionAssurance(),
       ...input,
       ownerVerified: true,
       matrixResult: COMPLETE_MATRIX,
@@ -1376,34 +946,6 @@ test('High-risk completion rejects boolean or stale load-bearing attestations', 
     assert.equal(result.state, COMPLETION_STATES.REVIEW_PENDING);
     assert.match(result.reasons.join('\n'), /load-bearing review obligations/i);
   }
-});
-
-test('High-risk load-bearing completion requires an exact claim binding in every proof reference', () => {
-  const matrixResult = structuredClone(COMPLETE_MATRIX);
-  matrixResult.evidence_support[1].claim_bindings = [{
-    requirement_id: 'GATE-001',
-    claim: 'High-risk load-bearing architecture is satisfied.',
-    input_fingerprints: [{ input: 'load-bearing-proof.json', digest: '2'.repeat(64) }]
-  }];
-  const result = evaluateCandidateCompletion({
-    profile: 'high-risk',
-    ...completionAssurance(),
-    ownerVerified: true,
-    matrixResult,
-    reviews: [review({
-      intended_claims: ['Candidate claim.'],
-      semantic_lenses: REQUIRED_LENSES
-    })],
-    candidateHead: SHA_B,
-    candidateTree: TREE,
-    candidateBase: SHA_A,
-    reviewPackageId: 'package-001',
-    semanticContractSha256: CONTRACT_SHA,
-    requiredLenses: REQUIRED_LENSES,
-    loadBearingReviewObligations: loadBearingObligations()
-  });
-  assert.equal(result.state, COMPLETION_STATES.REVIEW_PENDING);
-  assert.match(result.reasons.join('\n'), /load-bearing review obligations/i);
 });
 
 test('convention-heavy framework signals select the framework-defaults lens', () => {
@@ -1434,37 +976,5 @@ test('shared adapter or provider branching selects the shared-control-flow lens'
   ]) {
     assert.deepEqual(selectSemanticLenses([signal]), ['shared-control-flow']);
   }
-  assert.deepEqual(selectSemanticLenses(['shared-adapter']), [
-    'api-protocol-compatibility',
-    'error-retry-fallback-semantics',
-    'test-falsifiability-and-edge-cases',
-    'shared-control-flow'
-  ]);
   assert.deepEqual(selectSemanticLenses(['isolated-adapter']), []);
-});
-
-test('high-risk release signals select the complete combined semantic review', () => {
-  assert.deepEqual(selectSemanticLenses([
-    'public-contract',
-    'auth-trust',
-    'external-service',
-    'live-only',
-    'shared-adapter',
-    'plugin-system',
-    'durable-state',
-    'migration',
-    'release-side-effects'
-  ]), [
-    'mission-scope-compliance',
-    'state-authority-and-stale-work',
-    'security-trust-boundaries',
-    'persistence-migration-rollback',
-    'api-protocol-compatibility',
-    'error-retry-fallback-semantics',
-    'test-falsifiability-and-edge-cases',
-    'performance-resource-limits',
-    'os-hardware-external-service-truthfulness',
-    'framework-defaults-and-conventions',
-    'shared-control-flow'
-  ]);
 });
