@@ -68,12 +68,32 @@ checksums.
 
 ## Create release evidence
 
-The canonical payload conforms to `schemas/release-evidence.schema.json` and
-binds the version, tag, channel, commit, tree, standards-lock hash,
-semantic-review hash, host-matrix hash, verification results, artifact names,
-and SHA-256 digests. Generate and validate it with the release-evidence tools,
-then place that exact JSON in a signed annotated tag targeting the reviewed
-commit.
+The schema-v2 canonical payload conforms to
+`schemas/release-evidence.schema.json`. It binds the version, tag, channel,
+commit, tree, standards-lock hash, semantic-review hash, host-matrix hash,
+verification hash, and the exact five artifact names, sizes, and SHA-256
+digests. It also embeds exactly `semantic-review.json`, `host-matrix.json`, and
+`verification.json` as canonical padded Base64 whose decoded bytes must match
+the signed digests. Each input is limited to 1 MiB, their decoded aggregate is
+limited to 2 MiB, and the canonical tag payload is limited to 3 MiB.
+
+After the final release commit and artifacts exist, create the payload with the
+exact commit/tree, artifact directory, standards lock, and three
+candidate-specific evidence files from local or Git-local qualification state:
+
+```text
+npm run release:evidence -- create \
+  --version <version> --tag v<version> --channel public_beta \
+  --commit <full-commit-sha> --tree <full-tree-sha> \
+  --standards-lock config/standards-lock.json \
+  --semantic-review <qualified-semantic-review.json> \
+  --host-matrix <qualified-host-matrix.json> \
+  --verification <qualified-verification.json> \
+  --dist dist --output <release-evidence.json>
+```
+
+The evidence files and generated payload do not need to be committed. Place
+the generated JSON, unchanged, in a signed annotated tag targeting that commit.
 
 Never move, delete, or recreate a published tag. Correct a released defect with
 a patch version.
@@ -82,13 +102,16 @@ a patch version.
 
 Release CI must:
 
-1. validate the tag signature, signer, exact target, and JSON schema;
+1. validate the annotated tag signature, signer, and exact peeled target;
 2. rebuild from the tagged tree in a clean environment;
-3. compare every artifact name and digest with the signed payload;
-4. generate attestations;
-5. create or update an idempotent draft GitHub release;
-6. publish npm first; and
-7. expose the matching GitHub draft only after npm succeeds.
+3. extract the exact three bounded inputs from the verified signed tag into a
+   temporary directory;
+4. compare every input byte, artifact name, and artifact digest with the signed
+   payload;
+5. generate attestations;
+6. create or update an idempotent draft GitHub release;
+7. publish npm first; and
+8. expose the matching GitHub draft only after npm succeeds.
 
 The verified signed channel controls GitHub release state. `public_beta` uses
 the `Zimster <version> - Public Beta` title, is a prerelease, and is never

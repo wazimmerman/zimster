@@ -19,11 +19,6 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-          registry-url: https://registry.npmjs.org
       - name: Establish trusted release signer
         env:
           RELEASE_SIGNER_FINGERPRINT: ${{ vars.RELEASE_SIGNER_FINGERPRINT }}
@@ -49,9 +44,24 @@ jobs:
           test "$RELEASE_COMMIT" = "$GITHUB_SHA"
           git checkout --detach "$RELEASE_COMMIT"
           test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          registry-url: https://registry.npmjs.org
       - run: npm ci
       - run: npm run check
       - run: npm run version:check -- --tag "$RELEASE_TAG"
+      - name: Materialize signed release inputs
+        env:
+          RELEASE_SIGNER_FINGERPRINT: ${{ vars.RELEASE_SIGNER_FINGERPRINT }}
+        run: |
+          RELEASE_EVIDENCE_DIR="$RUNNER_TEMP/zimster-release-evidence"
+          npm run release:evidence -- extract-tag \
+            --tag "$RELEASE_TAG" \
+            --trusted-fingerprint "$RELEASE_SIGNER_FINGERPRINT" \
+            --output "$RELEASE_EVIDENCE_DIR"
+          echo "RELEASE_EVIDENCE_DIR=$RELEASE_EVIDENCE_DIR" >> "$GITHUB_ENV"
       - name: Verify signed release authorization and artifact digests
         id: authorization
         env:
@@ -61,9 +71,9 @@ jobs:
             --tag "$RELEASE_TAG" \
             --trusted-fingerprint "$RELEASE_SIGNER_FINGERPRINT" \
             --standards-lock config/standards-lock.json \
-            --semantic-review release/evidence/semantic-review.json \
-            --host-matrix release/evidence/host-matrix.json \
-            --verification release/evidence/verification.json \
+            --semantic-review "$RELEASE_EVIDENCE_DIR/semantic-review.json" \
+            --host-matrix "$RELEASE_EVIDENCE_DIR/host-matrix.json" \
+            --verification "$RELEASE_EVIDENCE_DIR/verification.json" \
             --dist dist \
             --github-output "$GITHUB_OUTPUT"
       - run: npm run checksums

@@ -13,6 +13,11 @@ test('release metadata and current changelog are synchronized', async () => {
 
 test('release workflow rejects tags that disagree with plugin metadata', async () => {
   const workflow = await read('.github/workflows/release.yml');
+  const trackedEvidence = spawnSync('git', ['ls-files', 'release/evidence'], {
+    cwd: root, encoding: 'utf8'
+  });
+  assert.equal(trackedEvidence.status, 0, trackedEvidence.stderr);
+  assert.equal(trackedEvidence.stdout, '');
   assert.match(workflow, /git verify-tag/);
   assert.match(workflow, /release:evidence.*verify-tag/);
   assert.match(workflow, /attest-build-provenance/);
@@ -20,6 +25,9 @@ test('release workflow rejects tags that disagree with plugin metadata', async (
   assert.match(workflow, /npm publish/);
   assert.match(workflow, /gh api --method POST[\s\S]*-F draft=true/);
   assert.doesNotMatch(workflow, /semantic-assurance\.mjs.*complete/);
+  assert.doesNotMatch(workflow, /release\/evidence\/(?:semantic-review|host-matrix|verification)\.json/);
+  assert.match(workflow, /release:evidence -- extract-tag/);
+  assert.match(workflow, /\$RUNNER_TEMP/);
 });
 
 test('release workflow establishes the configured public-key trust anchor before both tag checks', async () => {
@@ -46,13 +54,42 @@ test('release workflow preserves and verifies the signed annotated tag before pe
   const verifyTag = workflow.indexOf('git verify-tag "$RELEASE_TAG"');
   const peelTag = workflow.indexOf('git rev-parse "$RELEASE_TAG^{}"');
   const checkoutCommit = workflow.indexOf('git checkout --detach "$RELEASE_COMMIT"');
+  const extractTag = workflow.indexOf('release:evidence -- extract-tag');
   assert.ok(fetchTag !== -1 && tagType !== -1 && verifyTag !== -1 && peelTag !== -1 && checkoutCommit !== -1);
   assert.ok(fetchTag < tagType);
   assert.ok(tagType < verifyTag);
   assert.ok(verifyTag < peelTag);
   assert.ok(peelTag < checkoutCommit);
+  assert.ok(checkoutCommit < extractTag);
   assert.match(workflow, /test "\$RELEASE_COMMIT" = "\$GITHUB_SHA"/);
   assert.doesNotMatch(workflow, /refs\/tags\/\$RELEASE_TAG:[^\n]*\$RELEASE_COMMIT/);
+});
+
+test('release workflow trusts embedded inputs only after signature verification and rebuilds before authorization', async () => {
+  const workflow = await read('.github/workflows/release.yml');
+  const verifySignature = workflow.indexOf('git verify-tag "$RELEASE_TAG"');
+  const exactTarget = workflow.indexOf('test "$RELEASE_COMMIT" = "$GITHUB_SHA"');
+  const checkout = workflow.indexOf('git checkout --detach "$RELEASE_COMMIT"');
+  const npmCi = workflow.indexOf('npm ci');
+  const check = workflow.indexOf('npm run check');
+  const version = workflow.indexOf('npm run version:check');
+  const extract = workflow.indexOf('release:evidence -- extract-tag');
+  const authorization = workflow.indexOf('release:evidence -- verify-tag');
+  const checksums = workflow.indexOf('npm run checksums');
+  assert.ok([
+    verifySignature, exactTarget, checkout, npmCi, check, version, extract, authorization, checksums
+  ].every((position) => position !== -1));
+  assert.ok(verifySignature < exactTarget);
+  assert.ok(exactTarget < checkout);
+  assert.ok(checkout < npmCi);
+  assert.ok(npmCi < check);
+  assert.ok(check < version);
+  assert.ok(version < extract);
+  assert.ok(extract < authorization);
+  assert.ok(authorization < checksums);
+  assert.match(workflow, /--semantic-review\s+"\$RELEASE_EVIDENCE_DIR\/semantic-review\.json"/);
+  assert.match(workflow, /--host-matrix\s+"\$RELEASE_EVIDENCE_DIR\/host-matrix\.json"/);
+  assert.match(workflow, /--verification\s+"\$RELEASE_EVIDENCE_DIR\/verification\.json"/);
 });
 
 test('live GPG fixtures are Linux-only while portable release contracts stay cross-platform', async () => {

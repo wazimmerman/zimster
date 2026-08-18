@@ -98,6 +98,7 @@ test('verify-tag emits GitHub state only from the verified canonical signed payl
       artifacts.push({ name, sha256: digest(data), size: (await stat(path.join(dist, name))).size });
     }
     const inputs = {};
+    const embeddedInputs = {};
     for (const [option, field] of [
       ['standards.json', 'standards_lock_sha256'],
       ['semantic.json', 'semantic_review_sha256'],
@@ -107,15 +108,21 @@ test('verify-tag emits GitHub state only from the verified canonical signed payl
       const data = Buffer.from(`{"fixture":"${option}"}\n`);
       await writeFile(path.join(repo, option), data);
       inputs[field] = digest(data);
+      if (option !== 'standards.json') embeddedInputs[{
+        'semantic.json': 'semantic-review.json',
+        'hosts.json': 'host-matrix.json',
+        'verification.json': 'verification.json'
+      }[option]] = data.toString('base64');
     }
     const evidence = {
-      schema_version: 1,
+      schema_version: 2,
       version: '0.7.0',
       tag: 'v0.7.0',
       channel: 'public_beta',
       commit,
       tree,
       ...inputs,
+      embedded_inputs: embeddedInputs,
       artifacts
     };
     const message = path.join(repo, 'release-evidence.json');
@@ -128,12 +135,25 @@ test('verify-tag emits GitHub state only from the verified canonical signed payl
     ], repo, signedEnv);
     assert.equal(result.status, 0, result.stderr || result.stdout);
 
+    const extracted = path.join(directory, 'extracted');
+    result = command(process.execPath, [
+      path.join(root, 'scripts/release-evidence.mjs'), 'extract-tag',
+      '--tag', 'v0.7.0', '--trusted-fingerprint', fingerprint,
+      '--output', extracted
+    ], repo, signedEnv);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(await readFile(path.join(extracted, 'semantic-review.json'), 'utf8'), '{"fixture":"semantic.json"}\n');
+    assert.equal(await readFile(path.join(extracted, 'host-matrix.json'), 'utf8'), '{"fixture":"hosts.json"}\n');
+    assert.equal(await readFile(path.join(extracted, 'verification.json'), 'utf8'), '{"fixture":"verification.json"}\n');
+
     const githubOutput = path.join(directory, 'github-output');
     result = command(process.execPath, [
       path.join(root, 'scripts/release-evidence.mjs'), 'verify-tag',
       '--tag', 'v0.7.0', '--trusted-fingerprint', fingerprint,
-      '--standards-lock', 'standards.json', '--semantic-review', 'semantic.json',
-      '--host-matrix', 'hosts.json', '--verification', 'verification.json',
+      '--standards-lock', 'standards.json',
+      '--semantic-review', path.join(extracted, 'semantic-review.json'),
+      '--host-matrix', path.join(extracted, 'host-matrix.json'),
+      '--verification', path.join(extracted, 'verification.json'),
       '--dist', 'dist', '--github-output', githubOutput
     ], repo, signedEnv);
     assert.equal(result.status, 0, result.stderr || result.stdout);
