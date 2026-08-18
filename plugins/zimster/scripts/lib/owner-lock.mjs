@@ -4,6 +4,30 @@ import path from 'node:path';
 
 const COLLISION_CODES = new Set(['EEXIST', 'ENOTEMPTY', 'EPERM']);
 
+export async function renameOwnerLockPath(source, destination, {
+  operation = rename,
+  platform = process.platform,
+  maxAttempts = 200,
+  retryDelayMs = 10,
+  collisionCodes = []
+} = {}) {
+  const collisions = new Set(collisionCodes);
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    try {
+      await operation(source, destination);
+      return true;
+    } catch (error) {
+      if (platform === 'win32' && error.code === 'EPERM' && attempt + 1 < maxAttempts) {
+        if (retryDelayMs > 0) await new Promise((resolve) => setTimeout(resolve, retryDelayMs));
+        continue;
+      }
+      if (collisions.has(error.code)) return false;
+      throw error;
+    }
+  }
+  return false;
+}
+
 function ownerRecord({ pid, ownerId, acquiredAt }) {
   return {
     schema_version: 1,
@@ -99,13 +123,9 @@ async function markReclaiming(lockPath) {
 
 async function quarantineReclaim(lockPath, identity) {
   const quarantine = `${lockPath}.reclaimed-${identity}`;
-  try {
-    await rename(lockPath, quarantine);
-    return true;
-  } catch (error) {
-    if (COLLISION_CODES.has(error.code) || error.code === 'ENOENT') return false;
-    throw error;
-  }
+  return renameOwnerLockPath(lockPath, quarantine, {
+    collisionCodes: [...COLLISION_CODES, 'ENOENT']
+  });
 }
 
 async function reclaimDeadOwner(lockPath, observed) {
@@ -135,12 +155,7 @@ export async function releaseOwnerLock(lockPath, owner) {
     || current.owner.pid !== owner.pid
   ) return false;
   const quarantine = `${lockPath}.released-${owner.owner_id}`;
-  try {
-    await rename(lockPath, quarantine);
-  } catch (error) {
-    if (error.code === 'ENOENT') return false;
-    throw error;
-  }
+  if (!await renameOwnerLockPath(lockPath, quarantine, { collisionCodes: ['ENOENT'] })) return false;
   await rm(quarantine, { recursive: true, force: true });
   return true;
 }

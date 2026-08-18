@@ -7,6 +7,7 @@ import path from 'node:path';
 import {
   acquireOwnerLock,
   releaseOwnerLock,
+  renameOwnerLockPath,
   withOwnerLock
 } from '../scripts/lib/owner-lock.mjs';
 
@@ -43,6 +44,34 @@ test('a live owner lock is not stolen and release requires its nonce', async () 
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
+});
+
+test('Windows transient EPERM retries without weakening ownership-aware rename', async () => {
+  let attempts = 0;
+  const result = await renameOwnerLockPath('source', 'destination', {
+    platform: 'win32',
+    maxAttempts: 4,
+    retryDelayMs: 0,
+    operation: async () => {
+      attempts += 1;
+      if (attempts < 3) {
+        const error = new Error('transient Windows directory handle');
+        error.code = 'EPERM';
+        throw error;
+      }
+    }
+  });
+  assert.equal(result, true);
+  assert.equal(attempts, 3);
+
+  await assert.rejects(renameOwnerLockPath('source', 'destination', {
+    platform: 'linux',
+    operation: async () => {
+      const error = new Error('permission denied');
+      error.code = 'EPERM';
+      throw error;
+    }
+  }), /permission denied/);
 });
 
 test('fresh incomplete owner metadata fails closed instead of being stolen', async () => {
