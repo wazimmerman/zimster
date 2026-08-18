@@ -13,6 +13,8 @@ jobs:
   release:
     runs-on: ubuntu-latest
     environment: release
+    env:
+      RELEASE_TAG: ${{ github.ref_name }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -35,23 +37,28 @@ jobs:
             --trusted-fingerprint "$RELEASE_SIGNER_FINGERPRINT" \
             --gnupg-home "$GNUPGHOME"
           echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
-      - run: npm ci
-      - name: Verify signed tag and exact target
+      - name: Verify signed annotated tag and exact target
         env:
           RELEASE_SIGNER_FINGERPRINT: ${{ vars.RELEASE_SIGNER_FINGERPRINT }}
         run: |
           test -n "$RELEASE_SIGNER_FINGERPRINT"
-          git verify-tag "$GITHUB_REF_NAME"
-          test "$(git rev-list -n 1 "$GITHUB_REF_NAME")" = "$GITHUB_SHA"
+          git fetch --force origin "+refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG"
+          test "$(git cat-file -t "$RELEASE_TAG")" = tag
+          git verify-tag "$RELEASE_TAG"
+          RELEASE_COMMIT="$(git rev-parse "$RELEASE_TAG^{}")"
+          test "$RELEASE_COMMIT" = "$GITHUB_SHA"
+          git checkout --detach "$RELEASE_COMMIT"
+          test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
+      - run: npm ci
       - run: npm run check
-      - run: npm run version:check -- --tag "$GITHUB_REF_NAME"
+      - run: npm run version:check -- --tag "$RELEASE_TAG"
       - name: Verify signed release authorization and artifact digests
         id: authorization
         env:
           RELEASE_SIGNER_FINGERPRINT: ${{ vars.RELEASE_SIGNER_FINGERPRINT }}
         run: |
           npm run release:evidence -- verify-tag \
-            --tag "$GITHUB_REF_NAME" \
+            --tag "$RELEASE_TAG" \
             --trusted-fingerprint "$RELEASE_SIGNER_FINGERPRINT" \
             --standards-lock config/standards-lock.json \
             --semantic-review release/evidence/semantic-review.json \
@@ -74,7 +81,7 @@ jobs:
           RELEASE_PRERELEASE: ${{ steps.authorization.outputs.release_prerelease }}
         run: |
           RELEASE_ID="$(gh api --paginate "repos/$GITHUB_REPOSITORY/releases?per_page=100" \
-            --jq '.[] | select(.tag_name == env.GITHUB_REF_NAME) | .id')"
+            --jq '.[] | select(.tag_name == env.RELEASE_TAG) | .id')"
           case "$RELEASE_ID" in
             *$'\n'*) echo "duplicate GitHub releases for exact target tag" >&2; exit 1 ;;
           esac
@@ -89,7 +96,7 @@ jobs:
             fi
           else
             RELEASE_ID="$(gh api --method POST "repos/$GITHUB_REPOSITORY/releases" \
-              -f tag_name="$GITHUB_REF_NAME" \
+              -f tag_name="$RELEASE_TAG" \
               -f name="$RELEASE_TITLE" \
               -F draft=true \
               -F prerelease="$RELEASE_PRERELEASE" \
@@ -103,7 +110,7 @@ jobs:
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          VERSION="${RELEASE_TAG#v}"
           ARTIFACT="dist/zimster-${VERSION}.tgz"
           LOCAL_SHASUM="$(sha1sum "$ARTIFACT" | cut -d ' ' -f 1)"
           PUBLISHED_SHASUM="$(npm view "zimster@${VERSION}" dist.shasum 2>/dev/null || true)"
@@ -120,7 +127,7 @@ jobs:
           RELEASE_PRERELEASE: ${{ steps.authorization.outputs.release_prerelease }}
           RELEASE_LATEST: ${{ steps.authorization.outputs.release_latest }}
         run: |
-          gh release upload "$GITHUB_REF_NAME" dist/*.zip dist/*.tgz dist/*SHA256SUMS.txt --clobber
+          gh release upload "$RELEASE_TAG" dist/*.zip dist/*.tgz dist/*SHA256SUMS.txt --clobber
           gh api --method PATCH "repos/$GITHUB_REPOSITORY/releases/$RELEASE_ID" \
             -f name="$RELEASE_TITLE" \
             -F draft=false \

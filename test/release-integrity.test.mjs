@@ -25,7 +25,7 @@ test('release workflow rejects tags that disagree with plugin metadata', async (
 test('release workflow establishes the configured public-key trust anchor before both tag checks', async () => {
   const workflow = await read('.github/workflows/release.yml');
   const keySetup = workflow.indexOf('.github/scripts/release-signing-key.mjs');
-  const verifyTag = workflow.indexOf('git verify-tag "$GITHUB_REF_NAME"');
+  const verifyTag = workflow.indexOf('git verify-tag "$RELEASE_TAG"');
   const evidenceVerify = workflow.indexOf('release:evidence -- verify-tag');
   assert.notEqual(keySetup, -1);
   assert.notEqual(verifyTag, -1);
@@ -37,6 +37,22 @@ test('release workflow establishes the configured public-key trust anchor before
   assert.match(workflow, /GNUPGHOME:\s*\$\{\{ runner\.temp \}\}/);
   assert.match(workflow, /--trusted-fingerprint\s+"\$RELEASE_SIGNER_FINGERPRINT"/);
   assert.match(workflow, /release:evidence[\s\S]*verify-tag[\s\S]*--trusted-fingerprint/);
+});
+
+test('release workflow preserves and verifies the signed annotated tag before peeling its commit', async () => {
+  const workflow = await read('.github/workflows/release.yml');
+  const fetchTag = workflow.indexOf('+refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG');
+  const tagType = workflow.indexOf('git cat-file -t "$RELEASE_TAG"');
+  const verifyTag = workflow.indexOf('git verify-tag "$RELEASE_TAG"');
+  const peelTag = workflow.indexOf('git rev-parse "$RELEASE_TAG^{}"');
+  const checkoutCommit = workflow.indexOf('git checkout --detach "$RELEASE_COMMIT"');
+  assert.ok(fetchTag !== -1 && tagType !== -1 && verifyTag !== -1 && peelTag !== -1 && checkoutCommit !== -1);
+  assert.ok(fetchTag < tagType);
+  assert.ok(tagType < verifyTag);
+  assert.ok(verifyTag < peelTag);
+  assert.ok(peelTag < checkoutCommit);
+  assert.match(workflow, /test "\$RELEASE_COMMIT" = "\$GITHUB_SHA"/);
+  assert.doesNotMatch(workflow, /refs\/tags\/\$RELEASE_TAG:[^\n]*\$RELEASE_COMMIT/);
 });
 
 test('live GPG fixtures are Linux-only while portable release contracts stay cross-platform', async () => {
@@ -65,9 +81,9 @@ test('release workflow publishes npm before exposing an explicitly channel-bound
   assert.match(workflow, /steps\.authorization\.outputs\.release_latest/);
   assert.match(workflow, /steps\.authorization\.outputs\.release_title/);
   assert.match(workflow, /releases\?per_page=100/);
-  assert.match(workflow, /select\(\.tag_name == env\.GITHUB_REF_NAME\)/);
+  assert.match(workflow, /select\(\.tag_name == env\.RELEASE_TAG\)/);
   assert.match(workflow, /duplicate GitHub releases for exact target tag/);
-  assert.match(workflow, /gh api --method POST[\s\S]*-f tag_name="\$GITHUB_REF_NAME"/);
+  assert.match(workflow, /gh api --method POST[\s\S]*-f tag_name="\$RELEASE_TAG"/);
   assert.match(workflow, /releases\/\$RELEASE_ID/);
   assert.match(workflow, /-F prerelease="\$RELEASE_PRERELEASE"/);
   assert.match(workflow, /-f make_latest="\$RELEASE_LATEST"/);

@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { readFile, lstat, readlink } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import { normalizeGitFileMode } from './review-package-files.mjs';
 
 export function runGit(args, cwd = process.cwd(), { allowFailure = false, encoding = 'utf8' } = {}) {
   const result = spawnSync('git', args, { cwd, encoding, maxBuffer: 128 * 1024 * 1024 });
@@ -46,7 +47,7 @@ async function hashPath(absolute) {
   }
   if (!metadata.isFile()) return `other:${metadata.mode}:${metadata.size}`;
   const data = await readFile(absolute);
-  return `file:${metadata.mode}:${metadata.size}:${createHash('sha256').update(data).digest('hex')}`;
+  return `file:${normalizeGitFileMode(metadata.mode)}:${metadata.size}:${createHash('sha256').update(data).digest('hex')}`;
 }
 
 export async function captureGitState(cwd = process.cwd()) {

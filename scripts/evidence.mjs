@@ -20,6 +20,7 @@ import {
 import { ensureRuntimeDirectory, migrateLegacyJsonlStore } from './lib/runtime.mjs';
 import { harnessCapabilities } from './lib/capabilities.mjs';
 import { recordExecutionBudgetEvent } from './lib/execution-budget.mjs';
+import { npmExecutable } from './lib/platform.mjs';
 
 const { positional, options, passthrough } = parseOptions(process.argv.slice(2));
 const commandName = positional[0];
@@ -52,7 +53,7 @@ function listOption(name) {
 }
 
 function npmVersion() {
-  const result = spawnSync('npm', ['--version'], { encoding: 'utf8' });
+  const result = spawnSync(npmExecutable(), ['--version'], { encoding: 'utf8' });
   return result.status === 0 ? String(result.stdout).trim() : null;
 }
 

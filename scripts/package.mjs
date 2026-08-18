@@ -41,6 +41,8 @@ const operationalScripts = [
   'scripts/lib/path-identity.mjs',
   'scripts/lib/run-state.mjs',
   'scripts/lib/review-lifecycle.mjs',
+  'scripts/lib/review-package-files.mjs',
+  'scripts/lib/platform.mjs',
   'scripts/lib/semantic-assurance.mjs',
   'scripts/lib/evidence-validity.mjs',
   'scripts/lib/release-evidence.mjs',

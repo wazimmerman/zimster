@@ -236,3 +236,38 @@ test('review package rejects mutable base or head references', async () => {
     await rm(repo, { recursive: true, force: true });
   }
 });
+
+test('review package fingerprints dirty tracked and untracked in-progress work', async () => {
+  const repo = await mkdtemp(path.join(os.tmpdir(), 'zimster-review-dirty-'));
+  try {
+    assert.equal(run('git', ['init', '-b', 'main'], repo).status, 0);
+    assert.equal(run('git', ['config', 'user.name', 'Zimster Test'], repo).status, 0);
+    assert.equal(run('git', ['config', 'user.email', 'test@example.com'], repo).status, 0);
+    await writeFile(path.join(repo, 'tracked.txt'), 'base\n');
+    const base = await commit(repo, 'base');
+    await writeFile(path.join(repo, 'tracked.txt'), 'dirty tracked\n');
+    await writeFile(path.join(repo, 'untracked.txt'), 'dirty untracked\n');
+
+    const first = run(process.execPath, [
+      path.join(root, 'scripts/review-package.mjs'), '--base', base, '--head', base
+    ], repo);
+    assert.equal(first.status, 0, first.stderr || first.stdout);
+    const firstSummary = JSON.parse(first.stdout);
+    const firstPackage = JSON.parse(await readFile(firstSummary.package, 'utf8'));
+    assert.match(firstPackage.dirty_state.dirty_tree_fingerprint, /^[0-9a-f]{64}$/);
+    assert.deepEqual(firstPackage.dirty_state.touched_files, ['tracked.txt', 'untracked.txt']);
+    assert.equal(firstPackage.dirty_state.untracked[0].mode, '100644');
+    assert.match(await readFile(firstPackage.dirty_state.tracked_diff, 'utf8'), /dirty tracked/);
+    const untracked = JSON.parse(await readFile(firstPackage.dirty_state.untracked_payload, 'utf8'));
+    assert.equal(Buffer.from(untracked[0].data_base64, 'base64').toString(), 'dirty untracked\n');
+
+    await writeFile(path.join(repo, 'untracked.txt'), 'changed untracked\n');
+    const second = run(process.execPath, [
+      path.join(root, 'scripts/review-package.mjs'), '--base', base, '--head', base
+    ], repo);
+    assert.equal(second.status, 0, second.stderr || second.stdout);
+    assert.notEqual(JSON.parse(second.stdout).id, firstSummary.id);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
