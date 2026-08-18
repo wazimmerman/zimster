@@ -2,9 +2,10 @@ import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const convergenceLimits = JSON.parse(readFileSync(path.resolve(
+const convergenceConfig = JSON.parse(readFileSync(path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'config', 'convergence.json'
-), 'utf8')).autonomous_convergence.limits;
+), 'utf8'));
+const lifecycleLimits = convergenceConfig.review_lifecycle;
 
 const TERMINAL = new Set([
   'CIRCUIT_BREAKER',
@@ -59,8 +60,14 @@ function record(state, event) {
 
 function ensureLifecycleShape(state) {
   state.current_cycle ??= 1;
-  state.limits.review_cycles ??= 2;
-  state.limits.strategy_restarts ??= 1;
+  state.limits.correction_rechecks_per_cycle ??=
+    state.limits.correction_rechecks ?? lifecycleLimits.correction_rechecks_per_cycle;
+  state.limits.review_cycles_per_seam ??=
+    state.limits.review_cycles ?? lifecycleLimits.review_cycles_per_seam;
+  state.limits.strategy_restarts_per_seam ??=
+    state.limits.strategy_restarts ?? lifecycleLimits.strategy_restarts_per_seam;
+  state.limits.final_integration_reviews ??= lifecycleLimits.final_integration_reviews;
+  state.limits.final_correction_waves ??= lifecycleLimits.final_correction_waves;
   state.aggregate.review_cycles ??= 1;
   state.aggregate.strategy_restarts ??= 0;
   state.strategy_revisions ??= [];
@@ -92,11 +99,11 @@ export function createReviewLifecycle({ runId, seamId, candidateDigest }) {
     },
     reviewer_id: null,
     limits: {
-      correction_rechecks: convergenceLimits.correction_rechecks,
-      review_cycles: 2,
-      strategy_restarts: 1,
-      final_integration_reviews: convergenceLimits.final_integration_reviews,
-      final_correction_waves: 1
+      correction_rechecks_per_cycle: lifecycleLimits.correction_rechecks_per_cycle,
+      review_cycles_per_seam: lifecycleLimits.review_cycles_per_seam,
+      strategy_restarts_per_seam: lifecycleLimits.strategy_restarts_per_seam,
+      final_integration_reviews: lifecycleLimits.final_integration_reviews,
+      final_correction_waves: lifecycleLimits.final_correction_waves
     },
     aggregate: {
       review_cycles: 1,
@@ -146,8 +153,8 @@ export function applyReviewLifecycleEvent(input, event) {
       throw new Error('strategy revision requires owner strategy escalation after an exhausted review cycle');
     }
     if (
-      state.aggregate.strategy_restarts >= state.limits.strategy_restarts
-      || state.aggregate.review_cycles >= state.limits.review_cycles
+      state.aggregate.strategy_restarts >= state.limits.strategy_restarts_per_seam
+      || state.aggregate.review_cycles >= state.limits.review_cycles_per_seam
     ) {
       state.status = 'BLOCKED';
       return record(state, event);
@@ -263,7 +270,7 @@ export function applyReviewLifecycleEvent(input, event) {
 
   if (event.type === 'CORRECTION_RECHECK') {
     const cycle = currentReviewCycle(state);
-    if (cycle.correction_rechecks >= state.limits.correction_rechecks) {
+    if (cycle.correction_rechecks >= state.limits.correction_rechecks_per_cycle) {
       state.status = 'CIRCUIT_BREAKER';
       state.circuit_breaker_reason = 'correction_recheck_limit_exceeded';
       return record(state, event);
@@ -284,7 +291,7 @@ export function applyReviewLifecycleEvent(input, event) {
       state.status = 'FINAL_INTEGRATION_REVIEW_REQUIRED';
     } else {
       cycle.status = 'exhausted';
-      if (state.current_cycle >= state.limits.review_cycles) {
+      if (state.current_cycle >= state.limits.review_cycles_per_seam) {
         state.status = 'BLOCKED';
         state.circuit_breaker_reason = 'second_review_cycle_exhausted';
       } else {

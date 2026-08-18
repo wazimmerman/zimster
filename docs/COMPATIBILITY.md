@@ -57,8 +57,9 @@ therefore retains a manual or inline fallback.
 - Grok consumes the root standards manifest directly; validation and install
   did not justify an extra `.grok` overlay.
 - OpenCode uses a thin project plugin to register the canonical skills.
-- Pi uses package metadata and a TypeScript extension. Delegation remains
-  optional through the narrow capability boundary.
+- Pi uses package metadata and a TypeScript extension. The current optional
+  transport cannot mechanically enforce the max-two-active ownership boundary,
+  so Zimster fails closed to owner-inline execution.
 - Kimi uses `.kimi-plugin/plugin.json` because its native managed-plugin
   contract adds session bootstrap behavior.
 

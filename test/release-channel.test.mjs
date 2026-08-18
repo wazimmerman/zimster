@@ -99,13 +99,38 @@ test('verify-tag emits GitHub state only from the verified canonical signed payl
     }
     const inputs = {};
     const embeddedInputs = {};
+    const documents = {
+      'standards.json': { fixture: 'standards.json' },
+      'semantic.json': {
+        schema_version: 1, id: 'review', review_type: 'independent_review', owner_inline: false,
+        base_sha: 'a'.repeat(40), head_sha: commit, candidate_tree: tree,
+        seam_id: 'release-seam', review_attempt_id: 'release-seam:final:1',
+        reviewer_identity: 'reviewer', dispatch_record_id: null,
+        reviewer_provenance: 'not_host_authenticated', clean_bounded_context: true,
+        reviewed_requirement_ids: ['RELEASE-001'], intended_claims: ['Release is bounded.'],
+        semantic_lenses: ['release-integrity'], review_scope: 'integration', verdict: 'approved',
+        findings: [], unverified_obligations: [], reviewed_at: '2026-08-18T00:00:00.000Z',
+        review_package_id: 'package', requirement_matrix_sha256: 'b'.repeat(64),
+        semantic_contract_sha256: 'c'.repeat(64), checkout_integrity_result: 'REVIEW_CHECKOUT_UNCHANGED'
+      },
+      'hosts.json': {
+        schema_version: 1, candidate_commit: commit, candidate_tree: tree,
+        hosts: [{ host: 'codex', artifact_sha256: 'd'.repeat(64), host_version: '1.0.0',
+          tested_at: '2026-08-18T00:00:00.000Z', verification_level: 'structural',
+          capabilities_established: ['skill discovery'], capabilities_not_established: [], known_limitations: [] }]
+      },
+      'verification.json': {
+        schema_version: 1, candidate_commit: commit, candidate_tree: tree, status: 'passed',
+        steps: [{ id: 'gate', status: 'passed', log_id: 'gate', log_sha256: 'e'.repeat(64) }]
+      }
+    };
     for (const [option, field] of [
       ['standards.json', 'standards_lock_sha256'],
       ['semantic.json', 'semantic_review_sha256'],
       ['hosts.json', 'host_matrix_sha256'],
       ['verification.json', 'verification_sha256']
     ]) {
-      const data = Buffer.from(`{"fixture":"${option}"}\n`);
+      const data = Buffer.from(`${JSON.stringify(documents[option])}\n`);
       await writeFile(path.join(repo, option), data);
       inputs[field] = digest(data);
       if (option !== 'standards.json') embeddedInputs[{
@@ -142,9 +167,9 @@ test('verify-tag emits GitHub state only from the verified canonical signed payl
       '--output', extracted
     ], repo, signedEnv);
     assert.equal(result.status, 0, result.stderr || result.stdout);
-    assert.equal(await readFile(path.join(extracted, 'semantic-review.json'), 'utf8'), '{"fixture":"semantic.json"}\n');
-    assert.equal(await readFile(path.join(extracted, 'host-matrix.json'), 'utf8'), '{"fixture":"hosts.json"}\n');
-    assert.equal(await readFile(path.join(extracted, 'verification.json'), 'utf8'), '{"fixture":"verification.json"}\n');
+    assert.deepEqual(JSON.parse(await readFile(path.join(extracted, 'semantic-review.json'), 'utf8')), documents['semantic.json']);
+    assert.deepEqual(JSON.parse(await readFile(path.join(extracted, 'host-matrix.json'), 'utf8')), documents['hosts.json']);
+    assert.deepEqual(JSON.parse(await readFile(path.join(extracted, 'verification.json'), 'utf8')), documents['verification.json']);
 
     const githubOutput = path.join(directory, 'github-output');
     result = command(process.execPath, [

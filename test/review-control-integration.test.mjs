@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { spawnSync } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { root } from './helpers.mjs';
@@ -10,6 +10,20 @@ function run(args, cwd) {
   return spawnSync(process.execPath, [path.join(root, 'scripts/review-control.mjs'), ...args], {
     cwd,
     encoding: 'utf8'
+  });
+}
+
+function runConcurrent(args, cwd) {
+  return new Promise((resolve) => {
+    const child = spawn(process.execPath, [path.join(root, 'scripts/review-control.mjs'), ...args], {
+      cwd,
+      env: { ...process.env, NODE_ENV: 'test', ZIMSTER_TEST_REVIEW_HOLD_MS: '80' }
+    });
+    let stdout = '';
+    let stderr = '';
+    child.stdout.on('data', (chunk) => { stdout += chunk; });
+    child.stderr.on('data', (chunk) => { stderr += chunk; });
+    child.on('close', (status) => resolve({ status, stdout, stderr }));
   });
 }
 
@@ -194,6 +208,44 @@ test('review control admits one same-seam strategy restart and accounts for both
     assert.equal(report.metrics.strategy_restarts.value, 1);
     assert.equal(report.metrics.complete_suite_executions.value, 0);
     assert.equal(report.metrics.budget_compliance.status, 'within_budget');
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('review control serializes concurrent lifecycle mutations without lost updates', async () => {
+  const repo = await mkdtemp(path.join(os.tmpdir(), 'zimster-review-lock-'));
+  try {
+    assert.equal(spawnSync('git', ['init', '-b', 'main'], { cwd: repo }).status, 0);
+    await writeFile(path.join(repo, 'tracked.txt'), 'candidate\n');
+    assert.equal(spawnSync('git', ['add', 'tracked.txt'], { cwd: repo }).status, 0);
+    assert.equal(spawnSync('git', [
+      '-c', 'user.name=Zimster Test', '-c', 'user.email=test@example.com',
+      'commit', '-m', 'candidate'
+    ], { cwd: repo }).status, 0);
+    const runtime = spawnSync('git', [
+      'rev-parse', '--path-format=absolute', '--git-path', 'zimster'
+    ], { cwd: repo, encoding: 'utf8' }).stdout.trim();
+    await mkdir(runtime, { recursive: true });
+    await writeFile(path.join(runtime, 'run.json'), `${JSON.stringify({
+      schema_version: 2, id: 'run-review-lock'
+    })}\n`);
+    let result = run([
+      'init', '--seam-id', 'locked-seam', '--candidate-digest', 'candidate-a'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+
+    const results = await Promise.all(Array.from({ length: 6 }, () => runConcurrent([
+      'event', '--type', 'INITIAL_REVIEW', '--reviewer-id', 'reviewer-1',
+      '--verdict', 'needs_correction'
+    ], repo)));
+    assert.equal(results.filter(({ status }) => status === 0).length, 1);
+    const lifecycle = JSON.parse(await readFile(
+      path.join(runtime, 'reviews/lifecycle.json'), 'utf8'
+    ));
+    assert.equal(lifecycle.aggregate.initial_reviews, 1);
+    assert.equal(lifecycle.history.filter(({ type }) => type === 'INITIAL_REVIEW').length, 1);
+    assert.equal(lifecycle.status, 'OWNER_CORRECTION_REQUIRED');
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

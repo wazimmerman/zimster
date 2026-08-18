@@ -5,6 +5,7 @@ import { parseOptions, required, writeError, writeLine } from './lib/cli.mjs';
 import {
   COMPLETION_STATES,
   evaluateCandidateCompletion,
+  evaluateHumanReleaseReview,
   evaluateRequirementMatrix,
   semanticContractDigest
 } from './lib/semantic-assurance.mjs';
@@ -213,10 +214,58 @@ async function completionDecision() {
   if (result.state !== COMPLETION_STATES.CANDIDATE_COMPLETE) process.exitCode = 2;
 }
 
+async function humanReleaseReviewDecision() {
+  const {
+    matrix,
+    matrixSha256,
+    semanticContractSha256,
+    checkout,
+    result: matrixResult
+  } = await evaluatedMatrix();
+  const reviewPackage = await jsonFile('review-package');
+  const reviewFile = await jsonFile('reviews');
+  const review = (reviewFile.reviews || [])
+    .filter(({ review_type: type }) => type === 'independent_review')
+    .at(-1);
+  const reasons = [];
+  if (!matrixResult.valid) reasons.push(...matrixResult.issues, ...matrixResult.unverified_obligations);
+  if (matrix.candidate_head !== checkout.head) reasons.push('requirement matrix candidate head differs from the current candidate head');
+  if (matrix.candidate_tree !== checkout.tree) reasons.push('requirement matrix candidate tree differs from the current candidate tree');
+  if (checkout.dirty_tree_fingerprint !== 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855') {
+    reasons.push('current candidate checkout is dirty');
+  }
+  if (reviewPackage.head !== matrix.candidate_head) reasons.push('review package head differs from the requirement matrix candidate');
+  if (reviewPackage.requirement_matrix?.sha256 !== matrixSha256) reasons.push('review package requirement matrix digest differs from the current matrix');
+  if (reviewPackage.semantic_contract?.sha256 !== semanticContractSha256) reasons.push('review package semantic contract differs from the current contract');
+  const result = reasons.length ? {
+    accepted: false,
+    state: 'HUMAN_RELEASE_REVIEW_REJECTED',
+    review_id: review?.id || null,
+    reviewer_provenance: review?.reviewer_provenance || 'unavailable',
+    runtime_assurance_state: COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE,
+    reasons: [...new Set(reasons)]
+  } : evaluateHumanReleaseReview({
+    review,
+    candidateBase: reviewPackage.base,
+    candidateHead: matrix.candidate_head,
+    candidateTree: matrix.candidate_tree,
+    reviewPackageId: reviewPackage.id,
+    requirementMatrixSha256: matrixSha256,
+    semanticContractSha256,
+    requiredLenses: reviewPackage.lenses || []
+  });
+  writeLine(JSON.stringify(result));
+  writeError(`${result.state} review=${result.review_id || 'none'} provenance=${result.reviewer_provenance}`);
+  for (const reason of result.reasons) writeError(`- ${reason}`);
+  if (!result.accepted) process.exitCode = 2;
+}
+
 if (action === 'matrix') {
   await matrixDecision();
 } else if (action === 'complete') {
   await completionDecision();
+} else if (action === 'release-review') {
+  await humanReleaseReviewDecision();
 } else {
-  throw new Error('Usage: semantic-assurance.mjs <matrix|complete> --requirements <file> --matrix <file> [--evidence <jsonl>] [--reviews <json>] [--review-package <json>]');
+  throw new Error('Usage: semantic-assurance.mjs <matrix|complete|release-review> --requirements <file> --matrix <file> [--evidence <jsonl>] [--reviews <json>] [--review-package <json>]');
 }

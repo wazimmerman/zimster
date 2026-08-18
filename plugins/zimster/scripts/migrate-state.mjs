@@ -10,9 +10,13 @@ const root = findRepoRoot(process.cwd());
 const runtime = options.runtime
   ? path.resolve(process.cwd(), String(options.runtime))
   : await ensureRuntimeDirectory(root);
-const { report, reportFile } = await migrate070State({ root, runtime });
+const { report, reportFile, migrationStatus } = await migrate070State({ root, runtime });
 writeSync(process.stdout.fd, `${JSON.stringify({
-  status: 'MIGRATION_COMPATIBLE',
-  run_id: report.run_id,
+  status: migrationStatus === 'already_current'
+    ? 'MIGRATION_ALREADY_CURRENT'
+    : migrationStatus === 'already_migrated'
+      ? 'MIGRATION_ALREADY_APPLIED'
+      : 'MIGRATION_COMPATIBLE',
+  run_id: report?.run_id || null,
   report: reportFile
 })}\n`);

@@ -139,16 +139,13 @@ async function selectedPlan() {
       if (options[name]) reviewStep.args.push(`--${name}`, String(options[name]));
     }
     const semanticStep = plan.steps.find(({ id }) => id === 'semantic-completion');
-    semanticStep.expected_stderr = '^CANDIDATE_COMPLETE review=[A-Za-z0-9._/-]+ claims=[0-9]+\\n?$';
+    semanticStep.expected_stderr = '^HUMAN_RELEASE_REVIEW_ACCEPTED review=[A-Za-z0-9._/-]+ provenance=(?:host_authenticated|not_host_authenticated)\\n?$';
     semanticStep.args.push(
-      'complete', '--profile', String(options['semantic-profile'] || 'high-risk'),
-      '--owner-verified',
+      'release-review',
       '--requirements', String(options['binding-requirements']),
       '--matrix', String(options.matrix),
       '--reviews', String(options.reviews),
-      '--review-package', String(options['review-package']),
-      '--load-bearing-review-obligations', String(options['load-bearing-review-obligations']),
-      '--release-channel', String(options['release-channel'] || 'public_beta')
+      '--review-package', String(options['review-package'])
     );
     if (options.evidence) semanticStep.args.push('--evidence', String(options.evidence));
     if (options['host-smoke-receipt']) {

@@ -51,11 +51,13 @@ the optional delegation transport remain unverified unless separately tested.
 ## Optional delegation
 
 Owner-inline execution is the default. `.pi/delegation.ts` exposes only
-`probe`, `launch`, `status`, `cancel`, and `collect`. If an owner explicitly
-installs the pinned optional `pi-subagents` 0.42.1 transport, Zimster prohibits
-nested subagents and caps parallel implementers at two. Zimster never installs
-that transport silently. Missing or incompatible transport returns an
-`inline_required` result.
+`probe`, `launch`, `status`, `cancel`, and `collect`. The current optional
+`pi-subagents` transport does not provide a trustworthy local ownership and
+terminal-state interface with which Zimster can mechanically enforce the
+max-two-active boundary. Zimster therefore fails closed to `inline_required`
+even when that transport is installed, and rejects nonzero nesting depth. It
+does not advertise mechanically enforced Pi parallelism or install another
+transport during this release.
 
 `pi --list-models` is session-scoped catalog evidence, not proof of effective
 model routing.

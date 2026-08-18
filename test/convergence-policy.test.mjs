@@ -16,8 +16,6 @@ import { root } from './helpers.mjs';
 
 const limits = {
   correction_commits: 2,
-  correction_rechecks: 1,
-  final_integration_reviews: 2,
   final_verification_attempts: 2,
   complete_suite_executions: 3,
   exact_duplicate_commands: 2,
@@ -27,7 +25,14 @@ const limits = {
 test('CONV-001: canonical convergence budgets validate and legacy metric aliases remain readable', () => {
   const config = validateConvergenceConfig({
     schema_version: 1,
-    autonomous_convergence: { enabled: true, limits }
+    autonomous_convergence: { enabled: true, limits },
+    review_lifecycle: {
+      correction_rechecks_per_cycle: 1,
+      review_cycles_per_seam: 2,
+      strategy_restarts_per_seam: 1,
+      final_integration_reviews: 2,
+      final_correction_waves: 1
+    }
   });
   const state = createBudgetState('high-risk', {
     limits: config.autonomous_convergence.limits,
@@ -35,35 +40,33 @@ test('CONV-001: canonical convergence budgets validate and legacy metric aliases
   });
   assert.equal(state.limits.correction_commits, 2);
   assert.equal(state.limits.context_renewals, 2);
-  let result = applyExecutionBudgetEvent(state, { metric: 'final_correction_waves' });
-  assert.equal(result.status, 'BUDGET_OK');
-  assert.equal(state.usage.correction_commits, 1);
-  result = applyExecutionBudgetEvent(state, { metric: 'context_compactions' });
+  let result = applyExecutionBudgetEvent(state, { metric: 'context_compactions' });
   assert.equal(result.status, 'BUDGET_OK');
   assert.equal(state.usage.context_renewals, 1);
 
   const legacyState = {
     ...structuredClone(state),
-    limits: { final_correction_waves: 1, review_rechecks_per_seam: 1, context_compactions: 2 },
-    usage: { final_correction_waves: 0, context_compactions: 0 },
+    limits: { correction_commits: 1, review_rechecks_per_seam: 1, context_compactions: 2 },
+    usage: { correction_commits: 0, context_compactions: 0 },
     events: [], overrides: [], proof_obligations: [], scoped_usage: {},
     optional_agent_identities: []
   };
   result = applyExecutionBudgetEvent(legacyState, { metric: 'correction_commits' });
   assert.equal(result.status, 'BUDGET_WARNING');
   assert.equal(legacyState.usage.correction_commits, 1);
-  assert.equal(legacyState.usage.final_correction_waves, 1);
+  assert.equal(legacyState.usage.correction_commits, 1);
 });
 
 test('CONV-001: execution budgets do not independently account correction rechecks', () => {
   const state = createBudgetState('high-risk', { limits });
+  assert.equal(Object.hasOwn(state.limits, 'correction_rechecks'), false);
   assert.throws(() => applyExecutionBudgetEvent(state, {
     metric: 'correction_rechecks',
     scope: 'release-policy',
     canonicalSeamId: 'release-policy'
   }), /review lifecycle.*authoritative/i);
   assert.equal(state.scoped_usage.correction_rechecks, undefined);
-  assert.equal(state.usage.final_integration_reviews, 0);
+  assert.equal(Object.hasOwn(state.usage, 'final_integration_reviews'), false);
 
   assert.throws(() => applyExecutionBudgetEvent(state, {
     metric: 'correction_rechecks',
@@ -71,29 +74,11 @@ test('CONV-001: execution budgets do not independently account correction rechec
     canonicalSeamId: 'release-policy'
   }), /scope is canonical.*release-policy/i);
 
-  const premature = applyExecutionBudgetEvent(state, {
-    metric: 'final_integration_reviews',
-    candidateStable: false,
-    candidateHead: 'a'.repeat(40)
-  });
-  assert.equal(premature.status, 'FINAL_REVIEW_RESERVED');
-  assert.equal(state.usage.final_integration_reviews, 0);
-
-  const final = applyExecutionBudgetEvent(state, {
+  assert.throws(() => applyExecutionBudgetEvent(state, {
     metric: 'final_integration_reviews',
     candidateStable: true,
     candidateHead: 'a'.repeat(40)
-  });
-  assert.equal(final.status, 'BUDGET_OK');
-  assert.equal(state.usage.final_integration_reviews, 1);
-
-  const correctedFinal = applyExecutionBudgetEvent(state, {
-    metric: 'final_integration_reviews',
-    candidateStable: true,
-    candidateHead: 'b'.repeat(40)
-  });
-  assert.equal(correctedFinal.status, 'BUDGET_WARNING');
-  assert.equal(state.usage.final_integration_reviews, 2);
+  }), /review lifecycle.*authoritative/i);
 });
 
 test('CONV-002 and CONV-003: ordinary failures continue through the boundary and exhaustion escalates', () => {
@@ -178,7 +163,14 @@ test('BOOT-001: run initialization snapshots candidate configuration as isolated
     const acceptedPolicy = path.join(acceptedDirectory, 'convergence.json');
     const acceptedContents = `${JSON.stringify({
       schema_version: 1,
-      autonomous_convergence: { enabled: true, limits }
+      autonomous_convergence: { enabled: true, limits },
+      review_lifecycle: {
+        correction_rechecks_per_cycle: 1,
+        review_cycles_per_seam: 2,
+        strategy_restarts_per_seam: 1,
+        final_integration_reviews: 2,
+        final_correction_waves: 1
+      }
     }, null, 2)}\n`;
     await writeFile(acceptedPolicy, acceptedContents);
     const acceptedDigest = createHash('sha256').update(acceptedContents).digest('hex');

@@ -77,6 +77,16 @@ For a bug fix, or for a high-value invariant in a multi-behavior feature:
 A test that remains green when its protected behavior is removed is decorative.
 Record mutation evidence without committing the temporary defect.
 
+## Evidence trust boundary
+
+Do not manufacture an observed RED/GREEN claim from caller-supplied counts,
+phase labels, pair IDs, or source text. A generic command wrapper cannot know
+that an arbitrary nonzero exit is a failing test or that two commands exercise
+the same intended behavior. Unless a trustworthy framework-specific execution
+interface internally establishes test identity, discovery, failure/pass result,
+candidate and semantic binding, and RED-before-GREEN ordering, record TDD
+compliance as explicitly unverified. Manual receipts remain diagnostic.
+
 ## Existing/hard-to-test code
 
 - Characterize behavior before risky refactors.

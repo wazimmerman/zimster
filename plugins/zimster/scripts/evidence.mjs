@@ -148,7 +148,12 @@ function testDiscovery(options, passed, failed) {
   return 'unknown';
 }
 
-async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = new Date().toISOString(), exitCode }) {
+async function buildReceipt({
+  startedAt = new Date().toISOString(),
+  endedAt = new Date().toISOString(),
+  exitCode,
+  governedExecution = false
+}) {
   const state = await captureGitState(root);
   const passed = integerOption(options, 'tests-passed', null);
   const failed = integerOption(options, 'tests-failed', null);
@@ -161,9 +166,11 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
   const tddPhase = options['tdd-phase'] ? String(options['tdd-phase']) : null;
   const explicitBehavior = options['behavioral-evidence'];
   const inputs = await canonicalInputIdentities(listOption('inputs'), workingDirectory);
-  const behavioralEvidence = explicitBehavior === undefined
+  const requestedBehavioralEvidence = explicitBehavior === undefined
     ? discovery === 'tests_executed' && (exitCode === 0 || tddPhase === 'red')
     : ['true', '1', 'yes'].includes(String(explicitBehavior).toLowerCase());
+  const tddCompliance = tddPhase ? 'unverified' : null;
+  const behavioralEvidence = tddPhase ? false : requestedBehavioralEvidence;
   const recordedEnvironment = environment(options['host-version'] ? String(options['host-version']) : null);
   const dependencies = await canonicalInputIdentities(listOption('dependencies'), root);
   const requirementIds = listOption('requirement-ids');
@@ -172,15 +179,15 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
   const environmentScope = options['environment-scope']
     ? String(options['environment-scope'])
     : null;
-  const evidenceClass = options['evidence-class']
+  const requestedEvidenceClass = options['evidence-class']
     ? String(options['evidence-class'])
     : requirementIds.length || establishes.length
       ? 'claim_establishing'
       : 'diagnostic';
-  if (!['diagnostic', 'claim_establishing'].includes(evidenceClass)) {
+  if (!['diagnostic', 'claim_establishing'].includes(requestedEvidenceClass)) {
     throw new Error('--evidence-class must be diagnostic or claim_establishing');
   }
-  const governedExecution = String(options.source || '') === 'governed-run';
+  const evidenceClass = !governedExecution || tddPhase ? 'diagnostic' : requestedEvidenceClass;
   for (const id of requirementIds) {
     if (!/^[A-Z][A-Z0-9]*-[0-9]{3,}$/.test(id)) {
       throw new Error(`malformed requirement ID: ${id}`);
@@ -208,7 +215,7 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
     started_at: startedAt,
     ended_at: endedAt,
     exit_code: exitCode,
-    source: String(options.source || 'manual-record'),
+    source: governedExecution ? 'governed-run' : 'manual-record',
     governed_execution: governedExecution,
     evidence_class: evidenceClass,
     final_gate: options.final === true,
@@ -235,10 +242,8 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
     establishes,
     does_not_establish: doesNotEstablish,
     environment_scope: environmentScope,
-    tdd: tddPhase ? {
-      phase: tddPhase,
-      pair_id: options['tdd-pair'] ? String(options['tdd-pair']) : null
-    } : null,
+    tdd: null,
+    tdd_compliance: tddCompliance,
     notes: options.notes ? String(options.notes) : null
   };
   validateReceipt(receipt);
@@ -375,9 +380,12 @@ async function main() {
   }
   if (commandName === 'record') {
     await init();
+    if (options['tdd-phase'] || options['tdd-pair']) {
+      throw new Error('manual evidence cannot establish observed governed TDD evidence');
+    }
     const exitCode = integerOption(options, 'exit-code');
     if (exitCode === undefined) throw new Error('--exit-code is required');
-    await store(await buildReceipt({ exitCode }));
+    await store(await buildReceipt({ exitCode, governedExecution: false }));
     return;
   }
   if (commandName === 'check') {
@@ -446,7 +454,6 @@ async function main() {
     options['command-argv'] = JSON.stringify(passthrough);
     options.kind = options.kind || 'command';
     options.scope = options.scope || 'focused';
-    options.source = 'governed-run';
     const duplicate = await findReusable(command, String(options.kind), String(options.scope));
     if (duplicate && options.force !== true) {
       writeLine(
@@ -472,7 +479,7 @@ async function main() {
     });
     const endedAt = new Date().toISOString();
     const exitCode = result.status ?? 1;
-    await store(await buildReceipt({ startedAt, endedAt, exitCode }));
+    await store(await buildReceipt({ startedAt, endedAt, exitCode, governedExecution: true }));
     process.exitCode = exitCode;
     return;
   }

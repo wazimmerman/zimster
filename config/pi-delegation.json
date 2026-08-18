@@ -14,7 +14,7 @@
     "optional": true,
     "auto_install": false
   },
-  "max_parallel_implementers": 2,
+  "mechanical_parallelism_enforcement": "unavailable",
   "max_subagent_depth": 0,
   "integration_owner": "root",
   "fallback": "owner_inline"

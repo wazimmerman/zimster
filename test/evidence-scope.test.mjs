@@ -46,7 +46,7 @@ test('evidence receipts bound requirements, claims, and environment scope', asyn
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const receipt = JSON.parse(result.stdout);
-    assert.equal(receipt.evidence_class, 'claim_establishing');
+    assert.equal(receipt.evidence_class, 'diagnostic');
     assert.equal(receipt.governed_execution, false);
     assert.deepEqual(receipt.requirement_ids, ['EVIDENCE-001', 'CLAIM-001']);
     assert.deepEqual(receipt.establishes, [
@@ -84,6 +84,15 @@ test('diagnostic receipts stay lightweight and explicit TDD requires observed RE
     assert.equal(JSON.parse(result.stdout).evidence_class, 'diagnostic');
 
     result = run(process.execPath, [
+      script, 'record', '--kind', 'diagnostic', '--command', 'owner note',
+      '--exit-code', '0', '--source', 'governed-run'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const manual = JSON.parse(result.stdout);
+    assert.equal(manual.governed_execution, false);
+    assert.equal(manual.source, 'manual-record');
+
+    result = run(process.execPath, [
       script, 'record', '--kind', 'red', '--command', 'node --test', '--exit-code', '1',
       '--tests-passed', '0', '--tests-failed', '1', '--tdd-phase', 'red', '--tdd-pair', 'fix-1'
     ], repo);
@@ -98,7 +107,22 @@ test('diagnostic receipts stay lightweight and explicit TDD requires observed RE
     assert.equal(result.status, 1, result.stderr || result.stdout);
     const red = JSON.parse(result.stdout.trim().split('\n').at(-1));
     assert.equal(red.governed_execution, true);
-    assert.equal(red.tdd.phase, 'red');
+    assert.equal(red.evidence_class, 'diagnostic');
+    assert.equal(red.behavioral_evidence, false);
+    assert.equal(red.tdd, null);
+    assert.equal(red.tdd_compliance, 'unverified');
+
+    result = run(process.execPath, [
+      script, 'run', '--kind', 'green', '--tests-passed', '1', '--tests-failed', '0',
+      '--tdd-phase', 'green', '--tdd-pair', 'fix-1', '--',
+      process.execPath, '-e', 'process.exit(0)'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const green = JSON.parse(result.stdout.trim().split('\n').at(-1));
+    assert.equal(green.evidence_class, 'diagnostic');
+    assert.equal(green.behavioral_evidence, false);
+    assert.equal(green.tdd, null);
+    assert.equal(green.tdd_compliance, 'unverified');
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

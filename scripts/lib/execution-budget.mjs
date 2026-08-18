@@ -27,7 +27,6 @@ export const DEFAULT_EXECUTION_LIMITS = Object.freeze({
   optional_deliberate_agents: 5,
   nesting_depth: 1,
   research_refreshes: 1,
-  final_correction_waves: convergenceDefaults.correction_commits,
   context_compactions: convergenceDefaults.context_renewals
 });
 
@@ -136,7 +135,7 @@ export async function writeExecutionBudget(budgetFile, state) {
 
 export async function recordExecutionBudgetEvent(runtimeDirectory, event) {
   return withBudgetLock(runtimeDirectory, async () => {
-    if (normalizeConvergenceMetric(event.metric) === 'correction_rechecks') {
+    if (['correction_rechecks', 'review_rechecks_per_seam', 'final_integration_reviews', 'final_correction_waves'].includes(event.metric)) {
       let lifecycle;
       try {
         lifecycle = JSON.parse(await readFile(
@@ -156,10 +155,10 @@ export async function recordExecutionBudgetEvent(runtimeDirectory, event) {
         changed: false,
         status: 'LIFECYCLE_ACCOUNTING_AUTHORITATIVE',
         detail: {
-          metric: 'correction_rechecks',
+          metric: event.metric,
           authority: 'reviews/lifecycle.json',
           seam: lifecycle.seam_id,
-          value: lifecycle.aggregate?.correction_rechecks ?? 0,
+          value: lifecycle.aggregate?.[event.metric === 'review_rechecks_per_seam' ? 'correction_rechecks' : event.metric] ?? 0,
           current_cycle: lifecycle.current_cycle ?? 1
         }
       };
@@ -280,7 +279,14 @@ export function applyExecutionBudgetEvent(state, {
   candidateHead = null,
   recordedAt = new Date().toISOString()
 }) {
+  const requestedMetric = metric;
   metric = normalizeConvergenceMetric(metric);
+  if (['correction_rechecks', 'review_rechecks_per_seam', 'final_integration_reviews', 'final_correction_waves'].includes(requestedMetric)) {
+    if (canonicalSeamId && scope && scope !== canonicalSeamId) {
+      throw new Error(`correction recheck scope is canonical: ${canonicalSeamId}`);
+    }
+    throw new Error('canonical review lifecycle is authoritative for review cardinality');
+  }
   if (!Object.hasOwn(state.limits, metric)) {
     const legacy = Object.entries(CONVERGENCE_ALIASES)
       .find(([alias, canonical]) => canonical === metric && Object.hasOwn(state.limits, alias));
@@ -307,25 +313,7 @@ export function applyExecutionBudgetEvent(state, {
       };
     }
   }
-  if (metric === 'correction_rechecks') {
-    if (canonicalSeamId && scope && scope !== canonicalSeamId) {
-      throw new Error(`correction recheck scope is canonical: ${canonicalSeamId}`);
-    }
-    throw new Error('canonical review lifecycle is authoritative for correction rechecks');
-  }
-  if (metric === 'final_integration_reviews') {
-    if (candidateStable !== true) {
-      return {
-        changed: false,
-        status: 'FINAL_REVIEW_RESERVED',
-        detail: { metric, reason: 'candidate head is still changing' }
-      };
-    }
-    if (!/^[0-9a-f]{40}$/.test(candidateHead || '')) {
-      throw new Error('final integration review requires an immutable candidate head');
-    }
-  }
-  const scoped = metric === 'correction_rechecks';
+  const scoped = false;
   const current = scoped
     ? state.scoped_usage[metric]?.[scope] || 0
     : state.usage[metric] || 0;
@@ -402,7 +390,7 @@ export function applyExecutionBudgetEvent(state, {
     recorded_at: recordedAt,
     invalidation,
     strategy_change: strategyChange,
-    candidate_head: metric === 'final_integration_reviews' ? candidateHead : null
+    candidate_head: null
   });
   if (proposed > limit) {
     state.overrides.push({

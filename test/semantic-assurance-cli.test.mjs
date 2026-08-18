@@ -183,6 +183,7 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
         seam_id: 'release-seam',
         review_attempt_id: 'release-seam:final:1',
         reviewer_identity: 'reviewer-1',
+        reviewer_provenance: 'not_host_authenticated',
         dispatch_record_id: 'dispatch-reviewer-1',
         clean_bounded_context: true,
         reviewed_requirement_ids: ['GATE-001'],
@@ -257,6 +258,20 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
     assert.equal(decision.state, 'OWNER_VERIFIED_REVIEW_UNAVAILABLE');
     assert.deepEqual(decision.allowed_claims, ['Candidate completion is gated.']);
     assert.match(decision.reasons.join('\n'), /owner-recorded dispatch.*host-observed/i);
+
+    result = run([
+      'release-review',
+      '--requirements', requirementsPath,
+      '--matrix', matrixPath,
+      '--evidence', evidencePath,
+      '--reviews', reviewsPath,
+      '--review-package', reviewPackagePath
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const releaseDecision = JSON.parse(result.stdout);
+    assert.equal(releaseDecision.state, 'HUMAN_RELEASE_REVIEW_ACCEPTED');
+    assert.equal(releaseDecision.reviewer_provenance, 'not_host_authenticated');
+    assert.equal(releaseDecision.runtime_assurance_state, 'OWNER_VERIFIED_REVIEW_UNAVAILABLE');
 
     requirementMatrix.observations.push({
       id: 'final-evidence-state',
@@ -439,18 +454,18 @@ test('matrix CLI marks naturally stale dependency evidence invalid', async () =>
     }));
     const receiptResult = spawnSync(process.execPath, [
       path.join(root, 'scripts/evidence.mjs'),
-      'record',
+      'run',
       '--kind', 'test',
       '--scope', 'focused',
       '--command', 'node --test',
-      '--exit-code', '0',
       '--tests-passed', '1',
       '--tests-failed', '0',
       '--dependencies', 'dependency.txt',
       '--requirement-ids', 'EVIDENCE-001',
       '--establishes', 'Fresh dependencies are enforced.',
       '--does-not-establish', 'Unrelated behavior is compatible.',
-      '--environment-scope', 'node-linux'
+      '--environment-scope', 'node-linux',
+      '--', process.execPath, '-e', 'process.exit(0)'
     ], { cwd: repo, encoding: 'utf8' });
     assert.equal(receiptResult.status, 0, receiptResult.stderr || receiptResult.stdout);
     const receipt = JSON.parse(receiptResult.stdout);

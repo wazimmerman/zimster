@@ -2,8 +2,9 @@
 
 Zimster releases are cut from a clean, reviewed feature branch. A release is
 authorized by a signed annotated tag whose message is exactly one canonical
-release-evidence JSON payload. CI verifies that authorization; it never creates
-semantic approval.
+release-evidence JSON payload. CI verifies the human release authorization; it
+does not manufacture runtime `CANDIDATE_COMPLETE` or host-authenticated reviewer
+provenance.
 
 The owner's private signing key remains local. CI derives the primary
 fingerprint from the checked-in public verification key, requires it to match
@@ -94,6 +95,17 @@ npm run release:evidence -- create \
 
 The evidence files and generated payload do not need to be committed. Place
 the generated JSON, unchanged, in a signed annotated tag targeting that commit.
+
+The three inputs are closed, candidate-bound JSON records rather than opaque
+attachments. The semantic review must be the exact-head independent integration
+review, truthfully state reviewer provenance, be approved, and contain no
+unresolved Critical or Important finding. Host-matrix and verification records
+must use the supported release-facing schemas. Verification log references are
+portable logical IDs plus hashes, never local paths. Creation and extraction
+reject secrets, private keys, user-profile paths, temporary paths, and
+Git-local Zimster runtime paths before bytes can enter permanent public tag
+history. An accepted tag records `HUMAN_RELEASE_REVIEW_ACCEPTED`; it does not
+alter runtime semantic-assurance state.
 
 Never move, delete, or recreate a published tag. Correct a released defect with
 a patch version.

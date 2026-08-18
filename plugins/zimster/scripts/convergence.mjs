@@ -30,7 +30,11 @@ async function main() {
     : fileURLToPath(new URL('../config/convergence.json', import.meta.url));
   const config = validateConvergenceConfig(JSON.parse(await readFile(configPath, 'utf8')));
   const budget = JSON.parse(await readFile(path.join(runtime, 'budget.json'), 'utf8'));
-  const metric = normalizeConvergenceMetric(required(options, 'metric'));
+  const requestedMetric = required(options, 'metric');
+  if (['correction_rechecks', 'review_rechecks_per_seam', 'final_integration_reviews', 'final_correction_waves'].includes(requestedMetric)) {
+    throw new Error('canonical review lifecycle is authoritative for review cardinality; use review-control.mjs');
+  }
+  const metric = normalizeConvergenceMetric(requestedMetric);
   const scope = required(options, 'scope');
   const sensitivity = required(options, 'sensitivity');
   const reversible = requiredBoolean('reversible');
@@ -39,9 +43,7 @@ async function main() {
   const locality = required(options, 'locality');
   const condition = options.condition ? String(options.condition) : null;
   const enabled = config.autonomous_convergence.enabled;
-  const used = metric === 'correction_rechecks'
-    ? Number(budget.scoped_usage?.[metric]?.[String(options['budget-scope'] || 'default')] || 0)
-    : Number(budget.usage?.[metric] || 0);
+  const used = Number(budget.usage?.[metric] || 0);
   const limit = Number(budget.limits?.[metric]);
   const decision = decideConvergence({
     event: required(options, 'event'), scope, sensitivity,

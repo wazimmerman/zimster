@@ -15,8 +15,9 @@ guarantee. The 0.7.0 host observations below are historical until the exact
   Strict-cost routing treats that as unverified.
 - Model catalogs are account- and session-dependent. Zimster has no canonical
   vendor-model table and safely inherits when evidence is insufficient.
-- Optional Pi delegation depends on a separately installed, pinned transport;
-  the normal fallback is owner-inline execution.
+- The current optional Pi transport cannot prove the max-two-active ownership
+  boundary mechanically. Zimster therefore fails closed to owner-inline
+  execution instead of advertising unenforced parallel delegation.
 - The minimum Codex/DeepSWE pilot completed 12 pairs. Its positive point
   estimates are not definitive: the pass-rate confidence interval includes
   zero and Holm-adjusted secondary comparisons are not significant. The

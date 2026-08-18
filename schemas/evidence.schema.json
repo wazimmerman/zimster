@@ -140,6 +140,10 @@
       "required": ["phase", "pair_id"],
       "additionalProperties": false
     },
+    "tdd_compliance": {
+      "type": ["string", "null"],
+      "enum": ["unverified", null]
+    },
     "invalidation_reason": {
       "type": [
         "string",

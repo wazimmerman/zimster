@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import { validateReviewRecord } from './semantic-assurance.mjs';
 
 export const MAX_EMBEDDED_INPUT_BYTES = 1024 * 1024;
 export const MAX_TOTAL_EMBEDDED_INPUT_BYTES = 2 * 1024 * 1024;
@@ -11,6 +12,141 @@ export const RELEASE_EVIDENCE_INPUTS = Object.freeze([
 ]);
 
 const canonicalBase64 = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/;
+const sha256 = /^[0-9a-f]{64}$/;
+const secretPatterns = [
+  /-----BEGIN\s+(?:RSA\s+|EC\s+|OPENSSH\s+)?PRIVATE KEY-----/,
+  /\bAKIA[0-9A-Z]{16}\b/,
+  /\bgh[pousr]_[A-Za-z0-9]{20,}\b/,
+  /\bnpm_[A-Za-z0-9]{20,}\b/,
+  /\bsk_live_[A-Za-z0-9]{16,}\b/,
+  /(?:NODE_AUTH_TOKEN|NPM_TOKEN|_authToken)\s*[:=]/i
+];
+const localPathPatterns = [
+  /(?:^|[\s"'])(?:\/home\/|\/Users\/|\/root\/|\/tmp\/|\/var\/tmp\/|\/private\/tmp\/|\/private\/var\/folders\/)/,
+  /(?:^|[\s"'])[A-Za-z]:[\\/](?:Users[\\/]|Temp[\\/]|Windows[\\/]Temp[\\/])/i,
+  /(?:^|[\\/])\.git[\\/]zimster(?:[\\/]|$)/i
+];
+
+function exactKeys(value, expected, label) {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    throw new Error(`${label} must be a JSON object`);
+  }
+  const actual = Object.keys(value);
+  const unsupported = actual.filter((key) => !expected.includes(key));
+  const missing = expected.filter((key) => !actual.includes(key));
+  if (unsupported.length || missing.length) {
+    throw new Error(`${label} has unexpected structure`);
+  }
+}
+
+function safeStrings(value, location = '$') {
+  if (typeof value === 'string') {
+    if (secretPatterns.some((pattern) => pattern.test(value))) {
+      throw new Error(`public release input contains a secret at ${location}`);
+    }
+    if (localPathPatterns.some((pattern) => pattern.test(value))) {
+      throw new Error(`public release input contains an unsafe machine-local path at ${location}`);
+    }
+    return;
+  }
+  if (Array.isArray(value)) {
+    value.forEach((item, index) => safeStrings(item, `${location}[${index}]`));
+    return;
+  }
+  if (value && typeof value === 'object') {
+    for (const [key, item] of Object.entries(value)) safeStrings(item, `${location}.${key}`);
+  }
+}
+
+function stringArray(value, field) {
+  if (!Array.isArray(value) || !value.every((item) => typeof item === 'string')) {
+    throw new Error(`${field} must be an array of strings`);
+  }
+}
+
+export function validatePublicReleaseInput(name, bytes, { candidateCommit, candidateTree }) {
+  let value;
+  try {
+    value = JSON.parse(Buffer.from(bytes).toString('utf8'));
+  } catch {
+    throw new Error(`${name} must contain valid JSON`);
+  }
+  safeStrings(value);
+  if (name === 'semantic-review.json') {
+    exactKeys(value, [
+      'schema_version', 'id', 'review_type', 'owner_inline', 'base_sha', 'head_sha',
+      'candidate_tree', 'seam_id', 'review_attempt_id', 'reviewer_identity',
+      'reviewer_provenance', 'dispatch_record_id', 'clean_bounded_context',
+      'reviewed_requirement_ids', 'intended_claims', 'semantic_lenses',
+      'review_scope', 'verdict', 'findings', 'unverified_obligations', 'reviewed_at',
+      'review_package_id', 'requirement_matrix_sha256', 'semantic_contract_sha256',
+      'checkout_integrity_result'
+    ], name);
+    validateReviewRecord(value);
+    if (value.head_sha !== candidateCommit || value.candidate_tree !== candidateTree) {
+      throw new Error('semantic review does not match the exact release candidate head and tree');
+    }
+    if (value.review_type !== 'independent_review' || value.review_scope !== 'integration') {
+      throw new Error('semantic review must be the final independent integration review');
+    }
+    if (typeof value.seam_id !== 'string' || !value.seam_id || typeof value.review_attempt_id !== 'string' || !value.review_attempt_id) {
+      throw new Error('semantic review must identify its canonical seam and review attempt');
+    }
+    if (!['host_authenticated', 'not_host_authenticated'].includes(value.reviewer_provenance)) {
+      throw new Error('semantic review must state reviewer provenance truthfully');
+    }
+    if (value.verdict !== 'approved' || value.unverified_obligations.length) {
+      throw new Error('semantic review is not approved for human release authorization');
+    }
+    if (value.findings.some(({ severity }) => ['Critical', 'Important'].includes(severity))) {
+      throw new Error('semantic review contains unresolved Critical or Important findings');
+    }
+  } else if (name === 'host-matrix.json') {
+    exactKeys(value, ['schema_version', 'candidate_commit', 'candidate_tree', 'hosts'], name);
+    if (value.schema_version !== 1 || value.candidate_commit !== candidateCommit || value.candidate_tree !== candidateTree) {
+      throw new Error('host matrix does not match schema v1 and the exact candidate');
+    }
+    if (!Array.isArray(value.hosts) || !value.hosts.length) throw new Error('host matrix requires at least one host result');
+    const names = new Set();
+    for (const host of value.hosts) {
+      exactKeys(host, [
+        'host', 'artifact_sha256', 'host_version', 'tested_at', 'verification_level',
+        'capabilities_established', 'capabilities_not_established', 'known_limitations'
+      ], 'host matrix entry');
+      if (typeof host.host !== 'string' || !host.host || names.has(host.host)) throw new Error('host matrix host names must be unique');
+      names.add(host.host);
+      if (!sha256.test(host.artifact_sha256 || '') || typeof host.host_version !== 'string' || !host.host_version) throw new Error('host matrix entry requires artifact and host version');
+      if (!host.tested_at || Number.isNaN(Date.parse(host.tested_at)) || !['structural', 'installed-package', 'live', 'model-backed'].includes(host.verification_level)) throw new Error('host matrix entry requires test date and verification level');
+      for (const field of ['capabilities_established', 'capabilities_not_established', 'known_limitations']) stringArray(host[field], field);
+    }
+  } else if (name === 'verification.json') {
+    exactKeys(value, ['schema_version', 'candidate_commit', 'candidate_tree', 'status', 'steps'], name);
+    if (value.schema_version !== 1 || value.candidate_commit !== candidateCommit || value.candidate_tree !== candidateTree || value.status !== 'passed') {
+      throw new Error('verification record does not match schema v1, the exact candidate, and passed status');
+    }
+    if (!Array.isArray(value.steps) || !value.steps.length) throw new Error('verification record requires steps');
+    for (const step of value.steps) {
+      exactKeys(step, ['id', 'status', 'log_id', 'log_sha256'], 'verification step');
+      if (typeof step.id !== 'string' || !step.id || step.status !== 'passed' || typeof step.log_id !== 'string' || !step.log_id || !sha256.test(step.log_sha256 || '')) {
+        throw new Error('verification step requires a passed logical log identity and digest');
+      }
+    }
+  } else {
+    throw new Error(`unsupported public release input: ${name}`);
+  }
+  return value;
+}
+
+export function validateEmbeddedPublicReleaseInputs(evidence) {
+  const decoded = decodeEmbeddedReleaseInputs(evidence);
+  for (const [name, bytes] of decoded) {
+    validatePublicReleaseInput(name, bytes, {
+      candidateCommit: evidence.commit,
+      candidateTree: evidence.tree
+    });
+  }
+  return decoded;
+}
 
 export function decodeEmbeddedReleaseInputs(evidence) {
   if (evidence?.schema_version !== 2) {

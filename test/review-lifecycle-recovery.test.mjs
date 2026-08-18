@@ -6,11 +6,19 @@ import {
 } from '../scripts/lib/review-lifecycle.mjs';
 
 function lifecycle() {
-  return createReviewLifecycle({
+  const state = createReviewLifecycle({
     runId: 'run-1',
     seamId: 'release-seam',
     candidateDigest: 'candidate-a'
   });
+  assert.deepEqual(state.limits, {
+    correction_rechecks_per_cycle: 1,
+    review_cycles_per_seam: 2,
+    strategy_restarts_per_seam: 1,
+    final_integration_reviews: 2,
+    final_correction_waves: 1
+  });
+  return state;
 }
 
 function exhaustCorrectionCycle(state, reviewerId) {

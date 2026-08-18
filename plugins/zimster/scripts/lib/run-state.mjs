@@ -158,11 +158,12 @@ export async function readRunState(runtime) {
   }
 }
 
-async function writeAtomically(file, contents) {
+export async function writeAtomically(file, contents, { beforeRename = null } = {}) {
   await mkdir(path.dirname(file), { recursive: true });
   const temporary = `${file}.temporary-${process.pid}`;
   try {
     await writeFile(temporary, contents, { flag: 'wx' });
+    if (beforeRename) await beforeRename(temporary);
     await rename(temporary, file);
   } finally {
     await rm(temporary, { force: true });

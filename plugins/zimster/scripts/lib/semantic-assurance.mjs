@@ -308,6 +308,62 @@ export function validateReviewRecord(record) {
   return record;
 }
 
+export function evaluateHumanReleaseReview({
+  review,
+  candidateBase,
+  candidateHead,
+  candidateTree,
+  reviewPackageId,
+  requirementMatrixSha256,
+  semanticContractSha256,
+  requiredLenses = []
+}) {
+  const rejected = (reason) => ({
+    accepted: false,
+    state: 'HUMAN_RELEASE_REVIEW_REJECTED',
+    review_id: review?.id || null,
+    reviewer_provenance: review?.reviewer_provenance || 'unavailable',
+    runtime_assurance_state: COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE,
+    reasons: [reason]
+  });
+  try {
+    validateReviewRecord(review);
+  } catch (error) {
+    return rejected(error.message);
+  }
+  if (review.review_type !== 'independent_review' || review.owner_inline === true) {
+    return rejected('human release authorization requires a final independent review record');
+  }
+  if (!['host_authenticated', 'not_host_authenticated'].includes(review.reviewer_provenance)) {
+    return rejected('release review must state whether reviewer provenance is host-authenticated');
+  }
+  if (review.base_sha !== candidateBase) return rejected('release review does not cover the candidate base');
+  if (review.head_sha !== candidateHead) return rejected('release review does not cover the candidate head');
+  if (review.candidate_tree !== candidateTree) return rejected('release review does not cover the candidate tree');
+  if (review.review_package_id !== reviewPackageId) return rejected('release review does not cover the exact review package');
+  if (review.requirement_matrix_sha256 !== requirementMatrixSha256) return rejected('release review does not cover the exact requirement matrix');
+  if (review.semantic_contract_sha256 !== semanticContractSha256) return rejected('release review does not cover the exact semantic contract');
+  if (review.review_scope !== 'integration') return rejected('release authorization requires a final integration review');
+  if (!review.clean_bounded_context || review.checkout_integrity_result !== 'REVIEW_CHECKOUT_UNCHANGED') {
+    return rejected('release review checkout integrity is unavailable');
+  }
+  const missingLenses = requiredLenses.filter((lens) => !review.semantic_lenses.includes(lens));
+  if (missingLenses.length) return rejected(`release review is missing required lenses: ${missingLenses.join(', ')}`);
+  const loadBearing = review.findings.filter(({ severity }) => ['Critical', 'Important'].includes(severity));
+  if (loadBearing.length) return rejected(`release review contains unresolved load-bearing findings: ${loadBearing.map(({ severity }) => severity).join(', ')}`);
+  if (review.verdict !== 'approved' || review.unverified_obligations.length) {
+    return rejected('release review is not approved or retains unverified obligations');
+  }
+  return {
+    accepted: true,
+    state: 'HUMAN_RELEASE_REVIEW_ACCEPTED',
+    review_id: review.id,
+    reviewer_provenance: review.reviewer_provenance,
+    runtime_assurance_state: COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE,
+    reasons: []
+  };
+}
+
 export function independentApprovalFor({
   profile,
   candidateBase,

@@ -5,6 +5,7 @@ import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { root } from './helpers.mjs';
+import { writeAtomically } from '../scripts/lib/run-state.mjs';
 
 function run(command, args, cwd) {
   return spawnSync(command, args, { cwd, encoding: 'utf8' });
@@ -130,5 +131,52 @@ test('0.7.0 Git-local state migrates deterministically without inventing history
     assert.equal(await readFile(reportPath, 'utf8'), firstReport);
   } finally {
     await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('0.7.2 state is not relabeled as legacy 0.7.0 state', async () => {
+  const repo = await mkdtemp(path.join(os.tmpdir(), 'zimster-state-current-'));
+  try {
+    assert.equal(run('git', ['init', '-b', 'main'], repo).status, 0);
+    assert.equal(run('git', ['config', 'user.name', 'Zimster Test'], repo).status, 0);
+    assert.equal(run('git', ['config', 'user.email', 'test@example.com'], repo).status, 0);
+    await writeFile(path.join(repo, 'tracked.txt'), 'base\n');
+    assert.equal(run('git', ['add', 'tracked.txt'], repo).status, 0);
+    assert.equal(run('git', ['commit', '-m', 'base'], repo).status, 0);
+    const runtime = run('git', [
+      'rev-parse', '--path-format=absolute', '--git-path', 'zimster'
+    ], repo).stdout.trim();
+    const current = {
+      schema_version: 2, id: 'run-072', root_actor_id: 'root',
+      started_at: '2026-08-18T00:00:00.000Z', starting_head: run('git', ['rev-parse', 'HEAD'], repo).stdout.trim(),
+      profile: 'High-risk', rationale: 'Public release.', mission: 'Release safely.',
+      capability_receipt: null, branch: 'main', commit_policy: 'PR only', durable_state_triggers: [],
+      plan: { id: 'release', source: 'owner request' }, decisions: [], slice_commits: [], evidence: [],
+      verifications: [], unresolved_risks: [], current_slice: null, next_slice: null, recovery: null
+    };
+    await writeJson(path.join(runtime, 'run.json'), current);
+    const before = await readFile(path.join(runtime, 'run.json'), 'utf8');
+    const result = run(process.execPath, [path.join(root, 'scripts/migrate-state.mjs')], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(JSON.parse(result.stdout).status, 'MIGRATION_ALREADY_CURRENT');
+    assert.equal(await readFile(path.join(runtime, 'run.json'), 'utf8'), before);
+    await assert.rejects(readFile(path.join(runtime, 'migration-0.7.0.json'), 'utf8'), /ENOENT/);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('interrupted atomic state persistence preserves the prior canonical run', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'zimster-state-atomic-'));
+  try {
+    const runFile = path.join(directory, 'run.json');
+    await writeFile(runFile, '{"state":"prior"}\n');
+    await assert.rejects(writeAtomically(runFile, '{"state":"replacement"}\n', {
+      beforeRename: async () => { throw new Error('simulated interruption'); }
+    }), /simulated interruption/);
+    assert.equal(await readFile(runFile, 'utf8'), '{"state":"prior"}\n');
+    assert.deepEqual((await import('node:fs/promises').then(({ readdir }) => readdir(directory))).sort(), ['run.json']);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
   }
 });

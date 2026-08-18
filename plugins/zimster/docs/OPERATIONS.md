@@ -69,6 +69,12 @@ Completion requires the canonical approved final-review attempt and genuinely
 host-observed reviewer-result provenance; a review JSON or owner-recorded
 dispatch alone cannot authorize `CANDIDATE_COMPLETE`.
 
+Release authorization is a separate human boundary. A signed annotated
+release-evidence tag may authorize an exact-head final independent review whose
+record truthfully says that reviewer provenance is not host-authenticated. That
+release-specific result is `HUMAN_RELEASE_REVIEW_ACCEPTED`, not
+`CANDIDATE_COMPLETE`, and it does not rewrite runtime assurance state.
+
 Record delegation first with `delegation-record.mjs decide`. Only a selected
 decision may reach `model-routing.mjs propose`. Regenerate a dispatch-phase
 proposal and resolve it with current task, Git, configuration, harness,
@@ -199,11 +205,15 @@ New receipts may also carry `--requirement-ids`, `--establishes`,
 contains commas. This prevents a narrow native harness or fixture from being
 reported as broad compatibility proof.
 
-Receipts are `diagnostic` unless they explicitly bind requirements and claims;
-those receipts are `claim_establishing`. Only executions performed by the
-`evidence run` or verification wrappers are marked as governed. Prospective
-TDD claims use `--tdd-phase red|green --tdd-pair <id>` on an actual wrapper-
-observed test execution; manual records cannot establish RED or GREEN.
+Receipts are `diagnostic` unless a trustworthy execution interface explicitly
+binds requirements and claims. `evidence record` is always manual and
+diagnostic; caller text such as `--source governed-run` cannot elevate it.
+`evidence run` records that its command was wrapper-governed, but its generic
+interface cannot authenticate arbitrary framework test counts or RED/GREEN
+meaning. Generic TDD-labelled runs therefore remain diagnostic with
+`tdd_compliance=unverified`. Only a future framework-specific interface that
+derives test identity, discovery, outcome, candidate binding, and ordered pair
+facts internally may establish a TDD compliance claim.
 
 Test-discovery values are `not_reached`, `zero_discovered`, `tests_executed`,
 and `unknown`. `unknown` and `not_reached` carry no counts; `zero_discovered`

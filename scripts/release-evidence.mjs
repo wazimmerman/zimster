@@ -10,7 +10,9 @@ import {
   MAX_RELEASE_TAG_PAYLOAD_BYTES,
   normalizeReleaseSignerFingerprint,
   parseReleaseEvidenceTagPayload,
-  RELEASE_EVIDENCE_INPUTS
+  RELEASE_EVIDENCE_INPUTS,
+  validateEmbeddedPublicReleaseInputs,
+  validatePublicReleaseInput
 } from './lib/release-evidence.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
@@ -28,10 +30,17 @@ async function inputDigests() {
     ['host_matrix_sha256', 'host-matrix'],
     ['verification_sha256', 'verification']
   ];
-  return Object.fromEntries(await Promise.all(rows.map(async ([field, option]) => [
-    field,
-    await digestFile(path.resolve(process.cwd(), required(options, option)))
-  ])));
+  return Object.fromEntries(await Promise.all(rows.map(async ([field, option]) => {
+    const file = path.resolve(process.cwd(), required(options, option));
+    const bytes = await readFile(file);
+    if (option !== 'standards-lock') {
+      validatePublicReleaseInput(`${option}.json`, bytes, {
+        candidateCommit: String(options['expected-commit'] || options.commit || ''),
+        candidateTree: String(options['expected-tree'] || options.tree || '')
+      });
+    }
+    return [field, createHash('sha256').update(bytes).digest('hex')];
+  })));
 }
 
 async function embeddedInputs() {
@@ -42,6 +51,10 @@ async function embeddedInputs() {
   ]);
   return Object.fromEntries(await Promise.all(RELEASE_EVIDENCE_INPUTS.map(async ([name]) => {
     const bytes = await readFile(path.resolve(process.cwd(), required(options, optionByName.get(name))));
+    validatePublicReleaseInput(name, bytes, {
+      candidateCommit: String(options.commit || options['expected-commit'] || ''),
+      candidateTree: String(options.tree || options['expected-tree'] || '')
+    });
     return [name, bytes.toString('base64')];
   })));
 }
@@ -92,6 +105,7 @@ function validateShape(evidence) {
   }
   if (Object.keys(evidence).some((key) => !keys.includes(key))) throw new Error('release evidence contains unsupported fields');
   decodeEmbeddedReleaseInputs(evidence);
+  validateEmbeddedPublicReleaseInputs(evidence);
 }
 
 function gitOutput(root, args, label, maxBuffer = 1024 * 1024) {

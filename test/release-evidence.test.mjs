@@ -10,7 +10,8 @@ import {
   decodeEmbeddedReleaseInputs,
   MAX_EMBEDDED_INPUT_BYTES,
   parseReleaseEvidenceRefContents,
-  parseReleaseEvidenceTagPayload
+  parseReleaseEvidenceTagPayload,
+  validatePublicReleaseInput
 } from '../scripts/lib/release-evidence.mjs';
 import { root } from './helpers.mjs';
 
@@ -18,6 +19,37 @@ function run(args, cwd = root) {
   return spawnSync(process.execPath, [path.join(root, 'scripts/release-evidence.mjs'), ...args], {
     cwd, encoding: 'utf8'
   });
+}
+
+function releaseInputs(commit, tree) {
+  return {
+    semantic: {
+      schema_version: 1,
+      id: 'final-review', review_type: 'independent_review', owner_inline: false,
+      base_sha: 'a'.repeat(40), head_sha: commit, candidate_tree: tree,
+      seam_id: 'release-seam', review_attempt_id: 'release-seam:final:1',
+      reviewer_identity: 'reviewer-1', dispatch_record_id: null,
+      reviewer_provenance: 'not_host_authenticated', clean_bounded_context: true,
+      reviewed_requirement_ids: ['RELEASE-001'], intended_claims: ['Release candidate is bounded.'],
+      semantic_lenses: ['release-integrity'], review_scope: 'integration', verdict: 'approved',
+      findings: [], unverified_obligations: [], reviewed_at: '2026-08-18T00:00:00.000Z',
+      review_package_id: 'package-final', requirement_matrix_sha256: 'b'.repeat(64),
+      semantic_contract_sha256: 'c'.repeat(64), checkout_integrity_result: 'REVIEW_CHECKOUT_UNCHANGED'
+    },
+    matrix: {
+      schema_version: 1, candidate_commit: commit, candidate_tree: tree,
+      hosts: [{
+        host: 'codex', artifact_sha256: 'd'.repeat(64), host_version: '1.0.0',
+        tested_at: '2026-08-18T00:00:00.000Z', verification_level: 'structural',
+        capabilities_established: ['skill discovery'], capabilities_not_established: ['model-backed execution'],
+        known_limitations: ['No authenticated model session.']
+      }]
+    },
+    verification: {
+      schema_version: 1, candidate_commit: commit, candidate_tree: tree, status: 'passed',
+      steps: [{ id: 'release-gate', status: 'passed', log_id: 'release-gate', log_sha256: 'e'.repeat(64) }]
+    }
+  };
 }
 
 test('signed authorization accepts exactly one canonical JSON payload', () => {
@@ -46,12 +78,13 @@ test('release evidence canonically binds authorization inputs and all five artif
     const semantic = path.join(directory, 'semantic.json');
     const matrix = path.join(directory, 'hosts.json');
     const verification = path.join(directory, 'verification.json');
-    for (const [file, value] of [[semantic, { verdict: 'approved' }], [matrix, { hosts: [] }], [verification, { status: 'passed' }]]) {
-      await writeFile(file, `${JSON.stringify(value)}\n`);
-    }
     const output = path.join(directory, 'release-evidence.json');
     const commit = spawnSync('git', ['rev-parse', 'HEAD'], { cwd: root, encoding: 'utf8' }).stdout.trim();
     const tree = spawnSync('git', ['rev-parse', 'HEAD^{tree}'], { cwd: root, encoding: 'utf8' }).stdout.trim();
+    const inputs = releaseInputs(commit, tree);
+    await writeFile(semantic, `${JSON.stringify(inputs.semantic)}\n`);
+    await writeFile(matrix, `${JSON.stringify(inputs.matrix)}\n`);
+    await writeFile(verification, `${JSON.stringify(inputs.verification)}\n`);
     let result = run([
       'create', '--version', '0.7.2', '--tag', 'v0.7.2', '--channel', 'public_beta',
       '--commit', commit, '--tree', tree, '--standards-lock', 'config/standards-lock.json',
@@ -71,9 +104,9 @@ test('release evidence canonically binds authorization inputs and all five artif
       'semantic-review.json', 'host-matrix.json', 'verification.json'
     ]);
     const embedded = decodeEmbeddedReleaseInputs(evidence);
-    assert.equal(embedded.get('semantic-review.json').toString(), '{"verdict":"approved"}\n');
-    assert.equal(embedded.get('host-matrix.json').toString(), '{"hosts":[]}\n');
-    assert.equal(embedded.get('verification.json').toString(), '{"status":"passed"}\n');
+    assert.deepEqual(JSON.parse(embedded.get('semantic-review.json')), inputs.semantic);
+    assert.deepEqual(JSON.parse(embedded.get('host-matrix.json')), inputs.matrix);
+    assert.deepEqual(JSON.parse(embedded.get('verification.json')), inputs.verification);
     result = run([
       'verify', '--file', output, '--expected-tag', 'v0.7.2', '--expected-commit', commit,
       '--expected-tree', tree, '--standards-lock', 'config/standards-lock.json',
@@ -83,9 +116,9 @@ test('release evidence canonically binds authorization inputs and all five artif
     assert.equal(result.status, 0, result.stderr || result.stdout);
 
     for (const [file, original, label] of [
-      [semantic, '{"verdict":"approved"}\n', 'semantic review'],
-      [matrix, '{"hosts":[]}\n', 'host matrix'],
-      [verification, '{"status":"passed"}\n', 'verification']
+      [semantic, `${JSON.stringify(inputs.semantic)}\n`, 'semantic review'],
+      [matrix, `${JSON.stringify(inputs.matrix)}\n`, 'host matrix'],
+      [verification, `${JSON.stringify(inputs.verification)}\n`, 'verification']
     ]) {
       await writeFile(file, `${original.trim()} `);
       result = run([
@@ -100,6 +133,28 @@ test('release evidence canonically binds authorization inputs and all five artif
     }
   } finally {
     await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('public release inputs reject machine-local paths and secrets on every platform', () => {
+  const commit = 'a'.repeat(40);
+  const tree = 'b'.repeat(40);
+  const inputs = releaseInputs(commit, tree);
+  for (const [label, unsafe] of [
+    ['Linux HOME', '/home/alice/project/.git/zimster/verification.json'],
+    ['macOS HOME', '/Users/alice/Library/Caches/zimster.log'],
+    ['Windows profile', 'C:\\Users\\Alice\\AppData\\Local\\Temp\\zimster.log'],
+    ['Git-local runtime', '.git/zimster/reviews/lifecycle.json'],
+    ['private key', ['-----BEGIN', 'PRIVATE KEY-----'].join(' ')],
+    ['GitHub token', `ghp_${'A'.repeat(32)}`],
+    ['npm token', `npm_${'A'.repeat(36)}`]
+  ]) {
+    const document = structuredClone(inputs.verification);
+    document.steps[0].log_id = unsafe;
+    assert.throws(() => validatePublicReleaseInput(
+      'verification.json', Buffer.from(`${JSON.stringify(document)}\n`),
+      { candidateCommit: commit, candidateTree: tree }
+    ), new RegExp(`unsafe|secret|path`, 'i'), label);
   }
 });
 

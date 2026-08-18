@@ -1,7 +1,8 @@
-import { readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import path from 'node:path';
 import { captureGitState, changedFiles } from './git-state.mjs';
 import { CONVERGENCE_METRICS } from './convergence.mjs';
+import { writeAtomically } from './run-state.mjs';
 
 async function optionalText(file) {
   try {
@@ -33,6 +34,27 @@ export async function migrate070State({ root, runtime }) {
   if (!original) throw new Error('0.7.0 migration requires an existing run.json');
   if (original.schema_version !== 2) {
     throw new Error(`unsupported run.json schema_version ${original.schema_version}`);
+  }
+  if (original.migration?.source_version === '0.7.0') {
+    const reportFile = path.join(runtime, 'migration-0.7.0.json');
+    const report = await optionalJson(reportFile);
+    if (!report) throw new Error('already-migrated 0.7.0 state is missing its migration report');
+    return { report, reportFile, migrationStatus: 'already_migrated' };
+  }
+  const currentFields = [
+    'profile', 'rationale', 'capability_receipt', 'branch', 'commit_policy',
+    'durable_state_triggers', 'current_slice', 'next_slice', 'recovery'
+  ];
+  const currentFieldCount = currentFields.filter((field) => Object.hasOwn(original, field)).length;
+  if (currentFieldCount === currentFields.length) {
+    return { report: null, reportFile: null, migrationStatus: 'already_current' };
+  }
+  const legacyFields = [
+    'id', 'root_actor_id', 'started_at', 'starting_head', 'plan', 'decisions',
+    'slice_commits', 'evidence', 'verifications', 'unresolved_risks'
+  ];
+  if (!legacyFields.every((field) => Object.hasOwn(original, field)) || currentFieldCount !== 0) {
+    throw new Error('run.json cannot be safely identified as genuine 0.7.0 state');
   }
   const checkpoint = await optionalJson(path.join(runtime, 'checkpoints', 'current.json'));
   const budget = await optionalJson(path.join(runtime, 'budget.json'));
@@ -81,9 +103,6 @@ export async function migrate070State({ root, runtime }) {
     historical_records_rewritten: false
   };
 
-  const stateBytes = rendered(state);
-  if (stateBytes !== await optionalText(runFile)) await writeFile(runFile, stateBytes);
-
   const evidenceFile = path.join(runtime, 'evidence', 'receipts.jsonl');
   const preservedRecords = {
     delegation_decisions: await jsonlCount(path.join(runtime, 'delegation', 'decisions.jsonl')),
@@ -118,6 +137,11 @@ export async function migrate070State({ root, runtime }) {
   };
   const reportFile = path.join(runtime, 'migration-0.7.0.json');
   const reportBytes = rendered(report);
-  if (reportBytes !== await optionalText(reportFile)) await writeFile(reportFile, reportBytes);
-  return { report, reportFile };
+  // Persist the derived report first. If interrupted here, canonical run.json
+  // remains recognizably legacy and a restart deterministically retries. Once
+  // run.json advances, the complete report is already durable.
+  if (reportBytes !== await optionalText(reportFile)) await writeAtomically(reportFile, reportBytes);
+  const stateBytes = rendered(state);
+  if (stateBytes !== await optionalText(runFile)) await writeAtomically(runFile, stateBytes);
+  return { report, reportFile, migrationStatus: 'migrated' };
 }

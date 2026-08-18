@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   COMPLETION_STATES,
   evaluateCandidateCompletion,
+  evaluateHumanReleaseReview,
   evaluateRequirementMatrix,
   independentApprovalFor,
   semanticContractDigest,
@@ -962,6 +963,53 @@ test('fabricated independent review JSON cannot complete without canonical lifec
   });
   assert.equal(result.state, COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE);
   assert.match(result.reasons.join('\n'), /canonical review lifecycle|provenance/i);
+});
+
+test('human release review is exact-head, load-bearing-clean, and does not manufacture runtime approval', () => {
+  const acceptedReview = review({
+    reviewer_provenance: 'not_host_authenticated',
+    semantic_lenses: REQUIRED_LENSES,
+    intended_claims: ['Candidate claim.']
+  });
+  const accepted = evaluateHumanReleaseReview({
+    review: acceptedReview,
+    candidateBase: SHA_A,
+    candidateHead: SHA_B,
+    candidateTree: TREE,
+    reviewPackageId: 'package-001',
+    requirementMatrixSha256: MATRIX_SHA,
+    semanticContractSha256: CONTRACT_SHA,
+    requiredLenses: REQUIRED_LENSES
+  });
+  assert.deepEqual(accepted, {
+    accepted: true,
+    state: 'HUMAN_RELEASE_REVIEW_ACCEPTED',
+    review_id: 'review-001',
+    reviewer_provenance: 'not_host_authenticated',
+    runtime_assurance_state: 'OWNER_VERIFIED_REVIEW_UNAVAILABLE',
+    reasons: []
+  });
+
+  for (const [override, pattern] of [
+    [{ head_sha: 'f'.repeat(40) }, /head/i],
+    [{ candidate_tree: 'f'.repeat(40) }, /tree/i],
+    [{ findings: [{ severity: 'Critical', summary: 'release blocker' }], verdict: 'needs_correction' }, /Critical|load-bearing/i],
+    [{ findings: [{ severity: 'Important', summary: 'release blocker' }], verdict: 'needs_correction' }, /Important|load-bearing/i]
+  ]) {
+    const rejected = evaluateHumanReleaseReview({
+      review: { ...acceptedReview, ...override },
+      candidateBase: SHA_A,
+      candidateHead: SHA_B,
+      candidateTree: TREE,
+      reviewPackageId: 'package-001',
+      requirementMatrixSha256: MATRIX_SHA,
+      semanticContractSha256: CONTRACT_SHA,
+      requiredLenses: REQUIRED_LENSES
+    });
+    assert.equal(rejected.accepted, false);
+    assert.notEqual(rejected.state, COMPLETION_STATES.CANDIDATE_COMPLETE);
+    assert.match(rejected.reasons.join('\n'), pattern);
+  }
 });
 
 test('a correction invalidates prior approval until the bounded recheck', () => {

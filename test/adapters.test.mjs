@@ -98,7 +98,8 @@ test('Pi optional delegation uses a pinned, depth-zero capability boundary with 
   assert.deepEqual(contract.methods, ['probe', 'launch', 'status', 'cancel', 'collect']);
   assert.equal(contract.transport.package, 'pi-subagents');
   assert.equal(contract.transport.version, '0.42.1');
-  assert.equal(contract.max_parallel_implementers, 2);
+  assert.equal(contract.mechanical_parallelism_enforcement, 'unavailable');
+  assert.equal(Object.hasOwn(contract, 'max_parallel_implementers'), false);
   assert.equal(contract.max_subagent_depth, 0);
   assert.equal(contract.integration_owner, 'root');
 
@@ -113,7 +114,7 @@ test('Pi optional delegation uses a pinned, depth-zero capability boundary with 
   await assert.rejects(capability.launch({ role: 'scout', depth: 1 }), /depth/i);
 });
 
-test('Pi delegation keeps two independent launches parallel and nested work fail-closed', async () => {
+test('Pi delegation fails closed inline when max-two parallelism is not mechanically enforced', async () => {
   const module = await import(`${pathToFileURL(path.join(root, '.pi/delegation.ts')).href}?parallel=${Date.now()}`);
   let inFlight = 0;
   let peak = 0;
@@ -134,16 +135,14 @@ test('Pi delegation keeps two independent launches parallel and nested work fail
     capability.launch({ id: 'impl-a', role: 'bounded_implementer', depth: 0 }),
     capability.launch({ id: 'impl-b', role: 'bounded_implementer', depth: 0 })
   ]);
-  assert.equal(peak, 2);
-  assert.deepEqual([first.id, second.id], ['impl-a', 'impl-b']);
-  assert.equal(requests.every((request) =>
-    request.maxParallelImplementers === 2 && request.allowNestedSubagents === false
-  ), true);
+  assert.equal(peak, 0);
+  assert.deepEqual([first.status, second.status], ['inline_required', 'inline_required']);
+  assert.equal(requests.length, 0, 'unenforced Pi transport must not receive launches');
   await assert.rejects(
     capability.launch({ id: 'nested', role: 'bounded_implementer', depth: 1 }),
     /depth/i
   );
-  assert.equal(requests.length, 2, 'nested launch must not reach the transport');
+  assert.equal(requests.length, 0, 'nested launch must not reach the transport');
 });
 
 test('secondary adapter validator accepts the documented package', async () => {
