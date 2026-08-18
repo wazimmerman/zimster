@@ -16,5 +16,6 @@
   },
   "max_parallel_implementers": 2,
   "max_subagent_depth": 0,
+  "integration_owner": "root",
   "fallback": "owner_inline"
 }

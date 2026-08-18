@@ -104,6 +104,7 @@ test('Pi optional delegation uses a pinned, depth-zero capability boundary with 
   assert.equal(contract.transport.version, '0.42.1');
   assert.equal(contract.max_parallel_implementers, 2);
   assert.equal(contract.max_subagent_depth, 0);
+  assert.equal(contract.integration_owner, 'root');
 
   const module = await import(`${pathToFileURL(path.join(root, '.pi/delegation.ts')).href}?test=${Date.now()}`);
   const capability = module.createPiDelegationCapability();
@@ -114,6 +115,39 @@ test('Pi optional delegation uses a pinned, depth-zero capability boundary with 
   });
   assert.equal((await capability.launch({ role: 'scout', depth: 0 })).status, 'inline_required');
   await assert.rejects(capability.launch({ role: 'scout', depth: 1 }), /depth/i);
+});
+
+test('Pi delegation keeps two independent launches parallel and nested work fail-closed', async () => {
+  const module = await import(`${pathToFileURL(path.join(root, '.pi/delegation.ts')).href}?parallel=${Date.now()}`);
+  let inFlight = 0;
+  let peak = 0;
+  const requests = [];
+  const transport = Object.fromEntries(['probe', 'status', 'cancel', 'collect'].map((name) => [
+    name, async (request) => ({ name, request })
+  ]));
+  transport.launch = async (request) => {
+    requests.push(request);
+    inFlight += 1;
+    peak = Math.max(peak, inFlight);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    inFlight -= 1;
+    return { status: 'launched', id: request.id };
+  };
+  const capability = module.createPiDelegationCapability(transport);
+  const [first, second] = await Promise.all([
+    capability.launch({ id: 'impl-a', role: 'bounded_implementer', depth: 0 }),
+    capability.launch({ id: 'impl-b', role: 'bounded_implementer', depth: 0 })
+  ]);
+  assert.equal(peak, 2);
+  assert.deepEqual([first.id, second.id], ['impl-a', 'impl-b']);
+  assert.equal(requests.every((request) =>
+    request.maxParallelImplementers === 2 && request.allowNestedSubagents === false
+  ), true);
+  await assert.rejects(
+    capability.launch({ id: 'nested', role: 'bounded_implementer', depth: 1 }),
+    /depth/i
+  );
+  assert.equal(requests.length, 2, 'nested launch must not reach the transport');
 });
 
 test('secondary adapter validator accepts the documented package', async () => {
