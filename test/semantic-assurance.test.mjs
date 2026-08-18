@@ -328,6 +328,21 @@ test('diagnostic evidence cannot establish a semantic completion claim', () => {
   assert.match(result.issues.join('\n'), /diagnostic.*claim/i);
 });
 
+test('valid 0.7.0 evidence remains usable while missing claim facts fail closed', () => {
+  const legacy = scopedEvidence('LEGACY-001');
+  delete legacy.evidence_class;
+  assert.equal(evaluate(
+    [matrixEntry('LEGACY-001')], binding('LEGACY-001'), [legacy]
+  ).valid, true);
+  const incomplete = structuredClone(legacy);
+  delete incomplete.environment_scope;
+  const result = evaluate(
+    [matrixEntry('LEGACY-001')], binding('LEGACY-001'), [incomplete]
+  );
+  assert.equal(result.valid, false);
+  assert.match(result.issues.join('\n'), /environment scope/i);
+});
+
 function evaluate(entries, bindingRequirements, evidence) {
   return evaluateRequirementMatrix({
     bindingRequirements,

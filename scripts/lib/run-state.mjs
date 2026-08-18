@@ -116,7 +116,11 @@ export function projectRunMarkdown(state) {
     '',
     '## Architecture and current slice',
     '',
-    `- Current slice: ${current ? `${current.id}: ${current.summary}` : 'none'}`,
+    `- Current slice: ${current
+      ? `${current.id}: ${current.summary}`
+      : state.current_slice_status === 'unknown'
+        ? 'unknown (preserved pre-0.7.2 state)'
+        : 'none'}`,
     `- Next slice: ${next ? `${next.id}: ${next.summary}` : 'none'}`,
     '',
     '## Completed evidence',

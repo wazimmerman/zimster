@@ -9,6 +9,7 @@
     "root_actor_id": { "type": "string", "minLength": 1 },
     "started_at": { "type": "string", "format": "date-time" },
     "starting_head": { "type": ["string", "null"] },
+    "state_format_revision": { "type": "integer", "minimum": 1 },
     "profile": { "type": "string", "minLength": 1 },
     "rationale": { "type": "string", "minLength": 1 },
     "mission": { "type": ["string", "null"] },
@@ -28,8 +29,10 @@
     "verifications": { "type": "array" },
     "unresolved_risks": { "type": "array" },
     "current_slice": { "type": ["object", "null"] },
+    "current_slice_status": { "enum": ["in_progress", "unknown", "complete"] },
     "next_slice": { "type": ["object", "null"] },
-    "recovery": { "type": ["object", "null"] }
+    "recovery": { "type": ["object", "null"] },
+    "migration": { "type": "object" }
   },
   "additionalProperties": false
 }

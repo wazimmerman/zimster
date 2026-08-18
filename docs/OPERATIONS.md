@@ -9,6 +9,13 @@ working directory is the target repository.
 
 ## Durable run state
 
+An installed 0.7.2 runtime may encounter existing 0.7.0 Git-local state. Run
+`npm run state:migrate` once in that repository. The bounded migration preserves
+the checkpoint, budget, evidence, review, delegation, and dispatch stores;
+records observed dirty work; and writes `migration-0.7.0.json`. Missing counts,
+commands, failures, or approvals remain unknown or unavailable. Repeating the
+migration over unchanged inputs is a fixed point.
+
 ```text
 node <zimster>/scripts/init-run.mjs \
   --profile high-risk \
