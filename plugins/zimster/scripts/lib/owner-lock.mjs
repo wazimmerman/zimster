@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { mkdir, readFile, rename, rm, stat, writeFile } from 'node:fs/promises';
+import { mkdir, open, readFile, rename, rm, stat } from 'node:fs/promises';
 import path from 'node:path';
 
 const COLLISION_CODES = new Set(['EEXIST', 'ENOTEMPTY', 'EPERM']);
@@ -82,23 +82,46 @@ async function readOwner(lockPath) {
   }
 }
 
-async function tryCreate(lockPath, owner) {
-  await mkdir(path.dirname(lockPath), { recursive: true });
+async function writeOwner(stagingPath, owner) {
+  const ownerPath = path.join(stagingPath, 'owner.json');
+  const handle = await open(ownerPath, 'wx', 0o600);
   try {
-    await mkdir(lockPath);
+    await handle.writeFile(`${JSON.stringify(owner)}\n`);
+    await handle.sync();
+  } finally {
+    await handle.close();
+  }
+}
+
+async function tryCreate(lockPath, owner, { onStaged } = {}) {
+  await mkdir(path.dirname(lockPath), { recursive: true });
+  const stagingPath = `${lockPath}.pending-${owner.pid}-${owner.owner_id}`;
+  let stagingOwned = false;
+  let published = false;
+  try {
+    await mkdir(stagingPath, { mode: 0o700 });
+    stagingOwned = true;
   } catch (error) {
     if (COLLISION_CODES.has(error.code)) return false;
     throw error;
   }
   try {
-    await writeFile(path.join(lockPath, 'owner.json'), `${JSON.stringify(owner)}\n`, {
-      flag: 'wx',
-      mode: 0o600
+    await writeOwner(stagingPath, owner);
+    if (onStaged) await onStaged({ lockPath, owner, stagingPath });
+
+    // Never replace an already-published lock, including a legacy incomplete
+    // directory. New locks are complete before this atomic publication step.
+    if ((await readOwner(lockPath)).status !== 'missing') return false;
+    published = await renameOwnerLockPath(stagingPath, lockPath, {
+      collisionCodes: process.platform === 'win32'
+        ? [...COLLISION_CODES]
+        : ['EEXIST', 'ENOTEMPTY']
     });
-    return true;
-  } catch (error) {
-    await rm(lockPath, { recursive: true, force: true });
-    throw error;
+    return published;
+  } finally {
+    if (stagingOwned && !published) {
+      await rm(stagingPath, { recursive: true, force: true });
+    }
   }
 }
 
@@ -140,13 +163,6 @@ async function reclaimDeadOwner(lockPath, observed) {
   return quarantineReclaim(lockPath, deadOwnerIdentity(observed));
 }
 
-async function reclaimIncompleteOwner(lockPath, observed) {
-  if (!await markReclaiming(lockPath)) return false;
-  const current = await readOwner(lockPath);
-  if (current.status !== 'incomplete' || current.identity !== observed.identity) return false;
-  return quarantineReclaim(lockPath, observed.identity);
-}
-
 export async function releaseOwnerLock(lockPath, owner) {
   const current = await readOwner(lockPath);
   if (
@@ -166,16 +182,18 @@ export async function acquireOwnerLock(lockPath, {
   incompleteGraceMs = 1000,
   pid = process.pid,
   ownerId = randomUUID(),
-  acquiredAt = new Date().toISOString()
+  acquiredAt = new Date().toISOString(),
+  onStaged
 } = {}) {
   if (!Number.isInteger(maxAttempts) || maxAttempts < 1) throw new Error('owner lock maxAttempts must be positive');
   if (!Number.isInteger(retryDelayMs) || retryDelayMs < 0) throw new Error('owner lock retryDelayMs must be non-negative');
   if (!Number.isInteger(incompleteGraceMs) || incompleteGraceMs < 0) throw new Error('owner lock incompleteGraceMs must be non-negative');
+  if (onStaged !== undefined && typeof onStaged !== 'function') throw new Error('owner lock onStaged must be a function');
   const owner = ownerRecord({ pid, ownerId, acquiredAt });
   if (!validOwner(owner)) throw new Error('owner lock metadata is invalid');
 
   for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    if (await tryCreate(lockPath, owner)) {
+    if (await tryCreate(lockPath, owner, { onStaged })) {
       let released = false;
       return {
         owner,
@@ -192,16 +210,10 @@ export async function acquireOwnerLock(lockPath, {
       && processDisposition(observed.owner.pid) === 'dead'
       && await reclaimDeadOwner(lockPath, observed.owner)
     ) continue;
-    if (
-      observed.status === 'incomplete'
-      && Date.now() - observed.modifiedAt >= incompleteGraceMs
-      && await reclaimIncompleteOwner(lockPath, observed)
-    ) continue;
-    if (
-      observed.status === 'incomplete'
-      && Date.now() - observed.modifiedAt < incompleteGraceMs
-    ) {
-      // A newly visible directory is never treated as an abandoned lock.
+    if (observed.status === 'incomplete') {
+      // Legacy incomplete locks have no owner identity whose death can be
+      // established. Fail closed instead of risking displacement of a paused
+      // creator. New acquisition never exposes this state.
     }
     if (attempt + 1 < maxAttempts && retryDelayMs > 0) {
       await new Promise((resolve) => setTimeout(resolve, retryDelayMs));

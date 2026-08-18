@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { access, mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { access, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {
@@ -25,6 +25,135 @@ async function waitForFile(file, attempts = 200) {
   }
   throw new Error(`timed out waiting for ${file}`);
 }
+
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise;
+    reject = rejectPromise;
+  });
+  return { promise, reject, resolve };
+}
+
+async function pathExists(target) {
+  try {
+    await access(target);
+    return true;
+  } catch (error) {
+    if (error.code === 'ENOENT') return false;
+    throw error;
+  }
+}
+
+async function pendingLocks(directory, lockName = 'state.lock') {
+  return (await readdir(directory)).filter((entry) => entry.startsWith(`${lockName}.pending-`));
+}
+
+test('a paused creator fully stages ownership before exposing the canonical lock', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'zimster-owner-lock-staging-'));
+  const lock = path.join(directory, 'state.lock');
+  const staged = deferred();
+  const publish = deferred();
+  try {
+    const acquisition = acquireOwnerLock(lock, {
+      maxAttempts: 1,
+      ownerId: 'paused-owner',
+      onStaged: async ({ stagingPath, owner }) => {
+        assert.equal(JSON.parse(await readFile(path.join(stagingPath, 'owner.json'), 'utf8')).owner_id, owner.owner_id);
+        staged.resolve(stagingPath);
+        await publish.promise;
+      }
+    });
+    const stagingPath = await Promise.race([
+      staged.promise,
+      acquisition.then(() => {
+        throw new Error('canonical lock was published without reaching the staged-owner boundary');
+      })
+    ]);
+    assert.equal(await pathExists(lock), false);
+    assert.equal(await pathExists(stagingPath), true);
+
+    publish.resolve();
+    const handle = await acquisition;
+    assert.equal(JSON.parse(await readFile(path.join(lock, 'owner.json'), 'utf8')).owner_id, handle.owner.owner_id);
+    assert.equal(await pathExists(stagingPath), false);
+    assert.equal(await handle.release(), true);
+  } finally {
+    publish.resolve();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('a losing publisher cleans only its staging directory and cannot delete the new canonical owner', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'zimster-owner-lock-losing-publisher-'));
+  const lock = path.join(directory, 'state.lock');
+  const staged = deferred();
+  const publish = deferred();
+  try {
+    const losingAcquisition = acquireOwnerLock(lock, {
+      maxAttempts: 1,
+      ownerId: 'paused-loser',
+      onStaged: async ({ stagingPath }) => {
+        staged.resolve(stagingPath);
+        await publish.promise;
+      }
+    });
+    const losingStagingPath = await staged.promise;
+    const winner = await acquireOwnerLock(lock, { maxAttempts: 1, ownerId: 'published-winner' });
+    publish.resolve();
+
+    await assert.rejects(losingAcquisition, (error) => error.code === 'OWNER_LOCK_BUSY');
+    assert.equal(JSON.parse(await readFile(path.join(lock, 'owner.json'), 'utf8')).owner_id, winner.owner.owner_id);
+    assert.equal(await pathExists(losingStagingPath), false);
+    assert.deepEqual(await pendingLocks(directory), []);
+    assert.equal(await winner.release(), true);
+  } finally {
+    publish.resolve();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('two simultaneous publishers yield exactly one canonical owner', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'zimster-owner-lock-publish-race-'));
+  const lock = path.join(directory, 'state.lock');
+  const bothStaged = deferred();
+  const publish = deferred();
+  let stagedCount = 0;
+  const onStaged = async () => {
+    stagedCount += 1;
+    if (stagedCount === 2) bothStaged.resolve();
+    await publish.promise;
+  };
+  try {
+    const acquisitions = [
+      acquireOwnerLock(lock, { maxAttempts: 1, ownerId: 'publisher-one', onStaged }),
+      acquireOwnerLock(lock, { maxAttempts: 1, ownerId: 'publisher-two', onStaged })
+    ];
+    await bothStaged.promise;
+    assert.equal(await pathExists(lock), false);
+    assert.deepEqual((await pendingLocks(directory)).sort(), [
+      'state.lock.pending-'.concat(process.pid, '-publisher-one'),
+      'state.lock.pending-'.concat(process.pid, '-publisher-two')
+    ]);
+
+    publish.resolve();
+    const results = await Promise.allSettled(acquisitions);
+    const winners = results.filter((result) => result.status === 'fulfilled');
+    const losers = results.filter((result) => result.status === 'rejected');
+    assert.equal(winners.length, 1);
+    assert.equal(losers.length, 1);
+    assert.equal(losers[0].reason.code, 'OWNER_LOCK_BUSY');
+
+    const winner = winners[0].value;
+    assert.equal(JSON.parse(await readFile(path.join(lock, 'owner.json'), 'utf8')).owner_id, winner.owner.owner_id);
+    assert.deepEqual(await pendingLocks(directory), []);
+    assert.equal(await winner.release(), true);
+  } finally {
+    publish.resolve();
+    await rm(directory, { recursive: true, force: true });
+  }
+});
 
 test('a live owner lock is not stolen and release requires its nonce', async () => {
   const directory = await mkdtemp(path.join(os.tmpdir(), 'zimster-owner-lock-live-'));
@@ -87,6 +216,22 @@ test('fresh incomplete owner metadata fails closed instead of being stolen', asy
       }),
       (error) => error.code === 'OWNER_LOCK_BUSY'
     );
+    await access(lock);
+  } finally {
+    await rm(directory, { recursive: true, force: true });
+  }
+});
+
+test('a legacy incomplete canonical lock fails closed because it has no recoverable owner identity', async () => {
+  const directory = await mkdtemp(path.join(os.tmpdir(), 'zimster-owner-lock-legacy-incomplete-'));
+  const lock = path.join(directory, 'state.lock');
+  try {
+    await mkdir(lock);
+    await assert.rejects(acquireOwnerLock(lock, {
+      maxAttempts: 2,
+      retryDelayMs: 1,
+      incompleteGraceMs: 0
+    }), (error) => error.code === 'OWNER_LOCK_BUSY');
     await access(lock);
   } finally {
     await rm(directory, { recursive: true, force: true });
