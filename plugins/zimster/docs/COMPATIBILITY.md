@@ -1,11 +1,25 @@
 # Compatibility
 
-Zimster 0.7.0 separates portable workflow guidance from host-native features.
+Zimster separates portable workflow guidance from host-native features.
 The canonical contract is root `plugin.json` plus `skills/`. Host overlays add
 installation, bootstrap, agents, or lifecycle behavior without redefining the
 canonical skills.
 
-Status vocabulary:
+## 0.7.2 candidate qualification
+
+The release-candidate PR records an exact-head, exact-artifact matrix with the
+candidate commit, SHA-256 hashes, host versions, test date, verification level,
+capabilities established, capabilities not established, and limitations. Only
+observations against that exact build are current 0.7.2 claims. The accepted
+0.7.0 runtime governs recovery; candidate helpers are isolated from that
+governing boundary.
+
+## Published 0.7.0 historical evidence
+
+The table below is retained for audit only. It does not qualify a 0.7.2
+candidate or substitute for final-candidate testing.
+
+Historical status vocabulary:
 
 - `LIVE_VERIFIED`: the named behavior was observed with the listed CLI and
   isolated configuration on 2026-08-07.
@@ -23,7 +37,7 @@ Status vocabulary:
 | Pi | 0.84.1 | `zimster` npm package | `INSTALLED_PACKAGE_VERIFIED`: local package installation and listing; structural extension/resource tests | Model-backed session discovery; optional `pi-subagents` transport execution |
 | Kimi Code | unavailable | `zimster` npm package / repository | `STRUCTURALLY_VALIDATED`: native manifest fields, skill paths, and single session bootstrap | CLI installation, managed-copy discovery, and model-backed execution |
 
-These claims are capability-specific. For example, Claude component inventory
+These historical claims are capability-specific. For example, Claude component inventory
 does not prove that a reviewer restriction survived a model session, and
 OpenCode skill discovery does not prove routing to a requested model.
 
@@ -49,4 +63,4 @@ therefore retains a manual or inline fallback.
   contract adds session bootstrap behavior.
 
 Host versions and behavior change. Re-run the isolated commands in each host
-guide before broadening a release claim.
+guide against one exact candidate before broadening a release claim.

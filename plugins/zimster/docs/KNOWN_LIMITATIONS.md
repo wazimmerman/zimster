@@ -1,6 +1,8 @@
 # Known limitations
 
-Zimster 0.7.0 is a release candidate, not a stable 1.0 compatibility guarantee.
+Zimster 0.7.2 is a recovery candidate, not a stable 1.0 compatibility
+guarantee. The 0.7.0 host observations below are historical until the exact
+0.7.2 artifact matrix establishes a replacement claim.
 
 - Host evidence is capability-scoped. Only OpenCode discovery is
   `LIVE_VERIFIED`; Claude and Grok are `STRUCTURALLY_VALIDATED`. None of those
@@ -20,6 +22,10 @@ Zimster 0.7.0 is a release candidate, not a stable 1.0 compatibility guarantee.
   zero and Holm-adjusted secondary comparisons are not significant. The
   preferred 48-run campaign remains future work.
 - Public marketplace or registry approval is outside the repository's control.
+- No host-independent plugin API can forcibly terminate a host autonomy mode.
+  Zimster records and reports terminal stop states and refuses another governed
+  remediation transition; host-level continuation beyond that point is a host
+  enforcement limitation.
 
 Run `npm run doctor -- --json`, consult `COMPATIBILITY.md`, and bind any broader
 claim to a fresh exact-artifact receipt.

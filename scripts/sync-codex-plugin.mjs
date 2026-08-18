@@ -15,7 +15,7 @@ const includes = [
   'docs/MIGRATING-0.5.0.md',
   'docs/OPENCODE.md', 'docs/OPERATIONS.md', 'docs/PI.md', 'docs/PORTING.md',
   'docs/RELEASING.md', 'docs/COMPATIBILITY.md', 'docs/ROADMAP.md',
-  'docs/SKILLS_ONLY.md', 'docs/UPSTREAM.md',
+  'docs/RECOVERY-0.7.2.md', 'docs/SKILLS_ONLY.md', 'docs/UPSTREAM.md',
   'scripts/archive-safety.mjs', 'scripts/change-snapshot.mjs',
   'scripts/capability-cache.mjs',
   'scripts/context-index.mjs',
