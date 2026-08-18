@@ -13,6 +13,13 @@ function run(args, cwd) {
   });
 }
 
+function postmortem(args, cwd) {
+  return spawnSync(process.execPath, [path.join(root, 'scripts/run-postmortem.mjs'), ...args], {
+    cwd,
+    encoding: 'utf8'
+  });
+}
+
 test('normal review control path binds one recheck to its canonical seam', async () => {
   const repo = await mkdtemp(path.join(os.tmpdir(), 'zimster-review-control-'));
   try {
@@ -29,7 +36,26 @@ test('normal review control path binds one recheck to its canonical seam', async
     await mkdir(runtime, { recursive: true });
     await writeFile(path.join(runtime, 'run.json'), `${JSON.stringify({
       schema_version: 2,
-      id: 'run-review-control'
+      id: 'run-review-control',
+      started_at: '2026-08-17T00:00:00.000Z'
+    })}\n`);
+    await writeFile(path.join(runtime, 'budget.json'), `${JSON.stringify({
+      schema_version: 1,
+      limits: {
+        correction_commits: 2,
+        correction_rechecks: 1,
+        final_integration_reviews: 2,
+        complete_suite_executions: 3
+      },
+      usage: {
+        correction_commits: 0,
+        correction_rechecks: 0,
+        final_integration_reviews: 0,
+        complete_suite_executions: 0
+      },
+      scoped_usage: { correction_rechecks: {} },
+      overrides: [],
+      proof_obligations: []
     })}\n`);
 
     let result = run([
@@ -50,6 +76,16 @@ test('normal review control path binds one recheck to its canonical seam', async
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     assert.equal(JSON.parse(result.stdout).status, 'FINAL_INTEGRATION_REVIEW_REQUIRED');
+
+    const accounting = postmortem(['--runtime', runtime], repo);
+    assert.equal(accounting.status, 0, accounting.stderr || accounting.stdout);
+    const report = JSON.parse(await readFile(JSON.parse(accounting.stdout).report, 'utf8'));
+    assert.equal(report.metrics.reviews.value, 2);
+    assert.equal(report.metrics.corrections.value, 1);
+    assert.equal(report.metrics.rechecks.value, 1);
+    assert.equal(report.metrics.final_integration_reviews.value, 0);
+    assert.equal(report.metrics.review_lifecycle.authority, 'reviews/lifecycle.json');
+    assert.equal(report.metrics.review_lifecycle.aggregate.correction_rechecks, 1);
 
     result = run([
       'event', '--type', 'CORRECTION_RECHECK', '--reviewer-id', 'renamed-reviewer',

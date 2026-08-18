@@ -262,6 +262,14 @@ requirement-and-claim linkage. Boolean eligibility or
 load-bearing switches are not accepted. Review unavailable produces
 `OWNER_VERIFIED_REVIEW_UNAVAILABLE` or another non-candidate state.
 
+Dispatch records are owner-recorded operational observations. Their agent,
+model, effort, and result bindings remain useful audit evidence, but they are
+not host-authenticated reviewer-result provenance. Until a supported host
+exposes a trustworthy result identity through an existing interface, Standard
+and High-risk completion fails closed as
+`OWNER_VERIFIED_REVIEW_UNAVAILABLE` even when the lifecycle, dispatch, review
+package, candidate, semantic contract, and review record agree exactly.
+
 ## Release controls
 
 ```text

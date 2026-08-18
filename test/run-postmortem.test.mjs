@@ -70,6 +70,19 @@ test('run postmortem aggregates observed execution economy without mixing token 
         metric: 'final_correction_waves'
       }]
     });
+    await json(path.join(runtime, 'reviews/lifecycle.json'), {
+      schema_version: 2,
+      run_id: 'current-run',
+      seam_id: 'execution-state',
+      status: 'FINAL_INTEGRATION_REVIEW_REQUIRED',
+      aggregate: {
+        initial_reviews: 1,
+        correction_waves: 1,
+        correction_rechecks: 1,
+        final_integration_reviews: 0,
+        final_correction_waves: 1
+      }
+    });
     await jsonl(path.join(runtime, 'dispatches/dispatches.jsonl'), [{
       schema_version: 2,
       id: 'dispatch-1',
@@ -241,7 +254,8 @@ test('run postmortem aggregates observed execution economy without mixing token 
     assert.equal(report.metrics.tests_by_evidence_class.affected.passed, 6);
     assert.equal(report.metrics.complete_suite_executions.value, 1);
     assert.equal(report.metrics.verification_receipts.value, 1);
-    assert.equal(report.metrics.reviews.value, 1);
+    assert.equal(report.metrics.reviews.value, 2);
+    assert.equal(report.metrics.review_lifecycle.authority, 'reviews/lifecycle.json');
     assert.equal(report.metrics.delegation_decisions.selected, 1);
     assert.equal(report.metrics.delegation_decisions.inline, 1);
     assert.equal(report.metrics.routing.proposals, 2);
@@ -251,7 +265,7 @@ test('run postmortem aggregates observed execution economy without mixing token 
     assert.equal(report.metrics.convergence.continued, 1);
     assert.deepEqual(report.metrics.routing.fallbacks, ['mapped', 'strict_cost_unenforceable']);
     assert.equal(report.metrics.corrections.value, 2);
-    assert.equal(report.metrics.rechecks.value, 2);
+    assert.equal(report.metrics.rechecks.value, 1);
     assert.equal(
       report.metrics.budget_compliance.exceeded.includes('review_rechecks_per_seam'),
       false
@@ -261,7 +275,7 @@ test('run postmortem aggregates observed execution economy without mixing token 
       [['goal_meter', 1000], ['raw_input', 9000]]
     );
     assert.equal(Object.hasOwn(report.metrics.tokens, 'total'), false);
-    assert.equal(report.metrics.budget_compliance.status, 'noncompliant');
+    assert.equal(report.metrics.budget_compliance.status, 'within_budget');
     assert.deepEqual(report.unavailable_metrics, ['research_events', 'support_matrix']);
   } finally {
     await rm(runtime, { recursive: true, force: true });

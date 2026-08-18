@@ -34,6 +34,7 @@
         "proposal_claim_id": { "type": "string", "minLength": 1 },
         "resolution_id": { "type": "string", "minLength": 1 },
         "role": { "type": "string", "minLength": 1 },
+        "provenance_kind": { "const": "owner_recorded_dispatch" },
         "purpose": { "type": "string", "minLength": 1 },
         "capability_class": { "enum": ["economy", "balanced", "expert", "inherit"] },
         "requested_model": { "type": "string", "minLength": 1 },

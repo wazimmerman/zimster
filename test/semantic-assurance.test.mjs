@@ -77,7 +77,8 @@ function reviewerProvenance() {
     id: 'dispatch-reviewer-1',
     run_id: 'run-1',
     role: 'final-integration-reviewer',
-    agent_id: 'reviewer-1'
+    agent_id: 'reviewer-1',
+    provenance_kind: 'owner_recorded_dispatch'
   }];
 }
 
@@ -139,15 +140,15 @@ test('self-review never satisfies Standard or High-risk independent review', () 
   }
 });
 
-test('approved clean-context independent review satisfies the exact Standard candidate', () => {
+test('owner-recorded dispatch cannot authenticate an exact Standard review', () => {
   assert.deepEqual(
     independentApprovalFor({
       ...approvalOptions()
     }),
     {
-      approved: true,
-      state: COMPLETION_STATES.SEMANTIC_REVIEW_APPROVED,
-      reviewId: 'review-001'
+      approved: false,
+      state: COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE,
+      reason: 'owner-recorded dispatch is not host-observed independent reviewer provenance'
     }
   );
 });
@@ -163,9 +164,9 @@ test('superseded malformed reviews do not block the active candidate evidence fr
       reviews: [historical, review({ semantic_lenses: REQUIRED_LENSES })]
     })),
     {
-      approved: true,
-      state: COMPLETION_STATES.SEMANTIC_REVIEW_APPROVED,
-      reviewId: 'review-001'
+      approved: false,
+      state: COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE,
+      reason: 'owner-recorded dispatch is not host-observed independent reviewer provenance'
     }
   );
 });
@@ -266,9 +267,9 @@ test('mutable matrix evidence state does not invalidate an unchanged reviewed se
       })]
     })),
     {
-      approved: true,
-      state: COMPLETION_STATES.SEMANTIC_REVIEW_APPROVED,
-      reviewId: 'review-001'
+      approved: false,
+      state: COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE,
+      reason: 'owner-recorded dispatch is not host-observed independent reviewer provenance'
     }
   );
 });
@@ -663,7 +664,7 @@ test('Standard and High-risk work with only self-review remain review pending', 
   }
 });
 
-test('complete Standard proof and exact independent approval reach candidate complete', () => {
+test('fabricated lifecycle plus owner-recorded dispatch cannot reach candidate complete', () => {
   assert.deepEqual(evaluateCandidateCompletion({
     profile: 'standard',
     ownerVerified: true,
@@ -682,10 +683,10 @@ test('complete Standard proof and exact independent approval reach candidate com
     semanticContractSha256: CONTRACT_SHA,
     requiredLenses: REQUIRED_LENSES
   }), {
-    state: COMPLETION_STATES.CANDIDATE_COMPLETE,
+    state: COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE,
     allowed_claims: ['Candidate claim.'],
-    review_id: 'review-001',
-    reasons: []
+    review_id: null,
+    reasons: ['owner-recorded dispatch is not host-observed independent reviewer provenance']
   });
 });
 
@@ -788,7 +789,10 @@ test('BETA-003 public beta accepts unavailable optional hosts with one exact-pac
   const blocked = evaluateCandidateCompletion(base);
   assert.equal(blocked.state, COMPLETION_STATES.BLOCKED_BY_ENVIRONMENT);
   assert.match(blocked.reasons.join('\n'), /host verification|live host/i);
-  assert.equal(evaluateCandidateCompletion({ ...base, hostSmokeReceipt: receipt }).state, COMPLETION_STATES.CANDIDATE_COMPLETE);
+  assert.equal(
+    evaluateCandidateCompletion({ ...base, hostSmokeReceipt: receipt }).state,
+    COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE
+  );
 });
 
 test('BETA-003 public beta requires one live host and bounds every public claim to receipt evidence', () => {

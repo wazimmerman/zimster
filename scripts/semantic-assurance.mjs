@@ -137,7 +137,7 @@ async function completionDecision() {
   const reviewFile = options.reviews ? await jsonFile('reviews') : { reviews: [] };
   const canonicalRuntime = await ensureRuntimeDirectory(root);
   let reviewLifecycle = null;
-  let reviewerProvenance = [];
+  let ownerRecordedDispatches = [];
   try {
     reviewLifecycle = JSON.parse(await readFile(
       path.join(canonicalRuntime, 'reviews', 'lifecycle.json'),
@@ -147,7 +147,7 @@ async function completionDecision() {
     if (error.code !== 'ENOENT') throw error;
   }
   try {
-    reviewerProvenance = (await readFile(
+    ownerRecordedDispatches = (await readFile(
       path.join(canonicalRuntime, 'dispatches', 'dispatches.jsonl'),
       'utf8'
     )).split('\n').filter(Boolean).map((line) => JSON.parse(line));
@@ -193,7 +193,7 @@ async function completionDecision() {
     matrixResult: finalMatrixResult,
     reviews: reviewFile.reviews || [],
     reviewLifecycle,
-    reviewerProvenance,
+    reviewerProvenance: ownerRecordedDispatches,
     candidateBase: reviewPackage?.base,
     candidateHead: matrix.candidate_head,
     candidateTree: matrix.candidate_tree,

@@ -498,9 +498,9 @@ export function independentApprovalFor({
     };
   }
   return {
-    approved: true,
-    state: COMPLETION_STATES.SEMANTIC_REVIEW_APPROVED,
-    reviewId: review.id
+    approved: false,
+    state: COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE,
+    reason: 'owner-recorded dispatch is not host-observed independent reviewer provenance'
   };
 }
 

@@ -238,7 +238,8 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       id: 'dispatch-reviewer-1',
       run_id: 'run-cli',
       role: 'final-integration-reviewer',
-      agent_id: 'reviewer-1'
+      agent_id: 'reviewer-1',
+      provenance_kind: 'owner_recorded_dispatch'
     })}\n`);
 
     let result = run([
@@ -251,11 +252,11 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       '--reviews', reviewsPath,
       '--review-package', reviewPackagePath
     ], repo);
-    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(result.status, 2, result.stderr || result.stdout);
     const decision = JSON.parse(result.stdout);
-    assert.equal(decision.state, 'CANDIDATE_COMPLETE');
+    assert.equal(decision.state, 'OWNER_VERIFIED_REVIEW_UNAVAILABLE');
     assert.deepEqual(decision.allowed_claims, ['Candidate completion is gated.']);
-    assert.match(result.stderr, /CANDIDATE_COMPLETE.*review=review-001/i);
+    assert.match(decision.reasons.join('\n'), /owner-recorded dispatch.*host-observed/i);
 
     requirementMatrix.observations.push({
       id: 'final-evidence-state',
@@ -279,8 +280,8 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       '--reviews', reviewsPath,
       '--review-package', reviewPackagePath
     ], repo);
-    assert.equal(result.status, 0, result.stderr || result.stdout);
-    assert.equal(JSON.parse(result.stdout).state, 'CANDIDATE_COMPLETE');
+    assert.equal(result.status, 2, result.stderr || result.stdout);
+    assert.equal(JSON.parse(result.stdout).state, 'OWNER_VERIFIED_REVIEW_UNAVAILABLE');
 
     await writeFile(path.join(repo, 'tracked.txt'), 'corrected\n');
     assert.equal(spawnSync('git', ['add', 'tracked.txt'], { cwd: repo }).status, 0);
