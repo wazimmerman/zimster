@@ -50,15 +50,8 @@ export async function migrate070State({ root, runtime }) {
   state.durable_state_triggers ??= [];
   if (!Object.hasOwn(state, 'current_slice')) {
     if (checkpoint) {
-      state.current_slice = {
-        id: 'legacy-in-progress',
-        summary: checkpoint.current_architecture?.at(-1)
-          || checkpoint.mission_digest,
-        status: 'in_progress',
-        started_dirty_tree_fingerprint: null,
-        touched_files: files
-      };
-      state.current_slice_status = 'in_progress';
+      state.current_slice = null;
+      state.current_slice_status = 'unknown';
       state.next_slice = {
         id: 'legacy-next',
         summary: checkpoint.exact_next_slice
@@ -115,6 +108,7 @@ export async function migrate070State({ root, runtime }) {
     dirty_in_progress: git.dirty_tree_fingerprint
       !== 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
     unknown_facts: [
+      ...(state.current_slice_status === 'unknown' ? ['current_slice'] : []),
       ...(state.recovery?.latest_failure === null ? ['latest_failure'] : []),
       ...(state.recovery?.latest_test === null ? ['latest_test'] : []),
       ...(state.recovery?.next_command === null ? ['next_command'] : []),

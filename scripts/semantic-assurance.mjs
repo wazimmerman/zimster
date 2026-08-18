@@ -135,6 +135,25 @@ async function completionDecision() {
       }
     : evaluatedResult;
   const reviewFile = options.reviews ? await jsonFile('reviews') : { reviews: [] };
+  const canonicalRuntime = await ensureRuntimeDirectory(root);
+  let reviewLifecycle = null;
+  let reviewerProvenance = [];
+  try {
+    reviewLifecycle = JSON.parse(await readFile(
+      path.join(canonicalRuntime, 'reviews', 'lifecycle.json'),
+      'utf8'
+    ));
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
+  try {
+    reviewerProvenance = (await readFile(
+      path.join(canonicalRuntime, 'dispatches', 'dispatches.jsonl'),
+      'utf8'
+    )).split('\n').filter(Boolean).map((line) => JSON.parse(line));
+  } catch (error) {
+    if (error.code !== 'ENOENT') throw error;
+  }
   let hostSmokeReceipt = null;
   try {
     hostSmokeReceipt = options['host-smoke-receipt']
@@ -173,6 +192,8 @@ async function completionDecision() {
     reviewUnavailable: options['review-unavailable'] === true,
     matrixResult: finalMatrixResult,
     reviews: reviewFile.reviews || [],
+    reviewLifecycle,
+    reviewerProvenance,
     candidateBase: reviewPackage?.base,
     candidateHead: matrix.candidate_head,
     candidateTree: matrix.candidate_tree,

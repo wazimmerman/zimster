@@ -312,10 +312,13 @@ export function independentApprovalFor({
   profile,
   candidateBase,
   candidateHead,
+  candidateTree,
   reviewPackageId,
   semanticContractSha256,
   requiredLenses = [],
   reviews,
+  reviewLifecycle = null,
+  reviewerProvenance = [],
   bindingRequirementIds = [],
   intendedClaims = []
 }) {
@@ -434,6 +437,64 @@ export function independentApprovalFor({
       approved: false,
       state: COMPLETION_STATES.REVIEW_PENDING,
       reason: 'High-risk work requires final independent integration review'
+    };
+  }
+  const binding = reviewLifecycle?.approved_review;
+  if (
+    reviewLifecycle?.schema_version !== 2
+    || reviewLifecycle.status !== 'REVIEW_LIFECYCLE_COMPLETE'
+    || !binding
+  ) {
+    return {
+      approved: false,
+      state: COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE,
+      reason: 'canonical review lifecycle approval is unavailable'
+    };
+  }
+  const expectedBinding = {
+    seam_id: reviewLifecycle.seam_id,
+    review_attempt_id: binding.attempt_id,
+    review_record_id: binding.review_record_id,
+    reviewer_identity: binding.reviewer_id,
+    dispatch_record_id: binding.dispatch_record_id,
+    review_package_id: binding.review_package_id,
+    candidate_head: binding.candidate_head,
+    candidate_tree: binding.candidate_tree,
+    semantic_contract_sha256: binding.semantic_contract_sha256
+  };
+  const actualBinding = {
+    seam_id: review.seam_id,
+    review_attempt_id: review.review_attempt_id,
+    review_record_id: review.id,
+    reviewer_identity: review.reviewer_identity,
+    dispatch_record_id: review.dispatch_record_id,
+    review_package_id: review.review_package_id,
+    candidate_head: review.head_sha,
+    candidate_tree: review.candidate_tree,
+    semantic_contract_sha256: review.semantic_contract_sha256
+  };
+  if (JSON.stringify(actualBinding) !== JSON.stringify(expectedBinding)
+    || binding.candidate_head !== candidateHead
+    || binding.candidate_tree !== candidateTree
+    || binding.review_package_id !== reviewPackageId
+    || binding.semantic_contract_sha256 !== semanticContractSha256) {
+    return {
+      approved: false,
+      state: COMPLETION_STATES.REVIEW_PENDING,
+      reason: 'independent review does not agree with canonical review lifecycle state'
+    };
+  }
+  const dispatch = reviewerProvenance.find((row) => row?.id === binding.dispatch_record_id);
+  if (
+    dispatch?.schema_version !== 2
+    || dispatch.run_id !== reviewLifecycle.run_id
+    || dispatch.agent_id !== binding.reviewer_id
+    || !/review/i.test(dispatch.role || '')
+  ) {
+    return {
+      approved: false,
+      state: COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE,
+      reason: 'trustworthy independent reviewer provenance is unavailable'
     };
   }
   return {
@@ -690,6 +751,8 @@ export function evaluateCandidateCompletion({
   reviewUnavailable = false,
   matrixResult,
   reviews = [],
+  reviewLifecycle = null,
+  reviewerProvenance = [],
   candidateBase,
   candidateHead,
   candidateTree,
@@ -794,10 +857,13 @@ export function evaluateCandidateCompletion({
     profile,
     candidateBase,
     candidateHead,
+    candidateTree,
     reviewPackageId,
     semanticContractSha256,
     requiredLenses,
     reviews,
+    reviewLifecycle,
+    reviewerProvenance,
     bindingRequirementIds: matrixResult.binding_requirement_ids || [],
     intendedClaims: allowedClaims
   });

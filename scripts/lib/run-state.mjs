@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { appendFile, mkdir, readFile, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readFile, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 function requiredText(value, name) {
@@ -156,6 +156,42 @@ export async function readRunState(runtime) {
     if (error.code === 'ENOENT') return null;
     throw error;
   }
+}
+
+async function writeAtomically(file, contents) {
+  await mkdir(path.dirname(file), { recursive: true });
+  const temporary = `${file}.temporary-${process.pid}`;
+  try {
+    await writeFile(temporary, contents, { flag: 'wx' });
+    await rename(temporary, file);
+  } finally {
+    await rm(temporary, { force: true });
+  }
+}
+
+export async function persistRunStateAndProjections(runtime, state, {
+  afterCanonicalWrite = null
+} = {}) {
+  await writeAtomically(path.join(runtime, 'run.json'), `${JSON.stringify(state, null, 2)}\n`);
+  if (afterCanonicalWrite) await afterCanonicalWrite();
+  if (state.current_checkpoint) {
+    await writeAtomically(
+      path.join(runtime, 'checkpoints', 'current.json'),
+      `${JSON.stringify(state.current_checkpoint, null, 2)}\n`
+    );
+  }
+  await writeAtomically(path.join(runtime, 'run.md'), projectRunMarkdown(state));
+  return state;
+}
+
+export async function reconcileRunProjections(runtime) {
+  const state = await readRunState(runtime);
+  if (!state) throw new Error('run.json is required to reconcile derived run projections');
+  await persistRunStateAndProjections(runtime, state);
+  return {
+    status: 'RUN_PROJECTIONS_RECONCILED',
+    checkpoint: state.current_checkpoint ? 'canonical_run_state' : 'unavailable'
+  };
 }
 
 export async function appendRunEvent(runtime, event) {

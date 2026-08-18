@@ -16,7 +16,7 @@ import { root } from './helpers.mjs';
 
 const limits = {
   correction_commits: 2,
-  correction_rechecks: 2,
+  correction_rechecks: 1,
   final_integration_reviews: 2,
   final_verification_attempts: 2,
   complete_suite_executions: 3,
@@ -59,11 +59,18 @@ test('CONV-001: correction rechecks cannot consume the reserved exact-head integ
   const state = createBudgetState('high-risk', { limits });
   const correction = applyExecutionBudgetEvent(state, {
     metric: 'correction_rechecks',
-    scope: 'release-policy'
+    scope: 'release-policy',
+    canonicalSeamId: 'release-policy'
   });
-  assert.equal(correction.status, 'BUDGET_OK');
+  assert.equal(correction.status, 'BUDGET_WARNING');
   assert.equal(state.scoped_usage.correction_rechecks['release-policy'], 1);
   assert.equal(state.usage.final_integration_reviews, 0);
+
+  assert.throws(() => applyExecutionBudgetEvent(state, {
+    metric: 'correction_rechecks',
+    scope: 'renamed-scope',
+    canonicalSeamId: 'release-policy'
+  }), /scope is canonical.*release-policy/i);
 
   const premature = applyExecutionBudgetEvent(state, {
     metric: 'final_integration_reviews',

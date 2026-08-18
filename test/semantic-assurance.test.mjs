@@ -27,8 +27,11 @@ function review(overrides = {}) {
     owner_inline: false,
     base_sha: SHA_A,
     head_sha: SHA_B,
+    candidate_tree: TREE,
+    seam_id: 'release-seam',
+    review_attempt_id: 'release-seam:final:1',
     reviewer_identity: 'reviewer-1',
-    dispatch_record_id: null,
+    dispatch_record_id: 'dispatch-reviewer-1',
     clean_bounded_context: true,
     reviewed_requirement_ids: ['ASSURANCE-001', 'GATE-001', 'GATE-002'],
     intended_claims: ['Independent review is required for Standard work.'],
@@ -46,15 +49,50 @@ function review(overrides = {}) {
   };
 }
 
+function completedReviewLifecycle(overrides = {}) {
+  return {
+    schema_version: 2,
+    run_id: 'run-1',
+    seam_id: 'release-seam',
+    status: 'REVIEW_LIFECYCLE_COMPLETE',
+    approved_review: {
+      attempt_id: 'release-seam:final:1',
+      seam_id: 'release-seam',
+      review_record_id: 'review-001',
+      reviewer_id: 'reviewer-1',
+      dispatch_record_id: 'dispatch-reviewer-1',
+      review_package_id: 'package-001',
+      candidate_head: SHA_B,
+      candidate_tree: TREE,
+      semantic_contract_sha256: CONTRACT_SHA,
+      verdict: 'approved'
+    },
+    ...overrides
+  };
+}
+
+function reviewerProvenance() {
+  return [{
+    schema_version: 2,
+    id: 'dispatch-reviewer-1',
+    run_id: 'run-1',
+    role: 'final-integration-reviewer',
+    agent_id: 'reviewer-1'
+  }];
+}
+
 function approvalOptions(overrides = {}) {
   return {
     profile: 'standard',
     candidateBase: SHA_A,
     candidateHead: SHA_B,
+    candidateTree: TREE,
     reviewPackageId: 'package-001',
     semanticContractSha256: CONTRACT_SHA,
     requiredLenses: REQUIRED_LENSES,
     reviews: [review({ semantic_lenses: REQUIRED_LENSES })],
+    reviewLifecycle: completedReviewLifecycle(),
+    reviewerProvenance: reviewerProvenance(),
     bindingRequirementIds: ['ASSURANCE-001'],
     intendedClaims: ['Independent review is required for Standard work.'],
     ...overrides
@@ -635,6 +673,8 @@ test('complete Standard proof and exact independent approval reach candidate com
       intended_claims: ['Candidate claim.'],
       semantic_lenses: REQUIRED_LENSES
     })],
+    reviewLifecycle: completedReviewLifecycle(),
+    reviewerProvenance: reviewerProvenance(),
     candidateHead: SHA_B,
     candidateTree: TREE,
     candidateBase: SHA_A,
@@ -741,7 +781,9 @@ test('BETA-003 public beta accepts unavailable optional hosts with one exact-pac
     profile: 'standard', ownerVerified: true, reviewUnavailable: false,
     matrixResult, reviews: [betaReview], candidateHead: SHA_B, candidateTree: TREE,
     candidateBase: SHA_A, reviewPackageId: 'package-001',
-    semanticContractSha256: CONTRACT_SHA, requiredLenses: REQUIRED_LENSES
+    semanticContractSha256: CONTRACT_SHA, requiredLenses: REQUIRED_LENSES,
+    reviewLifecycle: completedReviewLifecycle(),
+    reviewerProvenance: reviewerProvenance()
   };
   const blocked = evaluateCandidateCompletion(base);
   assert.equal(blocked.state, COMPLETION_STATES.BLOCKED_BY_ENVIRONMENT);
@@ -893,6 +935,29 @@ test('unavailable independent review produces an honest non-candidate state', ()
   });
   assert.equal(result.state, COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE);
   assert.deepEqual(result.allowed_claims, ['Candidate claim.']);
+});
+
+test('fabricated independent review JSON cannot complete without canonical lifecycle approval', () => {
+  const result = evaluateCandidateCompletion({
+    profile: 'standard',
+    ownerVerified: true,
+    reviewUnavailable: false,
+    matrixResult: COMPLETE_MATRIX,
+    reviews: [review({
+      intended_claims: ['Candidate claim.'],
+      semantic_lenses: REQUIRED_LENSES
+    })],
+    candidateHead: SHA_B,
+    candidateTree: TREE,
+    candidateBase: SHA_A,
+    reviewPackageId: 'package-001',
+    semanticContractSha256: CONTRACT_SHA,
+    requiredLenses: REQUIRED_LENSES,
+    reviewLifecycle: null,
+    reviewerProvenance: []
+  });
+  assert.equal(result.state, COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE);
+  assert.match(result.reasons.join('\n'), /canonical review lifecycle|provenance/i);
 });
 
 test('a correction invalidates prior approval until the bounded recheck', () => {

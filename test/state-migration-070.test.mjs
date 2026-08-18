@@ -95,9 +95,9 @@ test('0.7.0 Git-local state migrates deterministically without inventing history
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const migrated = JSON.parse(await readFile(path.join(runtime, 'run.json'), 'utf8'));
     assert.equal(migrated.id, 'run-070');
-    assert.equal(migrated.current_slice.status, 'in_progress');
-    assert.equal(migrated.current_slice.summary, 'Existing slice already started');
-    assert.deepEqual(migrated.current_slice.touched_files, ['tracked.txt']);
+    assert.equal(migrated.current_slice, null);
+    assert.equal(migrated.current_slice_status, 'unknown');
+    assert.deepEqual(migrated.recovery.touched_files, ['tracked.txt']);
     assert.equal(migrated.recovery.next_action, 'Continue the existing bounded slice');
     assert.equal(migrated.recovery.latest_failure, null);
     assert.equal(migrated.recovery.latest_test, null);
@@ -118,6 +118,8 @@ test('0.7.0 Git-local state migrates deterministically without inventing history
     assert.equal(report.known_budget_usage.exact_duplicate_commands, 2);
     assert.ok(report.unknown_budget_metrics.includes('complete_suite_executions'));
     assert.equal(report.approval_state, 'unavailable');
+    assert.equal(report.current_slice_state, 'unknown');
+    assert.ok(report.unknown_facts.includes('current_slice'));
     assert.ok(report.unknown_facts.includes('latest_failure'));
 
     const firstRun = await readFile(path.join(runtime, 'run.json'), 'utf8');

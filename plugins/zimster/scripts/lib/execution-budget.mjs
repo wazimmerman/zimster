@@ -137,7 +137,30 @@ export async function writeExecutionBudget(budgetFile, state) {
 export async function recordExecutionBudgetEvent(runtimeDirectory, event) {
   return withBudgetLock(runtimeDirectory, async () => {
     const budget = await readExecutionBudget(runtimeDirectory);
-    const result = applyExecutionBudgetEvent(budget.state, event);
+    let canonicalEvent = event;
+    if (normalizeConvergenceMetric(event.metric) === 'correction_rechecks') {
+      let lifecycle;
+      try {
+        lifecycle = JSON.parse(await readFile(
+          path.join(runtimeDirectory, 'reviews', 'lifecycle.json'),
+          'utf8'
+        ));
+      } catch (error) {
+        if (error.code === 'ENOENT') {
+          throw new Error('correction recheck accounting requires the canonical review lifecycle');
+        }
+        throw error;
+      }
+      if (event.scope && event.scope !== lifecycle.seam_id) {
+        throw new Error(`correction recheck scope is canonical: ${lifecycle.seam_id}`);
+      }
+      canonicalEvent = {
+        ...event,
+        scope: lifecycle.seam_id,
+        canonicalSeamId: lifecycle.seam_id
+      };
+    }
+    const result = applyExecutionBudgetEvent(budget.state, canonicalEvent);
     if (result.changed) await writeExecutionBudget(budget.budgetFile, budget.state);
     return result;
   });
@@ -239,6 +262,7 @@ export function applyExecutionBudgetEvent(state, {
   amount = 1,
   agentId = null,
   scope = null,
+  canonicalSeamId = null,
   invalidation = null,
   strategyChange = null,
   requiredProof = null,
@@ -278,8 +302,14 @@ export function applyExecutionBudgetEvent(state, {
       };
     }
   }
-  if (metric === 'correction_rechecks' && !scope) {
-    throw new Error('--scope is required for correction_rechecks');
+  if (metric === 'correction_rechecks') {
+    if (!canonicalSeamId) {
+      throw new Error('correction_rechecks requires canonical seam identity');
+    }
+    if (scope && scope !== canonicalSeamId) {
+      throw new Error(`correction recheck scope is canonical: ${canonicalSeamId}`);
+    }
+    scope = canonicalSeamId;
   }
   if (metric === 'final_integration_reviews') {
     if (candidateStable !== true) {

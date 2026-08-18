@@ -41,6 +41,7 @@ const requiredFiles = [
   'scripts/installed-package-smoke.mjs',
   'scripts/host-smoke.mjs',
   'scripts/review-package.mjs',
+  'scripts/review-control.mjs',
   'scripts/semantic-assurance.mjs',
   'scripts/capability-cache.mjs',
   'scripts/run-postmortem.mjs',

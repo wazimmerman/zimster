@@ -51,6 +51,16 @@ policy and records the accepted artifact identity in the bootstrap receipt.
 
 ## Delegation, routing, and convergence
 
+The normal review path is `review-control.mjs`: initialize one canonical seam,
+then record initial review, owner correction, same-reviewer correction recheck,
+and exact-head final-review events. The lifecycle is stored at
+`reviews/lifecycle.json` beneath the Git-local runtime. Reinitialization cannot
+reset an existing seam. Correction-recheck accounting uses that seam identity,
+not caller-provided scope, digest, attempt, reviewer, or candidate labels.
+Completion requires the canonical approved final-review attempt and matching
+host-observed reviewer dispatch provenance; a review JSON file alone cannot
+authorize `CANDIDATE_COMPLETE`.
+
 Record delegation first with `delegation-record.mjs decide`. Only a selected
 decision may reach `model-routing.mjs propose`. Regenerate a dispatch-phase
 proposal and resolve it with current task, Git, configuration, harness,

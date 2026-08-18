@@ -20,6 +20,7 @@
     "commands": "node scripts/project-commands.mjs",
     "snapshot": "node scripts/change-snapshot.mjs",
     "review:integrity": "node scripts/review-integrity.mjs",
+    "review:control": "node scripts/review-control.mjs",
     "assurance": "node scripts/semantic-assurance.mjs",
     "evidence": "node scripts/evidence.mjs",
     "dispatch": "node scripts/dispatch-record.mjs",

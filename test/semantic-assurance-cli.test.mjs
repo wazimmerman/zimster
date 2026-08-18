@@ -179,8 +179,11 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
         owner_inline: false,
         base_sha: 'a'.repeat(40),
         head_sha: candidateHead,
+        candidate_tree: candidateTree,
+        seam_id: 'release-seam',
+        review_attempt_id: 'release-seam:final:1',
         reviewer_identity: 'reviewer-1',
-        dispatch_record_id: null,
+        dispatch_record_id: 'dispatch-reviewer-1',
         clean_bounded_context: true,
         reviewed_requirement_ids: ['GATE-001'],
         intended_claims: ['Candidate completion is gated.'],
@@ -209,6 +212,34 @@ test('completion CLI gates candidate state on matrix proof and semantic review',
       semantic_contract: { sha256: contractSha256 },
       lenses: ['mission-scope']
     }));
+    const runtime = path.join(repo, '.git', 'zimster');
+    await mkdir(path.join(runtime, 'reviews'), { recursive: true });
+    await mkdir(path.join(runtime, 'dispatches'), { recursive: true });
+    await writeFile(path.join(runtime, 'reviews', 'lifecycle.json'), JSON.stringify({
+      schema_version: 2,
+      run_id: 'run-cli',
+      seam_id: 'release-seam',
+      status: 'REVIEW_LIFECYCLE_COMPLETE',
+      approved_review: {
+        attempt_id: 'release-seam:final:1',
+        seam_id: 'release-seam',
+        review_record_id: 'review-001',
+        reviewer_id: 'reviewer-1',
+        dispatch_record_id: 'dispatch-reviewer-1',
+        review_package_id: 'package-001',
+        candidate_head: candidateHead,
+        candidate_tree: candidateTree,
+        semantic_contract_sha256: contractSha256,
+        verdict: 'approved'
+      }
+    }));
+    await writeFile(path.join(runtime, 'dispatches', 'dispatches.jsonl'), `${JSON.stringify({
+      schema_version: 2,
+      id: 'dispatch-reviewer-1',
+      run_id: 'run-cli',
+      role: 'final-integration-reviewer',
+      agent_id: 'reviewer-1'
+    })}\n`);
 
     let result = run([
       'complete',

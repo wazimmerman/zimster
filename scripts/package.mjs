@@ -28,6 +28,7 @@ const operationalScripts = [
   'scripts/plan-conformance.mjs',
   'scripts/project-commands.mjs', 'scripts/run-budget.mjs',
   'scripts/release-evidence.mjs',
+  'scripts/review-control.mjs',
   'scripts/review-integrity.mjs', 'scripts/review-package.mjs',
   'scripts/semantic-assurance.mjs',
   'scripts/run-postmortem.mjs',

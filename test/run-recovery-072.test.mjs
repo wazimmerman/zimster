@@ -1,8 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
 import {
   checkpointRunState,
+  persistRunStateAndProjections,
   projectRunMarkdown,
+  reconcileRunProjections,
   reconcileRunState,
   startRunSlice
 } from '../scripts/lib/run-state.mjs';
@@ -112,4 +117,58 @@ test('run.md is a deterministic human-readable projection of canonical state', (
   assert.match(first, /Current slice[\s\S]*slice-1/);
   assert.match(first, /Exact next command[\s\S]*node --test/);
   assert.doesNotMatch(first, /generated_at|projection timestamp/i);
+});
+
+test('restart reconciles checkpoint and run.md from canonical run.json after interruption', async () => {
+  const runtime = await mkdtemp(path.join(os.tmpdir(), 'zimster-run-persist-'));
+  try {
+    let canonical = startRunSlice(state(), {
+      id: 'slice-1', summary: 'implement recovery',
+      dirtyTreeFingerprint: 'clean', touchedFiles: []
+    });
+    canonical = checkpointRunState(canonical, {
+      dirtyTreeFingerprint: 'dirty-a',
+      touchedFiles: ['scripts/lib/run-state.mjs'],
+      latestFailure: 'focused RED',
+      latestTest: 'node --test test/run-recovery-072.test.mjs',
+      nextAction: 'finish interruption-safe persistence',
+      nextCommand: 'node --test test/run-recovery-072.test.mjs'
+    });
+    canonical.current_checkpoint = {
+      schema_version: 1,
+      mission_digest: 'bounded recovery',
+      invariants_and_non_goals: [],
+      current_architecture: ['run.json is canonical'],
+      completed_slice_commits: [],
+      evidence_receipts: [],
+      open_findings: [],
+      unavailable_evidence: [],
+      exact_next_slice: 'finish interruption-safe persistence',
+      relevant_files_and_interfaces: ['scripts/lib/run-state.mjs'],
+      budget_position: {}
+    };
+
+    await assert.rejects(
+      persistRunStateAndProjections(runtime, canonical, {
+        afterCanonicalWrite() {
+          throw new Error('simulated interruption after run.json');
+        }
+      }),
+      /simulated interruption/
+    );
+    assert.deepEqual(
+      JSON.parse(await readFile(path.join(runtime, 'run.json'), 'utf8')),
+      canonical
+    );
+
+    const reconciled = await reconcileRunProjections(runtime);
+    assert.equal(reconciled.status, 'RUN_PROJECTIONS_RECONCILED');
+    assert.deepEqual(
+      JSON.parse(await readFile(path.join(runtime, 'checkpoints/current.json'), 'utf8')),
+      canonical.current_checkpoint
+    );
+    assert.equal(await readFile(path.join(runtime, 'run.md'), 'utf8'), projectRunMarkdown(canonical));
+  } finally {
+    await rm(runtime, { recursive: true, force: true });
+  }
 });

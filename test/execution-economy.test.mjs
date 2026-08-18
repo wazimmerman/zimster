@@ -181,12 +181,18 @@ test('budget proof satisfaction rejects an explicitly invalidated evidence recei
   }
 });
 
-test('execution budget counts optional agent identities once and scopes review rechecks by seam', async () => {
+test('execution budget counts optional agents once and binds rechecks to the canonical seam', async () => {
   const repo = await tempRepo();
   try {
     const budget = path.join(root, 'scripts/run-budget.mjs');
     let result = run(process.execPath, [budget, 'init', '--profile', 'standard'], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
+    await mkdir(runtimePath(repo, 'reviews'), { recursive: true });
+    await writeFile(runtimePath(repo, 'reviews/lifecycle.json'), `${JSON.stringify({
+      schema_version: 2,
+      run_id: 'run-budget-test',
+      seam_id: 'runtime'
+    })}\n`);
 
     for (const agentId of ['scout-1', 'scout-1', 'reviewer-1']) {
       result = run(process.execPath, [
@@ -194,22 +200,25 @@ test('execution budget counts optional agent identities once and scopes review r
       ], repo);
       assert.equal(result.status, 0, result.stderr || result.stdout);
     }
-    for (const seam of ['runtime', 'runtime', 'release']) {
-      result = run(process.execPath, [
-        budget, 'record', '--metric', 'review_rechecks_per_seam', '--scope', seam
-      ], repo);
-      assert.equal(result.status, 0, result.stderr || result.stdout);
-    }
+    result = run(process.execPath, [
+      budget, 'record', '--metric', 'review_rechecks_per_seam', '--scope', 'runtime'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
     result = run(process.execPath, [
       budget, 'record', '--metric', 'review_rechecks_per_seam', '--scope', 'runtime'
     ], repo);
     assert.equal(result.status, 2, result.stderr || result.stdout);
+    result = run(process.execPath, [
+      budget, 'record', '--metric', 'review_rechecks_per_seam', '--scope', 'renamed-scope'
+    ], repo);
+    assert.equal(result.status, 1, result.stderr || result.stdout);
+    assert.match(result.stderr, /scope is canonical.*runtime/i);
 
     const state = JSON.parse(await readFile(runtimePath(repo, 'budget.json'), 'utf8'));
     assert.deepEqual(state.optional_agent_identities, ['scout-1', 'reviewer-1']);
     assert.equal(state.usage.optional_deliberate_agents, 2);
-    assert.equal(state.scoped_usage.review_rechecks_per_seam.runtime, 2);
-    assert.equal(state.scoped_usage.review_rechecks_per_seam.release, 1);
+    assert.equal(state.scoped_usage.review_rechecks_per_seam.runtime, 1);
+    assert.equal(state.scoped_usage.review_rechecks_per_seam['renamed-scope'], undefined);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }
@@ -237,8 +246,12 @@ test('run initialization creates a machine-readable budget for Standard and High
 test('phase checkpoint produces a bounded resumption payload from required compact fields', async () => {
   const repo = await tempRepo();
   try {
-    const evidence = path.join(root, 'scripts/evidence.mjs');
     let result = run(process.execPath, [
+      path.join(root, 'scripts/init-run.mjs'), '--profile', 'standard'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const evidence = path.join(root, 'scripts/evidence.mjs');
+    result = run(process.execPath, [
       evidence, 'record', '--kind', 'test', '--scope', 'focused',
       '--command', 'node --test', '--exit-code', '0',
       '--tests-passed', '1', '--tests-failed', '0'
@@ -312,6 +325,10 @@ test('phase checkpoint updates canonical dirty-work recovery and the run.md proj
 test('phase checkpoint accepts a current deterministic-verification receipt', async () => {
   const repo = await tempRepo();
   try {
+    let result = run(process.execPath, [
+      path.join(root, 'scripts/init-run.mjs'), '--profile', 'standard'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
     const planFile = runtimePath(repo, 'checkpoint-verification-plan.json');
     await mkdir(path.dirname(planFile), { recursive: true });
     await writeFile(planFile, `${JSON.stringify({
@@ -323,7 +340,7 @@ test('phase checkpoint accepts a current deterministic-verification receipt', as
         args: ['-e', 'process.exit(0);']
       }]
     })}\n`);
-    let result = run(process.execPath, [
+    result = run(process.execPath, [
       path.join(root, 'scripts/verify.mjs'), 'run', '--plan', planFile
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
@@ -381,6 +398,10 @@ test('phase checkpoint preserves stale evidence references only with an invalida
     const checkpoint = path.join(root, 'scripts/phase-checkpoint.mjs');
     const evidence = path.join(root, 'scripts/evidence.mjs');
     let result = run(process.execPath, [
+      path.join(root, 'scripts/init-run.mjs'), '--profile', 'standard'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    result = run(process.execPath, [
       evidence, 'record', '--kind', 'test', '--scope', 'focused',
       '--command', 'node --test', '--exit-code', '0',
       '--tests-passed', '1', '--tests-failed', '0'
@@ -641,6 +662,10 @@ test('checkpoint resumption revalidates receipt state against the evidence ledge
     const evidence = path.join(root, 'scripts/evidence.mjs');
     const checkpoint = path.join(root, 'scripts/phase-checkpoint.mjs');
     let result = run(process.execPath, [
+      path.join(root, 'scripts/init-run.mjs'), '--profile', 'standard'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    result = run(process.execPath, [
       evidence, 'record', '--kind', 'test', '--scope', 'focused',
       '--command', 'node --test', '--exit-code', '0',
       '--tests-passed', '1', '--tests-failed', '0'

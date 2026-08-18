@@ -29,7 +29,8 @@ test('one correction recheck with remaining load-bearing findings trips the circ
     initial_reviews: 1,
     correction_waves: 1,
     correction_rechecks: 1,
-    final_integration_reviews: 0
+    final_integration_reviews: 0,
+    final_correction_waves: 0
   });
   const stopped = applyReviewLifecycleEvent(state, {
     type: 'CORRECTION_RECHECK', reviewerId: 'reviewer-1', verdict: 'approved'
@@ -84,8 +85,91 @@ test('final exact-head integration review is separately reserved', () => {
     type: 'FINAL_INTEGRATION_REVIEW',
     reviewerId: 'reviewer-1',
     candidateHead: 'a'.repeat(40),
+    candidateTree: 'b'.repeat(40),
+    reviewPackageId: 'package-final',
+    semanticContractSha256: 'c'.repeat(64),
+    reviewRecordId: 'review-final',
+    dispatchRecordId: 'dispatch-reviewer-1',
     verdict: 'approved'
   });
   assert.equal(state.status, 'REVIEW_LIFECYCLE_COMPLETE');
   assert.equal(state.aggregate.final_integration_reviews, 1);
+});
+
+test('first failed final review permits one corrected-head final review', () => {
+  let state = lifecycle();
+  state = applyReviewLifecycleEvent(state, {
+    type: 'INITIAL_REVIEW', reviewerId: 'reviewer-1', verdict: 'approved'
+  });
+  state = applyReviewLifecycleEvent(state, {
+    type: 'FINAL_INTEGRATION_REVIEW',
+    reviewerId: 'reviewer-1',
+    candidateHead: 'a'.repeat(40),
+    candidateTree: '1'.repeat(40),
+    reviewPackageId: 'package-final-a',
+    semanticContractSha256: '2'.repeat(64),
+    reviewRecordId: 'review-final-a',
+    dispatchRecordId: 'dispatch-reviewer-1',
+    verdict: 'load_bearing_findings'
+  });
+  assert.equal(state.status, 'FINAL_OWNER_CORRECTION_REQUIRED');
+  state = applyReviewLifecycleEvent(state, {
+    type: 'FINAL_OWNER_CORRECTION', candidateDigest: 'candidate-b'
+  });
+  assert.equal(state.status, 'FINAL_INTEGRATION_REVIEW_REQUIRED');
+  state = applyReviewLifecycleEvent(state, {
+    type: 'FINAL_INTEGRATION_REVIEW',
+    reviewerId: 'reviewer-1',
+    candidateHead: 'b'.repeat(40),
+    candidateTree: '3'.repeat(40),
+    reviewPackageId: 'package-final-b',
+    semanticContractSha256: '4'.repeat(64),
+    reviewRecordId: 'review-final-b',
+    dispatchRecordId: 'dispatch-reviewer-1',
+    verdict: 'approved'
+  });
+  assert.equal(state.status, 'REVIEW_LIFECYCLE_COMPLETE');
+  assert.equal(state.aggregate.final_correction_waves, 1);
+  assert.equal(state.aggregate.final_integration_reviews, 2);
+  assert.equal(state.approved_review.review_record_id, 'review-final-b');
+  assert.equal(state.approved_review.candidate_head, 'b'.repeat(40));
+});
+
+test('second failed final review escalates and a third review is not admitted', () => {
+  let state = lifecycle();
+  state = applyReviewLifecycleEvent(state, {
+    type: 'INITIAL_REVIEW', reviewerId: 'reviewer-1', verdict: 'approved'
+  });
+  for (const [index, head] of [['a', 'a'], ['b', 'b']]) {
+    state = applyReviewLifecycleEvent(state, {
+      type: 'FINAL_INTEGRATION_REVIEW',
+      reviewerId: 'reviewer-1',
+      candidateHead: head.repeat(40),
+      candidateTree: index.repeat(40),
+      reviewPackageId: `package-final-${index}`,
+      semanticContractSha256: index.repeat(64),
+      reviewRecordId: `review-final-${index}`,
+      dispatchRecordId: 'dispatch-reviewer-1',
+      verdict: 'load_bearing_findings'
+    });
+    if (index === 'a') {
+      state = applyReviewLifecycleEvent(state, {
+        type: 'FINAL_OWNER_CORRECTION', candidateDigest: 'candidate-b'
+      });
+    }
+  }
+  assert.equal(state.status, 'STRATEGY_ESCALATION_REQUIRES_OWNER');
+  const stopped = applyReviewLifecycleEvent(state, {
+    type: 'FINAL_INTEGRATION_REVIEW',
+    reviewerId: 'reviewer-1',
+    candidateHead: 'c'.repeat(40),
+    candidateTree: 'c'.repeat(40),
+    reviewPackageId: 'package-final-c',
+    semanticContractSha256: 'c'.repeat(64),
+    reviewRecordId: 'review-final-c',
+    dispatchRecordId: 'dispatch-reviewer-1',
+    verdict: 'approved'
+  });
+  assert.equal(stopped.status, 'STRATEGY_ESCALATION_REQUIRES_OWNER');
+  assert.equal(stopped.aggregate.final_integration_reviews, 2);
 });
