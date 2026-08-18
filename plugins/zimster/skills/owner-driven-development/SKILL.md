@@ -173,7 +173,7 @@ new exact-head review. A remaining load-bearing defect after the bounded cycle
 trips the circuit breaker: technically adjudicate, revise the design, diagnose,
 or report blocked. Do not keep spawning reviewers until one approves.
 
-Use `scripts/review-control.mjs` for the operational review path. Its canonical
+Use `<zimster-runtime>/scripts/review-control.mjs` for the operational review path. Its canonical
 run/seam lifecycle owns recheck identity and final-review attempts; caller
 scope, digest, attempt, reviewer, or candidate labels cannot replenish it.
 Completion also requires the exact approved lifecycle attempt and available

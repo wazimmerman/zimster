@@ -28,7 +28,7 @@ try {
   await writeFile(path.join(repo, 'tracked.txt'), 'fixture\n');
   run('git', ['add', 'tracked.txt']);
   run('git', ['commit', '-m', 'fixture']);
-  run(process.execPath, [script('run-budget.mjs'), 'init', '--profile', 'standard']);
+  run(process.execPath, [script('init-run.mjs'), '--profile', 'standard']);
 
   const evidenceArgs = [
     script('evidence.mjs'), 'run',
