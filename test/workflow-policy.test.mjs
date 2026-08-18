@@ -183,6 +183,13 @@ test('bootstrap policy enforces execution economy and phase-bounded ownership', 
   assert.match(bootstrap, /postmortem/i);
 });
 
+test('bootstrap distinguishes recoverable budgets from terminal hard stops', async () => {
+  const bootstrap = await read('skills/using-zimster/SKILL.md');
+  assert.match(bootstrap, /only soft\s+or recoverable budgets.*strategy change.*proof/is);
+  assert.match(bootstrap, /hard lifecycle and economic limits.*never.*(?:strategy change|proof)/is);
+  assert.match(bootstrap, /HARD_BUDGET_EXHAUSTED.*stop autonomous remediation/is);
+});
+
 test('registered work separates evidence states and gates knowledge promotion and conformance', async () => {
   const owner = await read('skills/owner-driven-development/SKILL.md');
   for (const state of ['current_truth', 'proposed_delta', 'accepted_decision', 'unresolved_proposal']) {

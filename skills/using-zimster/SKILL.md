@@ -150,8 +150,12 @@ Never lower a required quality gate silently.
 
 Initialize the machine-readable execution budget for Standard and High-risk
 runs. Record suites, duplicates, agent identities/depth, rechecks,
-corrections, context renewals, research, and exposed token thresholds. Crossing
-a limit needs a recorded strategy change/invalidation and named proof.
+corrections, context renewals, research, and exposed token thresholds. Only soft
+or recoverable budgets may continue after a recorded strategy change,
+invalidation, and named proof. Hard lifecycle and economic limits never accept
+a strategy change, invalidation, proof, semantic digest, or new attempt ID.
+`HARD_BUDGET_EXHAUSTED`, `CIRCUIT_BREAKER`,
+`STRATEGY_ESCALATION_REQUIRES_OWNER`, and `BLOCKED` stop autonomous remediation.
 
 Use `<zimster-runtime>/scripts/convergence.mjs decide` for ordinary deterministic failure. Continue
 without repeated authorization only in-scope, reversible, non-sensitive,
