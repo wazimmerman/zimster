@@ -1,5 +1,9 @@
 import { createHash } from 'node:crypto';
-import { validateReviewRecord } from './semantic-assurance.mjs';
+import {
+  evaluateHumanReleaseReview,
+  validateReleaseReviewAuthorization,
+  validateReviewRecord
+} from './semantic-assurance.mjs';
 
 export const MAX_EMBEDDED_INPUT_BYTES = 1024 * 1024;
 export const MAX_TOTAL_EMBEDDED_INPUT_BYTES = 2 * 1024 * 1024;
@@ -83,24 +87,6 @@ export function validatePublicReleaseInput(name, bytes, { candidateCommit, candi
       'checkout_integrity_result'
     ], name);
     validateReviewRecord(value);
-    if (value.head_sha !== candidateCommit || value.candidate_tree !== candidateTree) {
-      throw new Error('semantic review does not match the exact release candidate head and tree');
-    }
-    if (value.review_type !== 'independent_review' || value.review_scope !== 'integration') {
-      throw new Error('semantic review must be the final independent integration review');
-    }
-    if (typeof value.seam_id !== 'string' || !value.seam_id || typeof value.review_attempt_id !== 'string' || !value.review_attempt_id) {
-      throw new Error('semantic review must identify its canonical seam and review attempt');
-    }
-    if (!['host_authenticated', 'not_host_authenticated'].includes(value.reviewer_provenance)) {
-      throw new Error('semantic review must state reviewer provenance truthfully');
-    }
-    if (value.verdict !== 'approved' || value.unverified_obligations.length) {
-      throw new Error('semantic review is not approved for human release authorization');
-    }
-    if (value.findings.some(({ severity }) => ['Critical', 'Important'].includes(severity))) {
-      throw new Error('semantic review contains unresolved Critical or Important findings');
-    }
   } else if (name === 'host-matrix.json') {
     exactKeys(value, ['schema_version', 'candidate_commit', 'candidate_tree', 'hosts'], name);
     if (value.schema_version !== 1 || value.candidate_commit !== candidateCommit || value.candidate_tree !== candidateTree) {
@@ -120,7 +106,10 @@ export function validatePublicReleaseInput(name, bytes, { candidateCommit, candi
       for (const field of ['capabilities_established', 'capabilities_not_established', 'known_limitations']) stringArray(host[field], field);
     }
   } else if (name === 'verification.json') {
-    exactKeys(value, ['schema_version', 'candidate_commit', 'candidate_tree', 'status', 'steps'], name);
+    exactKeys(value, [
+      'schema_version', 'candidate_commit', 'candidate_tree', 'status', 'steps',
+      'release_review_authorization'
+    ], name);
     if (value.schema_version !== 1 || value.candidate_commit !== candidateCommit || value.candidate_tree !== candidateTree || value.status !== 'passed') {
       throw new Error('verification record does not match schema v1, the exact candidate, and passed status');
     }
@@ -131,6 +120,7 @@ export function validatePublicReleaseInput(name, bytes, { candidateCommit, candi
         throw new Error('verification step requires a passed logical log identity and digest');
       }
     }
+    validateReleaseReviewAuthorization(value.release_review_authorization);
   } else {
     throw new Error(`unsupported public release input: ${name}`);
   }
@@ -139,11 +129,21 @@ export function validatePublicReleaseInput(name, bytes, { candidateCommit, candi
 
 export function validateEmbeddedPublicReleaseInputs(evidence) {
   const decoded = decodeEmbeddedReleaseInputs(evidence);
+  const documents = new Map();
   for (const [name, bytes] of decoded) {
-    validatePublicReleaseInput(name, bytes, {
+    documents.set(name, validatePublicReleaseInput(name, bytes, {
       candidateCommit: evidence.commit,
       candidateTree: evidence.tree
-    });
+    }));
+  }
+  const decision = evaluateHumanReleaseReview({
+    review: documents.get('semantic-review.json'),
+    authorization: documents.get('verification.json').release_review_authorization,
+    candidateHead: evidence.commit,
+    candidateTree: evidence.tree
+  });
+  if (!decision.accepted) {
+    throw new Error(`release review authorization rejected: ${decision.reasons.join('; ')}`);
   }
   return decoded;
 }

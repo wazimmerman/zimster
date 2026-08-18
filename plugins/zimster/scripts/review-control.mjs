@@ -7,6 +7,7 @@ import {
   applyReviewLifecycleEvent,
   createReviewLifecycle
 } from './lib/review-lifecycle.mjs';
+import { withOwnerLock } from './lib/owner-lock.mjs';
 
 const { positional, options } = parseOptions(process.argv.slice(2));
 const action = positional[0];
@@ -14,27 +15,6 @@ const root = findRepoRoot(process.cwd());
 const runtime = await ensureRuntimeDirectory(root);
 const lifecycleFile = path.join(runtime, 'reviews', 'lifecycle.json');
 const lifecycleLock = path.join(runtime, 'reviews', 'lifecycle.lock');
-
-async function withLifecycleLock(operation) {
-  await mkdir(path.dirname(lifecycleLock), { recursive: true });
-  let acquired = false;
-  for (let attempt = 0; attempt < 200; attempt += 1) {
-    try {
-      await mkdir(lifecycleLock);
-      acquired = true;
-      break;
-    } catch (error) {
-      if (error.code !== 'EEXIST') throw error;
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    }
-  }
-  if (!acquired) throw new Error('review lifecycle is busy; retry the event');
-  try {
-    return await operation();
-  } finally {
-    await rm(lifecycleLock, { recursive: true, force: true });
-  }
-}
 
 async function readLifecycle() {
   return JSON.parse(await readFile(lifecycleFile, 'utf8'));
@@ -94,7 +74,7 @@ if (action === 'init') {
   await writeLifecycle(state, { createOnly: true });
   writeLine(JSON.stringify(state));
 } else if (action === 'event') {
-  const state = await withLifecycleLock(async () => {
+  const state = await withOwnerLock(lifecycleLock, async () => {
     const current = await readLifecycle();
     if (process.env.NODE_ENV === 'test' && process.env.ZIMSTER_TEST_REVIEW_HOLD_MS) {
       const delay = Number(process.env.ZIMSTER_TEST_REVIEW_HOLD_MS);

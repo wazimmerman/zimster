@@ -11,6 +11,7 @@ import {
   MAX_EMBEDDED_INPUT_BYTES,
   parseReleaseEvidenceRefContents,
   parseReleaseEvidenceTagPayload,
+  validateEmbeddedPublicReleaseInputs,
   validatePublicReleaseInput
 } from '../scripts/lib/release-evidence.mjs';
 import { root } from './helpers.mjs';
@@ -47,7 +48,14 @@ function releaseInputs(commit, tree) {
     },
     verification: {
       schema_version: 1, candidate_commit: commit, candidate_tree: tree, status: 'passed',
-      steps: [{ id: 'release-gate', status: 'passed', log_id: 'release-gate', log_sha256: 'e'.repeat(64) }]
+      steps: [{ id: 'release-gate', status: 'passed', log_id: 'release-gate', log_sha256: 'e'.repeat(64) }],
+      release_review_authorization: {
+        state: 'HUMAN_RELEASE_REVIEW_ACCEPTED', review_id: 'final-review',
+        reviewer_provenance: 'not_host_authenticated', candidate_base: 'a'.repeat(40),
+        candidate_head: commit, candidate_tree: tree, review_package_id: 'package-final',
+        requirement_matrix_sha256: 'b'.repeat(64), semantic_contract_sha256: 'c'.repeat(64),
+        required_lenses: ['release-integrity']
+      }
     }
   };
 }
@@ -155,6 +163,59 @@ test('public release inputs reject machine-local paths and secrets on every plat
       'verification.json', Buffer.from(`${JSON.stringify(document)}\n`),
       { candidateCommit: commit, candidateTree: tree }
     ), new RegExp(`unsafe|secret|path`, 'i'), label);
+  }
+});
+
+test('signed release inputs use the canonical exact review authorization contract', () => {
+  const commit = 'a'.repeat(40);
+  const tree = 'b'.repeat(40);
+  const original = releaseInputs(commit, tree);
+  const encodedEvidence = (inputs) => {
+    const rows = [
+      ['semantic-review.json', 'semantic_review_sha256', inputs.semantic],
+      ['host-matrix.json', 'host_matrix_sha256', inputs.matrix],
+      ['verification.json', 'verification_sha256', inputs.verification]
+    ];
+    const evidence = {
+      schema_version: 2, commit, tree, embedded_inputs: {}
+    };
+    for (const [name, digestField, document] of rows) {
+      const bytes = Buffer.from(`${JSON.stringify(document)}\n`);
+      evidence[digestField] = createHash('sha256').update(bytes).digest('hex');
+      evidence.embedded_inputs[name] = bytes.toString('base64');
+    }
+    return evidence;
+  };
+  assert.doesNotThrow(() => validateEmbeddedPublicReleaseInputs(encodedEvidence(original)));
+
+  for (const [label, mutate] of [
+    ['independent review', (input) => { input.semantic.review_type = 'self_review'; }],
+    ['integration scope', (input) => { input.semantic.review_scope = 'seam'; }],
+    ['owner inline review', (input) => { input.semantic.owner_inline = true; input.semantic.review_type = 'self_review'; }],
+    ['reviewer provenance', (input) => { input.verification.release_review_authorization.reviewer_provenance = 'host_authenticated'; }],
+    ['review id', (input) => { input.verification.release_review_authorization.review_id = 'wrong-review'; }],
+    ['bounded context', (input) => { input.semantic.clean_bounded_context = false; }],
+    ['changed checkout', (input) => { input.semantic.checkout_integrity_result = 'REVIEW_CHECKOUT_CHANGED'; }],
+    ['unverified checkout', (input) => { input.semantic.checkout_integrity_result = 'REVIEW_CHECKOUT_UNVERIFIED'; }],
+    ['base', (input) => { input.semantic.base_sha = 'c'.repeat(40); }],
+    ['head', (input) => { input.semantic.head_sha = 'c'.repeat(40); }],
+    ['tree', (input) => { input.semantic.candidate_tree = 'c'.repeat(40); }],
+    ['package', (input) => { input.semantic.review_package_id = 'wrong-package'; }],
+    ['matrix digest', (input) => { input.semantic.requirement_matrix_sha256 = 'd'.repeat(64); }],
+    ['contract digest', (input) => { input.semantic.semantic_contract_sha256 = 'd'.repeat(64); }],
+    ['required lens', (input) => { input.semantic.semantic_lenses = []; }],
+    ['Critical finding', (input) => { input.semantic.findings = [{ severity: 'Critical', summary: 'blocker' }]; input.semantic.verdict = 'needs_correction'; }],
+    ['Important finding', (input) => { input.semantic.findings = [{ severity: 'Important', summary: 'blocker' }]; input.semantic.verdict = 'needs_correction'; }],
+    ['obligation', (input) => { input.semantic.unverified_obligations = ['missing']; input.semantic.verdict = 'blocked_by_missing_evidence'; }],
+    ['verdict', (input) => { input.semantic.verdict = 'needs_correction'; }]
+  ]) {
+    const mutated = structuredClone(original);
+    mutate(mutated);
+    assert.throws(
+      () => validateEmbeddedPublicReleaseInputs(encodedEvidence(mutated)),
+      /release review|authorization|checkout|base|head|tree|package|matrix|contract|lens|finding|obligation|approved/i,
+      label
+    );
   }
 });
 

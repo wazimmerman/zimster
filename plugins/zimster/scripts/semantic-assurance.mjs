@@ -246,13 +246,20 @@ async function humanReleaseReviewDecision() {
     reasons: [...new Set(reasons)]
   } : evaluateHumanReleaseReview({
     review,
-    candidateBase: reviewPackage.base,
-    candidateHead: matrix.candidate_head,
-    candidateTree: matrix.candidate_tree,
-    reviewPackageId: reviewPackage.id,
-    requirementMatrixSha256: matrixSha256,
-    semanticContractSha256,
-    requiredLenses: reviewPackage.lenses || []
+    authorization: {
+      state: 'HUMAN_RELEASE_REVIEW_ACCEPTED',
+      review_id: review?.id,
+      reviewer_provenance: review?.reviewer_provenance,
+      candidate_base: reviewPackage.base,
+      candidate_head: matrix.candidate_head,
+      candidate_tree: matrix.candidate_tree,
+      review_package_id: reviewPackage.id,
+      requirement_matrix_sha256: matrixSha256,
+      semantic_contract_sha256: semanticContractSha256,
+      required_lenses: reviewPackage.lenses || []
+    },
+    candidateHead: checkout.head,
+    candidateTree: checkout.tree
   });
   writeLine(JSON.stringify(result));
   writeError(`${result.state} review=${result.review_id || 'none'} provenance=${result.reviewer_provenance}`);

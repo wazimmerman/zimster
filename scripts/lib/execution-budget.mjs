@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { captureGitState } from './git-state.mjs';
 import { CONVERGENCE_ALIASES, normalizeConvergenceMetric } from './convergence.mjs';
+import { withOwnerLock } from './owner-lock.mjs';
 
 const evidenceScript = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -82,24 +83,7 @@ async function writeBudgetAtomically(budgetFile, state) {
 }
 
 async function withBudgetLock(runtimeDirectory, operation) {
-  const lock = path.join(runtimeDirectory, 'budget.lock');
-  let acquired = false;
-  for (let attempt = 0; attempt < 200; attempt += 1) {
-    try {
-      await mkdir(lock);
-      acquired = true;
-      break;
-    } catch (error) {
-      if (error.code !== 'EEXIST') throw error;
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    }
-  }
-  if (!acquired) throw new Error('execution budget is busy; retry the event');
-  try {
-    return await operation();
-  } finally {
-    await rm(lock, { recursive: true, force: true });
-  }
+  return withOwnerLock(path.join(runtimeDirectory, 'budget.lock'), operation);
 }
 
 export async function initializeExecutionBudget(runtimeDirectory, profile, options = {}) {

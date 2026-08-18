@@ -106,6 +106,23 @@ receipt beneath the Git-local `zimster/verification` directory, stops on the
 first failure, and prints only a compact JSON summary. Consult existing
 tree-keyed evidence before repeating a broad command.
 
+A passing release profile also writes the portable release-facing
+`verification.json` named by `release_input` in the summary. It contains
+logical log IDs and hashes plus the exact `HUMAN_RELEASE_REVIEW_ACCEPTED`
+binding returned by the canonical release-review evaluator; it contains no
+machine-local log paths. Release-evidence creation and signed-tag verification
+re-evaluate the embedded semantic review against that same signed binding with
+the same evaluator.
+
+Canonical lifecycle and execution-budget mutations use the same portable owner
+lock. Acquisition records a PID, unique nonce, and timestamp. Live or ambiguous
+owners are never displaced; a demonstrably dead owner is reclaimed through an
+atomic quarantine claim. The small nonempty quarantine tombstone is retained so
+a late stale waiter cannot move a replacement live lock. Release removes the
+active lock only when its owner nonce still matches. Fresh incomplete metadata
+is given a bounded grace interval so another process cannot mistake an
+acquisition in progress for abandonment.
+
 ## Capability cache and postmortem
 
 ```text

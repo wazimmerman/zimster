@@ -233,6 +233,31 @@ test('execution budget counts agents but defers recheck authority to the canonic
   }
 });
 
+test('execution budget recovers the same demonstrably dead owner-lock shape', async () => {
+  const repo = await tempRepo();
+  try {
+    const budget = path.join(root, 'scripts/run-budget.mjs');
+    let result = run(process.execPath, [budget, 'init', '--profile', 'standard'], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const lock = runtimePath(repo, 'budget.lock');
+    await mkdir(lock);
+    await writeFile(path.join(lock, 'owner.json'), `${JSON.stringify({
+      schema_version: 1,
+      pid: 2147483647,
+      owner_id: 'dead-budget-owner',
+      acquired_at: '2026-08-17T00:00:00.000Z'
+    })}\n`);
+
+    result = run(process.execPath, [
+      budget, 'record', '--metric', 'exact_duplicate_commands'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(JSON.parse(result.stdout).value, 1);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
 test('run initialization creates a machine-readable budget for Standard and High-risk profiles', async () => {
   for (const profile of ['standard', 'high-risk']) {
     const repo = await tempRepo();

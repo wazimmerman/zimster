@@ -121,7 +121,14 @@ test('verify-tag emits GitHub state only from the verified canonical signed payl
       },
       'verification.json': {
         schema_version: 1, candidate_commit: commit, candidate_tree: tree, status: 'passed',
-        steps: [{ id: 'gate', status: 'passed', log_id: 'gate', log_sha256: 'e'.repeat(64) }]
+        steps: [{ id: 'gate', status: 'passed', log_id: 'gate', log_sha256: 'e'.repeat(64) }],
+        release_review_authorization: {
+          state: 'HUMAN_RELEASE_REVIEW_ACCEPTED', review_id: 'review',
+          reviewer_provenance: 'not_host_authenticated', candidate_base: 'a'.repeat(40),
+          candidate_head: commit, candidate_tree: tree, review_package_id: 'package',
+          requirement_matrix_sha256: 'b'.repeat(64), semantic_contract_sha256: 'c'.repeat(64),
+          required_lenses: ['release-integrity']
+        }
       }
     };
     for (const [option, field] of [

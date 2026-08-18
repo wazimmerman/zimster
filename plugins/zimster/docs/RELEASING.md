@@ -23,7 +23,7 @@ Synchronize versions through the repository command:
 npm run version:bump -- <next-version> --note "Release summary"
 ```
 
-For v0.7.0 the candidate must satisfy the standards lock, canonical/generated
+For v0.7.2 the candidate must satisfy the standards lock, canonical/generated
 mirror equality, current host evidence, benchmark evidence policy, and
 plan-conformance gate. Registry acceptance is a later external event, not a tag
 gate.
@@ -106,6 +106,16 @@ reject secrets, private keys, user-profile paths, temporary paths, and
 Git-local Zimster runtime paths before bytes can enter permanent public tag
 history. An accepted tag records `HUMAN_RELEASE_REVIEW_ACCEPTED`; it does not
 alter runtime semantic-assurance state.
+
+The successful `release:verify` receipt names a separate portable
+`release_input`. That `verification.json` carries the exact canonical review
+authorization binding evaluated locally: review ID and declared provenance,
+candidate base/head/tree, review-package ID, requirement-matrix and
+semantic-contract digests, and required lenses. Release-evidence creation and
+signed-tag verification pass that binding and the embedded semantic review to
+the same pure authorization evaluator used by local semantic assurance. The tag
+path therefore cannot accept weaker review semantics than the local release
+gate.
 
 Never move, delete, or recreate a published tag. Correct a released defect with
 a patch version.

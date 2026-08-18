@@ -971,15 +971,23 @@ test('human release review is exact-head, load-bearing-clean, and does not manuf
     semantic_lenses: REQUIRED_LENSES,
     intended_claims: ['Candidate claim.']
   });
+  const authorization = {
+    state: 'HUMAN_RELEASE_REVIEW_ACCEPTED',
+    review_id: acceptedReview.id,
+    reviewer_provenance: acceptedReview.reviewer_provenance,
+    candidate_base: SHA_A,
+    candidate_head: SHA_B,
+    candidate_tree: TREE,
+    review_package_id: 'package-001',
+    requirement_matrix_sha256: MATRIX_SHA,
+    semantic_contract_sha256: CONTRACT_SHA,
+    required_lenses: REQUIRED_LENSES
+  };
   const accepted = evaluateHumanReleaseReview({
     review: acceptedReview,
-    candidateBase: SHA_A,
+    authorization,
     candidateHead: SHA_B,
-    candidateTree: TREE,
-    reviewPackageId: 'package-001',
-    requirementMatrixSha256: MATRIX_SHA,
-    semanticContractSha256: CONTRACT_SHA,
-    requiredLenses: REQUIRED_LENSES
+    candidateTree: TREE
   });
   assert.deepEqual(accepted, {
     accepted: true,
@@ -987,24 +995,40 @@ test('human release review is exact-head, load-bearing-clean, and does not manuf
     review_id: 'review-001',
     reviewer_provenance: 'not_host_authenticated',
     runtime_assurance_state: 'OWNER_VERIFIED_REVIEW_UNAVAILABLE',
+    authorization,
     reasons: []
   });
 
-  for (const [override, pattern] of [
-    [{ head_sha: 'f'.repeat(40) }, /head/i],
-    [{ candidate_tree: 'f'.repeat(40) }, /tree/i],
-    [{ findings: [{ severity: 'Critical', summary: 'release blocker' }], verdict: 'needs_correction' }, /Critical|load-bearing/i],
-    [{ findings: [{ severity: 'Important', summary: 'release blocker' }], verdict: 'needs_correction' }, /Important|load-bearing/i]
+  for (const [reviewOverride, authorizationOverride, pattern] of [
+    [{ review_type: 'self_review' }, {}, /independent/i],
+    [{ review_scope: 'seam' }, {}, /integration/i],
+    [{ owner_inline: true, review_type: 'self_review' }, {}, /independent/i],
+    [{ reviewer_provenance: undefined }, {}, /provenance/i],
+    [{}, { review_id: 'other-review' }, /review id/i],
+    [{}, { reviewer_provenance: 'host_authenticated' }, /provenance/i],
+    [{ base_sha: 'f'.repeat(40) }, {}, /base/i],
+    [{ head_sha: 'f'.repeat(40) }, {}, /head/i],
+    [{ candidate_tree: 'f'.repeat(40) }, {}, /tree/i],
+    [{ review_package_id: 'other-package' }, {}, /package/i],
+    [{ requirement_matrix_sha256: 'f'.repeat(64) }, {}, /requirement matrix/i],
+    [{ semantic_contract_sha256: 'f'.repeat(64) }, {}, /semantic contract/i],
+    [{ semantic_lenses: [] }, {}, /lenses/i],
+    [{ clean_bounded_context: false }, {}, /checkout|bounded/i],
+    [{ checkout_integrity_result: 'REVIEW_CHECKOUT_CHANGED' }, {}, /checkout/i],
+    [{ checkout_integrity_result: 'REVIEW_CHECKOUT_UNVERIFIED' }, {}, /checkout/i],
+    [{ findings: [{ severity: 'Critical', summary: 'release blocker' }], verdict: 'needs_correction' }, {}, /Critical|load-bearing/i],
+    [{ findings: [{ severity: 'Important', summary: 'release blocker' }], verdict: 'needs_correction' }, {}, /Important|load-bearing/i],
+    [{ unverified_obligations: ['owner acceptance unavailable'], verdict: 'blocked_by_missing_evidence' }, {}, /obligations|approved/i],
+    [{ verdict: 'needs_correction' }, {}, /approved/i],
+    [{}, { state: 'CANDIDATE_COMPLETE' }, /authorization state/i],
+    [{}, { candidate_head: 'f'.repeat(40) }, /candidate head/i],
+    [{}, { candidate_tree: 'f'.repeat(40) }, /candidate tree/i]
   ]) {
     const rejected = evaluateHumanReleaseReview({
-      review: { ...acceptedReview, ...override },
-      candidateBase: SHA_A,
+      review: { ...acceptedReview, ...reviewOverride },
+      authorization: { ...authorization, ...authorizationOverride },
       candidateHead: SHA_B,
-      candidateTree: TREE,
-      reviewPackageId: 'package-001',
-      requirementMatrixSha256: MATRIX_SHA,
-      semanticContractSha256: CONTRACT_SHA,
-      requiredLenses: REQUIRED_LENSES
+      candidateTree: TREE
     });
     assert.equal(rejected.accepted, false);
     assert.notEqual(rejected.state, COMPLETION_STATES.CANDIDATE_COMPLETE);

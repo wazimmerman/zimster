@@ -250,3 +250,44 @@ test('review control serializes concurrent lifecycle mutations without lost upda
     await rm(repo, { recursive: true, force: true });
   }
 });
+
+test('review control recovers a demonstrably dead owner lock before mutation', async () => {
+  const repo = await mkdtemp(path.join(os.tmpdir(), 'zimster-review-dead-lock-'));
+  try {
+    assert.equal(spawnSync('git', ['init', '-b', 'main'], { cwd: repo }).status, 0);
+    await writeFile(path.join(repo, 'tracked.txt'), 'candidate\n');
+    assert.equal(spawnSync('git', ['add', 'tracked.txt'], { cwd: repo }).status, 0);
+    assert.equal(spawnSync('git', [
+      '-c', 'user.name=Zimster Test', '-c', 'user.email=test@example.com',
+      'commit', '-m', 'candidate'
+    ], { cwd: repo }).status, 0);
+    const runtime = spawnSync('git', [
+      'rev-parse', '--path-format=absolute', '--git-path', 'zimster'
+    ], { cwd: repo, encoding: 'utf8' }).stdout.trim();
+    await mkdir(runtime, { recursive: true });
+    await writeFile(path.join(runtime, 'run.json'), `${JSON.stringify({
+      schema_version: 2, id: 'run-review-dead-lock'
+    })}\n`);
+    let result = run([
+      'init', '--seam-id', 'locked-seam', '--candidate-digest', 'candidate-a'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const lock = path.join(runtime, 'reviews', 'lifecycle.lock');
+    await mkdir(lock);
+    await writeFile(path.join(lock, 'owner.json'), `${JSON.stringify({
+      schema_version: 1,
+      pid: 2147483647,
+      owner_id: 'dead-review-owner',
+      acquired_at: '2026-08-17T00:00:00.000Z'
+    })}\n`);
+
+    result = run([
+      'event', '--type', 'INITIAL_REVIEW', '--reviewer-id', 'reviewer-1',
+      '--verdict', 'needs_correction'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(JSON.parse(result.stdout).status, 'OWNER_CORRECTION_REQUIRED');
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});

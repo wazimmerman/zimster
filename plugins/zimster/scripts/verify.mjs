@@ -8,6 +8,7 @@ import { parseOptions, writeLine } from './lib/cli.mjs';
 import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
 import { recordExecutionBudgetEvent } from './lib/execution-budget.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
+import { validateReleaseReviewAuthorization } from './lib/semantic-assurance.mjs';
 
 const packageRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const script = (name) => path.join(packageRoot, 'scripts', name);
@@ -193,6 +194,7 @@ async function runPlan(plan) {
   let actionText = null;
   let warnings = 0;
   let budget = { status: 'not_required' };
+  let releaseReviewAuthorization = null;
   if (plan.complete_suite === true) {
     try {
       const result = await recordExecutionBudgetEvent(runtime, {
@@ -250,10 +252,24 @@ async function runPlan(plan) {
     const expectedStderr = step.expected_stderr
       ? new RegExp(step.expected_stderr).test(stderr)
       : false;
+    let invalidReleaseAuthorization = null;
+    if (plan.profile === 'release' && step.id === 'semantic-completion' && (result.status ?? 1) === 0) {
+      try {
+        const decision = JSON.parse(String(result.stdout || ''));
+        if (decision.state !== 'HUMAN_RELEASE_REVIEW_ACCEPTED') {
+          throw new Error('semantic completion did not accept the human release review');
+        }
+        releaseReviewAuthorization = validateReleaseReviewAuthorization(decision.authorization);
+      } catch (error) {
+        invalidReleaseAuthorization = error.message;
+      }
+    }
     const unexpectedStderr = (result.status ?? 1) === 0 && stderr.trim() !== '' && !expectedStderr;
     if (unexpectedStderr) warnings += 1;
-    const failed = (result.status ?? 1) !== 0 || unexpectedStderr;
-    const reason = unexpectedStderr
+    const failed = (result.status ?? 1) !== 0 || unexpectedStderr || invalidReleaseAuthorization !== null;
+    const reason = invalidReleaseAuthorization
+      ? 'invalid_release_review_authorization'
+      : unexpectedStderr
       ? 'unexpected_stderr'
       : failed
         ? 'nonzero_exit'
@@ -272,7 +288,7 @@ async function runPlan(plan) {
     });
     if (failed) {
       failedStep = step.id;
-      actionText = actionable(result, reason);
+      actionText = invalidReleaseAuthorization || actionable(result, reason);
     }
   }
 
@@ -300,9 +316,32 @@ async function runPlan(plan) {
     warnings,
     failed_step: failedStep,
     action: actionText,
-    steps
+    steps,
+    ...(releaseReviewAuthorization ? { release_review_authorization: releaseReviewAuthorization } : {})
   };
   await writeFile(receiptPath, `${JSON.stringify(receipt, null, 2)}\n`, { flag: 'wx' });
+  let releaseInputPath = null;
+  if (plan.profile === 'release' && status === 'passed') {
+    if (!releaseReviewAuthorization) {
+      throw new Error('passed release verification lacks canonical release review authorization');
+    }
+    const releaseInputDirectory = path.join(verification, 'release-inputs');
+    releaseInputPath = path.join(releaseInputDirectory, `${id}.json`);
+    await mkdir(releaseInputDirectory, { recursive: true });
+    await writeFile(releaseInputPath, `${JSON.stringify({
+      schema_version: 1,
+      candidate_commit: state.head,
+      candidate_tree: state.tree,
+      status: 'passed',
+      steps: steps.map(({ id: stepId, status: stepStatus, log_sha256: logSha256 }) => ({
+        id: stepId,
+        status: stepStatus,
+        log_id: `verification/${stepId}`,
+        log_sha256: logSha256
+      })),
+      release_review_authorization: releaseReviewAuthorization
+    }, null, 2)}\n`, { flag: 'wx' });
+  }
   const summary = {
     schema_version: 1,
     id,
@@ -319,7 +358,8 @@ async function runPlan(plan) {
       ...(duration === undefined ? {} : { duration_ms: duration })
     })),
     log_directory: logDirectory,
-    receipt: receiptPath
+    receipt: receiptPath,
+    ...(releaseInputPath ? { release_input: releaseInputPath } : {})
   };
   writeLine(JSON.stringify(summary));
   if (failedStep) process.exitCode = 1;
