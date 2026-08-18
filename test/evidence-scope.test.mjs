@@ -46,6 +46,8 @@ test('evidence receipts bound requirements, claims, and environment scope', asyn
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const receipt = JSON.parse(result.stdout);
+    assert.equal(receipt.evidence_class, 'claim_establishing');
+    assert.equal(receipt.governed_execution, false);
     assert.deepEqual(receipt.requirement_ids, ['EVIDENCE-001', 'CLAIM-001']);
     assert.deepEqual(receipt.establishes, [
       'Default wrapper invocation works.',
@@ -59,6 +61,44 @@ test('evidence receipts bound requirements, claims, and environment scope', asyn
     const ledgerPath = path.join(repo, '.git', 'zimster', 'evidence', 'receipts.jsonl');
     const ledger = (await readFile(ledgerPath, 'utf8')).trim().split('\n').map(JSON.parse);
     assert.equal(ledger.at(-1).id, receipt.id);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('diagnostic receipts stay lightweight and explicit TDD requires observed RED or GREEN', async () => {
+  const repo = await mkdtemp(path.join(os.tmpdir(), 'zimster-evidence-class-'));
+  try {
+    assert.equal(run('git', ['init', '-b', 'main'], repo).status, 0);
+    assert.equal(run('git', ['config', 'user.name', 'Zimster Test'], repo).status, 0);
+    assert.equal(run('git', ['config', 'user.email', 'test@example.com'], repo).status, 0);
+    await writeFile(path.join(repo, 'fixture.txt'), 'fixture\n');
+    assert.equal(run('git', ['add', 'fixture.txt'], repo).status, 0);
+    assert.equal(run('git', ['commit', '-m', 'fixture'], repo).status, 0);
+    const script = path.join(root, 'scripts/evidence.mjs');
+
+    let result = run(process.execPath, [
+      script, 'record', '--kind', 'diagnostic', '--command', 'inspect logs', '--exit-code', '0'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(JSON.parse(result.stdout).evidence_class, 'diagnostic');
+
+    result = run(process.execPath, [
+      script, 'record', '--kind', 'red', '--command', 'node --test', '--exit-code', '1',
+      '--tests-passed', '0', '--tests-failed', '1', '--tdd-phase', 'red', '--tdd-pair', 'fix-1'
+    ], repo);
+    assert.notEqual(result.status, 0);
+    assert.match(result.stderr, /observed|governed/i);
+
+    result = run(process.execPath, [
+      script, 'run', '--kind', 'red', '--tests-passed', '0', '--tests-failed', '1',
+      '--tdd-phase', 'red', '--tdd-pair', 'fix-1', '--',
+      process.execPath, '-e', 'process.exit(1)'
+    ], repo);
+    assert.equal(result.status, 1, result.stderr || result.stdout);
+    const red = JSON.parse(result.stdout.trim().split('\n').at(-1));
+    assert.equal(red.governed_execution, true);
+    assert.equal(red.tdd.phase, 'red');
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

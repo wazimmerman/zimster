@@ -10,8 +10,9 @@ const { options } = parseOptions(process.argv.slice(2));
 const runtime = options.runtime
   ? path.resolve(process.cwd(), String(options.runtime))
   : await ensureRuntimeDirectory(findRepoRoot(process.cwd()));
-const generatedAt = options.now ? new Date(String(options.now)) : new Date();
-if (!Number.isFinite(generatedAt.getTime())) throw new Error('--now must be an ISO-8601 timestamp');
+if (options.now && !Number.isFinite(new Date(String(options.now)).getTime())) {
+  throw new Error('--now must be an ISO-8601 timestamp');
+}
 
 async function optionalJson(relative) {
   try {
@@ -93,9 +94,12 @@ const allEvents = await optionalJsonl('events/events.jsonl');
 const events = allEvents?.filter((row) => currentRunRow(row, ['recorded_at'])) ?? null;
 const allVerification = await verificationReceipts();
 const verification = allVerification?.filter((row) =>
-  currentRunRow(row, ['started_at', 'ended_at'])
+  row.governed_execution === true
+  && currentRunRow(row, ['started_at', 'ended_at'])
 ) ?? null;
-const evidence = (ledger || []).filter(({ record_type: type }) => type !== 'invalidation');
+const evidence = (ledger || []).filter((row) =>
+  row.record_type !== 'invalidation' && row.governed_execution === true
+);
 const unavailableMetrics = [];
 const metric = (name, value) => {
   if (value.observation === 'unavailable') unavailableMetrics.push(name);
@@ -215,7 +219,7 @@ if (ledger === null) {
   }
   for (const receipt of verification || []) {
     for (const step of receipt.steps || []) {
-      if (step.status === 'not_run') continue;
+      if (step.status === 'not_run' || step.governed_execution !== true) continue;
       executions += 1;
       const identity = step.command_identity;
       if (identity) groups.set(identity, (groups.get(identity) || 0) + 1);
@@ -320,7 +324,6 @@ if (!budget) {
 
 const report = {
   schema_version: 1,
-  generated_at: generatedAt.toISOString(),
   runtime,
   metrics: {
     identities: metric('identities', identities),
@@ -388,10 +391,17 @@ const identity = createHash('sha256').update(JSON.stringify(report)).digest('hex
 const directory = path.join(runtime, 'postmortems');
 const reportPath = path.join(directory, `${identity}.json`);
 await mkdir(directory, { recursive: true });
-await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+let status = 'created';
+try {
+  await readFile(reportPath, 'utf8');
+  status = 'existing';
+} catch (error) {
+  if (error.code !== 'ENOENT') throw error;
+  await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, { flag: 'wx' });
+}
 writeLine(JSON.stringify({
   schema_version: 1,
-  status: 'created',
+  status,
   id: identity,
   unavailable_metrics: report.unavailable_metrics.length,
   report: reportPath

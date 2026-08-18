@@ -157,14 +157,29 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
   const commandArgv = commandArgvOption();
   const discovery = testDiscovery(options, passed, failed);
   const harness = options.harness ? String(options.harness) : null;
+  const tddPhase = options['tdd-phase'] ? String(options['tdd-phase']) : null;
   const explicitBehavior = options['behavioral-evidence'];
   const inputs = await canonicalInputIdentities(listOption('inputs'), workingDirectory);
   const behavioralEvidence = explicitBehavior === undefined
-    ? exitCode === 0 && discovery === 'tests_executed'
+    ? discovery === 'tests_executed' && (exitCode === 0 || tddPhase === 'red')
     : ['true', '1', 'yes'].includes(String(explicitBehavior).toLowerCase());
   const recordedEnvironment = environment(options['host-version'] ? String(options['host-version']) : null);
   const dependencies = await canonicalInputIdentities(listOption('dependencies'), root);
   const requirementIds = listOption('requirement-ids');
+  const establishes = listOption('establishes');
+  const doesNotEstablish = listOption('does-not-establish');
+  const environmentScope = options['environment-scope']
+    ? String(options['environment-scope'])
+    : null;
+  const evidenceClass = options['evidence-class']
+    ? String(options['evidence-class'])
+    : requirementIds.length || establishes.length
+      ? 'claim_establishing'
+      : 'diagnostic';
+  if (!['diagnostic', 'claim_establishing'].includes(evidenceClass)) {
+    throw new Error('--evidence-class must be diagnostic or claim_establishing');
+  }
+  const governedExecution = String(options.source || '') === 'governed-run';
   for (const id of requirementIds) {
     if (!/^[A-Z][A-Z0-9]*-[0-9]{3,}$/.test(id)) {
       throw new Error(`malformed requirement ID: ${id}`);
@@ -193,6 +208,8 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
     ended_at: endedAt,
     exit_code: exitCode,
     source: String(options.source || 'manual-record'),
+    governed_execution: governedExecution,
+    evidence_class: evidenceClass,
     final_gate: options.final === true,
     harness,
     capabilities: harness ? await harnessCapabilities(harness) : null,
@@ -214,11 +231,13 @@ async function buildReceipt({ startedAt = new Date().toISOString(), endedAt = ne
     inputs,
     input_fingerprints: await fingerprintPathIdentities(root, inputs),
     requirement_ids: requirementIds,
-    establishes: listOption('establishes'),
-    does_not_establish: listOption('does-not-establish'),
-    environment_scope: options['environment-scope']
-      ? String(options['environment-scope'])
-      : null,
+    establishes,
+    does_not_establish: doesNotEstablish,
+    environment_scope: environmentScope,
+    tdd: tddPhase ? {
+      phase: tddPhase,
+      pair_id: options['tdd-pair'] ? String(options['tdd-pair']) : null
+    } : null,
     notes: options.notes ? String(options.notes) : null
   };
   validateReceipt(receipt);
@@ -255,6 +274,29 @@ function validateReceipt(receipt) {
     || (receipt.exit_code !== 0 && receipt.kind !== 'red')
   )) {
     throw new Error('behavioral evidence requires executed tests and a successful command (except explicit red evidence)');
+  }
+  if (receipt.evidence_class === 'claim_establishing' && (
+    !receipt.requirement_ids.length
+    || !receipt.establishes.length
+    || !receipt.environment_scope
+    || !receipt.git_commit
+    || !receipt.git_tree
+  )) {
+    throw new Error('claim-establishing evidence requires requirements, claims, environment scope, and candidate identity');
+  }
+  if (receipt.tdd) {
+    if (!['red', 'green'].includes(receipt.tdd.phase) || !receipt.tdd.pair_id) {
+      throw new Error('TDD evidence requires --tdd-phase red|green and --tdd-pair');
+    }
+    if (!receipt.governed_execution || discovery !== 'tests_executed') {
+      throw new Error('TDD evidence must come from an observed governed test execution');
+    }
+    if (receipt.tdd.phase === 'red' && (receipt.exit_code === 0 || (failed ?? 0) < 1)) {
+      throw new Error('TDD RED evidence requires an observed failing test execution');
+    }
+    if (receipt.tdd.phase === 'green' && (receipt.exit_code !== 0 || (passed ?? 0) < 1 || (failed ?? 0) !== 0)) {
+      throw new Error('TDD GREEN evidence requires an observed passing test execution');
+    }
   }
 }
 
@@ -403,6 +445,7 @@ async function main() {
     options['command-argv'] = JSON.stringify(passthrough);
     options.kind = options.kind || 'command';
     options.scope = options.scope || 'focused';
+    options.source = 'governed-run';
     const duplicate = await findReusable(command, String(options.kind), String(options.scope));
     if (duplicate && options.force !== true) {
       writeLine(

@@ -191,6 +191,9 @@ Do not ask for repeated authorization after each local test, lint, build, or
 package-smoke failure. Stop only for contradiction, material expansion,
 sensitive choices without authority, missing independent review,
 policy-required approval, or exhausted budget, and record the decision.
+`HARD_BUDGET_EXHAUSTED`, `CIRCUIT_BREAKER`,
+`STRATEGY_ESCALATION_REQUIRES_OWNER`, and `BLOCKED` stop Zimster remediation
+even when the host is configured to continue pursuing a goal.
 
 On self-hosting work, the accepted pre-change workflow governs the run.
 Unfinished candidate rules remain isolated test subjects until accepted; they

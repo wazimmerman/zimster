@@ -164,6 +164,7 @@ test('run postmortem aggregates observed execution economy without mixing token 
     await jsonl(path.join(runtime, 'evidence/receipts.jsonl'), [
       {
         id: 'test-1',
+        governed_execution: true,
         record_type: 'receipt',
         command_identity: 'same-command',
         command: 'node --test',
@@ -174,6 +175,7 @@ test('run postmortem aggregates observed execution economy without mixing token 
       },
       {
         id: 'test-2',
+        governed_execution: true,
         record_type: 'receipt',
         command_identity: 'same-command',
         command: 'node --test',
@@ -184,6 +186,7 @@ test('run postmortem aggregates observed execution economy without mixing token 
       },
       {
         id: 'archived-test',
+        governed_execution: true,
         record_type: 'receipt',
         command_identity: 'archived-command',
         command: 'old broad command',
@@ -195,11 +198,13 @@ test('run postmortem aggregates observed execution economy without mixing token 
     ]);
     await json(path.join(runtime, 'verification/receipts/suite.json'), {
       id: 'suite',
+      governed_execution: true,
       profile: 'goal',
       status: 'passed',
       started_at: '2026-07-28T00:30:00.000Z',
       steps: [{
         id: 'tests',
+        governed_execution: true,
         status: 'passed',
         command_identity: 'verification-tests',
         command_argv: ['node', '--test']
@@ -207,6 +212,7 @@ test('run postmortem aggregates observed execution economy without mixing token 
     });
     await json(path.join(runtime, 'verification/receipts/archived.json'), {
       id: 'archived-suite',
+      governed_execution: true,
       profile: 'goal',
       status: 'passed',
       started_at: '2026-07-27T00:30:00.000Z',
@@ -275,6 +281,58 @@ test('run postmortem labels absent measurements unavailable instead of inferring
     assert.equal(report.metrics.commands.observation, 'unavailable');
     assert.ok(report.unavailable_metrics.includes('tokens'));
     assert.ok(report.unavailable_metrics.includes('commands'));
+  } finally {
+    await rm(runtime, { recursive: true, force: true });
+  }
+});
+
+test('postmortem generation reaches a fixed point over unchanged source state', async () => {
+  const runtime = await mkdtemp(path.join(os.tmpdir(), 'zimster-postmortem-fixed-point-'));
+  try {
+    await jsonl(path.join(runtime, 'evidence/receipts.jsonl'), [{
+      id: 'observed',
+      record_type: 'receipt',
+      governed_execution: true,
+      command_identity: 'observed-command',
+      command: 'node --test',
+      kind: 'test',
+      exit_code: 0,
+      tests: { discovery: 'tests_executed', passed: 1, failed: 0, skipped: 0 }
+    }]);
+    const first = run(['--runtime', runtime, '--now', '2026-07-28T02:00:00.000Z']);
+    const second = run(['--runtime', runtime, '--now', '2026-08-01T03:00:00.000Z']);
+    assert.equal(first.status, 0, first.stderr || first.stdout);
+    assert.equal(second.status, 0, second.stderr || second.stdout);
+    const firstSummary = JSON.parse(first.stdout);
+    const secondSummary = JSON.parse(second.stdout);
+    assert.equal(secondSummary.id, firstSummary.id);
+    assert.equal(secondSummary.report, firstSummary.report);
+    assert.equal(secondSummary.status, 'existing');
+    const report = await readFile(firstSummary.report, 'utf8');
+    assert.doesNotMatch(report, /generated_at/);
+  } finally {
+    await rm(runtime, { recursive: true, force: true });
+  }
+});
+
+test('postmortem does not claim unobservable shell executions were governed', async () => {
+  const runtime = await mkdtemp(path.join(os.tmpdir(), 'zimster-postmortem-governed-'));
+  try {
+    await jsonl(path.join(runtime, 'evidence/receipts.jsonl'), [{
+      id: 'manual',
+      record_type: 'receipt',
+      governed_execution: false,
+      command_identity: 'manual-command',
+      command: 'npm test',
+      kind: 'test',
+      exit_code: 0,
+      tests: { discovery: 'tests_executed', passed: 99, failed: 0, skipped: 0 }
+    }]);
+    const result = run(['--runtime', runtime]);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const report = JSON.parse(await readFile(JSON.parse(result.stdout).report, 'utf8'));
+    assert.equal(report.metrics.commands.executions, 0);
+    assert.deepEqual(report.metrics.tests_by_evidence_class, { observation: 'observed' });
   } finally {
     await rm(runtime, { recursive: true, force: true });
   }

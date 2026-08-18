@@ -59,7 +59,9 @@ Use `convergence.mjs decide --event <kind> --scope in-scope --sensitivity
 ordinary --reversible true --authorized true --deterministic true --locality
 local --metric <budget>` after an ordinary deterministic failure. A
 `continue` record replaces repeated authorization; escalation or exhaustion
-stops the autonomous path.
+stops the autonomous path. `HARD_BUDGET_EXHAUSTED`, `CIRCUIT_BREAKER`,
+`STRATEGY_ESCALATION_REQUIRES_OWNER`, and `BLOCKED` outrank any host goal or
+long-run continuation setting.
 
 ## Deterministic verification
 
@@ -171,6 +173,12 @@ New receipts may also carry `--requirement-ids`, `--establishes`,
 `--does-not-establish`, and `--environment-scope`. Use JSON arrays when a claim
 contains commas. This prevents a narrow native harness or fixture from being
 reported as broad compatibility proof.
+
+Receipts are `diagnostic` unless they explicitly bind requirements and claims;
+those receipts are `claim_establishing`. Only executions performed by the
+`evidence run` or verification wrappers are marked as governed. Prospective
+TDD claims use `--tdd-phase red|green --tdd-pair <id>` on an actual wrapper-
+observed test execution; manual records cannot establish RED or GREEN.
 
 Test-discovery values are `not_reached`, `zero_discovered`, `tests_executed`,
 and `unknown`. `unknown` and `not_reached` carry no counts; `zero_discovered`

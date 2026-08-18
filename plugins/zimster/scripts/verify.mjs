@@ -263,6 +263,7 @@ async function runPlan(plan) {
         : null;
     steps.push({
       id: step.id,
+      governed_execution: true,
       command_argv: [step.command, ...step.args],
       command_identity: digest(JSON.stringify([step.command, ...step.args])),
       status: failed ? 'failed' : 'passed',
@@ -283,6 +284,7 @@ async function runPlan(plan) {
   const status = failedStep ? 'failed' : 'passed';
   const receipt = {
     schema_version: 1,
+    governed_execution: true,
     id,
     profile: plan.profile,
     status,

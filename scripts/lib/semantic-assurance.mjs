@@ -331,10 +331,9 @@ export function independentApprovalFor({
   if (!Array.isArray(requiredLenses) || !requiredLenses.length) {
     throw new Error('independentApprovalFor requires semantic lenses from the review package');
   }
-  const independentReviews = reviews.filter((record) => {
-    validateReviewRecord(record);
-    return record.review_type === 'independent_review';
-  });
+  const independentReviews = reviews.filter(
+    (record) => record?.review_type === 'independent_review'
+  );
   if (!independentReviews.length) {
     return {
       approved: false,
@@ -382,6 +381,7 @@ export function independentApprovalFor({
       reason: 'independent review does not cover the current semantic contract'
     };
   }
+  for (const record of exactContractReviews) validateReviewRecord(record);
   const review = exactContractReviews.at(-1);
   if (review.verdict !== 'approved') {
     return {
@@ -459,6 +459,9 @@ function uniqueIds(records, label, issues) {
 function evidenceIssue(entry, item, matrix) {
   if (!item) return 'referenced evidence is missing';
   if (item.status !== 'valid') return `evidence ${item.id} is ${item.status || 'not valid'}`;
+  if (item.evidence_class && item.evidence_class !== 'claim_establishing') {
+    return `diagnostic evidence ${item.id} cannot establish a completion claim`;
+  }
   if (!item.requirement_ids?.includes(entry.id)) {
     return `evidence ${item.id} does not support requirement ${entry.id}`;
   }

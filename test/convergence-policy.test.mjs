@@ -7,6 +7,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
+  autonomyDisposition,
   decideConvergence,
   validateConvergenceConfig
 } from '../scripts/lib/convergence.mjs';
@@ -119,6 +120,26 @@ test('CONV-003: only the six binding escalation conditions stop autonomous conve
     assert.equal(decision.outcome, 'escalate');
     assert.equal(decision.reason, reason);
   }
+});
+
+test('Zimster hard stops outrank host goal continuation', () => {
+  for (const status of [
+    'HARD_BUDGET_EXHAUSTED',
+    'CIRCUIT_BREAKER',
+    'STRATEGY_ESCALATION_REQUIRES_OWNER',
+    'BLOCKED'
+  ]) {
+    assert.deepEqual(autonomyDisposition(status), {
+      outcome: 'stop',
+      status,
+      terminal: true
+    });
+  }
+  assert.deepEqual(autonomyDisposition('FOCUSED_TEST_FAILED'), {
+    outcome: 'continue',
+    status: 'FOCUSED_TEST_FAILED',
+    terminal: false
+  });
 });
 
 test('CONV-002: missing or malformed safety facts fail closed', () => {

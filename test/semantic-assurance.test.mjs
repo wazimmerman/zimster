@@ -114,6 +114,24 @@ test('approved clean-context independent review satisfies the exact Standard can
   );
 });
 
+test('superseded malformed reviews do not block the active candidate evidence frontier', () => {
+  const historical = review({
+    id: '',
+    head_sha: 'f'.repeat(40),
+    review_package_id: 'superseded-package'
+  });
+  assert.deepEqual(
+    independentApprovalFor(approvalOptions({
+      reviews: [historical, review({ semantic_lenses: REQUIRED_LENSES })]
+    })),
+    {
+      approved: true,
+      state: COMPLETION_STATES.SEMANTIC_REVIEW_APPROVED,
+      reviewId: 'review-001'
+    }
+  );
+});
+
 test('an approved review cannot carry load-bearing findings or unresolved obligations', () => {
   for (const severity of ['Critical', 'Important']) {
     assert.throws(() => validateReviewRecord(review({
@@ -288,6 +306,7 @@ function scopedEvidence(id, overrides = {}) {
   return {
     id: `evidence-${id}`,
     status: 'valid',
+    evidence_class: 'claim_establishing',
     requirement_ids: [id],
     establishes: [`Claim ${id}.`],
     does_not_establish: [],
@@ -298,6 +317,16 @@ function scopedEvidence(id, overrides = {}) {
     ...overrides
   };
 }
+
+test('diagnostic evidence cannot establish a semantic completion claim', () => {
+  const result = evaluate(
+    [matrixEntry('CLAIM-001')],
+    binding('CLAIM-001'),
+    [scopedEvidence('CLAIM-001', { evidence_class: 'diagnostic' })]
+  );
+  assert.equal(result.valid, false);
+  assert.match(result.issues.join('\n'), /diagnostic.*claim/i);
+});
 
 function evaluate(entries, bindingRequirements, evidence) {
   return evaluateRequirementMatrix({

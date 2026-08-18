@@ -19,6 +19,18 @@ const SCOPES = Object.freeze(['in-scope', 'out-of-scope']);
 const SENSITIVITIES = Object.freeze(['ordinary', 'sensitive']);
 const LOCALITIES = Object.freeze(['local', 'external']);
 const CONDITIONS = Object.freeze([null, 'contradiction', 'missing_independent_review', 'policy_required_approval']);
+export const AUTONOMY_STOP_STATES = Object.freeze([
+  'HARD_BUDGET_EXHAUSTED',
+  'CIRCUIT_BREAKER',
+  'STRATEGY_ESCALATION_REQUIRES_OWNER',
+  'BLOCKED'
+]);
+
+export function autonomyDisposition(status) {
+  if (typeof status !== 'string' || !status) throw new Error('autonomy status is required');
+  const terminal = AUTONOMY_STOP_STATES.includes(status);
+  return { outcome: terminal ? 'stop' : 'continue', status, terminal };
+}
 
 export function normalizeConvergenceMetric(metric) {
   return CONVERGENCE_ALIASES[metric] || metric;
