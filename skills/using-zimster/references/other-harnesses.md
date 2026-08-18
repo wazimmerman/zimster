@@ -11,9 +11,10 @@
   config lifecycle, users may add the skills path manually. Optional generated
   agents use `provider/model-id`; omission inherits from the primary agent.
 - **Pi:** the extension registers skills and injects the bootstrap on session
-  start or compaction. Subagents are optional and depend on installed Pi
-  extensions. Zimster ships no subagent runtime, so owner-inline execution is
-  canonical and required independent review may be unavailable.
+  start or compaction. The current optional transport cannot mechanically prove
+  the max-two-active ownership boundary, so Zimster fails closed to owner-inline
+  execution. It ships no subagent runtime, and required independent review may
+  be unavailable.
 
 Harness adapters may change faster than core skills. Keep workflow language
 harness-neutral and isolate tool names in these references and adapter files.

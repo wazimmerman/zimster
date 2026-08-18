@@ -170,8 +170,22 @@ for the exact stable candidate head; a review of an earlier or subsequently
 mutated head cannot satisfy completion. If the reserved review finds a defect,
 use the configured finalization budget for one consolidated correction and a
 new exact-head review. A remaining load-bearing defect after the bounded cycle
-trips the circuit breaker: technically adjudicate, revise the design, diagnose,
-or report blocked. Do not keep spawning reviewers until one approves.
+trips the circuit breaker and strategy escalation. The persistent root may
+diagnose the cause and explicitly admit one materially different,
+focused-proof-backed strategy under the same seam lineage. That strategy gets
+one new independent review, one owner correction, and one same-reviewer
+recheck. The second cycle may use another independent reviewer when necessary,
+but its recheck remains bound to that reviewer. A remaining load-bearing defect
+after cycle two is `BLOCKED`; a third cycle requires external owner authority.
+This is one bounded strategy restart, not a reset of review history or budget.
+Do not keep spawning reviewers until one approves.
+
+Use `<zimster-runtime>/scripts/review-control.mjs` for the operational review path. Its canonical
+run/seam lifecycle owns recheck identity and final-review attempts; caller
+scope, digest, attempt, reviewer, or candidate labels cannot replenish it.
+Completion also requires the exact approved lifecycle attempt and genuinely
+host-observed reviewer-result provenance, not a transported review JSON file or
+owner-recorded dispatch.
 
 ## 8. Evidence ladder and budget
 
@@ -191,6 +205,9 @@ Do not ask for repeated authorization after each local test, lint, build, or
 package-smoke failure. Stop only for contradiction, material expansion,
 sensitive choices without authority, missing independent review,
 policy-required approval, or exhausted budget, and record the decision.
+`HARD_BUDGET_EXHAUSTED`, `CIRCUIT_BREAKER`,
+`STRATEGY_ESCALATION_REQUIRES_OWNER`, and `BLOCKED` stop Zimster remediation
+even when the host is configured to continue pursuing a goal.
 
 On self-hosting work, the accepted pre-change workflow governs the run.
 Unfinished candidate rules remain isolated test subjects until accepted; they

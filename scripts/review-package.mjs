@@ -1,14 +1,18 @@
-import { createHash } from 'node:crypto';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { createHash, randomUUID } from 'node:crypto';
+import { lstat, mkdir, readFile, readlink, rename, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { parseOptions, writeLine } from './lib/cli.mjs';
-import { captureGitState, findRepoRoot, gitValue, runGit } from './lib/git-state.mjs';
+import { captureGitState, changedFiles, findRepoRoot, gitValue, runGit } from './lib/git-state.mjs';
 import { evidenceStalenessReason } from './lib/evidence-validity.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
 import {
   selectSemanticLenses,
   semanticContractDigest
 } from './lib/semantic-assurance.mjs';
+import {
+  expectedReviewDirectoryCollision,
+  normalizeGitFileMode
+} from './lib/review-package-files.mjs';
 
 const { options } = parseOptions(process.argv.slice(2));
 const root = findRepoRoot(process.cwd());
@@ -52,6 +56,7 @@ function fileAt(commit, relative) {
 
 immutableCommit('base', base);
 immutableCommit('head', head);
+const currentState = await captureGitState(root);
 const changed = runGit(['diff', '--name-only', '-z', `${base}..${head}`], root, {
   encoding: 'buffer'
 }).stdout.toString('utf8').split('\0').filter(Boolean).sort();
@@ -210,7 +215,6 @@ try {
       .map((row) => [row.id, row])
   );
   for (const row of receipts.slice(-20)) selected.set(row.id, row);
-  const currentState = await captureGitState(root);
   evidence = await Promise.all([...selected.values()].map(async (row) => {
     const naturalReason = row.exit_code === 0
       ? await evidenceStalenessReason(row, { root, state: currentState })
@@ -247,6 +251,39 @@ try {
   if (error.code !== 'ENOENT') throw error;
 }
 
+const cleanFingerprint = 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855';
+let dirtyStateIdentity = null;
+let trackedDirtyDiff = Buffer.alloc(0);
+let untrackedPayload = [];
+if (currentState.head === head && currentState.dirty_tree_fingerprint !== cleanFingerprint) {
+  trackedDirtyDiff = Buffer.from(runGit([
+    'diff', '--binary', '--no-ext-diff', '--no-color', 'HEAD'
+  ], root, { encoding: 'buffer' }).stdout);
+  for (const { file: relative } of currentState.untracked) {
+    const absolute = path.join(root, ...relative.split('/'));
+    const metadata = await lstat(absolute);
+    const symlink = metadata.isSymbolicLink();
+    const data = symlink
+      ? Buffer.from(await readlink(absolute))
+      : await readFile(absolute);
+    untrackedPayload.push({
+      path: relative,
+      type: symlink ? 'symlink' : 'file',
+      mode: (symlink ? 0o120000 : normalizeGitFileMode(metadata.mode)).toString(8),
+      bytes: data.length,
+      sha256: sha256(data),
+      data_base64: data.toString('base64')
+    });
+  }
+  untrackedPayload.sort((left, right) => left.path.localeCompare(right.path));
+  dirtyStateIdentity = {
+    dirty_tree_fingerprint: currentState.dirty_tree_fingerprint,
+    touched_files: changedFiles(root),
+    tracked_diff_sha256: sha256(trackedDirtyDiff),
+    untracked: untrackedPayload.map(({ data_base64: ignored, ...entry }) => entry)
+  };
+}
+
 const identity = sha256(JSON.stringify({
   base,
   head,
@@ -260,12 +297,14 @@ const identity = sha256(JSON.stringify({
   unavailable_proof: unavailableProof,
   requested_completion_state: requestedCompletionState,
   evidence_state: sha256(JSON.stringify(evidence)),
+  dirty_state: dirtyStateIdentity,
   interfaces: interfaces.map(({ path: relative, sha256: hash }) => [relative, hash])
 })).slice(0, 24);
 const directory = path.join(runtime, 'reviews', identity);
 const packagePath = path.join(directory, 'review-package.json');
 const diffPath = path.join(directory, 'authoritative.diff');
-await mkdir(directory, { recursive: true });
+const dirtyDiffPath = path.join(directory, 'dirty-working-tree.diff');
+const untrackedPayloadPath = path.join(directory, 'untracked-files.json');
 const canonicalPaths = authoritative.map(({ path: relative }) => relative);
 const diff = canonicalPaths.length
   ? runGit([
@@ -273,7 +312,13 @@ const diff = canonicalPaths.length
     ...canonicalPaths
   ], root).stdout
   : '';
-await writeFile(diffPath, diff);
+const dirtyState = dirtyStateIdentity
+  ? {
+      ...dirtyStateIdentity,
+      tracked_diff: dirtyDiffPath,
+      untracked_payload: untrackedPayloadPath
+    }
+  : null;
 const reviewPackage = {
   schema_version: 1,
   id: identity,
@@ -293,12 +338,48 @@ const reviewPackage = {
   authoritative_diff: diffPath,
   relevant_unchanged_interfaces: interfaces,
   generated_mirrors: generated,
-  evidence
+  evidence,
+  dirty_state: dirtyState
 };
-await writeFile(packagePath, `${JSON.stringify(reviewPackage, null, 2)}\n`);
+const packageBytes = `${JSON.stringify(reviewPackage, null, 2)}\n`;
+const untrackedBytes = `${JSON.stringify(untrackedPayload, null, 2)}\n`;
+await mkdir(path.dirname(directory), { recursive: true });
+const temporary = `${directory}.tmp-${process.pid}-${randomUUID()}`;
+await mkdir(temporary);
+let status = 'created';
+try {
+  await writeFile(path.join(temporary, 'authoritative.diff'), diff);
+  await writeFile(path.join(temporary, 'review-package.json'), packageBytes);
+  if (dirtyState) {
+    await writeFile(path.join(temporary, 'dirty-working-tree.diff'), trackedDirtyDiff);
+    await writeFile(path.join(temporary, 'untracked-files.json'), untrackedBytes);
+  }
+  try {
+    await rename(temporary, directory);
+  } catch (error) {
+    if (!(await expectedReviewDirectoryCollision(error, directory))) throw error;
+    status = 'existing';
+    const comparisons = [
+      [packagePath, packageBytes],
+      [diffPath, diff]
+    ];
+    if (dirtyState) comparisons.push(
+      [dirtyDiffPath, trackedDirtyDiff],
+      [untrackedPayloadPath, untrackedBytes]
+    );
+    for (const [file, expected] of comparisons) {
+      const actual = await readFile(file);
+      if (!actual.equals(Buffer.from(expected))) {
+        throw new Error(`immutable review package collision differs at ${file}`);
+      }
+    }
+  }
+} finally {
+  await rm(temporary, { recursive: true, force: true });
+}
 writeLine(JSON.stringify({
   schema_version: 1,
-  status: 'created',
+  status,
   id: identity,
   base,
   head,

@@ -7,27 +7,23 @@ function supportsProtocol(transport: unknown): transport is Record<string, (...a
 
 export function createPiDelegationCapability(transport?: unknown) {
   const available = supportsProtocol(transport);
+  const unavailable = available ? "mechanical_parallelism_unenforced" : "optional_transport_unavailable";
   return Object.freeze({
     async probe() {
-      if (!available) return { available: false, protocol, reason: "optional_transport_unavailable" };
-      return transport.probe({ protocol, maxParallelImplementers: 2, maxSubagentDepth: 0 });
+      return { available: false, protocol, reason: unavailable };
     },
     async launch(request: { depth?: number } = {}) {
       if ((request.depth ?? 0) !== 0) throw new Error("Pi delegation depth must remain zero");
-      if (!available) return { status: "inline_required", reason: "optional_transport_unavailable" };
-      return transport.launch({ ...request, protocol, allowNestedSubagents: false, maxParallelImplementers: 2 });
+      return { status: "inline_required", reason: unavailable };
     },
     async status(request: unknown) {
-      if (!available) return { status: "inline_required", reason: "optional_transport_unavailable" };
-      return transport.status(request);
+      return { status: "inline_required", reason: unavailable };
     },
     async cancel(request: unknown) {
-      if (!available) return { status: "inline_required", reason: "optional_transport_unavailable" };
-      return transport.cancel(request);
+      return { status: "inline_required", reason: unavailable };
     },
     async collect(request: unknown) {
-      if (!available) return { status: "inline_required", reason: "optional_transport_unavailable" };
-      return transport.collect(request);
+      return { status: "inline_required", reason: unavailable };
     }
   });
 }

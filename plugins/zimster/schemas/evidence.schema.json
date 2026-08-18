@@ -125,6 +125,25 @@
     "behavioral_evidence": {
       "type": "boolean"
     },
+    "governed_execution": {
+      "type": "boolean"
+    },
+    "evidence_class": {
+      "enum": ["diagnostic", "claim_establishing"]
+    },
+    "tdd": {
+      "type": ["object", "null"],
+      "properties": {
+        "phase": { "enum": ["red", "green"] },
+        "pair_id": { "type": "string", "minLength": 1 }
+      },
+      "required": ["phase", "pair_id"],
+      "additionalProperties": false
+    },
+    "tdd_compliance": {
+      "type": ["string", "null"],
+      "enum": ["unverified", null]
+    },
     "invalidation_reason": {
       "type": [
         "string",
@@ -283,6 +302,8 @@
           "git_commit",
           "dirty_tree_fingerprint",
           "environment_fingerprint",
+          "governed_execution",
+          "evidence_class",
           "dependency_fingerprints",
           "requirement_ids",
           "establishes",

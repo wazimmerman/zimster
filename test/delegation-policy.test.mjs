@@ -350,6 +350,7 @@ test('DEL-001, ROUTE-001, ROUTE-005: dispatch v2 consumes one authoritative prop
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const row = JSON.parse(result.stdout.trim());
     assert.equal(row.schema_version, 2);
+    assert.equal(row.provenance_kind, 'owner_recorded_dispatch');
     assert.equal(row.delegation_id, decision.id);
     assert.equal(row.proposal_id, proposal.id);
     assert.equal(row.requested_model, 'inherit');

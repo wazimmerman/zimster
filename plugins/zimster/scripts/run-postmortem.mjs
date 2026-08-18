@@ -10,8 +10,9 @@ const { options } = parseOptions(process.argv.slice(2));
 const runtime = options.runtime
   ? path.resolve(process.cwd(), String(options.runtime))
   : await ensureRuntimeDirectory(findRepoRoot(process.cwd()));
-const generatedAt = options.now ? new Date(String(options.now)) : new Date();
-if (!Number.isFinite(generatedAt.getTime())) throw new Error('--now must be an ISO-8601 timestamp');
+if (options.now && !Number.isFinite(new Date(String(options.now)).getTime())) {
+  throw new Error('--now must be an ISO-8601 timestamp');
+}
 
 async function optionalJson(relative) {
   try {
@@ -59,6 +60,7 @@ function countEvents(events, eventType) {
 }
 
 const budget = await optionalJson('budget.json');
+const reviewLifecycle = await optionalJson('reviews/lifecycle.json');
 const hostVerification = await optionalJson('host-smoke/latest.json');
 const runState = await readRunState(runtime);
 const startedAt = runState ? Date.parse(runState.started_at) : null;
@@ -93,9 +95,12 @@ const allEvents = await optionalJsonl('events/events.jsonl');
 const events = allEvents?.filter((row) => currentRunRow(row, ['recorded_at'])) ?? null;
 const allVerification = await verificationReceipts();
 const verification = allVerification?.filter((row) =>
-  currentRunRow(row, ['started_at', 'ended_at'])
+  row.governed_execution === true
+  && currentRunRow(row, ['started_at', 'ended_at'])
 ) ?? null;
-const evidence = (ledger || []).filter(({ record_type: type }) => type !== 'invalidation');
+const evidence = (ledger || []).filter((row) =>
+  row.record_type !== 'invalidation' && row.governed_execution === true
+);
 const unavailableMetrics = [];
 const metric = (name, value) => {
   if (value.observation === 'unavailable') unavailableMetrics.push(name);
@@ -215,7 +220,7 @@ if (ledger === null) {
   }
   for (const receipt of verification || []) {
     for (const step of receipt.steps || []) {
-      if (step.status === 'not_run') continue;
+      if (step.status === 'not_run' || step.governed_execution !== true) continue;
       executions += 1;
       const identity = step.command_identity;
       if (identity) groups.set(identity, (groups.get(identity) || 0) + 1);
@@ -257,6 +262,23 @@ const usageMetric = (name, unavailableReason) => budget
 const aliasedUsageMetric = (name, alias, unavailableReason) => budget
   ? observed({ value: budget.usage?.[name] ?? budget.usage?.[alias] ?? 0 })
   : unavailable(unavailableReason);
+const currentReviewLifecycle = reviewLifecycle && (
+  !runState || reviewLifecycle.run_id === runState.id
+) ? reviewLifecycle : null;
+const lifecycleAggregate = currentReviewLifecycle?.aggregate;
+const reviewLifecycleMetric = lifecycleAggregate
+  ? observed({
+      authority: 'reviews/lifecycle.json',
+      seam_id: currentReviewLifecycle.seam_id,
+      status: currentReviewLifecycle.status,
+      aggregate: lifecycleAggregate
+    })
+  : unavailable(reviewLifecycle
+      ? 'canonical review lifecycle belongs to another run'
+      : 'canonical review lifecycle is absent');
+const lifecycleCount = (selector) => lifecycleAggregate
+  ? observed({ value: selector(lifecycleAggregate) })
+  : unavailable('canonical review lifecycle is unavailable');
 const researchEvents = countEvents(events, 'research');
 const research = events !== null && researchEvents.length
   ? observed({ value: researchEvents.length })
@@ -278,30 +300,26 @@ let budgetCompliance;
 if (!budget) {
   budgetCompliance = unavailable('execution budget is absent');
 } else {
+  const lifecycleMetrics = new Set([
+    'correction_commits',
+    'correction_rechecks',
+    'final_correction_waves',
+    'final_integration_reviews',
+    'review_rechecks_per_seam'
+  ]);
   const exceededRows = Object.entries(budget.usage || {})
     .filter(([name, value]) =>
-      name !== 'correction_rechecks'
-      && !['final_correction_waves', 'review_rechecks_per_seam', 'context_compactions'].includes(name)
+      !lifecycleMetrics.has(name)
+      && name !== 'context_compactions'
       && Number.isFinite(budget.limits?.[name])
       && value > budget.limits[name]
     )
     .map(([metric]) => ({ metric, scope: null, label: metric }));
-  for (const [scope, value] of Object.entries(
-    budget.scoped_usage?.correction_rechecks || budget.scoped_usage?.review_rechecks_per_seam || {}
-  )) {
-    const correctionRecheckLimit = budget.limits.correction_rechecks
-      ?? budget.limits.review_rechecks_per_seam;
-    if (value > correctionRecheckLimit) {
-      exceededRows.push({
-        metric: 'correction_rechecks',
-        scope,
-        label: `correction_rechecks:${scope}`
-      });
-    }
-  }
   const exceeded = exceededRows.map(({ label }) => label);
-  const overrides = budget.overrides || [];
-  const pendingProofs = (budget.proof_obligations || []).filter(({ status }) => status === 'required');
+  const overrides = (budget.overrides || []).filter(({ metric: name }) => !lifecycleMetrics.has(name));
+  const pendingProofs = (budget.proof_obligations || []).filter(({ status, metric: name }) =>
+    status === 'required' && !lifecycleMetrics.has(name)
+  );
   const unjustified = [
     ...exceededRows.filter(({ metric, scope }) =>
       !overrides.some((override) =>
@@ -320,7 +338,6 @@ if (!budget) {
 
 const report = {
   schema_version: 1,
-  generated_at: generatedAt.toISOString(),
   runtime,
   metrics: {
     identities: metric('identities', identities),
@@ -348,23 +365,34 @@ const report = {
           failed: verification.filter(({ status }) => status === 'failed').length
         })
     ),
+    review_lifecycle: metric('review_lifecycle', reviewLifecycleMetric),
+    review_cycles: metric(
+      'review_cycles',
+      lifecycleCount((aggregate) => aggregate.review_cycles ?? 1)
+    ),
     reviews: metric(
       'reviews',
-      dispatches === null
-        ? unavailable('dispatch records are absent')
-        : observed({ value: dispatches.filter(({ role }) => /review/i.test(String(role))).length })
+      lifecycleCount((aggregate) =>
+        aggregate.initial_reviews
+        + aggregate.correction_rechecks
+        + aggregate.final_integration_reviews
+      )
     ),
     corrections: metric(
       'corrections',
-      aliasedUsageMetric('correction_commits', 'final_correction_waves', 'execution budget is absent')
+      lifecycleCount((aggregate) => aggregate.correction_waves + aggregate.final_correction_waves)
     ),
     rechecks: metric(
       'rechecks',
-      aliasedUsageMetric('correction_rechecks', 'review_rechecks_per_seam', 'execution budget is absent')
+      lifecycleCount((aggregate) => aggregate.correction_rechecks)
     ),
     final_integration_reviews: metric(
       'final_integration_reviews',
-      usageMetric('final_integration_reviews', 'execution budget is absent')
+      lifecycleCount((aggregate) => aggregate.final_integration_reviews)
+    ),
+    strategy_restarts: metric(
+      'strategy_restarts',
+      lifecycleCount((aggregate) => aggregate.strategy_restarts ?? 0)
     ),
     convergence: metric(
       'convergence',
@@ -388,10 +416,17 @@ const identity = createHash('sha256').update(JSON.stringify(report)).digest('hex
 const directory = path.join(runtime, 'postmortems');
 const reportPath = path.join(directory, `${identity}.json`);
 await mkdir(directory, { recursive: true });
-await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`);
+let status = 'created';
+try {
+  await readFile(reportPath, 'utf8');
+  status = 'existing';
+} catch (error) {
+  if (error.code !== 'ENOENT') throw error;
+  await writeFile(reportPath, `${JSON.stringify(report, null, 2)}\n`, { flag: 'wx' });
+}
 writeLine(JSON.stringify({
   schema_version: 1,
-  status: 'created',
+  status,
   id: identity,
   unavailable_metrics: report.unavailable_metrics.length,
   report: reportPath

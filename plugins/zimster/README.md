@@ -208,17 +208,18 @@ rules, and convergence controls.
 
 ## Supported harnesses
 
-Version 0.7.0 reports support per tested capability. Installation and structural
-validation do not imply live, model-backed execution.
+Version 0.7.2 reports support only for the exact commit and artifact hashes in
+its release-candidate matrix. Installation and structural validation do not
+imply live, model-backed execution.
 
 | Harness | Current verification level | Installation path | Principal limitation |
 |---|---|---|---|
-| Codex 0.146.1 | `INSTALLED_PACKAGE_VERIFIED` | Full Codex ZIP or Git/custom marketplace | Isolated registration and installation passed; no comparative benchmark covers the changed final v0.7 candidate |
-| Claude Code 2.1.224 | `STRUCTURALLY_VALIDATED` | Full Claude ZIP or GitHub marketplace | The exact package structure validates with 12 skills, 4 agents, and the SessionStart hook; isolated installation and model-backed execution are not established |
-| Grok 1.0.0 | `STRUCTURALLY_VALIDATED` | Portable Agent Plugin ZIP | The root manifest and all 12 skills validate structurally; isolated installation, skill discovery, and model-backed execution are not established |
-| Kimi Code | `UNAVAILABLE` | Primary npm package or copied skills | The CLI was absent, so only the documented adapter structure was validated |
-| OpenCode 1.18.13 | `LIVE_VERIFIED` | Primary npm package or copied skills | Exact npm-package skill discovery passed; model-backed execution was not run |
-| Pi 0.84.1 | `INSTALLED_PACKAGE_VERIFIED` | Primary npm package | Isolated package installation passed; optional delegation remains disabled by default |
+| Codex 0.147.0 / desktop 0.147.0-alpha.6.6 | `INSTALLED_PACKAGE_VERIFIED` | Full Codex ZIP or Git/custom marketplace | Isolated installation and skill discovery are established separately on both runtimes; effective role/model enforcement and model-backed workflow quality are not |
+| Claude Code 2.1.226 | `INSTALLED_PACKAGE_VERIFIED` | Full Claude ZIP or GitHub marketplace | Strict validation, isolated inventory, and SessionStart pass; no model-backed claim is made for the final exact artifact |
+| Grok 1.0.0 | `INSTALLED_PACKAGE_VERIFIED` | Portable Agent Plugin ZIP | Native install discovers all 12 skills; no model-backed claim or Grok-specific agent overlay is provided |
+| Kimi Code | `UNAVAILABLE` | Primary npm package or copied skills | The current CLI is absent, so manifest, skills, and session-start structure are only `STRUCTURALLY_VALIDATED` |
+| OpenCode 1.18.13 | `LIVE_VERIFIED` | Primary npm package or copied skills | Exact npm-package adapter and skill discovery pass; model-backed execution is not established |
+| Pi 0.84.1 | `INSTALLED_PACKAGE_VERIFIED` | Primary npm package | Isolated package installation passes; model-backed discovery and optional delegation are unavailable |
 
 The vocabulary is intentionally narrow:
 
@@ -278,7 +279,7 @@ Harness-specific installation and verification details are available for
 [Grok](docs/GROK.md), [Kimi Code](docs/KIMI.md),
 [OpenCode](docs/OPENCODE.md), and [Pi](docs/PI.md).
 The [Cursor adapter](docs/CURSOR.md) is an ancillary skills-only surface and is
-not one of the v0.7.0 release hosts.
+not one of the v0.7 release hosts.
 
 ## Public beta
 

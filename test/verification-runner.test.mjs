@@ -204,6 +204,64 @@ test('release verification keeps the prose objective separate from binding requi
   const runner = await readFile(path.join(root, 'scripts/verify.mjs'), 'utf8');
   assert.match(runner, /'--requirements', String\(options\['binding-requirements'\]\)/);
   assert.match(runner, /'requirements', 'binding-requirements'/);
+  assert.match(runner, /HUMAN_RELEASE_REVIEW_ACCEPTED/);
+  assert.match(runner, /'release-review'/);
+  assert.doesNotMatch(runner, /semanticStep\.expected_stderr\s*=\s*'\^CANDIDATE_COMPLETE/);
+});
+
+test('release verification emits the canonical signed review binding as a portable input', async () => {
+  const repo = await tempRepo();
+  try {
+    const commit = run('git', ['rev-parse', 'HEAD'], repo).stdout.trim();
+    const tree = run('git', ['rev-parse', 'HEAD^{tree}'], repo).stdout.trim();
+    const authorization = {
+      state: 'HUMAN_RELEASE_REVIEW_ACCEPTED',
+      review_id: 'final-review',
+      reviewer_provenance: 'not_host_authenticated',
+      candidate_base: 'a'.repeat(40),
+      candidate_head: commit,
+      candidate_tree: tree,
+      review_package_id: 'package-final',
+      requirement_matrix_sha256: 'b'.repeat(64),
+      semantic_contract_sha256: 'c'.repeat(64),
+      required_lenses: ['release-integrity']
+    };
+    const decision = JSON.stringify({
+      accepted: true,
+      state: 'HUMAN_RELEASE_REVIEW_ACCEPTED',
+      authorization
+    });
+    const planFile = path.join(repo, 'release-plan.json');
+    await writeFile(planFile, `${JSON.stringify({
+      schema_version: 1,
+      profile: 'release',
+      steps: [{
+        id: 'semantic-completion',
+        command: process.execPath,
+        args: ['-e', "console.log(process.argv[1]); process.stderr.write('HUMAN_RELEASE_REVIEW_ACCEPTED review=final-review provenance=not_host_authenticated\\n');", decision],
+        expected_stderr: '^HUMAN_RELEASE_REVIEW_ACCEPTED review=final-review provenance=not_host_authenticated\\n?$'
+      }]
+    })}\n`);
+
+    const result = run(process.execPath, [
+      path.join(root, 'scripts/verify.mjs'), 'run', '--plan', planFile
+    ], repo);
+    if (result.status !== 0) {
+      const failedSummary = JSON.parse(result.stdout);
+      assert.equal(result.status, 0, await readFile(
+        path.join(failedSummary.log_directory, 'semantic-completion.log'), 'utf8'
+      ));
+    }
+    const summary = JSON.parse(result.stdout);
+    const releaseInput = JSON.parse(await readFile(summary.release_input, 'utf8'));
+    assert.equal(releaseInput.candidate_commit, commit);
+    assert.equal(releaseInput.candidate_tree, tree);
+    assert.deepEqual(releaseInput.release_review_authorization, authorization);
+    assert.deepEqual(releaseInput.steps.map(({ log_id }) => log_id), ['verification/semantic-completion']);
+    assert.doesNotMatch(JSON.stringify(releaseInput), new RegExp(repo.replaceAll('\\', '\\\\')));
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
 });
 
 test('package exposes canonical goal and release verification entry points', async () => {
@@ -242,7 +300,7 @@ test('verification runner accounts for a declared complete suite before executio
   }
 });
 
-test('verification runner carries a proof-backed strategy when a required suite crosses budget', async () => {
+test('verification runner stops before a suite when its hard execution ceiling is exhausted', async () => {
   const repo = await tempRepo();
   try {
     const budget = path.join(root, 'scripts/run-budget.mjs');
@@ -272,15 +330,17 @@ test('verification runner carries a proof-backed strategy when a required suite 
       '--required-proof-type', 'verification',
       '--required-proof-profile', 'budgeted-release'
     ], repo);
-    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
     const summary = JSON.parse(result.stdout);
-    assert.equal(summary.budget.status, 'BUDGET_OVERRIDE');
+    assert.equal(summary.budget.status, 'HARD_BUDGET_EXHAUSTED');
+    assert.equal(summary.failed_step, 'execution-budget');
+    assert.equal(summary.steps[0].status, 'not_run');
     const state = JSON.parse(await readFile(
       path.join(path.dirname(verificationRuntime(repo)), 'budget.json'),
       'utf8'
     ));
-    assert.equal(state.usage.complete_suite_executions, 4);
-    assert.equal(state.proof_obligations.at(-1).proof, 'refreshed release receipt');
+    assert.equal(state.usage.complete_suite_executions, 3);
+    assert.deepEqual(state.proof_obligations, []);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

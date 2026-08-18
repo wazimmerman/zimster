@@ -31,7 +31,11 @@
     "owner_inline": {"type": "boolean"},
     "base_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
     "head_sha": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "candidate_tree": {"type": "string", "pattern": "^[0-9a-f]{40}$"},
+    "seam_id": {"type": "string", "minLength": 1},
+    "review_attempt_id": {"type": "string", "minLength": 1},
     "reviewer_identity": {"type": ["string", "null"]},
+    "reviewer_provenance": {"enum": ["host_authenticated", "not_host_authenticated"]},
     "dispatch_record_id": {"type": ["string", "null"]},
     "clean_bounded_context": {"type": "boolean"},
     "reviewed_requirement_ids": {

@@ -10,21 +10,21 @@
   ],
   "harnesses": {
     "codex": {
-      "checked_at": "2026-08-07T00:00:00.000Z",
+      "checked_at": "2026-08-17T00:00:00.000Z",
       "max_age_days": 90,
-      "local_host_version": "codex-cli 0.146.1",
+      "local_host_version": "standalone codex-cli 0.147.0; desktop codex-cli 0.147.0-alpha.6.6",
       "validator_status": "consistent",
       "sources": [
         {
-          "title": "Official Codex plugin manifest specification",
-          "url": "https://github.com/openai/codex/blob/main/codex-rs/skills/src/assets/samples/plugin-creator/references/plugin-json-spec.md"
+          "title": "Official Codex plugins documentation",
+          "url": "https://developers.openai.com/codex/plugins"
         }
       ],
       "verification": "installed_package_verified",
       "capabilities": {
-        "native_skill_loading": "unverified",
+        "native_skill_loading": "native",
         "plugin_relative_helper_scripts": "native",
-        "named_custom_agents": "native",
+        "named_custom_agents": "unverified",
         "read_only_tool_enforcement": "unavailable",
         "isolated_reviewer_worktrees": "inline_fallback",
         "per_agent_model_selection": "native",
@@ -40,9 +40,9 @@
       }
     },
     "claude": {
-      "checked_at": "2026-08-07T00:00:00.000Z",
+      "checked_at": "2026-08-17T00:00:00.000Z",
       "max_age_days": 90,
-      "local_host_version": "2.1.224",
+      "local_host_version": "2.1.226",
       "validator_status": "consistent",
       "sources": [
         {
@@ -50,7 +50,7 @@
           "url": "https://code.claude.com/docs/en/plugins-reference"
         }
       ],
-      "verification": "live_component_inventory_verified",
+      "verification": "installed_package_verified",
       "capabilities": {
         "native_skill_loading": "native",
         "plugin_relative_helper_scripts": "native",
@@ -70,14 +70,14 @@
       }
     },
     "grok": {
-      "checked_at": "2026-08-07T00:00:00.000Z",
+      "checked_at": "2026-08-17T00:00:00.000Z",
       "max_age_days": 90,
       "local_host_version": "1.0.0 stable",
       "validator_status": "consistent",
       "sources": [
         {"title": "Agent Plugins specification", "url": "https://agent-plugins.org"}
       ],
-      "verification": "live_skill_discovery_verified",
+      "verification": "installed_package_verified",
       "capabilities": {
         "native_skill_loading": "native",
         "plugin_relative_helper_scripts": "supported_with_constraints",
@@ -127,14 +127,14 @@
       }
     },
     "kimi": {
-      "checked_at": "2026-08-07T00:00:00.000Z",
+      "checked_at": "2026-08-17T00:00:00.000Z",
       "max_age_days": 90,
       "local_host_version": null,
       "validator_status": "not_run",
       "sources": [
         {
           "title": "Kimi Code plugin customization",
-          "url": "https://moonshotai.github.io/kimi-code/en/customization/plugins.html"
+          "url": "https://www.kimi.com/code/docs/en/kimi-code-cli/customization/plugins.html"
         }
       ],
       "verification": "structurally_validated",
@@ -157,7 +157,7 @@
       }
     },
     "opencode": {
-      "checked_at": "2026-08-07T00:00:00.000Z",
+      "checked_at": "2026-08-17T00:00:00.000Z",
       "max_age_days": 90,
       "local_host_version": "1.18.13",
       "validator_status": "consistent",
@@ -187,7 +187,7 @@
       }
     },
     "pi": {
-      "checked_at": "2026-08-07T00:00:00.000Z",
+      "checked_at": "2026-08-17T00:00:00.000Z",
       "max_age_days": 90,
       "local_host_version": "0.84.1",
       "validator_status": "consistent",

@@ -127,7 +127,7 @@ test('evidence receipts record harness capabilities and support a no-state opt-o
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const receipt = JSON.parse(result.stdout.trim());
     assert.equal(receipt.harness, 'codex');
-    assert.equal(receipt.capabilities.native_skill_loading, 'unverified');
+    assert.equal(receipt.capabilities.native_skill_loading, 'native');
 
     const optedOut = await tempRepo();
     try {
@@ -304,6 +304,7 @@ test('run-state initializer creates the durable record with machine-readable cap
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const runMdPath = run('git', ['rev-parse', '--path-format=absolute', '--git-path', 'zimster/run.md'], repo).stdout.trim();
     const runMd = await readFile(runMdPath, 'utf8');
+    assert.match(runMd, /Canonical source: run\.json/);
     assert.match(runMd, /Profile and rationale/);
     assert.match(runMd, /standard/i);
     assert.match(runMd, /Git disposition/);
@@ -311,7 +312,7 @@ test('run-state initializer creates the durable record with machine-readable cap
     assert.ok(capabilityBlock, 'run record must carry a JSON capability receipt');
     const capabilityReceipt = JSON.parse(capabilityBlock[1]);
     assert.equal(capabilityReceipt.harness, 'codex');
-    assert.equal(capabilityReceipt.capabilities.native_skill_loading, 'unverified');
+    assert.equal(capabilityReceipt.capabilities.native_skill_loading, 'native');
     const runtimeDirectory = path.dirname(runMdPath);
     const runState = JSON.parse(await readFile(path.join(runtimeDirectory, 'run.json'), 'utf8'));
     assert.match(runState.id, /^[0-9a-f-]{36}$/);
@@ -356,7 +357,7 @@ test('run-state migration never overwrites an existing Git-local run record', as
   }
 });
 
-test('run-state migration adds a requested machine-readable harness receipt to legacy state', async () => {
+test('run-state migration preserves legacy text separately and projects canonical state', async () => {
   const repo = await tempRepo();
   try {
     const legacy = path.join(repo, '.zimster/run.md');
@@ -368,12 +369,15 @@ test('run-state migration adds a requested machine-readable harness receipt to l
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     const migrated = await readFile(result.stdout.trim(), 'utf8');
-    assert.match(migrated, /# Legacy run/);
+    assert.match(migrated, /Canonical source: run\.json/);
+    assert.doesNotMatch(migrated, /# Legacy run/);
+    const runtime = path.dirname(result.stdout.trim());
+    assert.match(await readFile(path.join(runtime, 'legacy-run.md'), 'utf8'), /# Legacy run/);
     const capabilityBlock = migrated.match(/```json\n([\s\S]*?)\n```/);
     assert.ok(capabilityBlock);
     const capabilityReceipt = JSON.parse(capabilityBlock[1]);
     assert.equal(capabilityReceipt.harness, 'codex');
-    assert.equal(capabilityReceipt.capabilities.native_skill_loading, 'unverified');
+    assert.equal(capabilityReceipt.capabilities.native_skill_loading, 'native');
     await assert.rejects(readFile(legacy, 'utf8'), /ENOENT/);
   } finally {
     await rm(repo, { recursive: true, force: true });

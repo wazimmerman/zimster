@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.7.2 - 2026-08-17
+
+- Recover from the aborted 0.7.1 attempt with bounded hard stops, durable 0.7.0
+  state migration, cross-platform fixes, and safe annotated-tag verification.
+
 ## 0.7.0 - 2026-08-07
 
 - Adopt portable Agent Plugin standards, reproducible marketplace artifacts,

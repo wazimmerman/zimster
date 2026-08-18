@@ -1,9 +1,9 @@
 # OpenCode
 
-Verification level for Zimster 0.7.0: `LIVE_VERIFIED` for project adapter load
-and canonical skill discovery on OpenCode 1.18.13. The exact npm tarball was
-extracted into isolated config/data/cache/state paths; `opencode debug skill`
-reported the Zimster skills. No model-backed task was run.
+The 0.7.2 PR matrix is the only current candidate claim. Extract the exact npm
+tarball under isolated config/data/cache/state paths. A clean
+`opencode debug skill` result must show the Zimster skills without a plugin-load
+error before the adapter is `INSTALLED_PACKAGE_VERIFIED`.
 
 ## Install
 
@@ -39,8 +39,9 @@ adapter.
 
 ## Verification status
 
-Exact-package skill discovery is `LIVE_VERIFIED` on OpenCode 1.18.13.
-Model-backed task execution and effective-model identity are not established.
+Exact-package skill discovery can be `LIVE_VERIFIED` only for the commit and
+tarball hash named by the current matrix. Model-backed task execution and
+effective-model identity remain separate claims.
 
 Optional generated agents use OpenCode's `provider/model-id` syntax. Omitted
 models inherit. Catalog output is not proof of effective model identity.

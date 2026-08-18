@@ -308,14 +308,123 @@ export function validateReviewRecord(record) {
   return record;
 }
 
+export const RELEASE_REVIEW_AUTHORIZATION_FIELDS = Object.freeze([
+  'state',
+  'review_id',
+  'reviewer_provenance',
+  'candidate_base',
+  'candidate_head',
+  'candidate_tree',
+  'review_package_id',
+  'requirement_matrix_sha256',
+  'semantic_contract_sha256',
+  'required_lenses'
+]);
+
+export function validateReleaseReviewAuthorization(authorization) {
+  if (!authorization || typeof authorization !== 'object' || Array.isArray(authorization)) {
+    throw new Error('release review authorization must be an object');
+  }
+  const keys = Object.keys(authorization);
+  if (
+    keys.length !== RELEASE_REVIEW_AUTHORIZATION_FIELDS.length
+    || keys.some((key) => !RELEASE_REVIEW_AUTHORIZATION_FIELDS.includes(key))
+  ) throw new Error('release review authorization has unexpected structure');
+  if (authorization.state !== 'HUMAN_RELEASE_REVIEW_ACCEPTED') {
+    throw new Error('release review authorization state must be HUMAN_RELEASE_REVIEW_ACCEPTED');
+  }
+  for (const field of ['review_id', 'review_package_id']) requireString(authorization, field);
+  if (!['host_authenticated', 'not_host_authenticated'].includes(authorization.reviewer_provenance)) {
+    throw new Error('release review authorization requires truthful reviewer provenance');
+  }
+  for (const field of ['candidate_base', 'candidate_head', 'candidate_tree']) {
+    if (!SHA_PATTERN.test(authorization[field] || '')) {
+      throw new Error(`release review authorization ${field} must be an immutable candidate identity`);
+    }
+  }
+  for (const field of ['requirement_matrix_sha256', 'semantic_contract_sha256']) {
+    if (!SHA256_PATTERN.test(authorization[field] || '')) {
+      throw new Error(`release review authorization requires ${field}`);
+    }
+  }
+  if (
+    !Array.isArray(authorization.required_lenses)
+    || !authorization.required_lenses.length
+    || !authorization.required_lenses.every((lens) => typeof lens === 'string' && lens)
+    || new Set(authorization.required_lenses).size !== authorization.required_lenses.length
+  ) throw new Error('release review authorization requires unique semantic lenses');
+  return authorization;
+}
+
+export function evaluateHumanReleaseReview({
+  review,
+  authorization,
+  candidateHead,
+  candidateTree
+}) {
+  const rejected = (reason) => ({
+    accepted: false,
+    state: 'HUMAN_RELEASE_REVIEW_REJECTED',
+    review_id: review?.id || null,
+    reviewer_provenance: review?.reviewer_provenance || 'unavailable',
+    runtime_assurance_state: COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE,
+    reasons: [reason]
+  });
+  try {
+    validateReviewRecord(review);
+    validateReleaseReviewAuthorization(authorization);
+  } catch (error) {
+    return rejected(error.message);
+  }
+  if (review.review_type !== 'independent_review' || review.owner_inline === true) {
+    return rejected('human release authorization requires a final independent review record');
+  }
+  if (!['host_authenticated', 'not_host_authenticated'].includes(review.reviewer_provenance)) {
+    return rejected('release review must state whether reviewer provenance is host-authenticated');
+  }
+  if (review.id !== authorization.review_id) return rejected('release review does not match the authorization review id');
+  if (review.reviewer_provenance !== authorization.reviewer_provenance) return rejected('release review does not match the authorization reviewer provenance');
+  if (authorization.candidate_head !== candidateHead) return rejected('release authorization does not match the exact candidate head');
+  if (authorization.candidate_tree !== candidateTree) return rejected('release authorization does not match the exact candidate tree');
+  if (review.base_sha !== authorization.candidate_base) return rejected('release review does not cover the candidate base');
+  if (review.head_sha !== authorization.candidate_head) return rejected('release review does not cover the candidate head');
+  if (review.candidate_tree !== authorization.candidate_tree) return rejected('release review does not cover the candidate tree');
+  if (review.review_package_id !== authorization.review_package_id) return rejected('release review does not cover the exact review package');
+  if (review.requirement_matrix_sha256 !== authorization.requirement_matrix_sha256) return rejected('release review does not cover the exact requirement matrix');
+  if (review.semantic_contract_sha256 !== authorization.semantic_contract_sha256) return rejected('release review does not cover the exact semantic contract');
+  if (review.review_scope !== 'integration') return rejected('release authorization requires a final integration review');
+  if (!review.clean_bounded_context || review.checkout_integrity_result !== 'REVIEW_CHECKOUT_UNCHANGED') {
+    return rejected('release review checkout integrity is unavailable');
+  }
+  const missingLenses = authorization.required_lenses.filter((lens) => !review.semantic_lenses.includes(lens));
+  if (missingLenses.length) return rejected(`release review is missing required lenses: ${missingLenses.join(', ')}`);
+  const loadBearing = review.findings.filter(({ severity }) => ['Critical', 'Important'].includes(severity));
+  if (loadBearing.length) return rejected(`release review contains unresolved load-bearing findings: ${loadBearing.map(({ severity }) => severity).join(', ')}`);
+  if (review.verdict !== 'approved' || review.unverified_obligations.length) {
+    return rejected('release review is not approved or retains unverified obligations');
+  }
+  return {
+    accepted: true,
+    state: 'HUMAN_RELEASE_REVIEW_ACCEPTED',
+    review_id: review.id,
+    reviewer_provenance: review.reviewer_provenance,
+    runtime_assurance_state: COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE,
+    authorization,
+    reasons: []
+  };
+}
+
 export function independentApprovalFor({
   profile,
   candidateBase,
   candidateHead,
+  candidateTree,
   reviewPackageId,
   semanticContractSha256,
   requiredLenses = [],
   reviews,
+  reviewLifecycle = null,
+  reviewerProvenance = [],
   bindingRequirementIds = [],
   intendedClaims = []
 }) {
@@ -331,10 +440,9 @@ export function independentApprovalFor({
   if (!Array.isArray(requiredLenses) || !requiredLenses.length) {
     throw new Error('independentApprovalFor requires semantic lenses from the review package');
   }
-  const independentReviews = reviews.filter((record) => {
-    validateReviewRecord(record);
-    return record.review_type === 'independent_review';
-  });
+  const independentReviews = reviews.filter(
+    (record) => record?.review_type === 'independent_review'
+  );
   if (!independentReviews.length) {
     return {
       approved: false,
@@ -382,6 +490,7 @@ export function independentApprovalFor({
       reason: 'independent review does not cover the current semantic contract'
     };
   }
+  for (const record of exactContractReviews) validateReviewRecord(record);
   const review = exactContractReviews.at(-1);
   if (review.verdict !== 'approved') {
     return {
@@ -436,10 +545,68 @@ export function independentApprovalFor({
       reason: 'High-risk work requires final independent integration review'
     };
   }
+  const binding = reviewLifecycle?.approved_review;
+  if (
+    reviewLifecycle?.schema_version !== 2
+    || reviewLifecycle.status !== 'REVIEW_LIFECYCLE_COMPLETE'
+    || !binding
+  ) {
+    return {
+      approved: false,
+      state: COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE,
+      reason: 'canonical review lifecycle approval is unavailable'
+    };
+  }
+  const expectedBinding = {
+    seam_id: reviewLifecycle.seam_id,
+    review_attempt_id: binding.attempt_id,
+    review_record_id: binding.review_record_id,
+    reviewer_identity: binding.reviewer_id,
+    dispatch_record_id: binding.dispatch_record_id,
+    review_package_id: binding.review_package_id,
+    candidate_head: binding.candidate_head,
+    candidate_tree: binding.candidate_tree,
+    semantic_contract_sha256: binding.semantic_contract_sha256
+  };
+  const actualBinding = {
+    seam_id: review.seam_id,
+    review_attempt_id: review.review_attempt_id,
+    review_record_id: review.id,
+    reviewer_identity: review.reviewer_identity,
+    dispatch_record_id: review.dispatch_record_id,
+    review_package_id: review.review_package_id,
+    candidate_head: review.head_sha,
+    candidate_tree: review.candidate_tree,
+    semantic_contract_sha256: review.semantic_contract_sha256
+  };
+  if (JSON.stringify(actualBinding) !== JSON.stringify(expectedBinding)
+    || binding.candidate_head !== candidateHead
+    || binding.candidate_tree !== candidateTree
+    || binding.review_package_id !== reviewPackageId
+    || binding.semantic_contract_sha256 !== semanticContractSha256) {
+    return {
+      approved: false,
+      state: COMPLETION_STATES.REVIEW_PENDING,
+      reason: 'independent review does not agree with canonical review lifecycle state'
+    };
+  }
+  const dispatch = reviewerProvenance.find((row) => row?.id === binding.dispatch_record_id);
+  if (
+    dispatch?.schema_version !== 2
+    || dispatch.run_id !== reviewLifecycle.run_id
+    || dispatch.agent_id !== binding.reviewer_id
+    || !/review/i.test(dispatch.role || '')
+  ) {
+    return {
+      approved: false,
+      state: COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE,
+      reason: 'trustworthy independent reviewer provenance is unavailable'
+    };
+  }
   return {
-    approved: true,
-    state: COMPLETION_STATES.SEMANTIC_REVIEW_APPROVED,
-    reviewId: review.id
+    approved: false,
+    state: COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE,
+    reason: 'owner-recorded dispatch is not host-observed independent reviewer provenance'
   };
 }
 
@@ -459,6 +626,9 @@ function uniqueIds(records, label, issues) {
 function evidenceIssue(entry, item, matrix) {
   if (!item) return 'referenced evidence is missing';
   if (item.status !== 'valid') return `evidence ${item.id} is ${item.status || 'not valid'}`;
+  if (item.evidence_class && item.evidence_class !== 'claim_establishing') {
+    return `diagnostic evidence ${item.id} cannot establish a completion claim`;
+  }
   if (!item.requirement_ids?.includes(entry.id)) {
     return `evidence ${item.id} does not support requirement ${entry.id}`;
   }
@@ -687,6 +857,8 @@ export function evaluateCandidateCompletion({
   reviewUnavailable = false,
   matrixResult,
   reviews = [],
+  reviewLifecycle = null,
+  reviewerProvenance = [],
   candidateBase,
   candidateHead,
   candidateTree,
@@ -791,10 +963,13 @@ export function evaluateCandidateCompletion({
     profile,
     candidateBase,
     candidateHead,
+    candidateTree,
     reviewPackageId,
     semanticContractSha256,
     requiredLenses,
     reviews,
+    reviewLifecycle,
+    reviewerProvenance,
     bindingRequirementIds: matrixResult.binding_requirement_ids || [],
     intendedClaims: allowedClaims
   });

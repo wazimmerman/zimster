@@ -24,7 +24,7 @@ test('root plugin manifest is the closed Agent Plugins 1.0.0 contract', async ()
   const manifest = await json('plugin.json');
   assert.equal(manifest.$schema, agentPluginsSchema);
   assert.equal(manifest.name, 'zimster');
-  assert.equal(manifest.version, '0.7.0');
+  assert.equal(manifest.version, '0.7.2');
   assert.equal(manifest.homepage, 'https://zimster.dev');
   assert.deepEqual(Object.keys(manifest).filter((key) => !pluginFields.has(key)), []);
 });

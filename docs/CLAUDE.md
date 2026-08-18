@@ -1,10 +1,10 @@
 # Claude Code
 
-Verification level for Zimster 0.7.0: `STRUCTURALLY_VALIDATED` for the exact
-package manifest, 12 skills, 4 agents, and 1 SessionStart hook on the Claude
-Code 2.1.224 validation surface. Isolated installation, fresh discovery, and
-authenticated model-backed invocation are not established by the release
-receipt.
+The 0.7.2 PR matrix is the only current candidate claim. Strict validation,
+isolated installation, component inventory, and SessionStart behavior can
+establish `INSTALLED_PACKAGE_VERIFIED`. A model-backed claim applies only when
+the same exact candidate archive was loaded for that session. The current
+qualification host is Claude Code 2.1.226.
 
 ## Validate and install
 
@@ -20,7 +20,10 @@ claude plugin details zimster@zimster
 
 The Claude zip contains `.claude-plugin`, agents, hooks, canonical skills, and
 the package-root helpers. GitHub users may add `wazimmerman/zimster` instead of
-a local path.
+a local path. For this candidate, `plugin details` must report 12 skills, 4
+agents, and 1 SessionStart hook.
+
+Inventory: 12 skills, 4 agents, and 1 SessionStart hook.
 
 ## Update and remove
 

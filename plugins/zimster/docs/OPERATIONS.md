@@ -9,6 +9,13 @@ working directory is the target repository.
 
 ## Durable run state
 
+An installed 0.7.2 runtime may encounter existing 0.7.0 Git-local state. Run
+`npm run state:migrate` once in that repository. The bounded migration preserves
+the checkpoint, budget, evidence, review, delegation, and dispatch stores;
+records observed dirty work; and writes `migration-0.7.0.json`. Missing counts,
+commands, failures, or approvals remain unknown or unavailable. Repeating the
+migration over unchanged inputs is a fixed point.
+
 ```text
 node <zimster>/scripts/init-run.mjs \
   --profile high-risk \
@@ -44,6 +51,30 @@ policy and records the accepted artifact identity in the bootstrap receipt.
 
 ## Delegation, routing, and convergence
 
+The normal review path is `review-control.mjs`: initialize one canonical seam,
+then record initial review, owner correction, same-reviewer correction recheck,
+and exact-head final-review events. The lifecycle is stored at
+`reviews/lifecycle.json` beneath the Git-local runtime. Reinitialization cannot
+reset an existing seam. Correction-recheck accounting uses that seam identity,
+not caller-provided scope, digest, attempt, reviewer, or candidate labels.
+If the first cycle still has load-bearing findings after its one recheck, the
+circuit breaker leads to owner strategy escalation. The root may explicitly
+admit one materially different, focused-proof-backed strategy under the same
+seam lineage. That replacement gets one new review, one correction, and one
+same-reviewer recheck. A second failed cycle becomes `BLOCKED`; it cannot be
+relabeled into a third cycle. This is one bounded strategy restart, not a
+review-budget reset.
+
+Completion requires the canonical approved final-review attempt and genuinely
+host-observed reviewer-result provenance; a review JSON or owner-recorded
+dispatch alone cannot authorize `CANDIDATE_COMPLETE`.
+
+Release authorization is a separate human boundary. A signed annotated
+release-evidence tag may authorize an exact-head final independent review whose
+record truthfully says that reviewer provenance is not host-authenticated. That
+release-specific result is `HUMAN_RELEASE_REVIEW_ACCEPTED`, not
+`CANDIDATE_COMPLETE`, and it does not rewrite runtime assurance state.
+
 Record delegation first with `delegation-record.mjs decide`. Only a selected
 decision may reach `model-routing.mjs propose`. Regenerate a dispatch-phase
 proposal and resolve it with current task, Git, configuration, harness,
@@ -59,7 +90,9 @@ Use `convergence.mjs decide --event <kind> --scope in-scope --sensitivity
 ordinary --reversible true --authorized true --deterministic true --locality
 local --metric <budget>` after an ordinary deterministic failure. A
 `continue` record replaces repeated authorization; escalation or exhaustion
-stops the autonomous path.
+stops the autonomous path. `HARD_BUDGET_EXHAUSTED`, `CIRCUIT_BREAKER`,
+`STRATEGY_ESCALATION_REQUIRES_OWNER`, and `BLOCKED` outrank any host goal or
+long-run continuation setting.
 
 ## Deterministic verification
 
@@ -72,6 +105,23 @@ The profile runner executes shell-free argv vectors, writes full logs and one
 receipt beneath the Git-local `zimster/verification` directory, stops on the
 first failure, and prints only a compact JSON summary. Consult existing
 tree-keyed evidence before repeating a broad command.
+
+A passing release profile also writes the portable release-facing
+`verification.json` named by `release_input` in the summary. It contains
+logical log IDs and hashes plus the exact `HUMAN_RELEASE_REVIEW_ACCEPTED`
+binding returned by the canonical release-review evaluator; it contains no
+machine-local log paths. Release-evidence creation and signed-tag verification
+re-evaluate the embedded semantic review against that same signed binding with
+the same evaluator.
+
+Canonical lifecycle and execution-budget mutations use the same portable owner
+lock. Acquisition records a PID, unique nonce, and timestamp. Live or ambiguous
+owners are never displaced; a demonstrably dead owner is reclaimed through an
+atomic quarantine claim. The small nonempty quarantine tombstone is retained so
+a late stale waiter cannot move a replacement live lock. Release removes the
+active lock only when its owner nonce still matches. Fresh incomplete metadata
+is given a bounded grace interval so another process cannot mistake an
+acquisition in progress for abandonment.
 
 ## Capability cache and postmortem
 
@@ -172,6 +222,16 @@ New receipts may also carry `--requirement-ids`, `--establishes`,
 contains commas. This prevents a narrow native harness or fixture from being
 reported as broad compatibility proof.
 
+Receipts are `diagnostic` unless a trustworthy execution interface explicitly
+binds requirements and claims. `evidence record` is always manual and
+diagnostic; caller text such as `--source governed-run` cannot elevate it.
+`evidence run` records that its command was wrapper-governed, but its generic
+interface cannot authenticate arbitrary framework test counts or RED/GREEN
+meaning. Generic TDD-labelled runs therefore remain diagnostic with
+`tdd_compliance=unverified`. Only a future framework-specific interface that
+derives test identity, discovery, outcome, candidate binding, and ordered pair
+facts internally may establish a TDD compliance claim.
+
 Test-discovery values are `not_reached`, `zero_discovered`, `tests_executed`,
 and `unknown`. `unknown` and `not_reached` carry no counts; `zero_discovered`
 requires zero counts; `tests_executed` requires positive, internally consistent
@@ -236,6 +296,14 @@ candidate-bound deterministic proof references with the same exact
 requirement-and-claim linkage. Boolean eligibility or
 load-bearing switches are not accepted. Review unavailable produces
 `OWNER_VERIFIED_REVIEW_UNAVAILABLE` or another non-candidate state.
+
+Dispatch records are owner-recorded operational observations. Their agent,
+model, effort, and result bindings remain useful audit evidence, but they are
+not host-authenticated reviewer-result provenance. Until a supported host
+exposes a trustworthy result identity through an existing interface, Standard
+and High-risk completion fails closed as
+`OWNER_VERIFIED_REVIEW_UNAVAILABLE` even when the lifecycle, dispatch, review
+package, candidate, semantic contract, and review record agree exactly.
 
 ## Release controls
 

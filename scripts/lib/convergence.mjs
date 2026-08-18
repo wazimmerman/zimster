@@ -2,8 +2,6 @@ import { randomUUID } from 'node:crypto';
 
 export const CONVERGENCE_METRICS = Object.freeze([
   'correction_commits',
-  'correction_rechecks',
-  'final_integration_reviews',
   'final_verification_attempts',
   'complete_suite_executions',
   'exact_duplicate_commands',
@@ -11,14 +9,24 @@ export const CONVERGENCE_METRICS = Object.freeze([
 ]);
 
 export const CONVERGENCE_ALIASES = Object.freeze({
-  final_correction_waves: 'correction_commits',
-  review_rechecks_per_seam: 'correction_rechecks',
   context_compactions: 'context_renewals'
 });
 const SCOPES = Object.freeze(['in-scope', 'out-of-scope']);
 const SENSITIVITIES = Object.freeze(['ordinary', 'sensitive']);
 const LOCALITIES = Object.freeze(['local', 'external']);
 const CONDITIONS = Object.freeze([null, 'contradiction', 'missing_independent_review', 'policy_required_approval']);
+export const AUTONOMY_STOP_STATES = Object.freeze([
+  'HARD_BUDGET_EXHAUSTED',
+  'CIRCUIT_BREAKER',
+  'STRATEGY_ESCALATION_REQUIRES_OWNER',
+  'BLOCKED'
+]);
+
+export function autonomyDisposition(status) {
+  if (typeof status !== 'string' || !status) throw new Error('autonomy status is required');
+  const terminal = AUTONOMY_STOP_STATES.includes(status);
+  return { outcome: terminal ? 'stop' : 'continue', status, terminal };
+}
 
 export function normalizeConvergenceMetric(metric) {
   return CONVERGENCE_ALIASES[metric] || metric;
@@ -38,6 +46,31 @@ export function validateConvergenceConfig(config) {
     if (!Number.isInteger(limits[metric]) || limits[metric] < 0) {
       throw new Error(`${metric} must be a non-negative integer`);
     }
+  }
+  if (convergence.hard_limits !== undefined) {
+    if (!Array.isArray(convergence.hard_limits)) {
+      throw new Error('autonomous_convergence.hard_limits must be an array');
+    }
+    for (const metric of convergence.hard_limits) {
+      if (!CONVERGENCE_METRICS.includes(metric)) {
+        throw new Error(`unknown hard convergence limit: ${metric}`);
+      }
+    }
+  }
+  const lifecycle = config.review_lifecycle;
+  for (const field of [
+    'correction_rechecks_per_cycle',
+    'review_cycles_per_seam',
+    'strategy_restarts_per_seam',
+    'final_integration_reviews',
+    'final_correction_waves'
+  ]) {
+    if (!Number.isInteger(lifecycle?.[field]) || lifecycle[field] < 0) {
+      throw new Error(`review_lifecycle.${field} must be a non-negative integer`);
+    }
+  }
+  if (lifecycle.review_cycles_per_seam < 1 || lifecycle.final_integration_reviews < 1) {
+    throw new Error('review lifecycle requires at least one review cycle and final integration review');
   }
   return config;
 }

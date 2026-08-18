@@ -6,6 +6,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { captureGitState } from './git-state.mjs';
 import { CONVERGENCE_ALIASES, normalizeConvergenceMetric } from './convergence.mjs';
+import { withOwnerLock } from './owner-lock.mjs';
 
 const evidenceScript = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
@@ -13,16 +14,20 @@ const evidenceScript = path.resolve(
   'evidence.mjs'
 );
 
-const convergenceDefaults = JSON.parse(readFileSync(path.resolve(
+const convergenceConfig = JSON.parse(readFileSync(path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'config', 'convergence.json'
-), 'utf8')).autonomous_convergence.limits;
+), 'utf8')).autonomous_convergence;
+const convergenceDefaults = convergenceConfig.limits;
+
+export const HARD_EXECUTION_METRICS = Object.freeze([
+  ...(convergenceConfig.hard_limits || [])
+]);
 
 export const DEFAULT_EXECUTION_LIMITS = Object.freeze({
   ...convergenceDefaults,
   optional_deliberate_agents: 5,
   nesting_depth: 1,
   research_refreshes: 1,
-  final_correction_waves: convergenceDefaults.correction_commits,
   context_compactions: convergenceDefaults.context_renewals
 });
 
@@ -34,7 +39,11 @@ export function normalizeBudgetProfile(value) {
   return profile === 'standard' ? 'standard' : 'high-risk';
 }
 
-export function createBudgetState(profile, { tokenThreshold = null, limits = {} } = {}) {
+export function createBudgetState(profile, {
+  tokenThreshold = null,
+  limits = {},
+  hardLimits = HARD_EXECUTION_METRICS
+} = {}) {
   if (tokenThreshold !== null && (!Number.isInteger(tokenThreshold) || tokenThreshold <= 0)) {
     throw new Error('--token-threshold must be a positive integer');
   }
@@ -45,6 +54,7 @@ export function createBudgetState(profile, { tokenThreshold = null, limits = {} 
   const state = {
     schema_version: 1,
     profile: normalizeBudgetProfile(profile),
+    hard_limits: [...new Set(hardLimits)],
     limits: effectiveLimits,
     usage: Object.fromEntries(
       Object.keys(effectiveLimits).map((metric) => [metric, 0])
@@ -73,24 +83,7 @@ async function writeBudgetAtomically(budgetFile, state) {
 }
 
 async function withBudgetLock(runtimeDirectory, operation) {
-  const lock = path.join(runtimeDirectory, 'budget.lock');
-  let acquired = false;
-  for (let attempt = 0; attempt < 200; attempt += 1) {
-    try {
-      await mkdir(lock);
-      acquired = true;
-      break;
-    } catch (error) {
-      if (error.code !== 'EEXIST') throw error;
-      await new Promise((resolve) => setTimeout(resolve, 10));
-    }
-  }
-  if (!acquired) throw new Error('execution budget is busy; retry the event');
-  try {
-    return await operation();
-  } finally {
-    await rm(lock, { recursive: true, force: true });
-  }
+  return withOwnerLock(path.join(runtimeDirectory, 'budget.lock'), operation);
 }
 
 export async function initializeExecutionBudget(runtimeDirectory, profile, options = {}) {
@@ -126,6 +119,34 @@ export async function writeExecutionBudget(budgetFile, state) {
 
 export async function recordExecutionBudgetEvent(runtimeDirectory, event) {
   return withBudgetLock(runtimeDirectory, async () => {
+    if (['correction_rechecks', 'review_rechecks_per_seam', 'final_integration_reviews', 'final_correction_waves'].includes(event.metric)) {
+      let lifecycle;
+      try {
+        lifecycle = JSON.parse(await readFile(
+          path.join(runtimeDirectory, 'reviews', 'lifecycle.json'),
+          'utf8'
+        ));
+      } catch (error) {
+        if (error.code === 'ENOENT') {
+          throw new Error('correction recheck accounting requires the canonical review lifecycle');
+        }
+        throw error;
+      }
+      if (event.scope && event.scope !== lifecycle.seam_id) {
+        throw new Error(`correction recheck scope is canonical: ${lifecycle.seam_id}`);
+      }
+      return {
+        changed: false,
+        status: 'LIFECYCLE_ACCOUNTING_AUTHORITATIVE',
+        detail: {
+          metric: event.metric,
+          authority: 'reviews/lifecycle.json',
+          seam: lifecycle.seam_id,
+          value: lifecycle.aggregate?.[event.metric === 'review_rechecks_per_seam' ? 'correction_rechecks' : event.metric] ?? 0,
+          current_cycle: lifecycle.current_cycle ?? 1
+        }
+      };
+    }
     const budget = await readExecutionBudget(runtimeDirectory);
     const result = applyExecutionBudgetEvent(budget.state, event);
     if (result.changed) await writeExecutionBudget(budget.budgetFile, budget.state);
@@ -229,6 +250,7 @@ export function applyExecutionBudgetEvent(state, {
   amount = 1,
   agentId = null,
   scope = null,
+  canonicalSeamId = null,
   invalidation = null,
   strategyChange = null,
   requiredProof = null,
@@ -241,7 +263,14 @@ export function applyExecutionBudgetEvent(state, {
   candidateHead = null,
   recordedAt = new Date().toISOString()
 }) {
+  const requestedMetric = metric;
   metric = normalizeConvergenceMetric(metric);
+  if (['correction_rechecks', 'review_rechecks_per_seam', 'final_integration_reviews', 'final_correction_waves'].includes(requestedMetric)) {
+    if (canonicalSeamId && scope && scope !== canonicalSeamId) {
+      throw new Error(`correction recheck scope is canonical: ${canonicalSeamId}`);
+    }
+    throw new Error('canonical review lifecycle is authoritative for review cardinality');
+  }
   if (!Object.hasOwn(state.limits, metric)) {
     const legacy = Object.entries(CONVERGENCE_ALIASES)
       .find(([alias, canonical]) => canonical === metric && Object.hasOwn(state.limits, alias));
@@ -268,27 +297,28 @@ export function applyExecutionBudgetEvent(state, {
       };
     }
   }
-  if (metric === 'correction_rechecks' && !scope) {
-    throw new Error('--scope is required for correction_rechecks');
-  }
-  if (metric === 'final_integration_reviews') {
-    if (candidateStable !== true) {
-      return {
-        changed: false,
-        status: 'FINAL_REVIEW_RESERVED',
-        detail: { metric, reason: 'candidate head is still changing' }
-      };
-    }
-    if (!/^[0-9a-f]{40}$/.test(candidateHead || '')) {
-      throw new Error('final integration review requires an immutable candidate head');
-    }
-  }
-  const scoped = metric === 'correction_rechecks';
+  const scoped = false;
   const current = scoped
     ? state.scoped_usage[metric]?.[scope] || 0
     : state.usage[metric] || 0;
   const proposed = current + amount;
   const limit = state.limits[metric];
+  const hardLimits = new Set(state.hard_limits || HARD_EXECUTION_METRICS);
+  if (proposed > limit && hardLimits.has(metric)) {
+    return {
+      changed: false,
+      status: 'HARD_BUDGET_EXHAUSTED',
+      detail: {
+        metric,
+        scope,
+        current,
+        proposed,
+        limit,
+        terminal: true,
+        escalation: 'STRATEGY_ESCALATION_REQUIRES_OWNER'
+      }
+    };
+  }
   if (proposed > limit && !invalidation && !strategyChange) {
     return {
       changed: false,
@@ -344,7 +374,7 @@ export function applyExecutionBudgetEvent(state, {
     recorded_at: recordedAt,
     invalidation,
     strategy_change: strategyChange,
-    candidate_head: metric === 'final_integration_reviews' ? candidateHead : null
+    candidate_head: null
   });
   if (proposed > limit) {
     state.overrides.push({

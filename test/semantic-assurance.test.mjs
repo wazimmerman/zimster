@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   COMPLETION_STATES,
   evaluateCandidateCompletion,
+  evaluateHumanReleaseReview,
   evaluateRequirementMatrix,
   independentApprovalFor,
   semanticContractDigest,
@@ -27,8 +28,11 @@ function review(overrides = {}) {
     owner_inline: false,
     base_sha: SHA_A,
     head_sha: SHA_B,
+    candidate_tree: TREE,
+    seam_id: 'release-seam',
+    review_attempt_id: 'release-seam:final:1',
     reviewer_identity: 'reviewer-1',
-    dispatch_record_id: null,
+    dispatch_record_id: 'dispatch-reviewer-1',
     clean_bounded_context: true,
     reviewed_requirement_ids: ['ASSURANCE-001', 'GATE-001', 'GATE-002'],
     intended_claims: ['Independent review is required for Standard work.'],
@@ -46,15 +50,51 @@ function review(overrides = {}) {
   };
 }
 
+function completedReviewLifecycle(overrides = {}) {
+  return {
+    schema_version: 2,
+    run_id: 'run-1',
+    seam_id: 'release-seam',
+    status: 'REVIEW_LIFECYCLE_COMPLETE',
+    approved_review: {
+      attempt_id: 'release-seam:final:1',
+      seam_id: 'release-seam',
+      review_record_id: 'review-001',
+      reviewer_id: 'reviewer-1',
+      dispatch_record_id: 'dispatch-reviewer-1',
+      review_package_id: 'package-001',
+      candidate_head: SHA_B,
+      candidate_tree: TREE,
+      semantic_contract_sha256: CONTRACT_SHA,
+      verdict: 'approved'
+    },
+    ...overrides
+  };
+}
+
+function reviewerProvenance() {
+  return [{
+    schema_version: 2,
+    id: 'dispatch-reviewer-1',
+    run_id: 'run-1',
+    role: 'final-integration-reviewer',
+    agent_id: 'reviewer-1',
+    provenance_kind: 'owner_recorded_dispatch'
+  }];
+}
+
 function approvalOptions(overrides = {}) {
   return {
     profile: 'standard',
     candidateBase: SHA_A,
     candidateHead: SHA_B,
+    candidateTree: TREE,
     reviewPackageId: 'package-001',
     semanticContractSha256: CONTRACT_SHA,
     requiredLenses: REQUIRED_LENSES,
     reviews: [review({ semantic_lenses: REQUIRED_LENSES })],
+    reviewLifecycle: completedReviewLifecycle(),
+    reviewerProvenance: reviewerProvenance(),
     bindingRequirementIds: ['ASSURANCE-001'],
     intendedClaims: ['Independent review is required for Standard work.'],
     ...overrides
@@ -101,15 +141,33 @@ test('self-review never satisfies Standard or High-risk independent review', () 
   }
 });
 
-test('approved clean-context independent review satisfies the exact Standard candidate', () => {
+test('owner-recorded dispatch cannot authenticate an exact Standard review', () => {
   assert.deepEqual(
     independentApprovalFor({
       ...approvalOptions()
     }),
     {
-      approved: true,
-      state: COMPLETION_STATES.SEMANTIC_REVIEW_APPROVED,
-      reviewId: 'review-001'
+      approved: false,
+      state: COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE,
+      reason: 'owner-recorded dispatch is not host-observed independent reviewer provenance'
+    }
+  );
+});
+
+test('superseded malformed reviews do not block the active candidate evidence frontier', () => {
+  const historical = review({
+    id: '',
+    head_sha: 'f'.repeat(40),
+    review_package_id: 'superseded-package'
+  });
+  assert.deepEqual(
+    independentApprovalFor(approvalOptions({
+      reviews: [historical, review({ semantic_lenses: REQUIRED_LENSES })]
+    })),
+    {
+      approved: false,
+      state: COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE,
+      reason: 'owner-recorded dispatch is not host-observed independent reviewer provenance'
     }
   );
 });
@@ -210,9 +268,9 @@ test('mutable matrix evidence state does not invalidate an unchanged reviewed se
       })]
     })),
     {
-      approved: true,
-      state: COMPLETION_STATES.SEMANTIC_REVIEW_APPROVED,
-      reviewId: 'review-001'
+      approved: false,
+      state: COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE,
+      reason: 'owner-recorded dispatch is not host-observed independent reviewer provenance'
     }
   );
 });
@@ -288,6 +346,7 @@ function scopedEvidence(id, overrides = {}) {
   return {
     id: `evidence-${id}`,
     status: 'valid',
+    evidence_class: 'claim_establishing',
     requirement_ids: [id],
     establishes: [`Claim ${id}.`],
     does_not_establish: [],
@@ -298,6 +357,31 @@ function scopedEvidence(id, overrides = {}) {
     ...overrides
   };
 }
+
+test('diagnostic evidence cannot establish a semantic completion claim', () => {
+  const result = evaluate(
+    [matrixEntry('CLAIM-001')],
+    binding('CLAIM-001'),
+    [scopedEvidence('CLAIM-001', { evidence_class: 'diagnostic' })]
+  );
+  assert.equal(result.valid, false);
+  assert.match(result.issues.join('\n'), /diagnostic.*claim/i);
+});
+
+test('valid 0.7.0 evidence remains usable while missing claim facts fail closed', () => {
+  const legacy = scopedEvidence('LEGACY-001');
+  delete legacy.evidence_class;
+  assert.equal(evaluate(
+    [matrixEntry('LEGACY-001')], binding('LEGACY-001'), [legacy]
+  ).valid, true);
+  const incomplete = structuredClone(legacy);
+  delete incomplete.environment_scope;
+  const result = evaluate(
+    [matrixEntry('LEGACY-001')], binding('LEGACY-001'), [incomplete]
+  );
+  assert.equal(result.valid, false);
+  assert.match(result.issues.join('\n'), /environment scope/i);
+});
 
 function evaluate(entries, bindingRequirements, evidence) {
   return evaluateRequirementMatrix({
@@ -581,7 +665,7 @@ test('Standard and High-risk work with only self-review remain review pending', 
   }
 });
 
-test('complete Standard proof and exact independent approval reach candidate complete', () => {
+test('fabricated lifecycle plus owner-recorded dispatch cannot reach candidate complete', () => {
   assert.deepEqual(evaluateCandidateCompletion({
     profile: 'standard',
     ownerVerified: true,
@@ -591,6 +675,8 @@ test('complete Standard proof and exact independent approval reach candidate com
       intended_claims: ['Candidate claim.'],
       semantic_lenses: REQUIRED_LENSES
     })],
+    reviewLifecycle: completedReviewLifecycle(),
+    reviewerProvenance: reviewerProvenance(),
     candidateHead: SHA_B,
     candidateTree: TREE,
     candidateBase: SHA_A,
@@ -598,10 +684,10 @@ test('complete Standard proof and exact independent approval reach candidate com
     semanticContractSha256: CONTRACT_SHA,
     requiredLenses: REQUIRED_LENSES
   }), {
-    state: COMPLETION_STATES.CANDIDATE_COMPLETE,
+    state: COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE,
     allowed_claims: ['Candidate claim.'],
-    review_id: 'review-001',
-    reasons: []
+    review_id: null,
+    reasons: ['owner-recorded dispatch is not host-observed independent reviewer provenance']
   });
 });
 
@@ -697,12 +783,17 @@ test('BETA-003 public beta accepts unavailable optional hosts with one exact-pac
     profile: 'standard', ownerVerified: true, reviewUnavailable: false,
     matrixResult, reviews: [betaReview], candidateHead: SHA_B, candidateTree: TREE,
     candidateBase: SHA_A, reviewPackageId: 'package-001',
-    semanticContractSha256: CONTRACT_SHA, requiredLenses: REQUIRED_LENSES
+    semanticContractSha256: CONTRACT_SHA, requiredLenses: REQUIRED_LENSES,
+    reviewLifecycle: completedReviewLifecycle(),
+    reviewerProvenance: reviewerProvenance()
   };
   const blocked = evaluateCandidateCompletion(base);
   assert.equal(blocked.state, COMPLETION_STATES.BLOCKED_BY_ENVIRONMENT);
   assert.match(blocked.reasons.join('\n'), /host verification|live host/i);
-  assert.equal(evaluateCandidateCompletion({ ...base, hostSmokeReceipt: receipt }).state, COMPLETION_STATES.CANDIDATE_COMPLETE);
+  assert.equal(
+    evaluateCandidateCompletion({ ...base, hostSmokeReceipt: receipt }).state,
+    COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE
+  );
 });
 
 test('BETA-003 public beta requires one live host and bounds every public claim to receipt evidence', () => {
@@ -849,6 +940,100 @@ test('unavailable independent review produces an honest non-candidate state', ()
   });
   assert.equal(result.state, COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE);
   assert.deepEqual(result.allowed_claims, ['Candidate claim.']);
+});
+
+test('fabricated independent review JSON cannot complete without canonical lifecycle approval', () => {
+  const result = evaluateCandidateCompletion({
+    profile: 'standard',
+    ownerVerified: true,
+    reviewUnavailable: false,
+    matrixResult: COMPLETE_MATRIX,
+    reviews: [review({
+      intended_claims: ['Candidate claim.'],
+      semantic_lenses: REQUIRED_LENSES
+    })],
+    candidateHead: SHA_B,
+    candidateTree: TREE,
+    candidateBase: SHA_A,
+    reviewPackageId: 'package-001',
+    semanticContractSha256: CONTRACT_SHA,
+    requiredLenses: REQUIRED_LENSES,
+    reviewLifecycle: null,
+    reviewerProvenance: []
+  });
+  assert.equal(result.state, COMPLETION_STATES.OWNER_VERIFIED_REVIEW_UNAVAILABLE);
+  assert.match(result.reasons.join('\n'), /canonical review lifecycle|provenance/i);
+});
+
+test('human release review is exact-head, load-bearing-clean, and does not manufacture runtime approval', () => {
+  const acceptedReview = review({
+    reviewer_provenance: 'not_host_authenticated',
+    semantic_lenses: REQUIRED_LENSES,
+    intended_claims: ['Candidate claim.']
+  });
+  const authorization = {
+    state: 'HUMAN_RELEASE_REVIEW_ACCEPTED',
+    review_id: acceptedReview.id,
+    reviewer_provenance: acceptedReview.reviewer_provenance,
+    candidate_base: SHA_A,
+    candidate_head: SHA_B,
+    candidate_tree: TREE,
+    review_package_id: 'package-001',
+    requirement_matrix_sha256: MATRIX_SHA,
+    semantic_contract_sha256: CONTRACT_SHA,
+    required_lenses: REQUIRED_LENSES
+  };
+  const accepted = evaluateHumanReleaseReview({
+    review: acceptedReview,
+    authorization,
+    candidateHead: SHA_B,
+    candidateTree: TREE
+  });
+  assert.deepEqual(accepted, {
+    accepted: true,
+    state: 'HUMAN_RELEASE_REVIEW_ACCEPTED',
+    review_id: 'review-001',
+    reviewer_provenance: 'not_host_authenticated',
+    runtime_assurance_state: 'OWNER_VERIFIED_REVIEW_UNAVAILABLE',
+    authorization,
+    reasons: []
+  });
+
+  for (const [reviewOverride, authorizationOverride, pattern] of [
+    [{ review_type: 'self_review' }, {}, /independent/i],
+    [{ review_scope: 'seam' }, {}, /integration/i],
+    [{ owner_inline: true, review_type: 'self_review' }, {}, /independent/i],
+    [{ reviewer_provenance: undefined }, {}, /provenance/i],
+    [{}, { review_id: 'other-review' }, /review id/i],
+    [{}, { reviewer_provenance: 'host_authenticated' }, /provenance/i],
+    [{ base_sha: 'f'.repeat(40) }, {}, /base/i],
+    [{ head_sha: 'f'.repeat(40) }, {}, /head/i],
+    [{ candidate_tree: 'f'.repeat(40) }, {}, /tree/i],
+    [{ review_package_id: 'other-package' }, {}, /package/i],
+    [{ requirement_matrix_sha256: 'f'.repeat(64) }, {}, /requirement matrix/i],
+    [{ semantic_contract_sha256: 'f'.repeat(64) }, {}, /semantic contract/i],
+    [{ semantic_lenses: [] }, {}, /lenses/i],
+    [{ clean_bounded_context: false }, {}, /checkout|bounded/i],
+    [{ checkout_integrity_result: 'REVIEW_CHECKOUT_CHANGED' }, {}, /checkout/i],
+    [{ checkout_integrity_result: 'REVIEW_CHECKOUT_UNVERIFIED' }, {}, /checkout/i],
+    [{ findings: [{ severity: 'Critical', summary: 'release blocker' }], verdict: 'needs_correction' }, {}, /Critical|load-bearing/i],
+    [{ findings: [{ severity: 'Important', summary: 'release blocker' }], verdict: 'needs_correction' }, {}, /Important|load-bearing/i],
+    [{ unverified_obligations: ['owner acceptance unavailable'], verdict: 'blocked_by_missing_evidence' }, {}, /obligations|approved/i],
+    [{ verdict: 'needs_correction' }, {}, /approved/i],
+    [{}, { state: 'CANDIDATE_COMPLETE' }, /authorization state/i],
+    [{}, { candidate_head: 'f'.repeat(40) }, /candidate head/i],
+    [{}, { candidate_tree: 'f'.repeat(40) }, /candidate tree/i]
+  ]) {
+    const rejected = evaluateHumanReleaseReview({
+      review: { ...acceptedReview, ...reviewOverride },
+      authorization: { ...authorization, ...authorizationOverride },
+      candidateHead: SHA_B,
+      candidateTree: TREE
+    });
+    assert.equal(rejected.accepted, false);
+    assert.notEqual(rejected.state, COMPLETION_STATES.CANDIDATE_COMPLETE);
+    assert.match(rejected.reasons.join('\n'), pattern);
+  }
 });
 
 test('a correction invalidates prior approval until the bounded recheck', () => {

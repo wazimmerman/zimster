@@ -49,13 +49,9 @@ test('session bootstrap injects using-zimster, not the full library', async () =
 
 test('OpenCode adapter registers skills and injects the bootstrap once', async () => {
   const module = await import(`${pathToFileURL(path.join(root, '.opencode/plugins/zimster.js')).href}?test=${Date.now()}`);
-  assert.equal(typeof module.ZimsterPlugin, 'function');
-  assert.throws(
-    () => module.assertZimsterPackage(path.join(root, 'missing-opencode-package')),
-    /ZIMSTER_PACKAGE_INVALID.*using-zimster/
-  );
+  assert.deepEqual(Object.keys(module), ['default'], 'OpenCode invokes every exported function as a plugin');
 
-  const plugin = await module.ZimsterPlugin({});
+  const plugin = await module.default({});
   const config = {};
   await plugin.config(config);
   assert.equal(config.skills.paths.length, 1);
@@ -102,8 +98,10 @@ test('Pi optional delegation uses a pinned, depth-zero capability boundary with 
   assert.deepEqual(contract.methods, ['probe', 'launch', 'status', 'cancel', 'collect']);
   assert.equal(contract.transport.package, 'pi-subagents');
   assert.equal(contract.transport.version, '0.42.1');
-  assert.equal(contract.max_parallel_implementers, 2);
+  assert.equal(contract.mechanical_parallelism_enforcement, 'unavailable');
+  assert.equal(Object.hasOwn(contract, 'max_parallel_implementers'), false);
   assert.equal(contract.max_subagent_depth, 0);
+  assert.equal(contract.integration_owner, 'root');
 
   const module = await import(`${pathToFileURL(path.join(root, '.pi/delegation.ts')).href}?test=${Date.now()}`);
   const capability = module.createPiDelegationCapability();
@@ -114,6 +112,37 @@ test('Pi optional delegation uses a pinned, depth-zero capability boundary with 
   });
   assert.equal((await capability.launch({ role: 'scout', depth: 0 })).status, 'inline_required');
   await assert.rejects(capability.launch({ role: 'scout', depth: 1 }), /depth/i);
+});
+
+test('Pi delegation fails closed inline when max-two parallelism is not mechanically enforced', async () => {
+  const module = await import(`${pathToFileURL(path.join(root, '.pi/delegation.ts')).href}?parallel=${Date.now()}`);
+  let inFlight = 0;
+  let peak = 0;
+  const requests = [];
+  const transport = Object.fromEntries(['probe', 'status', 'cancel', 'collect'].map((name) => [
+    name, async (request) => ({ name, request })
+  ]));
+  transport.launch = async (request) => {
+    requests.push(request);
+    inFlight += 1;
+    peak = Math.max(peak, inFlight);
+    await new Promise((resolve) => setTimeout(resolve, 10));
+    inFlight -= 1;
+    return { status: 'launched', id: request.id };
+  };
+  const capability = module.createPiDelegationCapability(transport);
+  const [first, second] = await Promise.all([
+    capability.launch({ id: 'impl-a', role: 'bounded_implementer', depth: 0 }),
+    capability.launch({ id: 'impl-b', role: 'bounded_implementer', depth: 0 })
+  ]);
+  assert.equal(peak, 0);
+  assert.deepEqual([first.status, second.status], ['inline_required', 'inline_required']);
+  assert.equal(requests.length, 0, 'unenforced Pi transport must not receive launches');
+  await assert.rejects(
+    capability.launch({ id: 'nested', role: 'bounded_implementer', depth: 1 }),
+    /depth/i
+  );
+  assert.equal(requests.length, 0, 'nested launch must not reach the transport');
 });
 
 test('secondary adapter validator accepts the documented package', async () => {

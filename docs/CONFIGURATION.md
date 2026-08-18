@@ -62,12 +62,16 @@ rewrite mappings, rank candidates, or mutate policy.
 
 ## Autonomous convergence
 
-`config/convergence.json` defines correction-commit, correction-recheck,
-reserved exact-head integration-review, final-verification, complete-suite,
-duplicate-command, and context-renewal budgets. Correction rechecks are scoped
-separately and cannot consume `final_integration_reviews`. The reserved final
-review can be recorded only after the candidate head is stable; a defect found
-there may use the one additional configured exact-head review after correction.
+`config/convergence.json` keeps review cardinality separate from generic
+execution budgets. The canonical `reviews/lifecycle.json` enforces one
+correction recheck per admitted review cycle, no more than two review cycles
+per seam, and no more than one material strategy restart per seam. Aggregate
+history may therefore truthfully contain two initial reviews and two rechecks;
+that is not a budget override. Generic budgets continue to govern execution
+metrics such as correction commits, final verification attempts, complete-suite
+executions, duplicate commands, and context renewals. The reserved final review
+can be recorded only after the candidate head is stable; a defect found there
+may use the one additional configured exact-head review after correction.
 Existing installs can keep manual behavior with
 `autonomous_convergence.enabled=false`. Ordinary deterministic, reversible,
 in-scope failures continue within budget. Contradiction, material expansion,

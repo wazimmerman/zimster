@@ -1,13 +1,20 @@
 import { writeSync } from 'node:fs';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { readFile } from 'node:fs/promises';
 import { spawnSync } from 'node:child_process';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseOptions, integerOption, required } from './lib/cli.mjs';
-import { captureGitState, findRepoRoot } from './lib/git-state.mjs';
+import { captureGitState, changedFiles, findRepoRoot } from './lib/git-state.mjs';
 import { ensureRuntimeDirectory } from './lib/runtime.mjs';
-import { appendRunEvent } from './lib/run-state.mjs';
+import {
+  appendRunEvent,
+  checkpointRunState,
+  persistRunStateAndProjections,
+  readRunState,
+  reconcileRunState,
+  startRunSlice
+} from './lib/run-state.mjs';
 
 const REQUIRED_FIELDS = Object.freeze([
   'mission_digest',
@@ -202,17 +209,55 @@ if (action === 'create') {
   if (bytes > maxBytes) {
     throw new Error(`checkpoint is ${bytes} bytes; maximum is ${maxBytes}`);
   }
-  await mkdir(path.dirname(checkpointFile), { recursive: true });
-  await writeFile(checkpointFile, serialized);
+  let runState = await readRunState(runtime);
+  if (!runState) throw new Error('checkpoint creation requires canonical run.json; initialize the run first');
+  const gitState = await captureGitState(root);
+  const files = changedFiles(root);
+  if (!runState.current_slice) {
+    runState = startRunSlice(runState, {
+      id: input.current_slice?.id || 'in-progress',
+      summary: input.current_slice?.summary || input.current_architecture.at(-1) || input.mission_digest,
+      dirtyTreeFingerprint: gitState.dirty_tree_fingerprint,
+      touchedFiles: files
+    });
+  }
+  runState = checkpointRunState(runState, {
+    dirtyTreeFingerprint: gitState.dirty_tree_fingerprint,
+    touchedFiles: files,
+    latestFailure: input.latest_failure || null,
+    latestTest: input.latest_test || null,
+    nextAction: input.next_slice?.summary || input.exact_next_slice,
+    nextCommand: input.next_command || null
+  });
+  runState.next_slice = input.next_slice || {
+    id: 'next',
+    summary: input.exact_next_slice
+  };
+  runState.current_checkpoint = checkpoint;
+  await persistRunStateAndProjections(runtime, runState);
   await appendRunEvent(runtime, { event_type: 'checkpoint_created' });
   output({ status: 'CHECKPOINT_CREATED', bytes, path: checkpointFile });
 } else if (action === 'resume') {
-  const checkpoint = JSON.parse(await readFile(checkpointFile, 'utf8'));
+  let runState = await readRunState(runtime);
+  if (!runState) throw new Error('checkpoint resume requires canonical run.json');
+  const checkpoint = runState.current_checkpoint
+    || JSON.parse(await readFile(checkpointFile, 'utf8'));
   validateCheckpoint(checkpoint);
   checkpoint.evidence_receipts = await reconcileEvidenceReferences(checkpoint.evidence_receipts);
-  await writeFile(checkpointFile, `${JSON.stringify(checkpoint, null, 2)}\n`);
+  runState.current_checkpoint = checkpoint;
+  let resumeReconciliation = null;
+  if (runState?.recovery) {
+    const gitState = await captureGitState(root);
+    resumeReconciliation = reconcileRunState(runState, {
+      dirtyTreeFingerprint: gitState.dirty_tree_fingerprint,
+      touchedFiles: changedFiles(root)
+    });
+    runState.recovery.dirty_tree_fingerprint = resumeReconciliation.current_dirty_tree_fingerprint;
+    runState.recovery.touched_files = resumeReconciliation.touched_files;
+  }
+  await persistRunStateAndProjections(runtime, runState);
   await appendRunEvent(runtime, { event_type: 'run_resumed', actor_id: 'root' });
-  output(checkpoint);
+  output(resumeReconciliation ? { ...checkpoint, resume_reconciliation: resumeReconciliation } : checkpoint);
 } else {
   throw new Error('Usage: phase-checkpoint.mjs <create|resume> [options]');
 }

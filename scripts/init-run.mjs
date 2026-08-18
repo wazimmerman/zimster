@@ -8,7 +8,7 @@ import { ensureRuntimeDirectory, resolveAuditPath } from './lib/runtime.mjs';
 import { harnessCapabilities } from './lib/capabilities.mjs';
 import { initializeExecutionBudget } from './lib/execution-budget.mjs';
 import { validateConvergenceConfig } from './lib/convergence.mjs';
-import { initializeRunState } from './lib/run-state.mjs';
+import { initializeRunState, projectRunMarkdown } from './lib/run-state.mjs';
 
 const scriptRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const { options } = parseOptions(process.argv.slice(2));
@@ -32,7 +32,6 @@ const capabilityReceipt = {
   harness,
   capabilities: harness ? await harnessCapabilities(harness) : null
 };
-const capabilitySection = `## Harness capability receipt\n\n\`\`\`json\n${JSON.stringify(capabilityReceipt, null, 2)}\n\`\`\``;
 const selfHostingCandidate = options['self-hosting-candidate']
   ? String(options['self-hosting-candidate'])
   : null;
@@ -65,59 +64,84 @@ if (selfHostingCandidate) {
   convergenceConfig = validateConvergenceConfig(JSON.parse(await readFile(convergenceConfigPath, 'utf8')));
 }
 
-function withCapabilityReceipt(contents) {
-  const existing = /## Harness capability receipt\n\n```json\n[\s\S]*?\n```/;
-  if (existing.test(contents)) return contents.replace(existing, capabilitySection);
-  const architecture = '## Architecture and current slice';
-  if (contents.includes(architecture)) {
-    return contents.replace(architecture, `${capabilitySection}\n\n${architecture}`);
-  }
-  return `${contents.trimEnd()}\n\n${capabilitySection}\n`;
-}
-
-let template = await readFile(path.join(scriptRoot, 'templates', 'run.md'), 'utf8');
-template = template
-  .replace('## Mission and constraints', '## Mission and constraints\n\n[Describe the required outcome and binding constraints.]')
-  .replace('## Architecture and current slice', `## Profile and rationale\n\n- Profile: ${normalizedProfile}\n- Rationale: ${reason}\n- Durable-state triggers: ${triggers.join('; ')}\n\n## Architecture and current slice`)
-  .replace('## Completed evidence', `## Git disposition\n\n- Branch: ${branch || 'DETACHED'}\n- Starting head: ${head}\n- Commit policy: ${commitPolicy}\n\n## Dispatch records\n\n[Reference Git-local zimster/dispatches IDs; include requested/effective model or unverified.]\n\n## Completed evidence`);
-template = withCapabilityReceipt(template);
-
 await mkdir(path.dirname(target), { recursive: true });
 const legacy = path.join(repo, '.zimster', 'run.md');
-if (!auditPath && options.force !== true) {
+let legacyContents = null;
+if (!auditPath) {
   try {
     await access(legacy);
-    try {
-      await access(target);
-      throw new Error(`legacy and Git-local run records both exist; reconcile ${legacy} and ${target} explicitly`);
-    } catch (error) {
-      if (error.code !== 'ENOENT') throw error;
-    }
-    const legacyContents = await readFile(legacy, 'utf8');
-    await writeFile(target, withCapabilityReceipt(legacyContents), { flag: 'wx' });
-    await rm(legacy);
-    writeLine(target);
-    process.exit(0);
+    legacyContents = await readFile(legacy, 'utf8');
   } catch (error) {
     if (error.code !== 'ENOENT') throw error;
   }
+  if (options.force !== true) {
+    try {
+      await access(target);
+      if (legacyContents !== null) {
+        throw new Error(`legacy and Git-local run records both exist; reconcile ${legacy} and ${target} explicitly`);
+      }
+      throw new Error(`${target} already exists; pass --force to replace it`);
+    } catch (error) {
+      if (error.code !== 'ENOENT') throw error;
+    }
+  }
 }
+
+const projectionState = auditPath || normalizedProfile === 'Micro'
+  ? {
+      schema_version: 2,
+      id: 'audit-projection',
+      root_actor_id: 'root',
+      started_at: null,
+      starting_head: head,
+      profile: normalizedProfile,
+      rationale: reason,
+      mission: '[Describe the required outcome and binding constraints.]',
+      capability_receipt: capabilityReceipt,
+      branch,
+      commit_policy: commitPolicy,
+      durable_state_triggers: triggers,
+      evidence: [],
+      unresolved_risks: [],
+      current_slice: null,
+      next_slice: null,
+      recovery: null
+    }
+  : await initializeRunState(runtimeDirectory, {
+    startingHead: head,
+    planId: String(options['plan-id'] || 'unregistered-plan'),
+    planSource: String(options['plan-source'] || 'user-approved request'),
+    profile: normalizedProfile,
+    rationale: reason,
+    mission: legacyContents === null
+      ? '[Describe the required outcome and binding constraints.]'
+      : 'Migrated legacy run record is preserved in legacy-run.md.',
+    capabilityReceipt,
+    branch,
+    commitPolicy,
+    durableStateTriggers: triggers,
+    overwrite: options.force === true
+  });
+
 try {
-  await writeFile(target, template, { flag: options.force === true ? 'w' : 'wx' });
+  await writeFile(target, projectRunMarkdown(projectionState), { flag: options.force === true ? 'w' : 'wx' });
 } catch (error) {
   if (error.code === 'EEXIST') throw new Error(`${target} already exists; pass --force to replace it`);
   throw error;
 }
-if (!auditPath && normalizedProfile !== 'Micro') {
-  await initializeRunState(runtimeDirectory, {
-    startingHead: head,
-    planId: String(options['plan-id'] || 'unregistered-plan'),
-    planSource: String(options['plan-source'] || 'user-approved request'),
-    overwrite: options.force === true
+
+if (!auditPath && legacyContents !== null) {
+  await writeFile(path.join(runtimeDirectory, 'legacy-run.md'), legacyContents, {
+    flag: options.force === true ? 'w' : 'wx'
   });
+  await rm(legacy);
+}
+
+if (!auditPath && normalizedProfile !== 'Micro') {
   await initializeExecutionBudget(runtimeDirectory, normalizedProfile, {
     tokenThreshold: integerOption(options, 'token-threshold', null),
     limits: convergenceConfig.autonomous_convergence.limits,
+    hardLimits: convergenceConfig.autonomous_convergence.hard_limits,
     overwrite: options.force === true
   });
   await writeFile(

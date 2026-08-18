@@ -4,18 +4,29 @@
     "enabled": true,
     "limits": {
       "correction_commits": 2,
-      "correction_rechecks": 2,
-      "final_integration_reviews": 2,
       "final_verification_attempts": 2,
       "complete_suite_executions": 3,
       "exact_duplicate_commands": 2,
       "context_renewals": 2
-    }
+    },
+    "hard_limits": [
+      "correction_commits",
+      "final_verification_attempts",
+      "complete_suite_executions"
+    ]
   },
   "legacy_aliases": {
-    "final_correction_waves": "correction_commits",
-    "review_rechecks_per_seam": "correction_rechecks",
     "context_compactions": "context_renewals"
+  },
+  "review_lifecycle": {
+    "correction_rechecks_per_cycle": 1,
+    "review_cycles_per_seam": 2,
+    "strategy_restarts_per_seam": 1,
+    "final_integration_reviews": 2,
+    "final_correction_waves": 1,
+    "legacy_aliases": {
+      "review_rechecks_per_seam": "correction_rechecks_per_cycle"
+    }
   },
   "finalization": {
     "reserved_exact_head_reviews": 1,

@@ -1,9 +1,9 @@
 # Pi
 
-Verification level for Zimster 0.7.0: `INSTALLED_PACKAGE_VERIFIED` on Pi 0.84.1.
-An isolated local package install and `pi list` succeeded. Dependency-free
-tests verify the extension factory, declared skill resources, duplicate
-bootstrap guard, and delegation fallback. Model-backed discovery was not run.
+The 0.7.2 PR matrix is the only current candidate claim. An isolated install
+from the exact npm tarball plus `pi list`, declared resource inspection, and
+extension regressions can establish `INSTALLED_PACKAGE_VERIFIED`. Model-backed
+discovery and optional delegation remain separate capabilities.
 
 ## Install
 
@@ -44,18 +44,20 @@ source and inspect startup diagnostics before attributing behavior to Zimster.
 
 ## Verification status
 
-Exact npm-package installation is `INSTALLED_PACKAGE_VERIFIED` on Pi 0.84.1.
-Fresh model-backed discovery and the optional delegation transport remain
-unverified.
+Exact npm-package installation is `INSTALLED_PACKAGE_VERIFIED` only for the
+commit and tarball hash in the current matrix. Fresh model-backed discovery and
+the optional delegation transport remain unverified unless separately tested.
 
 ## Optional delegation
 
 Owner-inline execution is the default. `.pi/delegation.ts` exposes only
-`probe`, `launch`, `status`, `cancel`, and `collect`. If an owner explicitly
-installs the pinned optional `pi-subagents` 0.42.1 transport, Zimster prohibits
-nested subagents and caps parallel implementers at two. Zimster never installs
-that transport silently. Missing or incompatible transport returns an
-`inline_required` result.
+`probe`, `launch`, `status`, `cancel`, and `collect`. The current optional
+`pi-subagents` transport does not provide a trustworthy local ownership and
+terminal-state interface with which Zimster can mechanically enforce the
+max-two-active boundary. Zimster therefore fails closed to `inline_required`
+even when that transport is installed, and rejects nonzero nesting depth. It
+does not advertise mechanically enforced Pi parallelism or install another
+transport during this release.
 
 `pi --list-models` is session-scoped catalog evidence, not proof of effective
 model routing.

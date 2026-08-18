@@ -178,8 +178,11 @@ approval and requires a new exact-head review within finalization budget.
 
 ## Circuit breaker
 
-If a load-bearing finding remains after the recheck, stop the loop. Choose one
-evidence-backed route:
+If a load-bearing finding remains after the recheck, the canonical lifecycle
+enters circuit breaker and strategy escalation. No technical ruling or deferral
+can reopen or approve that exhausted cycle. A ruling may be retained as owner
+evidence, but it cannot replenish review capacity or bypass lifecycle state.
+Choose one evidence-backed route:
 
 1. reviewer wrong: record technical ruling and proof;
 2. contradictory requirement/design: `BLOCKED_BY_REQUIREMENT` or return to owner;
@@ -187,4 +190,6 @@ evidence-backed route:
 4. real and load-bearing: revise design or stop blocked;
 5. evidence unavailable: report the strongest partial state.
 
-Silent dismissal is forbidden.
+Silent dismissal is forbidden. Only the one explicitly admitted material
+strategy restart under the same seam may open cycle two; a second failed cycle
+is terminal.

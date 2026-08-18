@@ -240,6 +240,7 @@ async function main() {
       resolution_id: resolution.id,
       session_id: proposal.session_id,
       role,
+      provenance_kind: 'owner_recorded_dispatch',
       purpose: required(options, 'purpose'),
       capability_class: capabilityClass,
       requested_model: resolution.requested_model,

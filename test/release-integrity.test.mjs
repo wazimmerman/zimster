@@ -13,6 +13,11 @@ test('release metadata and current changelog are synchronized', async () => {
 
 test('release workflow rejects tags that disagree with plugin metadata', async () => {
   const workflow = await read('.github/workflows/release.yml');
+  const trackedEvidence = spawnSync('git', ['ls-files', 'release/evidence'], {
+    cwd: root, encoding: 'utf8'
+  });
+  assert.equal(trackedEvidence.status, 0, trackedEvidence.stderr);
+  assert.equal(trackedEvidence.stdout, '');
   assert.match(workflow, /git verify-tag/);
   assert.match(workflow, /release:evidence.*verify-tag/);
   assert.match(workflow, /attest-build-provenance/);
@@ -20,12 +25,15 @@ test('release workflow rejects tags that disagree with plugin metadata', async (
   assert.match(workflow, /npm publish/);
   assert.match(workflow, /gh api --method POST[\s\S]*-F draft=true/);
   assert.doesNotMatch(workflow, /semantic-assurance\.mjs.*complete/);
+  assert.doesNotMatch(workflow, /release\/evidence\/(?:semantic-review|host-matrix|verification)\.json/);
+  assert.match(workflow, /release:evidence -- extract-tag/);
+  assert.match(workflow, /\$RUNNER_TEMP/);
 });
 
 test('release workflow establishes the configured public-key trust anchor before both tag checks', async () => {
   const workflow = await read('.github/workflows/release.yml');
   const keySetup = workflow.indexOf('.github/scripts/release-signing-key.mjs');
-  const verifyTag = workflow.indexOf('git verify-tag "$GITHUB_REF_NAME"');
+  const verifyTag = workflow.indexOf('git verify-tag "$RELEASE_TAG"');
   const evidenceVerify = workflow.indexOf('release:evidence -- verify-tag');
   assert.notEqual(keySetup, -1);
   assert.notEqual(verifyTag, -1);
@@ -37,6 +45,51 @@ test('release workflow establishes the configured public-key trust anchor before
   assert.match(workflow, /GNUPGHOME:\s*\$\{\{ runner\.temp \}\}/);
   assert.match(workflow, /--trusted-fingerprint\s+"\$RELEASE_SIGNER_FINGERPRINT"/);
   assert.match(workflow, /release:evidence[\s\S]*verify-tag[\s\S]*--trusted-fingerprint/);
+});
+
+test('release workflow preserves and verifies the signed annotated tag before peeling its commit', async () => {
+  const workflow = await read('.github/workflows/release.yml');
+  const fetchTag = workflow.indexOf('+refs/tags/$RELEASE_TAG:refs/tags/$RELEASE_TAG');
+  const tagType = workflow.indexOf('git cat-file -t "$RELEASE_TAG"');
+  const verifyTag = workflow.indexOf('git verify-tag "$RELEASE_TAG"');
+  const peelTag = workflow.indexOf('git rev-parse "$RELEASE_TAG^{}"');
+  const checkoutCommit = workflow.indexOf('git checkout --detach "$RELEASE_COMMIT"');
+  const extractTag = workflow.indexOf('release:evidence -- extract-tag');
+  assert.ok(fetchTag !== -1 && tagType !== -1 && verifyTag !== -1 && peelTag !== -1 && checkoutCommit !== -1);
+  assert.ok(fetchTag < tagType);
+  assert.ok(tagType < verifyTag);
+  assert.ok(verifyTag < peelTag);
+  assert.ok(peelTag < checkoutCommit);
+  assert.ok(checkoutCommit < extractTag);
+  assert.match(workflow, /test "\$RELEASE_COMMIT" = "\$GITHUB_SHA"/);
+  assert.doesNotMatch(workflow, /refs\/tags\/\$RELEASE_TAG:[^\n]*\$RELEASE_COMMIT/);
+});
+
+test('release workflow trusts embedded inputs only after signature verification and rebuilds before authorization', async () => {
+  const workflow = await read('.github/workflows/release.yml');
+  const verifySignature = workflow.indexOf('git verify-tag "$RELEASE_TAG"');
+  const exactTarget = workflow.indexOf('test "$RELEASE_COMMIT" = "$GITHUB_SHA"');
+  const checkout = workflow.indexOf('git checkout --detach "$RELEASE_COMMIT"');
+  const npmCi = workflow.indexOf('npm ci');
+  const check = workflow.indexOf('npm run check');
+  const version = workflow.indexOf('npm run version:check');
+  const extract = workflow.indexOf('release:evidence -- extract-tag');
+  const authorization = workflow.indexOf('release:evidence -- verify-tag');
+  const checksums = workflow.indexOf('npm run checksums');
+  assert.ok([
+    verifySignature, exactTarget, checkout, npmCi, check, version, extract, authorization, checksums
+  ].every((position) => position !== -1));
+  assert.ok(verifySignature < exactTarget);
+  assert.ok(exactTarget < checkout);
+  assert.ok(checkout < npmCi);
+  assert.ok(npmCi < check);
+  assert.ok(check < version);
+  assert.ok(version < extract);
+  assert.ok(extract < authorization);
+  assert.ok(authorization < checksums);
+  assert.match(workflow, /--semantic-review\s+"\$RELEASE_EVIDENCE_DIR\/semantic-review\.json"/);
+  assert.match(workflow, /--host-matrix\s+"\$RELEASE_EVIDENCE_DIR\/host-matrix\.json"/);
+  assert.match(workflow, /--verification\s+"\$RELEASE_EVIDENCE_DIR\/verification\.json"/);
 });
 
 test('live GPG fixtures are Linux-only while portable release contracts stay cross-platform', async () => {
@@ -65,13 +118,35 @@ test('release workflow publishes npm before exposing an explicitly channel-bound
   assert.match(workflow, /steps\.authorization\.outputs\.release_latest/);
   assert.match(workflow, /steps\.authorization\.outputs\.release_title/);
   assert.match(workflow, /releases\?per_page=100/);
-  assert.match(workflow, /select\(\.tag_name == env\.GITHUB_REF_NAME\)/);
+  assert.match(workflow, /select\(\.tag_name == env\.RELEASE_TAG\)/);
   assert.match(workflow, /duplicate GitHub releases for exact target tag/);
-  assert.match(workflow, /gh api --method POST[\s\S]*-f tag_name="\$GITHUB_REF_NAME"/);
+  assert.match(workflow, /gh api --method POST[\s\S]*-f tag_name="\$RELEASE_TAG"/);
   assert.match(workflow, /releases\/\$RELEASE_ID/);
   assert.match(workflow, /-F prerelease="\$RELEASE_PRERELEASE"/);
   assert.match(workflow, /-f make_latest="\$RELEASE_LATEST"/);
   assert.doesNotMatch(workflow, /releases\/latest|gh release view\s*>/);
+});
+
+test('release workflow uses npm Trusted Publishing without a write-capable token', async () => {
+  const workflow = await read('.github/workflows/release.yml');
+  assert.match(workflow, /permissions:[\s\S]*id-token:\s*write/);
+  assert.match(workflow, /runs-on:\s*ubuntu-latest/);
+  assert.match(workflow, /environment:\s*release/);
+  assert.doesNotMatch(workflow, /NPM_TOKEN|NODE_AUTH_TOKEN/);
+  assert.doesNotMatch(workflow, /registry-url:/);
+
+  const nodeVersion = workflow.match(/node-version:\s*['"]?([^\s'"]+)/)?.[1];
+  const npmVersion = workflow.match(/npm install --global npm@([^\s]+)/)?.[1];
+  assert.equal(nodeVersion, '22.14.0');
+  assert.equal(npmVersion, '11.5.1');
+
+  const authorization = workflow.indexOf('--github-output "$GITHUB_OUTPUT"');
+  const publish = workflow.indexOf('npm publish "$ARTIFACT" --access public');
+  const expose = workflow.indexOf('Expose authorized GitHub release');
+  assert.ok(authorization !== -1 && publish !== -1 && expose !== -1);
+  assert.ok(authorization < publish);
+  assert.ok(publish < expose);
+  assert.doesNotMatch(workflow, /npm publish[^\n]*--provenance/);
 });
 
 test('version bump synchronizes manifests, lockfile, changelog, and Codex mirror', async () => {

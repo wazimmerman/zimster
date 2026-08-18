@@ -156,6 +156,10 @@ implies semantic approval.
   an authoritative decision;
 - `OWNER_VERIFIED_REVIEW_UNAVAILABLE`: owner proof exists but required
   independent review could not run;
+- `HUMAN_RELEASE_REVIEW_ACCEPTED`: a signed owner release authorization accepts
+  an exact-head, load-bearing-clean review record while truthfully retaining
+  unavailable host-authenticated reviewer provenance; this is release-specific
+  and never rewrites runtime assurance;
 - `PARTIALLY_VERIFIED`: some obligations remain unproved.
 - `CANDIDATE_COMPLETE`: the matrix and profile-appropriate exact-head review
   gate both pass.
