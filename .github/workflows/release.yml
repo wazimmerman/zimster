@@ -46,9 +46,13 @@ jobs:
           test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 22.14.0
           cache: npm
-          registry-url: https://registry.npmjs.org
+      - name: Establish npm Trusted Publishing runtime
+        run: |
+          npm install --global npm@11.5.1
+          test "$(node --version)" = "v22.14.0"
+          test "$(npm --version)" = "11.5.1"
       - run: npm ci
       - run: npm run check
       - run: npm run version:check -- --tag "$RELEASE_TAG"
@@ -117,8 +121,6 @@ jobs:
           test -n "$RELEASE_ID"
           echo "release_id=$RELEASE_ID" >> "$GITHUB_OUTPUT"
       - name: Publish npm package idempotently
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
         run: |
           VERSION="${RELEASE_TAG#v}"
           ARTIFACT="dist/zimster-${VERSION}.tgz"
@@ -127,7 +129,7 @@ jobs:
           if test -n "$PUBLISHED_SHASUM"; then
             test "$PUBLISHED_SHASUM" = "$LOCAL_SHASUM"
           else
-            npm publish "$ARTIFACT" --access public --provenance
+            npm publish "$ARTIFACT" --access public
           fi
       - name: Expose authorized GitHub release
         env:

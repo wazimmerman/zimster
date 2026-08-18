@@ -127,6 +127,28 @@ test('release workflow publishes npm before exposing an explicitly channel-bound
   assert.doesNotMatch(workflow, /releases\/latest|gh release view\s*>/);
 });
 
+test('release workflow uses npm Trusted Publishing without a write-capable token', async () => {
+  const workflow = await read('.github/workflows/release.yml');
+  assert.match(workflow, /permissions:[\s\S]*id-token:\s*write/);
+  assert.match(workflow, /runs-on:\s*ubuntu-latest/);
+  assert.match(workflow, /environment:\s*release/);
+  assert.doesNotMatch(workflow, /NPM_TOKEN|NODE_AUTH_TOKEN/);
+  assert.doesNotMatch(workflow, /registry-url:/);
+
+  const nodeVersion = workflow.match(/node-version:\s*['"]?([^\s'"]+)/)?.[1];
+  const npmVersion = workflow.match(/npm install --global npm@([^\s]+)/)?.[1];
+  assert.equal(nodeVersion, '22.14.0');
+  assert.equal(npmVersion, '11.5.1');
+
+  const authorization = workflow.indexOf('--github-output "$GITHUB_OUTPUT"');
+  const publish = workflow.indexOf('npm publish "$ARTIFACT" --access public');
+  const expose = workflow.indexOf('Expose authorized GitHub release');
+  assert.ok(authorization !== -1 && publish !== -1 && expose !== -1);
+  assert.ok(authorization < publish);
+  assert.ok(publish < expose);
+  assert.doesNotMatch(workflow, /npm publish[^\n]*--provenance/);
+});
+
 test('version bump synchronizes manifests, lockfile, changelog, and Codex mirror', async () => {
   const bump = await read('scripts/bump-version.mjs');
   const versionFiles = await read('scripts/lib/version-files.mjs');
