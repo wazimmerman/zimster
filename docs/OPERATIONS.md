@@ -57,9 +57,17 @@ and exact-head final-review events. The lifecycle is stored at
 `reviews/lifecycle.json` beneath the Git-local runtime. Reinitialization cannot
 reset an existing seam. Correction-recheck accounting uses that seam identity,
 not caller-provided scope, digest, attempt, reviewer, or candidate labels.
-Completion requires the canonical approved final-review attempt and matching
-host-observed reviewer dispatch provenance; a review JSON file alone cannot
-authorize `CANDIDATE_COMPLETE`.
+If the first cycle still has load-bearing findings after its one recheck, the
+circuit breaker leads to owner strategy escalation. The root may explicitly
+admit one materially different, focused-proof-backed strategy under the same
+seam lineage. That replacement gets one new review, one correction, and one
+same-reviewer recheck. A second failed cycle becomes `BLOCKED`; it cannot be
+relabeled into a third cycle. This is one bounded strategy restart, not a
+review-budget reset.
+
+Completion requires the canonical approved final-review attempt and genuinely
+host-observed reviewer-result provenance; a review JSON or owner-recorded
+dispatch alone cannot authorize `CANDIDATE_COMPLETE`.
 
 Record delegation first with `delegation-record.mjs decide`. Only a selected
 decision may reach `model-routing.mjs propose`. Regenerate a dispatch-phase

@@ -55,15 +55,14 @@ test('CONV-001: canonical convergence budgets validate and legacy metric aliases
   assert.equal(legacyState.usage.final_correction_waves, 1);
 });
 
-test('CONV-001: correction rechecks cannot consume the reserved exact-head integration review', () => {
+test('CONV-001: execution budgets do not independently account correction rechecks', () => {
   const state = createBudgetState('high-risk', { limits });
-  const correction = applyExecutionBudgetEvent(state, {
+  assert.throws(() => applyExecutionBudgetEvent(state, {
     metric: 'correction_rechecks',
     scope: 'release-policy',
     canonicalSeamId: 'release-policy'
-  });
-  assert.equal(correction.status, 'BUDGET_WARNING');
-  assert.equal(state.scoped_usage.correction_rechecks['release-policy'], 1);
+  }), /review lifecycle.*authoritative/i);
+  assert.equal(state.scoped_usage.correction_rechecks, undefined);
   assert.equal(state.usage.final_integration_reviews, 0);
 
   assert.throws(() => applyExecutionBudgetEvent(state, {

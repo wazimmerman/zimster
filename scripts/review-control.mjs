@@ -45,10 +45,19 @@ function eventFromOptions() {
     'review-package-id': 'reviewPackageId',
     'semantic-contract-sha256': 'semanticContractSha256',
     'review-record-id': 'reviewRecordId',
-    'dispatch-record-id': 'dispatchRecordId'
+    'dispatch-record-id': 'dispatchRecordId',
+    'previous-candidate-digest': 'previousCandidateDigest',
+    'strategy-reason': 'strategyReason',
+    'focused-proof-status': 'focusedProofStatus'
   };
   for (const [option, field] of Object.entries(fields)) {
     if (options[option] !== undefined) event[field] = String(options[option]);
+  }
+  if (options['material-change'] !== undefined) {
+    if (!['true', 'false'].includes(String(options['material-change']))) {
+      throw new Error('--material-change must be true or false');
+    }
+    event.materialChange = String(options['material-change']) === 'true';
   }
   return event;
 }
@@ -66,7 +75,7 @@ if (action === 'init') {
   const state = applyReviewLifecycleEvent(await readLifecycle(), eventFromOptions());
   await writeLifecycle(state);
   writeLine(JSON.stringify(state));
-  if (['CIRCUIT_BREAKER', 'STRATEGY_ESCALATION_REQUIRES_OWNER'].includes(state.status)) {
+  if (['CIRCUIT_BREAKER', 'STRATEGY_ESCALATION_REQUIRES_OWNER', 'BLOCKED'].includes(state.status)) {
     process.exitCode = 2;
   }
 } else if (action === 'status') {

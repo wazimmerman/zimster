@@ -181,7 +181,7 @@ test('budget proof satisfaction rejects an explicitly invalidated evidence recei
   }
 });
 
-test('execution budget counts optional agents once and binds rechecks to the canonical seam', async () => {
+test('execution budget counts agents but defers recheck authority to the canonical lifecycle', async () => {
   const repo = await tempRepo();
   try {
     const budget = path.join(root, 'scripts/run-budget.mjs');
@@ -191,7 +191,9 @@ test('execution budget counts optional agents once and binds rechecks to the can
     await writeFile(runtimePath(repo, 'reviews/lifecycle.json'), `${JSON.stringify({
       schema_version: 2,
       run_id: 'run-budget-test',
-      seam_id: 'runtime'
+      seam_id: 'runtime',
+      current_cycle: 2,
+      aggregate: { correction_rechecks: 2 }
     })}\n`);
 
     for (const agentId of ['scout-1', 'scout-1', 'reviewer-1']) {
@@ -204,10 +206,17 @@ test('execution budget counts optional agents once and binds rechecks to the can
       budget, 'record', '--metric', 'review_rechecks_per_seam', '--scope', 'runtime'
     ], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
+    let accounting = JSON.parse(result.stdout);
+    assert.equal(accounting.status, 'LIFECYCLE_ACCOUNTING_AUTHORITATIVE');
+    assert.equal(accounting.value, 2);
+    assert.equal(accounting.current_cycle, 2);
     result = run(process.execPath, [
       budget, 'record', '--metric', 'review_rechecks_per_seam', '--scope', 'runtime'
     ], repo);
-    assert.equal(result.status, 2, result.stderr || result.stdout);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    accounting = JSON.parse(result.stdout);
+    assert.equal(accounting.status, 'LIFECYCLE_ACCOUNTING_AUTHORITATIVE');
+    assert.equal(accounting.value, 2);
     result = run(process.execPath, [
       budget, 'record', '--metric', 'review_rechecks_per_seam', '--scope', 'renamed-scope'
     ], repo);
@@ -217,8 +226,8 @@ test('execution budget counts optional agents once and binds rechecks to the can
     const state = JSON.parse(await readFile(runtimePath(repo, 'budget.json'), 'utf8'));
     assert.deepEqual(state.optional_agent_identities, ['scout-1', 'reviewer-1']);
     assert.equal(state.usage.optional_deliberate_agents, 2);
-    assert.equal(state.scoped_usage.review_rechecks_per_seam.runtime, 1);
-    assert.equal(state.scoped_usage.review_rechecks_per_seam['renamed-scope'], undefined);
+    assert.equal(state.scoped_usage.review_rechecks_per_seam, undefined);
+    assert.equal(state.scoped_usage.review_rechecks_per_seam?.['renamed-scope'], undefined);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

@@ -136,8 +136,6 @@ export async function writeExecutionBudget(budgetFile, state) {
 
 export async function recordExecutionBudgetEvent(runtimeDirectory, event) {
   return withBudgetLock(runtimeDirectory, async () => {
-    const budget = await readExecutionBudget(runtimeDirectory);
-    let canonicalEvent = event;
     if (normalizeConvergenceMetric(event.metric) === 'correction_rechecks') {
       let lifecycle;
       try {
@@ -154,13 +152,20 @@ export async function recordExecutionBudgetEvent(runtimeDirectory, event) {
       if (event.scope && event.scope !== lifecycle.seam_id) {
         throw new Error(`correction recheck scope is canonical: ${lifecycle.seam_id}`);
       }
-      canonicalEvent = {
-        ...event,
-        scope: lifecycle.seam_id,
-        canonicalSeamId: lifecycle.seam_id
+      return {
+        changed: false,
+        status: 'LIFECYCLE_ACCOUNTING_AUTHORITATIVE',
+        detail: {
+          metric: 'correction_rechecks',
+          authority: 'reviews/lifecycle.json',
+          seam: lifecycle.seam_id,
+          value: lifecycle.aggregate?.correction_rechecks ?? 0,
+          current_cycle: lifecycle.current_cycle ?? 1
+        }
       };
     }
-    const result = applyExecutionBudgetEvent(budget.state, canonicalEvent);
+    const budget = await readExecutionBudget(runtimeDirectory);
+    const result = applyExecutionBudgetEvent(budget.state, event);
     if (result.changed) await writeExecutionBudget(budget.budgetFile, budget.state);
     return result;
   });
@@ -303,13 +308,10 @@ export function applyExecutionBudgetEvent(state, {
     }
   }
   if (metric === 'correction_rechecks') {
-    if (!canonicalSeamId) {
-      throw new Error('correction_rechecks requires canonical seam identity');
-    }
-    if (scope && scope !== canonicalSeamId) {
+    if (canonicalSeamId && scope && scope !== canonicalSeamId) {
       throw new Error(`correction recheck scope is canonical: ${canonicalSeamId}`);
     }
-    scope = canonicalSeamId;
+    throw new Error('canonical review lifecycle is authoritative for correction rechecks');
   }
   if (metric === 'final_integration_reviews') {
     if (candidateStable !== true) {

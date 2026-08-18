@@ -366,6 +366,10 @@ const report = {
         })
     ),
     review_lifecycle: metric('review_lifecycle', reviewLifecycleMetric),
+    review_cycles: metric(
+      'review_cycles',
+      lifecycleCount((aggregate) => aggregate.review_cycles ?? 1)
+    ),
     reviews: metric(
       'reviews',
       lifecycleCount((aggregate) =>
@@ -385,6 +389,10 @@ const report = {
     final_integration_reviews: metric(
       'final_integration_reviews',
       lifecycleCount((aggregate) => aggregate.final_integration_reviews)
+    ),
+    strategy_restarts: metric(
+      'strategy_restarts',
+      lifecycleCount((aggregate) => aggregate.strategy_restarts ?? 0)
     ),
     convergence: metric(
       'convergence',

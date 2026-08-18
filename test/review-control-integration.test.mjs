@@ -107,3 +107,94 @@ test('normal review control path binds one recheck to its canonical seam', async
     await rm(repo, { recursive: true, force: true });
   }
 });
+
+test('review control admits one same-seam strategy restart and accounts for both cycles', async () => {
+  const repo = await mkdtemp(path.join(os.tmpdir(), 'zimster-review-strategy-'));
+  try {
+    assert.equal(spawnSync('git', ['init', '-b', 'main'], { cwd: repo }).status, 0);
+    await writeFile(path.join(repo, 'tracked.txt'), 'candidate\n');
+    assert.equal(spawnSync('git', ['add', 'tracked.txt'], { cwd: repo }).status, 0);
+    assert.equal(spawnSync('git', [
+      '-c', 'user.name=Zimster Test', '-c', 'user.email=test@example.com',
+      'commit', '-m', 'candidate'
+    ], { cwd: repo }).status, 0);
+    const runtime = spawnSync('git', [
+      'rev-parse', '--path-format=absolute', '--git-path', 'zimster'
+    ], { cwd: repo, encoding: 'utf8' }).stdout.trim();
+    await mkdir(runtime, { recursive: true });
+    await writeFile(path.join(runtime, 'run.json'), `${JSON.stringify({
+      schema_version: 2,
+      id: 'run-review-strategy',
+      started_at: '2026-08-17T00:00:00.000Z'
+    })}\n`);
+    await writeFile(path.join(runtime, 'budget.json'), `${JSON.stringify({
+      schema_version: 1,
+      limits: { correction_rechecks: 1, complete_suite_executions: 3 },
+      usage: { correction_rechecks: 0, complete_suite_executions: 0 },
+      scoped_usage: { correction_rechecks: {} },
+      overrides: [],
+      proof_obligations: []
+    })}\n`);
+
+    let result = run([
+      'init', '--seam-id', 'release-seam', '--candidate-digest', 'candidate-a'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    for (const args of [
+      ['event', '--type', 'INITIAL_REVIEW', '--reviewer-id', 'reviewer-1', '--verdict', 'needs_correction'],
+      ['event', '--type', 'OWNER_CORRECTION'],
+      ['event', '--type', 'CORRECTION_RECHECK', '--reviewer-id', 'reviewer-1', '--verdict', 'load_bearing_findings']
+    ]) result = run(args, repo);
+    assert.equal(result.status, 2, result.stderr || result.stdout);
+    assert.equal(JSON.parse(result.stdout).status, 'CIRCUIT_BREAKER');
+
+    result = run(['event', '--type', 'ENTER_STRATEGY_ESCALATION'], repo);
+    assert.equal(result.status, 2, result.stderr || result.stdout);
+    assert.equal(JSON.parse(result.stdout).status, 'STRATEGY_ESCALATION_REQUIRES_OWNER');
+    result = run([
+      'event', '--type', 'STRATEGY_REVISION_ACCEPTED',
+      '--previous-candidate-digest', 'candidate-a',
+      '--candidate-digest', 'candidate-b',
+      '--strategy-reason', 'Replace shared mutable state with isolated state transitions.',
+      '--material-change', 'true',
+      '--focused-proof-status', 'passed'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.equal(JSON.parse(result.stdout).status, 'NEW_STRATEGY_REVIEW_REQUIRED');
+
+    for (const args of [
+      ['event', '--type', 'INITIAL_REVIEW', '--reviewer-id', 'reviewer-2', '--verdict', 'needs_correction'],
+      ['event', '--type', 'OWNER_CORRECTION'],
+      ['event', '--type', 'CORRECTION_RECHECK', '--reviewer-id', 'reviewer-2', '--verdict', 'load_bearing_findings']
+    ]) result = run(args, repo);
+    assert.equal(result.status, 2, result.stderr || result.stdout);
+    const blocked = JSON.parse(result.stdout);
+    assert.equal(blocked.status, 'BLOCKED');
+    assert.equal(blocked.seam_id, 'release-seam');
+    assert.equal(blocked.aggregate.review_cycles, 2);
+    assert.equal(blocked.aggregate.correction_rechecks, 2);
+    assert.equal(blocked.aggregate.strategy_restarts, 1);
+
+    result = run([
+      'event', '--type', 'STRATEGY_REVISION_ACCEPTED',
+      '--previous-candidate-digest', 'candidate-b', '--candidate-digest', 'candidate-c',
+      '--strategy-reason', 'Relabeled third strategy.', '--material-change', 'true',
+      '--focused-proof-status', 'passed', '--scope', 'fresh-scope', '--reviewer-id', 'reviewer-3'
+    ], repo);
+    assert.equal(result.status, 2, result.stderr || result.stdout);
+    assert.equal(JSON.parse(result.stdout).status, 'BLOCKED');
+
+    const accounting = postmortem(['--runtime', runtime], repo);
+    assert.equal(accounting.status, 0, accounting.stderr || accounting.stdout);
+    const report = JSON.parse(await readFile(JSON.parse(accounting.stdout).report, 'utf8'));
+    assert.equal(report.metrics.review_cycles.value, 2);
+    assert.equal(report.metrics.reviews.value, 4);
+    assert.equal(report.metrics.corrections.value, 2);
+    assert.equal(report.metrics.rechecks.value, 2);
+    assert.equal(report.metrics.strategy_restarts.value, 1);
+    assert.equal(report.metrics.complete_suite_executions.value, 0);
+    assert.equal(report.metrics.budget_compliance.status, 'within_budget');
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});

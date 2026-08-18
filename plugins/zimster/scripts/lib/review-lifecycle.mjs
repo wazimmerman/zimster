@@ -9,6 +9,7 @@ const convergenceLimits = JSON.parse(readFileSync(path.resolve(
 const TERMINAL = new Set([
   'CIRCUIT_BREAKER',
   'STRATEGY_ESCALATION_REQUIRES_OWNER',
+  'BLOCKED',
   'REVIEW_LIFECYCLE_COMPLETE'
 ]);
 
@@ -48,9 +49,35 @@ function record(state, event) {
     sequence: state.history.length + 1,
     type: event.type,
     status: state.status,
-    candidate_revision: state.candidate.revision
+    candidate_revision: state.candidate.revision,
+    candidate_digest: state.candidate.digest,
+    review_cycle: state.current_cycle,
+    reviewer_id: state.reviewer_id
   });
   return state;
+}
+
+function ensureLifecycleShape(state) {
+  state.current_cycle ??= 1;
+  state.limits.review_cycles ??= 2;
+  state.limits.strategy_restarts ??= 1;
+  state.aggregate.review_cycles ??= 1;
+  state.aggregate.strategy_restarts ??= 0;
+  state.strategy_revisions ??= [];
+  state.review_cycles ??= [{
+    number: 1,
+    candidate_digest: state.candidate.digest,
+    reviewer_id: state.reviewer_id,
+    initial_reviews: state.aggregate.initial_reviews,
+    correction_waves: state.aggregate.correction_waves,
+    correction_rechecks: state.aggregate.correction_rechecks,
+    status: state.status === 'CIRCUIT_BREAKER' ? 'exhausted' : 'active'
+  }];
+  return state;
+}
+
+function currentReviewCycle(state) {
+  return state.review_cycles.find(({ number }) => number === state.current_cycle);
 }
 
 export function createReviewLifecycle({ runId, seamId, candidateDigest }) {
@@ -66,46 +93,151 @@ export function createReviewLifecycle({ runId, seamId, candidateDigest }) {
     reviewer_id: null,
     limits: {
       correction_rechecks: convergenceLimits.correction_rechecks,
+      review_cycles: 2,
+      strategy_restarts: 1,
       final_integration_reviews: convergenceLimits.final_integration_reviews,
       final_correction_waves: 1
     },
     aggregate: {
+      review_cycles: 1,
       initial_reviews: 0,
       correction_waves: 0,
       correction_rechecks: 0,
       final_integration_reviews: 0,
-      final_correction_waves: 0
+      final_correction_waves: 0,
+      strategy_restarts: 0
     },
+    current_cycle: 1,
+    review_cycles: [{
+      number: 1,
+      candidate_digest: requiredId(candidateDigest, 'candidateDigest'),
+      reviewer_id: null,
+      initial_reviews: 0,
+      correction_waves: 0,
+      correction_rechecks: 0,
+      status: 'active'
+    }],
+    strategy_revisions: [],
     approved_review: null,
     history: []
   };
 }
 
 export function applyReviewLifecycleEvent(input, event) {
-  const state = structuredClone(input);
+  const state = ensureLifecycleShape(structuredClone(input));
   if (!event || typeof event.type !== 'string') throw new Error('review lifecycle event type is required');
 
+  if (['BLOCKED', 'REVIEW_LIFECYCLE_COMPLETE'].includes(state.status)) return state;
+
+  if (event.type === 'ENTER_STRATEGY_ESCALATION') {
+    if (
+      state.status !== 'CIRCUIT_BREAKER'
+      || state.current_cycle !== 1
+      || state.circuit_breaker_reason !== 'load_bearing_findings_after_recheck'
+    ) {
+      throw new Error('strategy escalation requires the exhausted first review cycle');
+    }
+    state.status = 'STRATEGY_ESCALATION_REQUIRES_OWNER';
+    return record(state, event);
+  }
+
+  if (event.type === 'STRATEGY_REVISION_ACCEPTED') {
+    if (state.status !== 'STRATEGY_ESCALATION_REQUIRES_OWNER') {
+      throw new Error('strategy revision requires owner strategy escalation after an exhausted review cycle');
+    }
+    if (
+      state.aggregate.strategy_restarts >= state.limits.strategy_restarts
+      || state.aggregate.review_cycles >= state.limits.review_cycles
+    ) {
+      state.status = 'BLOCKED';
+      return record(state, event);
+    }
+    const originatingCycle = currentReviewCycle(state);
+    if (
+      originatingCycle.status !== 'exhausted'
+      || state.circuit_breaker_reason !== 'load_bearing_findings_after_recheck'
+    ) {
+      throw new Error('strategy revision requires a failed correction recheck in the exhausted cycle');
+    }
+    const previousCandidateDigest = requiredId(
+      event.previousCandidateDigest,
+      'previousCandidateDigest'
+    );
+    const replacementCandidateDigest = requiredId(event.candidateDigest, 'candidateDigest');
+    if (previousCandidateDigest !== state.candidate.digest) {
+      throw new Error('previous candidate identity does not match the exhausted review cycle');
+    }
+    if (replacementCandidateDigest === previousCandidateDigest) {
+      throw new Error('replacement candidate identity must differ from the previous candidate');
+    }
+    if (event.materialChange !== true) {
+      throw new Error('strategy revision must record a material strategy/design change');
+    }
+    if (event.focusedProofStatus !== 'passed') {
+      throw new Error('strategy revision requires passed focused deterministic proof');
+    }
+    const strategyReason = requiredId(event.strategyReason, 'strategyReason');
+    state.strategy_revisions.push({
+      number: state.aggregate.strategy_restarts + 1,
+      originating_cycle: originatingCycle.number,
+      run_id: state.run_id,
+      seam_id: state.seam_id,
+      previous_candidate_digest: previousCandidateDigest,
+      replacement_candidate_digest: replacementCandidateDigest,
+      strategy_reason: strategyReason,
+      material_change: true,
+      focused_proof_status: 'passed'
+    });
+    state.aggregate.strategy_restarts += 1;
+    state.aggregate.review_cycles += 1;
+    state.current_cycle += 1;
+    state.candidate = {
+      revision: state.candidate.revision + 1,
+      digest: replacementCandidateDigest
+    };
+    state.reviewer_id = null;
+    delete state.circuit_breaker_reason;
+    state.review_cycles.push({
+      number: state.current_cycle,
+      candidate_digest: replacementCandidateDigest,
+      reviewer_id: null,
+      initial_reviews: 0,
+      correction_waves: 0,
+      correction_rechecks: 0,
+      status: 'active'
+    });
+    state.status = 'NEW_STRATEGY_REVIEW_REQUIRED';
+    return record(state, event);
+  }
+
   if (event.type === 'DESIGN_REVISION') {
+    const cycle = currentReviewCycle(state);
+    if (cycle.initial_reviews > 0) {
+      throw new Error(
+        'candidate digest change cannot bypass an exhausted review cycle; use explicit strategy admission'
+      );
+    }
     state.candidate = {
       revision: state.candidate.revision + 1,
       digest: requiredId(event.candidateDigest, 'candidateDigest')
     };
-    if (state.aggregate.initial_reviews > 0) {
-      state.status = 'STRATEGY_ESCALATION_REQUIRES_OWNER';
-    }
+    cycle.candidate_digest = state.candidate.digest;
     return record(state, event);
   }
 
   if (TERMINAL.has(state.status)) return state;
 
   if (event.type === 'INITIAL_REVIEW') {
-    if (state.status !== 'INITIAL_REVIEW_REQUIRED') {
+    if (!['INITIAL_REVIEW_REQUIRED', 'NEW_STRATEGY_REVIEW_REQUIRED'].includes(state.status)) {
       throw new Error(`initial review is not allowed from ${state.status}`);
     }
     if (!['approved', 'needs_correction'].includes(event.verdict)) {
       throw new Error('initial review verdict must be approved or needs_correction');
     }
+    const cycle = currentReviewCycle(state);
     state.reviewer_id = requiredId(event.reviewerId, 'reviewerId');
+    cycle.reviewer_id = state.reviewer_id;
+    cycle.initial_reviews += 1;
     state.aggregate.initial_reviews += 1;
     state.status = event.verdict === 'approved'
       ? 'FINAL_INTEGRATION_REVIEW_REQUIRED'
@@ -117,33 +249,49 @@ export function applyReviewLifecycleEvent(input, event) {
     if (state.status !== 'OWNER_CORRECTION_REQUIRED') {
       throw new Error(`owner correction is not allowed from ${state.status}`);
     }
-    if (state.aggregate.correction_waves >= 1) {
+    const cycle = currentReviewCycle(state);
+    if (cycle.correction_waves >= 1) {
       state.status = 'CIRCUIT_BREAKER';
+      state.circuit_breaker_reason = 'correction_wave_limit_exceeded';
       return record(state, event);
     }
+    cycle.correction_waves += 1;
     state.aggregate.correction_waves += 1;
     state.status = 'CORRECTION_RECHECK_REQUIRED';
     return record(state, event);
   }
 
   if (event.type === 'CORRECTION_RECHECK') {
-    if (state.aggregate.correction_rechecks >= state.limits.correction_rechecks) {
+    const cycle = currentReviewCycle(state);
+    if (cycle.correction_rechecks >= state.limits.correction_rechecks) {
       state.status = 'CIRCUIT_BREAKER';
+      state.circuit_breaker_reason = 'correction_recheck_limit_exceeded';
       return record(state, event);
     }
     if (state.status !== 'CORRECTION_RECHECK_REQUIRED') {
       throw new Error(`correction recheck is not allowed from ${state.status}`);
     }
-    if (event.reviewerId !== state.reviewer_id) {
-      throw new Error(`correction recheck must use the same reviewer ${state.reviewer_id}`);
+    if (event.reviewerId !== cycle.reviewer_id) {
+      throw new Error(`correction recheck must use the same reviewer ${cycle.reviewer_id}`);
     }
     if (!['approved', 'load_bearing_findings'].includes(event.verdict)) {
       throw new Error('correction recheck verdict must be approved or load_bearing_findings');
     }
+    cycle.correction_rechecks += 1;
     state.aggregate.correction_rechecks += 1;
-    state.status = event.verdict === 'approved'
-      ? 'FINAL_INTEGRATION_REVIEW_REQUIRED'
-      : 'CIRCUIT_BREAKER';
+    if (event.verdict === 'approved') {
+      cycle.status = 'approved';
+      state.status = 'FINAL_INTEGRATION_REVIEW_REQUIRED';
+    } else {
+      cycle.status = 'exhausted';
+      if (state.current_cycle >= state.limits.review_cycles) {
+        state.status = 'BLOCKED';
+        state.circuit_breaker_reason = 'second_review_cycle_exhausted';
+      } else {
+        state.status = 'CIRCUIT_BREAKER';
+        state.circuit_breaker_reason = 'load_bearing_findings_after_recheck';
+      }
+    }
     return record(state, event);
   }
 

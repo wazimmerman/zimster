@@ -13,6 +13,28 @@ function lifecycle() {
   });
 }
 
+function exhaustCorrectionCycle(state, reviewerId) {
+  state = applyReviewLifecycleEvent(state, {
+    type: 'INITIAL_REVIEW', reviewerId, verdict: 'needs_correction'
+  });
+  state = applyReviewLifecycleEvent(state, { type: 'OWNER_CORRECTION' });
+  return applyReviewLifecycleEvent(state, {
+    type: 'CORRECTION_RECHECK', reviewerId, verdict: 'load_bearing_findings'
+  });
+}
+
+function admitReplacementStrategy(state) {
+  state = applyReviewLifecycleEvent(state, { type: 'ENTER_STRATEGY_ESCALATION' });
+  return applyReviewLifecycleEvent(state, {
+    type: 'STRATEGY_REVISION_ACCEPTED',
+    previousCandidateDigest: 'candidate-a',
+    candidateDigest: 'candidate-b',
+    strategyReason: 'Replace the invalid shared-state design with an isolated state machine.',
+    materialChange: true,
+    focusedProofStatus: 'passed'
+  });
+}
+
 test('one correction recheck with remaining load-bearing findings trips the circuit breaker', () => {
   let state = lifecycle();
   state = applyReviewLifecycleEvent(state, {
@@ -26,11 +48,13 @@ test('one correction recheck with remaining load-bearing findings trips the circ
   });
   assert.equal(state.status, 'CIRCUIT_BREAKER');
   assert.deepEqual(state.aggregate, {
+    review_cycles: 1,
     initial_reviews: 1,
     correction_waves: 1,
     correction_rechecks: 1,
     final_integration_reviews: 0,
-    final_correction_waves: 0
+    final_correction_waves: 0,
+    strategy_restarts: 0
   });
   const stopped = applyReviewLifecycleEvent(state, {
     type: 'CORRECTION_RECHECK', reviewerId: 'reviewer-1', verdict: 'approved'
@@ -50,28 +74,106 @@ test('correction recheck is bound to the initial reviewer', () => {
   }), /same reviewer|reviewer-1/i);
 });
 
-test('design revision changes the candidate without replenishing aggregate review history', () => {
-  let state = lifecycle();
+test('one material strategy revision opens cycle 2 without resetting seam history', () => {
+  let state = exhaustCorrectionCycle(lifecycle(), 'reviewer-1');
+  assert.equal(state.status, 'CIRCUIT_BREAKER');
+  const exhausted = structuredClone(state.aggregate);
+
+  const ordinaryRetry = applyReviewLifecycleEvent(state, {
+    type: 'INITIAL_REVIEW', reviewerId: 'reviewer-2', verdict: 'approved',
+    scope: 'renamed', attemptId: 'new-attempt', strategyChange: 'try again'
+  });
+  assert.equal(ordinaryRetry.status, 'CIRCUIT_BREAKER');
+  assert.deepEqual(ordinaryRetry.aggregate, exhausted);
+  assert.throws(() => applyReviewLifecycleEvent(state, {
+    type: 'DESIGN_REVISION', candidateDigest: 'candidate-b',
+    reviewerId: 'reviewer-2', scope: 'fresh-scope', attemptId: 'fresh-attempt'
+  }), /cannot bypass|exhausted review cycle/i);
+
+  state = applyReviewLifecycleEvent(state, { type: 'ENTER_STRATEGY_ESCALATION' });
+  assert.equal(state.status, 'STRATEGY_ESCALATION_REQUIRES_OWNER');
+  for (const event of [
+    {
+      type: 'STRATEGY_REVISION_ACCEPTED', previousCandidateDigest: 'candidate-a',
+      candidateDigest: 'candidate-a', strategyReason: 'renamed only',
+      materialChange: true, focusedProofStatus: 'passed'
+    },
+    {
+      type: 'STRATEGY_REVISION_ACCEPTED', previousCandidateDigest: 'candidate-a',
+      candidateDigest: 'candidate-b', strategyReason: 'ordinary correction',
+      materialChange: false, focusedProofStatus: 'passed'
+    },
+    {
+      type: 'STRATEGY_REVISION_ACCEPTED', previousCandidateDigest: 'candidate-a',
+      candidateDigest: 'candidate-b', strategyReason: 'unproved replacement',
+      materialChange: true, focusedProofStatus: 'failed'
+    }
+  ]) assert.throws(() => applyReviewLifecycleEvent(state, event), /replacement|material|proof/i);
+
   state = applyReviewLifecycleEvent(state, {
-    type: 'INITIAL_REVIEW', reviewerId: 'reviewer-1', verdict: 'needs_correction'
+    type: 'STRATEGY_REVISION_ACCEPTED',
+    previousCandidateDigest: 'candidate-a',
+    candidateDigest: 'candidate-b',
+    strategyReason: 'Replace the invalid shared-state design with an isolated state machine.',
+    materialChange: true,
+    focusedProofStatus: 'passed'
+  });
+  assert.equal(state.status, 'NEW_STRATEGY_REVIEW_REQUIRED');
+  assert.equal(state.run_id, 'run-1');
+  assert.equal(state.seam_id, 'release-seam');
+  assert.equal(state.current_cycle, 2);
+  assert.equal(state.aggregate.review_cycles, 2);
+  assert.equal(state.aggregate.strategy_restarts, 1);
+  assert.equal(state.aggregate.initial_reviews, 1);
+  assert.equal(state.aggregate.correction_rechecks, 1);
+  assert.equal(state.review_cycles[0].reviewer_id, 'reviewer-1');
+  assert.equal(state.strategy_revisions[0].originating_cycle, 1);
+
+  state = applyReviewLifecycleEvent(state, {
+    type: 'INITIAL_REVIEW', reviewerId: 'reviewer-2', verdict: 'needs_correction'
   });
   state = applyReviewLifecycleEvent(state, { type: 'OWNER_CORRECTION' });
+  assert.throws(() => applyReviewLifecycleEvent(state, {
+    type: 'CORRECTION_RECHECK', reviewerId: 'reviewer-1', verdict: 'approved'
+  }), /same reviewer|reviewer-2/i);
   state = applyReviewLifecycleEvent(state, {
-    type: 'CORRECTION_RECHECK', reviewerId: 'reviewer-1', verdict: 'load_bearing_findings'
+    type: 'CORRECTION_RECHECK', reviewerId: 'reviewer-2', verdict: 'approved'
   });
-  const aggregate = structuredClone(state.aggregate);
-  state = applyReviewLifecycleEvent(state, {
-    type: 'DESIGN_REVISION', candidateDigest: 'candidate-b'
+  assert.equal(state.status, 'FINAL_INTEGRATION_REVIEW_REQUIRED');
+  assert.equal(state.aggregate.initial_reviews, 2);
+  assert.equal(state.aggregate.correction_waves, 2);
+  assert.equal(state.aggregate.correction_rechecks, 2);
+  assert.equal(state.aggregate.strategy_restarts, 1);
+});
+
+test('cycle 2 failure is terminal and cannot be relabeled into cycle 3', () => {
+  let state = admitReplacementStrategy(exhaustCorrectionCycle(lifecycle(), 'reviewer-1'));
+  state = exhaustCorrectionCycle(state, 'reviewer-2');
+  assert.equal(state.status, 'BLOCKED');
+  assert.deepEqual(state.aggregate, {
+    review_cycles: 2,
+    initial_reviews: 2,
+    correction_waves: 2,
+    correction_rechecks: 2,
+    final_integration_reviews: 0,
+    final_correction_waves: 0,
+    strategy_restarts: 1
   });
-  assert.equal(state.candidate.revision, 1);
-  assert.equal(state.candidate.digest, 'candidate-b');
-  assert.equal(state.status, 'STRATEGY_ESCALATION_REQUIRES_OWNER');
-  assert.deepEqual(state.aggregate, aggregate);
-  const stopped = applyReviewLifecycleEvent(state, {
-    type: 'INITIAL_REVIEW', reviewerId: 'reviewer-2', verdict: 'approved'
-  });
-  assert.equal(stopped.status, 'STRATEGY_ESCALATION_REQUIRES_OWNER');
-  assert.deepEqual(stopped.aggregate, aggregate);
+  for (const event of [
+    { type: 'ENTER_STRATEGY_ESCALATION' },
+    {
+      type: 'STRATEGY_REVISION_ACCEPTED', previousCandidateDigest: 'candidate-b',
+      candidateDigest: 'candidate-c', strategyReason: 'third strategy',
+      materialChange: true, focusedProofStatus: 'passed'
+    },
+    { type: 'INITIAL_REVIEW', reviewerId: 'reviewer-3', verdict: 'approved' },
+    { type: 'DESIGN_REVISION', candidateDigest: 'candidate-c', scope: 'new-scope' }
+  ]) {
+    const stopped = applyReviewLifecycleEvent(state, event);
+    assert.equal(stopped.status, 'BLOCKED');
+    assert.equal(stopped.aggregate.review_cycles, 2);
+    assert.equal(stopped.aggregate.strategy_restarts, 1);
+  }
 });
 
 test('final exact-head integration review is separately reserved', () => {
