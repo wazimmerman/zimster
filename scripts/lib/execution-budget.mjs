@@ -13,9 +13,14 @@ const evidenceScript = path.resolve(
   'evidence.mjs'
 );
 
-const convergenceDefaults = JSON.parse(readFileSync(path.resolve(
+const convergenceConfig = JSON.parse(readFileSync(path.resolve(
   path.dirname(fileURLToPath(import.meta.url)), '..', '..', 'config', 'convergence.json'
-), 'utf8')).autonomous_convergence.limits;
+), 'utf8')).autonomous_convergence;
+const convergenceDefaults = convergenceConfig.limits;
+
+export const HARD_EXECUTION_METRICS = Object.freeze([
+  ...(convergenceConfig.hard_limits || [])
+]);
 
 export const DEFAULT_EXECUTION_LIMITS = Object.freeze({
   ...convergenceDefaults,
@@ -34,7 +39,11 @@ export function normalizeBudgetProfile(value) {
   return profile === 'standard' ? 'standard' : 'high-risk';
 }
 
-export function createBudgetState(profile, { tokenThreshold = null, limits = {} } = {}) {
+export function createBudgetState(profile, {
+  tokenThreshold = null,
+  limits = {},
+  hardLimits = HARD_EXECUTION_METRICS
+} = {}) {
   if (tokenThreshold !== null && (!Number.isInteger(tokenThreshold) || tokenThreshold <= 0)) {
     throw new Error('--token-threshold must be a positive integer');
   }
@@ -45,6 +54,7 @@ export function createBudgetState(profile, { tokenThreshold = null, limits = {} 
   const state = {
     schema_version: 1,
     profile: normalizeBudgetProfile(profile),
+    hard_limits: [...new Set(hardLimits)],
     limits: effectiveLimits,
     usage: Object.fromEntries(
       Object.keys(effectiveLimits).map((metric) => [metric, 0])
@@ -289,6 +299,22 @@ export function applyExecutionBudgetEvent(state, {
     : state.usage[metric] || 0;
   const proposed = current + amount;
   const limit = state.limits[metric];
+  const hardLimits = new Set(state.hard_limits || HARD_EXECUTION_METRICS);
+  if (proposed > limit && hardLimits.has(metric)) {
+    return {
+      changed: false,
+      status: 'HARD_BUDGET_EXHAUSTED',
+      detail: {
+        metric,
+        scope,
+        current,
+        proposed,
+        limit,
+        terminal: true,
+        escalation: 'STRATEGY_ESCALATION_REQUIRES_OWNER'
+      }
+    };
+  }
   if (proposed > limit && !invalidation && !strategyChange) {
     return {
       changed: false,

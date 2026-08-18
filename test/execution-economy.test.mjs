@@ -61,7 +61,7 @@ function checkpointInput(overrides = {}) {
   };
 }
 
-test('execution budget refuses an over-limit event without an invalidation or strategy change', async () => {
+test('execution budget refuses a hard over-limit event without mutating usage', async () => {
   const repo = await tempRepo();
   try {
     const budget = path.join(root, 'scripts/run-budget.mjs');
@@ -74,7 +74,7 @@ test('execution budget refuses an over-limit event without an invalidation or st
     assert.equal(result.status, 2, result.stderr || result.stdout);
     assert.match(
       result.stdout,
-      /BUDGET_CONSTRAINED/,
+      /HARD_BUDGET_EXHAUSTED/,
       JSON.stringify({ status: result.status, stdout: result.stdout, stderr: result.stderr })
     );
 
@@ -110,7 +110,7 @@ test('execution budget warns at a limit without discarding required evidence', a
   }
 });
 
-test('execution budget accepts an over-limit strategy change only with a required proof', async () => {
+test('hard complete-suite limit cannot be overridden by strategy or proof metadata', async () => {
   const repo = await tempRepo();
   try {
     const budget = path.join(root, 'scripts/run-budget.mjs');
@@ -122,7 +122,7 @@ test('execution budget accepts an over-limit strategy change only with a require
       '--strategy-change', 'split final gate after reviewer invalidation'
     ], repo);
     assert.equal(result.status, 2, result.stderr || result.stdout);
-    assert.match(result.stdout, /BUDGET_PROOF_REQUIRED/);
+    assert.match(result.stdout, /HARD_BUDGET_EXHAUSTED/);
 
     result = run(process.execPath, [
       budget, 'record', '--metric', 'complete_suite_executions', '--amount', '4',
@@ -131,72 +131,13 @@ test('execution budget accepts an over-limit strategy change only with a require
       '--required-proof-type', 'verification',
       '--required-proof-profile', 'release'
     ], repo);
-    assert.equal(result.status, 0, result.stderr || result.stdout);
-    assert.equal(JSON.parse(result.stdout).status, 'BUDGET_OVERRIDE');
+    assert.equal(result.status, 2, result.stderr || result.stdout);
+    assert.equal(JSON.parse(result.stdout).status, 'HARD_BUDGET_EXHAUSTED');
 
     const state = JSON.parse(await readFile(runtimePath(repo, 'budget.json'), 'utf8'));
-    assert.equal(state.usage.complete_suite_executions, 4);
-    assert.equal(state.overrides.length, 1);
-    assert.equal(state.overrides[0].strategy_change, 'split final gate after reviewer invalidation');
-    assert.deepEqual(state.proof_obligations, [{
-      proof: 'release:verify receipt',
-      status: 'required',
-      metric: 'complete_suite_executions',
-      receipt_type: 'verification',
-      profile: 'release'
-    }]);
-
-    const receiptDirectory = runtimePath(repo, 'verification/receipts');
-    await mkdir(receiptDirectory, { recursive: true });
-    await writeFile(path.join(receiptDirectory, 'proof-receipt.json'), `${JSON.stringify({
-      id: 'proof-receipt',
-      status: 'passed',
-      profile: 'goal',
-      git_commit: run('git', ['rev-parse', 'HEAD'], repo).stdout.trim(),
-      git_tree: run('git', ['rev-parse', 'HEAD^{tree}'], repo).stdout.trim(),
-      dirty_tree_fingerprint: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-      environment: {
-        platform: os.platform(),
-        release: os.release(),
-        arch: os.arch(),
-        node: process.version
-      }
-    })}\n`);
-    result = run(process.execPath, [
-      budget, 'prove', '--proof', 'release:verify receipt', '--receipt', 'proof-receipt'
-    ], repo);
-    assert.notEqual(result.status, 0, result.stderr || result.stdout);
-    assert.match(result.stderr, /profile|relationship|release/i);
-    const planFile = runtimePath(repo, 'proof-plan.json');
-    await writeFile(planFile, `${JSON.stringify({
-      schema_version: 1,
-      profile: 'release',
-      steps: [{
-        id: 'proof',
-        command: process.execPath,
-        args: ['-e', 'process.exit(0);']
-      }]
-    })}\n`);
-    result = run(process.execPath, [
-      path.join(root, 'scripts/verify.mjs'), 'run', '--plan', planFile
-    ], repo);
-    assert.equal(result.status, 0, result.stderr || result.stdout);
-    const releaseReceipt = JSON.parse(result.stdout);
-    await writeFile(path.join(repo, 'tracked.txt'), 'dirty after proof\n');
-    result = run(process.execPath, [
-      budget, 'prove', '--proof', 'release:verify receipt', '--receipt', releaseReceipt.id
-    ], repo);
-    assert.notEqual(result.status, 0, result.stderr || result.stdout);
-    assert.match(result.stderr, /dirty|tree|fresh|current/i);
-    await writeFile(path.join(repo, 'tracked.txt'), 'base\n');
-    result = run(process.execPath, [
-      budget, 'prove', '--proof', 'release:verify receipt', '--receipt', releaseReceipt.id
-    ], repo);
-    assert.equal(result.status, 0, result.stderr || result.stdout);
-    assert.equal(JSON.parse(result.stdout).status, 'BUDGET_PROOF_SATISFIED');
-    const proven = JSON.parse(await readFile(runtimePath(repo, 'budget.json'), 'utf8'));
-    assert.equal(proven.proof_obligations[0].status, 'satisfied');
-    assert.equal(proven.proof_obligations[0].receipt_id, releaseReceipt.id);
+    assert.equal(state.usage.complete_suite_executions, 0);
+    assert.equal(state.overrides.length, 0);
+    assert.deepEqual(state.proof_obligations, []);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }
@@ -209,7 +150,7 @@ test('budget proof satisfaction rejects an explicitly invalidated evidence recei
     let result = run(process.execPath, [budget, 'init', '--profile', 'standard'], repo);
     assert.equal(result.status, 0, result.stderr || result.stdout);
     result = run(process.execPath, [
-      budget, 'record', '--metric', 'complete_suite_executions', '--amount', '4',
+      budget, 'record', '--metric', 'exact_duplicate_commands', '--amount', '3',
       '--strategy-change', 'review correction',
       '--required-proof', 'affected correction tests',
       '--required-proof-type', 'evidence',
@@ -327,6 +268,42 @@ test('phase checkpoint produces a bounded resumption payload from required compa
     assert.deepEqual(resumed.budget_position, input.budget_position);
     assert.equal(Object.hasOwn(resumed, 'logs'), false);
     assert.equal(Object.hasOwn(resumed, 'objective'), false);
+  } finally {
+    await rm(repo, { recursive: true, force: true });
+  }
+});
+
+test('phase checkpoint updates canonical dirty-work recovery and the run.md projection', async () => {
+  const repo = await tempRepo();
+  try {
+    let result = run(process.execPath, [
+      path.join(root, 'scripts/init-run.mjs'), '--profile', 'standard'
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    await writeFile(path.join(repo, 'tracked.txt'), 'dirty work\n');
+    const inputFile = runtimePath(repo, 'checkpoint-input.json');
+    await writeFile(inputFile, `${JSON.stringify(checkpointInput({
+      evidence_receipts: [],
+      current_slice: { id: 'durable-recovery', summary: 'Persist in-progress work' },
+      next_slice: { id: 'focused-test', summary: 'Run the focused recovery test' },
+      latest_failure: 'prior focused test failed',
+      latest_test: 'node --test test/run-recovery-072.test.mjs',
+      next_command: 'node --test test/run-recovery-072.test.mjs'
+    }))}\n`);
+
+    result = run(process.execPath, [
+      path.join(root, 'scripts/phase-checkpoint.mjs'), 'create', '--input', inputFile
+    ], repo);
+    assert.equal(result.status, 0, result.stderr || result.stdout);
+    const state = JSON.parse(await readFile(runtimePath(repo, 'run.json'), 'utf8'));
+    assert.equal(state.current_slice.id, 'durable-recovery');
+    assert.equal(state.next_slice.id, 'focused-test');
+    assert.deepEqual(state.recovery.touched_files, ['tracked.txt']);
+    assert.equal(state.recovery.next_command, 'node --test test/run-recovery-072.test.mjs');
+    const projection = await readFile(runtimePath(repo, 'run.md'), 'utf8');
+    assert.match(projection, /Canonical source: run\.json/);
+    assert.match(projection, /durable-recovery: Persist in-progress work/);
+    assert.match(projection, /`node --test test\/run-recovery-072\.test\.mjs`/);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

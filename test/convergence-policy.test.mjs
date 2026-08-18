@@ -28,7 +28,10 @@ test('CONV-001: canonical convergence budgets validate and legacy metric aliases
     schema_version: 1,
     autonomous_convergence: { enabled: true, limits }
   });
-  const state = createBudgetState('high-risk', { limits: config.autonomous_convergence.limits });
+  const state = createBudgetState('high-risk', {
+    limits: config.autonomous_convergence.limits,
+    hardLimits: config.autonomous_convergence.hard_limits
+  });
   assert.equal(state.limits.correction_commits, 2);
   assert.equal(state.limits.context_renewals, 2);
   let result = applyExecutionBudgetEvent(state, { metric: 'final_correction_waves' });

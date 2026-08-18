@@ -242,7 +242,7 @@ test('verification runner accounts for a declared complete suite before executio
   }
 });
 
-test('verification runner carries a proof-backed strategy when a required suite crosses budget', async () => {
+test('verification runner stops before a suite when its hard execution ceiling is exhausted', async () => {
   const repo = await tempRepo();
   try {
     const budget = path.join(root, 'scripts/run-budget.mjs');
@@ -272,15 +272,17 @@ test('verification runner carries a proof-backed strategy when a required suite 
       '--required-proof-type', 'verification',
       '--required-proof-profile', 'budgeted-release'
     ], repo);
-    assert.equal(result.status, 0, result.stderr || result.stdout);
+    assert.notEqual(result.status, 0, result.stderr || result.stdout);
     const summary = JSON.parse(result.stdout);
-    assert.equal(summary.budget.status, 'BUDGET_OVERRIDE');
+    assert.equal(summary.budget.status, 'HARD_BUDGET_EXHAUSTED');
+    assert.equal(summary.failed_step, 'execution-budget');
+    assert.equal(summary.steps[0].status, 'not_run');
     const state = JSON.parse(await readFile(
       path.join(path.dirname(verificationRuntime(repo)), 'budget.json'),
       'utf8'
     ));
-    assert.equal(state.usage.complete_suite_executions, 4);
-    assert.equal(state.proof_obligations.at(-1).proof, 'refreshed release receipt');
+    assert.equal(state.usage.complete_suite_executions, 3);
+    assert.deepEqual(state.proof_obligations, []);
   } finally {
     await rm(repo, { recursive: true, force: true });
   }

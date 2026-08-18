@@ -66,6 +66,7 @@ const requiredFiles = [
   'scripts/lib/tar-reader.mjs',
   'scripts/lib/runtime.mjs',
   'scripts/lib/run-state.mjs',
+  'scripts/lib/review-lifecycle.mjs',
   'scripts/lib/semantic-assurance.mjs',
   'scripts/lib/evidence-validity.mjs',
   'scripts/lib/config-layers.mjs',

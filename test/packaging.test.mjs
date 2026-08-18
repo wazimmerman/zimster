@@ -88,6 +88,7 @@ test('packaging is deterministic and emits the five public channel artifacts', a
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/docs/Zimster-v0.1-Design-Blueprint.md')), false);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/zip-reader.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/run-state.mjs')), true);
+    assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/lib/review-lifecycle.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/config/host-smoke.json')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/codex-cachebuster.mjs')), true);
     assert.equal(codexArchive.includes(Buffer.from('plugins/zimster/scripts/sync-skills.mjs')), true);

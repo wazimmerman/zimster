@@ -39,6 +39,16 @@ export function validateConvergenceConfig(config) {
       throw new Error(`${metric} must be a non-negative integer`);
     }
   }
+  if (convergence.hard_limits !== undefined) {
+    if (!Array.isArray(convergence.hard_limits)) {
+      throw new Error('autonomous_convergence.hard_limits must be an array');
+    }
+    for (const metric of convergence.hard_limits) {
+      if (!CONVERGENCE_METRICS.includes(metric)) {
+        throw new Error(`unknown hard convergence limit: ${metric}`);
+      }
+    }
+  }
   return config;
 }
 

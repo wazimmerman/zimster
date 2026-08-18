@@ -222,7 +222,9 @@ async function runPlan(plan) {
       budget = { status: result.status, ...result.detail };
       if (!result.changed) {
         failedStep = 'execution-budget';
-        actionText = `${result.status}: complete-suite execution requires an invalidation or strategy change`;
+        actionText = result.status === 'HARD_BUDGET_EXHAUSTED'
+          ? `${result.status}: stop autonomous verification and require owner strategy escalation`
+          : `${result.status}: complete-suite execution requires an invalidation or strategy change`;
       }
     } catch (error) {
       if (error.code === 'ENOENT') budget = { status: 'unavailable' };

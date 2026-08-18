@@ -30,6 +30,7 @@ if (action === 'init') {
   const { budgetFile, state } = await initializeExecutionBudget(runtime, profile, {
     tokenThreshold,
     limits: convergence?.autonomous_convergence.limits,
+    hardLimits: convergence?.autonomous_convergence.hard_limits,
     overwrite: options.force === true
   });
   emit('BUDGET_INITIALIZED', { profile, limits: state.limits, path: budgetFile });
@@ -58,7 +59,12 @@ if (action === 'init') {
     candidateHead: options['candidate-head'] ? String(options['candidate-head']) : null
   });
   emit(result.status, result.detail);
-  if (['BUDGET_CONSTRAINED', 'BUDGET_PROOF_REQUIRED', 'FINAL_REVIEW_RESERVED'].includes(result.status)) {
+  if ([
+    'BUDGET_CONSTRAINED',
+    'BUDGET_PROOF_REQUIRED',
+    'FINAL_REVIEW_RESERVED',
+    'HARD_BUDGET_EXHAUSTED'
+  ].includes(result.status)) {
     process.exitCode = 2;
   }
 } else if (action === 'prove') {

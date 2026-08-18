@@ -9,6 +9,13 @@
     "root_actor_id": { "type": "string", "minLength": 1 },
     "started_at": { "type": "string", "format": "date-time" },
     "starting_head": { "type": ["string", "null"] },
+    "profile": { "type": "string", "minLength": 1 },
+    "rationale": { "type": "string", "minLength": 1 },
+    "mission": { "type": ["string", "null"] },
+    "capability_receipt": { "type": ["object", "null"] },
+    "branch": { "type": ["string", "null"] },
+    "commit_policy": { "type": "string", "minLength": 1 },
+    "durable_state_triggers": { "type": "array", "items": { "type": "string", "minLength": 1 } },
     "plan": {
       "type": "object",
       "required": ["id", "source"],
@@ -19,7 +26,10 @@
     "slice_commits": { "type": "array" },
     "evidence": { "type": "array" },
     "verifications": { "type": "array" },
-    "unresolved_risks": { "type": "array" }
+    "unresolved_risks": { "type": "array" },
+    "current_slice": { "type": ["object", "null"] },
+    "next_slice": { "type": ["object", "null"] },
+    "recovery": { "type": ["object", "null"] }
   },
   "additionalProperties": false
 }

@@ -10,7 +10,14 @@
       "complete_suite_executions": 3,
       "exact_duplicate_commands": 2,
       "context_renewals": 2
-    }
+    },
+    "hard_limits": [
+      "correction_commits",
+      "correction_rechecks",
+      "final_integration_reviews",
+      "final_verification_attempts",
+      "complete_suite_executions"
+    ]
   },
   "legacy_aliases": {
     "final_correction_waves": "correction_commits",
