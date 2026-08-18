@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { json, read } from './helpers.mjs';
 
-test('REL-001: every public manifest identifies the 0.7.0 release candidate', async () => {
+test('REL-001: every public manifest identifies the 0.7.2 recovery candidate', async () => {
   const versions = [
     (await json('package.json')).version,
     (await json('package-lock.json')).version,
@@ -12,7 +12,7 @@ test('REL-001: every public manifest identifies the 0.7.0 release candidate', as
     (await json('.kimi-plugin/plugin.json')).version,
     (await json('.claude-plugin/marketplace.json')).plugins[0].version
   ];
-  assert.deepEqual([...new Set(versions)], ['0.7.0']);
+  assert.deepEqual([...new Set(versions)], ['0.7.2']);
 });
 
 test('BETA-002: consolidated beta documentation covers every installation lifecycle and migration contract', async () => {

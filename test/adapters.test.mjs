@@ -49,13 +49,9 @@ test('session bootstrap injects using-zimster, not the full library', async () =
 
 test('OpenCode adapter registers skills and injects the bootstrap once', async () => {
   const module = await import(`${pathToFileURL(path.join(root, '.opencode/plugins/zimster.js')).href}?test=${Date.now()}`);
-  assert.equal(typeof module.ZimsterPlugin, 'function');
-  assert.throws(
-    () => module.assertZimsterPackage(path.join(root, 'missing-opencode-package')),
-    /ZIMSTER_PACKAGE_INVALID.*using-zimster/
-  );
+  assert.deepEqual(Object.keys(module), ['default'], 'OpenCode invokes every exported function as a plugin');
 
-  const plugin = await module.ZimsterPlugin({});
+  const plugin = await module.default({});
   const config = {};
   await plugin.config(config);
   assert.equal(config.skills.paths.length, 1);

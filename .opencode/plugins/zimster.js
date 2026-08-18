@@ -26,14 +26,14 @@ function bootstrapContent() {
   return bootstrapCache;
 }
 
-export function assertZimsterPackage(root = packageRoot) {
+function assertZimsterPackage(root = packageRoot) {
   const expected = path.join(root, 'skills', 'using-zimster', 'SKILL.md');
   if (!fs.existsSync(expected)) {
     throw new Error(`ZIMSTER_PACKAGE_INVALID: missing required using-zimster skill at ${expected}`);
   }
 }
 
-export const ZimsterPlugin = async () => {
+const ZimsterPlugin = async () => {
   assertZimsterPackage();
   return {
     config: async (config) => {
@@ -52,3 +52,5 @@ export const ZimsterPlugin = async () => {
     }
   };
 };
+
+export default ZimsterPlugin;

@@ -1,10 +1,10 @@
 # Codex
 
-Verification level for Zimster 0.7.0: `INSTALLED_PACKAGE_VERIFIED` on Codex CLI
-0.146.1. Isolated marketplace registration and installation reported version
-0.7.0 and the expected installed path. The generated mirror and listing
-contracts pass deterministic validation. A fresh isolated model-backed prompt
-against the 0.7.0 archive has not yet been scored.
+The 0.7.2 PR matrix is the only current candidate claim. Qualify the exact
+Codex archive separately on the stable standalone CLI and the desktop-managed
+runtime. Installation and skill discovery can establish
+`INSTALLED_PACKAGE_VERIFIED`; they do not establish effective role/model
+identity, reviewer enforcement, or model-backed workflow quality.
 
 ## Install and inspect
 

@@ -1,9 +1,10 @@
 # Kimi Code
 
-Verification level for Zimster 0.7.0: `STRUCTURALLY_VALIDATED`; the Kimi CLI was
-`UNAVAILABLE` in the release environment. The native manifest uses documented
-fields, canonical skill paths, and exactly one `sessionStart.skill`. Managed
-installation, discovery, and model-backed execution are not claimed.
+The 0.7.2 PR matrix is the only current candidate claim. When the Kimi CLI is
+`UNAVAILABLE`, only the current official manifest contract, canonical skill
+paths, and single `sessionStart.skill` can be `STRUCTURALLY_VALIDATED`.
+Managed installation, discovery, descendant restrictions, and model-backed
+execution remain unavailable evidence.
 
 ## Install
 

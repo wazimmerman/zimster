@@ -1,9 +1,9 @@
 # Pi
 
-Verification level for Zimster 0.7.0: `INSTALLED_PACKAGE_VERIFIED` on Pi 0.84.1.
-An isolated local package install and `pi list` succeeded. Dependency-free
-tests verify the extension factory, declared skill resources, duplicate
-bootstrap guard, and delegation fallback. Model-backed discovery was not run.
+The 0.7.2 PR matrix is the only current candidate claim. An isolated install
+from the exact npm tarball plus `pi list`, declared resource inspection, and
+extension regressions can establish `INSTALLED_PACKAGE_VERIFIED`. Model-backed
+discovery and optional delegation remain separate capabilities.
 
 ## Install
 
@@ -44,9 +44,9 @@ source and inspect startup diagnostics before attributing behavior to Zimster.
 
 ## Verification status
 
-Exact npm-package installation is `INSTALLED_PACKAGE_VERIFIED` on Pi 0.84.1.
-Fresh model-backed discovery and the optional delegation transport remain
-unverified.
+Exact npm-package installation is `INSTALLED_PACKAGE_VERIFIED` only for the
+commit and tarball hash in the current matrix. Fresh model-backed discovery and
+the optional delegation transport remain unverified unless separately tested.
 
 ## Optional delegation
 
