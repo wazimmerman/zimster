@@ -65,6 +65,30 @@ test('release workflow preserves and verifies the signed annotated tag before pe
   assert.doesNotMatch(workflow, /refs\/tags\/\$RELEASE_TAG:[^\n]*\$RELEASE_COMMIT/);
 });
 
+test('release workflow recovers an existing signed tag without weakening push or evidence verification', async () => {
+  const workflow = await read('.github/workflows/release.yml');
+  assert.match(workflow, /workflow_dispatch:\s*\n\s+inputs:\s*\n\s+release_tag:\s*\n(?:\s+[^\n]+\n)*?\s+required:\s*true/);
+  assert.match(workflow, /RELEASE_TAG:\s*\$\{\{\s*github\.event_name == 'workflow_dispatch' && inputs\.release_tag \|\| github\.ref_name\s*\}\}/);
+
+  const verifyTag = workflow.indexOf('git verify-tag "$RELEASE_TAG"');
+  const peelTag = workflow.indexOf('git rev-parse "$RELEASE_TAG^{}"');
+  const pushGuard = workflow.indexOf('if test "$GITHUB_EVENT_NAME" = "push"; then');
+  const exactTarget = workflow.indexOf('test "$RELEASE_COMMIT" = "$GITHUB_SHA"');
+  const checkout = workflow.indexOf('git checkout --detach "$RELEASE_COMMIT"');
+  const extract = workflow.indexOf('release:evidence -- extract-tag');
+  const evidenceVerify = workflow.indexOf('release:evidence -- verify-tag');
+  assert.ok([
+    verifyTag, peelTag, pushGuard, exactTarget, checkout, extract, evidenceVerify
+  ].every((position) => position !== -1));
+  assert.ok(verifyTag < peelTag);
+  assert.ok(peelTag < pushGuard);
+  assert.ok(pushGuard < exactTarget);
+  assert.ok(exactTarget < checkout);
+  assert.ok(checkout < extract);
+  assert.ok(extract < evidenceVerify);
+  assert.equal(workflow.match(/test "\$RELEASE_COMMIT" = "\$GITHUB_SHA"/g)?.length, 1);
+});
+
 test('release workflow trusts embedded inputs only after signature verification and rebuilds before authorization', async () => {
   const workflow = await read('.github/workflows/release.yml');
   const verifySignature = workflow.indexOf('git verify-tag "$RELEASE_TAG"');
@@ -137,8 +161,9 @@ test('release workflow uses npm Trusted Publishing without a write-capable token
 
   const nodeVersion = workflow.match(/node-version:\s*['"]?([^\s'"]+)/)?.[1];
   const npmVersion = workflow.match(/npm install --global npm@([^\s]+)/)?.[1];
-  assert.equal(nodeVersion, '22.14.0');
+  assert.equal(nodeVersion, '22.18.0');
   assert.equal(npmVersion, '11.5.1');
+  assert.match(workflow, /test "\$\(node --version\)" = "v22\.18\.0"/);
 
   const authorization = workflow.indexOf('--github-output "$GITHUB_OUTPUT"');
   const publish = workflow.indexOf('npm publish "$ARTIFACT" --access public');

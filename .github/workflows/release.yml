@@ -3,6 +3,12 @@ name: Release
 on:
   push:
     tags: ['v*']
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: Existing signed release tag to recover
+        required: true
+        type: string
 
 permissions:
   contents: write
@@ -14,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     environment: release
     env:
-      RELEASE_TAG: ${{ github.ref_name }}
+      RELEASE_TAG: ${{ github.event_name == 'workflow_dispatch' && inputs.release_tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -32,7 +38,7 @@ jobs:
             --trusted-fingerprint "$RELEASE_SIGNER_FINGERPRINT" \
             --gnupg-home "$GNUPGHOME"
           echo "GNUPGHOME=$GNUPGHOME" >> "$GITHUB_ENV"
-      - name: Verify signed annotated tag and exact target
+      - name: Verify signed annotated tag and release target
         env:
           RELEASE_SIGNER_FINGERPRINT: ${{ vars.RELEASE_SIGNER_FINGERPRINT }}
         run: |
@@ -41,17 +47,19 @@ jobs:
           test "$(git cat-file -t "$RELEASE_TAG")" = tag
           git verify-tag "$RELEASE_TAG"
           RELEASE_COMMIT="$(git rev-parse "$RELEASE_TAG^{}")"
-          test "$RELEASE_COMMIT" = "$GITHUB_SHA"
+          if test "$GITHUB_EVENT_NAME" = "push"; then
+            test "$RELEASE_COMMIT" = "$GITHUB_SHA"
+          fi
           git checkout --detach "$RELEASE_COMMIT"
           test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
       - uses: actions/setup-node@v4
         with:
-          node-version: 22.14.0
+          node-version: 22.18.0
           cache: npm
       - name: Establish npm Trusted Publishing runtime
         run: |
           npm install --global npm@11.5.1
-          test "$(node --version)" = "v22.14.0"
+          test "$(node --version)" = "v22.18.0"
           test "$(npm --version)" = "11.5.1"
       - run: npm ci
       - run: npm run check
