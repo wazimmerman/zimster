@@ -55,12 +55,12 @@ jobs:
           test "$(git rev-parse HEAD)" = "$RELEASE_COMMIT"
       - uses: actions/setup-node@v4
         with:
-          node-version: 22.18.0
+          node-version: 26.7.0
           cache: npm
       - name: Establish npm Trusted Publishing runtime
         run: |
           npm install --global npm@11.5.1
-          test "$(node --version)" = "v22.18.0"
+          test "$(node --version)" = "v26.7.0"
           test "$(npm --version)" = "11.5.1"
       - run: npm ci
       - run: npm run check
