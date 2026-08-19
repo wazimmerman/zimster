@@ -69,8 +69,10 @@ test('release workflow recovers an existing signed tag without weakening push or
   const workflow = await read('.github/workflows/release.yml');
   assert.match(workflow, /workflow_dispatch:\s*\n\s+inputs:\s*\n\s+release_tag:\s*\n(?:\s+[^\n]+\n)*?\s+required:\s*true/);
   assert.match(workflow, /RELEASE_TAG:\s*\$\{\{\s*github\.event_name == 'workflow_dispatch' && inputs\.release_tag \|\| github\.ref_name\s*\}\}/);
-  assert.match(workflow, /DEFAULT_BRANCH:\s*\$\{\{\s*github\.event\.repository\.default_branch\s*\}\}/);
-  assert.match(workflow, /if test "\$GITHUB_EVENT_NAME" = "workflow_dispatch"; then\s*\n\s+test "\$GITHUB_REF" = "refs\/heads\/\$DEFAULT_BRANCH"\s*\n\s+fi/);
+  const jobGate = workflow.indexOf("if: ${{ github.event_name == 'push' || github.ref == format('refs/heads/{0}', github.event.repository.default_branch) }}");
+  const runner = workflow.indexOf('runs-on: ubuntu-latest');
+  assert.ok(jobGate !== -1 && jobGate < runner);
+  assert.doesNotMatch(workflow, /DEFAULT_BRANCH|GITHUB_EVENT_NAME" = "workflow_dispatch/);
   assert.match(workflow, /if test "\$GITHUB_EVENT_NAME" = "push"; then\s*\n\s+test "\$RELEASE_COMMIT" = "\$GITHUB_SHA"\s*\n\s+fi/);
 
   const verifyTag = workflow.indexOf('git verify-tag "$RELEASE_TAG"');
