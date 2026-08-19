@@ -166,9 +166,9 @@ test('release workflow uses npm Trusted Publishing without a write-capable token
 
   const nodeVersion = workflow.match(/node-version:\s*['"]?([^\s'"]+)/)?.[1];
   const npmVersion = workflow.match(/npm install --global npm@([^\s]+)/)?.[1];
-  assert.equal(nodeVersion, '22.18.0');
+  assert.equal(nodeVersion, '26.7.0');
   assert.equal(npmVersion, '11.5.1');
-  assert.match(workflow, /test "\$\(node --version\)" = "v22\.18\.0"/);
+  assert.match(workflow, /test "\$\(node --version\)" = "v26\.7\.0"/);
 
   const authorization = workflow.indexOf('--github-output "$GITHUB_OUTPUT"');
   const publish = workflow.indexOf('npm publish "$ARTIFACT" --access public');
